@@ -1,69 +1,194 @@
+import "./LoginPage.css";
+
+import {
+  FaTree,
+  FaEnvelope,
+  FaLock,
+  FaEye,
+  FaEyeSlash,
+} from "react-icons/fa";
+
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { login } from "../../services/authService";
+import { saveRole, saveToken } from "../../utils/storage";
+
 export default function LoginPage() {
+  const navigate = useNavigate();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async () => {
+    setError("");
+
+    if (!email.trim()) {
+      setError("Please enter your email.");
+      return;
+    }
+
+    if (!password.trim()) {
+      setError("Please enter your password.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await login({
+        email,
+        password,
+      });
+
+      saveToken(response.token);
+      saveRole(response.role);
+
+      console.log("Remember me:", rememberMe);
+
+      switch (response.role) {
+        case "Admin":
+          navigate("/dashboard");
+          break;
+
+        case "Manager":
+          navigate("/dashboard");
+          break;
+
+        case "Researcher":
+          navigate("/dashboard");
+          break;
+
+        case "Technician":
+          navigate("/dashboard");
+          break;
+
+        default:
+          navigate("/login");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Login failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="login-container">
-      <div className="login-left">
-        <div className="overlay">
+    <div className="login">
+      {/* LEFT SIDE */}
+      <div className="left">
+        <div className="overlay"></div>
+
+        <div className="content">
+          <div className="logo">
+            <FaTree />
+          </div>
+
           <h1>PRRAM System</h1>
 
           <p>
-            Optimizing our forests through data-driven planning.
-            Our mission is to balance ecological health with
-            sustainable industrial efficiency through advanced
-            spatial intelligence.
+            Optimizing our forests through intelligent planning and sustainable
+            resource allocation.
           </p>
 
-          <div className="stats">
+          <div className="cards">
             <div>
-              <h4>+24%</h4>
-              <span>Resource Utilization</span>
+              <span>EFFICIENCY</span>
+              <h2>+24%</h2>
+              <small>Resource utilization</small>
             </div>
 
             <div>
-              <h4>Impact</h4>
-              <span>Carbon Footprint Reduction</span>
+              <span>IMPACT</span>
+              <h2>Carbon</h2>
+              <small>Footprint reduction</small>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="login-right">
+      {/* RIGHT SIDE */}
+      <div className="right">
         <div className="login-card">
-          <h2>PRRAM System</h2>
+          <h2>Sign In</h2>
 
-          <h1>Sign In</h1>
+          <p>Enter your credentials to access the management portal.</p>
 
-          <p>
-            Enter your credentials to access the management portal.
-          </p>
+          {error && <p className="error">{error}</p>}
 
-          <form>
-            <label>Email Address</label>
+          <label>Email</label>
+
+          <div className="input">
+            <FaEnvelope />
 
             <input
               type="email"
               placeholder="name@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
+          </div>
 
-            <label>Password</label>
+          <label>Password</label>
+
+          <div className="input">
+            <FaLock />
 
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="********"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
 
-            <div className="login-options">
-              <label>
-                <input type="checkbox" />
-                Remember me
-              </label>
+            {showPassword ? (
+              <FaEyeSlash
+                className="eye-icon"
+                onClick={() => setShowPassword(false)}
+              />
+            ) : (
+              <FaEye
+                className="eye-icon"
+                onClick={() => setShowPassword(true)}
+              />
+            )}
+          </div>
 
-              <a href="#">Forgot password?</a>
-            </div>
+          <div className="option">
+            <label className="remember">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
 
-            <button type="submit">
-              Login →
-            </button>
-          </form>
+              Remember me
+            </label>
+
+            <a href="#">Forgot password?</a>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogin}
+            disabled={loading}
+          >
+            {loading ? "Signing In..." : "Login"}
+          </button>
+
+          <hr />
+
+          <div className="footer">
+            <span>System Status</span>
+            <span>Technical Support</span>
+          </div>
         </div>
       </div>
     </div>
