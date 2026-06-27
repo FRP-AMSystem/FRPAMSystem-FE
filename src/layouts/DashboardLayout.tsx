@@ -10,29 +10,13 @@ export default function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "var(--bg)",
-      }}
-    >
+    <div className="app-layout">
       <Sidebar />
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      <div className="main-content">
         <Topbar />
 
-        <main
-          style={{
-            padding: "24px",
-          }}
-        >
+        <main className="dashboard-content">
           {children}
         </main>
       </div>

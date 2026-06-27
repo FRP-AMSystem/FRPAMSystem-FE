@@ -31,11 +31,11 @@ export default function LineChartCard({ data }: LineChartCardProps) {
         </div>
       </div>
 
-      <div className="chart-wrapper" style={{ height: "240px", marginTop: "16px" }}>
+      <div className="chart-wrapper">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={data}
-            margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+            margin={{ top: 16, right: 16, left: 16, bottom: 16 }}
           >
             <defs>
               <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">

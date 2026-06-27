@@ -22,17 +22,7 @@ export default function BreakdownCard({ data }: BreakdownCardProps) {
       </div>
 
       {/* Donut chart area */}
-      <div
-        className="donut-container"
-        style={{
-          position: "relative",
-          height: "170px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginTop: "12px",
-        }}
-      >
+      <div className="donut-container">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie

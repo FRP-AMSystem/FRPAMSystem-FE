@@ -92,3 +92,30 @@ img {
   display: block;
   max-width: 100%;
 }
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  width: 100%;
+}
+
+.app-layout .sidebar {
+  flex-shrink: 0;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevents flex container overflow */
+  padding: 32px;
+  box-sizing: border-box;
+}
+
+.dashboard-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  box-sizing: border-box;
+}

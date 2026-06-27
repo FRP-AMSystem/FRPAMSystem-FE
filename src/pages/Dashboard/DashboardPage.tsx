@@ -24,7 +24,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Middle Visualization Panels */}
-        <div className="charts-grid" style={{ marginTop: "24px" }}>
+        <div className="charts-grid">
           {/* Monthly Allocation Trend Area Chart */}
           <LineChartCard data={allocationTrendData} />
 
@@ -33,7 +33,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Bottom Pending Requests Table Panel */}
-        <div className="table-row-container" style={{ marginTop: "24px" }}>
+        <div className="table-row-container">
           <RequestTable requests={pendingRequestsData} />
         </div>
 
