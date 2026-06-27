@@ -13,7 +13,7 @@ export default function DashboardLayout({
       style={{
         display: "flex",
         minHeight: "100vh",
-        background: "#F8FAFC",
+        background: "var(--bg)",
       }}
     >
       <Sidebar />

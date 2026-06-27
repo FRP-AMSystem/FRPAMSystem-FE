@@ -11,6 +11,12 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
+  --brand-primary: #1B5E20;
+  --brand-primary-hover: #2E7D32;
+  --brand-light: #E8F5E9;
+  --brand-accent: #4CAF50;
+  --card-bg: #FFFFFF;
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
@@ -43,6 +49,11 @@
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --brand-primary: #2E7D32;
+    --brand-primary-hover: #388E3C;
+    --brand-light: #1E2D24;
+    --brand-accent: #81C784;
+    --card-bg: #1F2028;
   }
 
   #social .button-icon {
