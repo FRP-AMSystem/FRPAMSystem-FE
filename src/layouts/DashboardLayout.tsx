@@ -1,8 +1,9 @@
 import Sidebar from "../components/layout/Sidebar";
 import Topbar from "../components/layout/Topbar";
+import type { ReactNode } from "react";
 
 interface DashboardLayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export default function DashboardLayout({
@@ -37,4 +38,4 @@ export default function DashboardLayout({
       </div>
     </div>
   );
-}
+}

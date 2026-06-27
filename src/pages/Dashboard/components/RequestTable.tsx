@@ -18,20 +18,20 @@ export default function RequestTable({ requests }: RequestTableProps) {
   // TODO: Add filter states for "future filtering" (e.g. filter by priority or status)
   // TODO: Add sort handlers for column clicks (e.g. sort by Request ID or Date)
 
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // TODO: Connect query to API search query params
-    console.log("Future Search Query:", event.target.value);
-  };
+  // const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   // TODO: Connect query to API search query params
+  //   console.log("Future Search Query:", event.target.value);
+  // };
 
   const handleSort = (columnKey: string) => {
     // TODO: Trigger API refetch with orderby clause (columnKey)
     console.log("Future Sort column:", columnKey);
   };
 
-  const handleFilter = (filterKey: string, filterValue: string) => {
-    // TODO: Apply filter parameters to API search string
-    console.log("Future Filter:", filterKey, filterValue);
-  };
+  // const handleFilter = (filterKey: string, filterValue: string) => {
+  //   // TODO: Apply filter parameters to API search string
+  //   console.log("Future Filter:", filterKey, filterValue);
+  // };
 
   const handlePageChange = (direction: "prev" | "next") => {
     // TODO: Fetch previous/next page index from API pagination response

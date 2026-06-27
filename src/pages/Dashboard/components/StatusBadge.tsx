@@ -5,7 +5,6 @@ interface StatusBadgeProps {
 
 export default function StatusBadge({ type, value }: StatusBadgeProps) {
   if (type === "priority") {
-    let classes = "badge-pill";
     let bg = "#F3F4F6";
     let color = "#4B5563";
 
