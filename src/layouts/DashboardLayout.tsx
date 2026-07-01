@@ -1,3 +1,5 @@
+import Sidebar from "../components/layout/Sidebar";
+import Topbar from "../components/layout/Topbar";
 import type { ReactNode } from "react";
 
 interface DashboardLayoutProps {
@@ -8,34 +10,16 @@ export default function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "#f5f7fa",
-      }}
-    >
-      {/* Sidebar */}
-      <aside
-        style={{
-          width: "250px",
-          background: "#1E293B",
-          color: "white",
-          padding: "20px",
-        }}
-      >
-        <h2>FRPAM</h2>
-      </aside>
+    <div className="app-layout">
+      <Sidebar />
 
-      {/* Main */}
-      <main
-        style={{
-          flex: 1,
-          padding: "30px",
-        }}
-      >
-        {children}
-      </main>
+      <div className="main-content">
+        <Topbar />
+
+        <main className="dashboard-content">
+          {children}
+        </main>
+      </div>
     </div>
   );
-}
+}
