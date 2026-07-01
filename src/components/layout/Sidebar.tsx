@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   FlaskConical,
@@ -15,30 +15,29 @@ import "./Sidebar.css";
 
 interface MenuItem {
   name: string;
+  path: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
 const menuItems: MenuItem[] = [
-  { name: "Dashboard", icon: LayoutDashboard },
-  { name: "Experiments", icon: FlaskConical },
-  { name: "Resources", icon: Trees },
-  { name: "Allocation Planner", icon: CalendarDays },
-  { name: "Conflict Detection", icon: AlertTriangle },
-  { name: "Schedules", icon: Calendar },
-  { name: "Equipment Tracking", icon: Truck },
-  { name: "Analytics", icon: BarChart3 },
-  { name: "Notifications", icon: Bell },
-  { name: "Settings", icon: Settings },
+  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+  { name: "Experiments", path: "/dashboard", icon: FlaskConical },
+  { name: "Resources", path: "/dashboard", icon: Trees },
+  { name: "Allocation Planner", path: "/allocation", icon: CalendarDays },
+  { name: "Conflict Detection", path: "/dashboard", icon: AlertTriangle },
+  { name: "Schedules", path: "/dashboard", icon: Calendar },
+  { name: "Equipment Tracking", path: "/dashboard", icon: Truck },
+  { name: "Analytics", path: "/dashboard", icon: BarChart3 },
+  { name: "Notifications", path: "/dashboard", icon: Bell },
+  { name: "Settings", path: "/dashboard", icon: Settings },
 ];
 
 export default function Sidebar() {
-  const [activeItem, setActiveItem] = useState("Dashboard");
-
-  // TODO: Replace active user profile with context or API data
   const currentUser = {
-    name: "Marcus Thorne",
-    role: "Regional Overseer",
-    avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    name: "Tran Thi Manager",
+    role: "Manager",
+    avatarUrl:
+      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
   };
 
   return (
@@ -48,7 +47,7 @@ export default function Sidebar() {
           <Trees size={22} strokeWidth={2.5} />
         </div>
         <div className="sidebar-brand-text">
-          <span className="sidebar-title-main">PRRAM System</span>
+          <span className="sidebar-title-main">FRPAM System</span>
           <span className="sidebar-title-sub">Forestry Planning</span>
         </div>
       </div>
@@ -56,15 +55,18 @@ export default function Sidebar() {
       <nav className="sidebar-nav">
         {menuItems.map((item) => {
           const Icon = item.icon;
+
           return (
-            <div
+            <NavLink
               key={item.name}
-              className={`sidebar-item ${activeItem === item.name ? "active" : ""}`}
-              onClick={() => setActiveItem(item.name)}
+              to={item.path}
+              className={({ isActive }) =>
+                `sidebar-item ${isActive ? "active" : ""}`
+              }
             >
               <Icon className="sidebar-item-icon" />
               <span>{item.name}</span>
-            </div>
+            </NavLink>
           );
         })}
       </nav>

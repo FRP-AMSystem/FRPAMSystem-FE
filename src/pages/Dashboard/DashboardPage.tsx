@@ -1,43 +1,63 @@
+import { useEffect, useState } from "react";
+
 import DashboardLayout from "../../layouts/DashboardLayout";
 import StatisticCard from "./components/StatisticCard";
 import LineChartCard from "./components/LineChartCard";
 import BreakdownCard from "./components/BreakdownCard";
 import RequestTable from "./components/RequestTable";
+
+import { getAllocationPlans } from "../../services/allocationPlanService";
+import type { AllocationPlan } from "../../types/allocationPlan";
+
 import {
   statsData,
   allocationTrendData,
   resourceBreakdownData,
-  pendingRequestsData,
 } from "./data/mockData";
+
 import "./DashboardPage.css";
 
 export default function DashboardPage() {
+  const [allocationPlans, setAllocationPlans] = useState<AllocationPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAllocationPlans = async () => {
+      try {
+        const data = await getAllocationPlans();
+        setAllocationPlans(data.items);
+      } catch (error) {
+        console.error("Failed to fetch allocation plans:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllocationPlans();
+  }, []);
+
   return (
     <DashboardLayout>
       <div className="dashboard-page-container">
-        
-        {/* Top Metric Cards Grid */}
         <div className="stats-grid">
           {statsData.map((stat) => (
             <StatisticCard key={stat.id} stat={stat} />
           ))}
         </div>
 
-        {/* Middle Visualization Panels */}
         <div className="charts-grid">
-          {/* Monthly Allocation Trend Area Chart */}
           <LineChartCard data={allocationTrendData} />
-
-          {/* Resource Breakdown Donut Chart */}
           <BreakdownCard data={resourceBreakdownData} />
         </div>
 
-        {/* Bottom Pending Requests Table Panel */}
         <div className="table-row-container">
-          <RequestTable requests={pendingRequestsData} />
+          {loading ? (
+            <p>Loading allocation plans...</p>
+          ) : (
+            <RequestTable requests={allocationPlans} />
+          )}
         </div>
 
-        {/* Floating Action Button (FAB) matching the bottom-right green circle */}
         <button
           className="dashboard-fab"
           title="Quick Action"
@@ -45,7 +65,6 @@ export default function DashboardPage() {
         >
           +
         </button>
-        
       </div>
     </DashboardLayout>
   );

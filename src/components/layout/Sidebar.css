@@ -12,6 +12,10 @@
   top: 0;
 }
 
+.sidebar-item {
+  text-decoration: none;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;

@@ -43,38 +43,18 @@ export default function LoginPage() {
       setLoading(true);
 
       const response = await login({
-        email,
+        usernameOrEmail: email,
         password,
       });
 
-      saveToken(response.token);
-      saveRole(response.role);
+      saveToken(response.accessToken);
+      saveRole(response.roleName);
 
-      console.log("Remember me:", rememberMe);
+      navigate("/dashboard");
 
-      switch (response.role) {
-        case "Admin":
-          navigate("/dashboard");
-          break;
-
-        case "Manager":
-          navigate("/dashboard");
-          break;
-
-        case "Researcher":
-          navigate("/dashboard");
-          break;
-
-        case "Technician":
-          navigate("/dashboard");
-          break;
-
-        default:
-          navigate("/login");
-      }
     } catch (err) {
       console.error(err);
-      setError("Login failed.");
+      setError("Login failed. Please check your email or password.");
     } finally {
       setLoading(false);
     }
