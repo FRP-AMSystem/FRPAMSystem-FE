@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
+import AllocationList from "../pages/Allocation/AllocationList";
+import CreateAllocation from "../pages/Allocation/CreateAllocation";
 
 export default function AppRoutes() {
   return (
@@ -11,6 +13,8 @@ export default function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
 
       <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/allocation" element={<AllocationList />} />
+      <Route path="/allocation/create" element={<CreateAllocation />} />
     </Routes>
   );
 }

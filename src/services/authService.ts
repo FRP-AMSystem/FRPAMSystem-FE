@@ -1,15 +1,8 @@
-import type { LoginRequest, LoginResponse } from "../types/auth";
+import api from "./api";
+import type { LoginRequest, LoginResponse, LoginData } from "../types/auth";
 
-export async function login(
-  data: LoginRequest
-): Promise<LoginResponse> {
-  console.log(data);
+export async function login(data: LoginRequest): Promise<LoginData> {
+  const response = await api.post<LoginResponse>("/Auth/login", data);
 
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  return {
-    token: "abc123",
-    role: "Admin",
-    userName: "Administrator",
-  };
+  return response.data.data;
 }

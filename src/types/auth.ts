@@ -1,10 +1,16 @@
 export interface LoginRequest {
-    email: string;
-    password: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginData {
+  token: string;
+  role: string;
+  userName: string;
 }
 
 export interface LoginResponse {
-    token: string;
-    role: string;
-    userName: string;
+  success: boolean;
+  message: string;
+  data: LoginData;
 }
