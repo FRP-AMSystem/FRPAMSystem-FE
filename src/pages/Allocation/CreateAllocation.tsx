@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import DashboardLayout from "../../layouts/DashboardLayout";
+
 import "./CreateAllocation.css";
 
 import { createAllocationPlan } from "../../services/allocationPlanService";
@@ -15,7 +17,7 @@ export default function CreateAllocation() {
   const [form, setForm] = useState({
     experimentId: "",
     fitnessScore: "",
-    approveStatus: "Draft",
+    approveStatus: "Pending",
   });
 
   const [loadingExperiments, setLoadingExperiments] = useState(false);
@@ -74,7 +76,7 @@ export default function CreateAllocation() {
       await createAllocationPlan({
         experimentId: Number(form.experimentId),
         fitnessScore: form.fitnessScore ? Number(form.fitnessScore) : undefined,
-        approveStatus: "Draft",
+        approveStatus: "Pending",
       });
 
       navigate("/allocation");
@@ -87,134 +89,138 @@ export default function CreateAllocation() {
   };
 
   return (
-    <div className="create-allocation-page">
-      <div className="create-header">
-        <div>
-          <p className="breadcrumb">
-            Dashboard / Allocation Planner / Create Allocation
-          </p>
+    <DashboardLayout>
+      <div className="create-allocation-page">
+        <div className="create-header">
+          <div>
+            <p className="breadcrumb">
+              Dashboard / Allocation Planner / Create Allocation
+            </p>
 
-          <h1>Create Allocation Plan</h1>
+            <h1>Create Allocation Plan</h1>
 
-          <span>Create a new allocation plan from an approved experiment.</span>
-        </div>
+            <span>Create a new allocation plan from an approved experiment.</span>
+          </div>
 
-        <button
-          type="button"
-          className="back-btn"
-          onClick={() => navigate("/allocation")}
-        >
-          Back
-        </button>
-      </div>
-
-      {error && <div className="form-error">{error}</div>}
-
-      <form className="allocation-form" onSubmit={handleSubmit}>
-        <div className="form-card">
-          <h3>Allocation Plan Information</h3>
-
-          <label>Experiment</label>
-          <select
-            name="experimentId"
-            value={form.experimentId}
-            onChange={handleChange}
-            required
+          <button
+            type="button"
+            className="back-btn"
+            onClick={() => navigate("/allocation")}
           >
-            <option value="">
-              {loadingExperiments ? "Loading experiments..." : "Select experiment"}
-            </option>
-
-            {experiments.map((experiment) => (
-              <option
-                key={experiment.experimentId}
-                value={experiment.experimentId}
-              >
-                #{experiment.experimentId} - {experiment.experimentName}
-              </option>
-            ))}
-          </select>
-
-          <label>Fitness Score</label>
-          <input
-            type="number"
-            step="0.01"
-            name="fitnessScore"
-            value={form.fitnessScore}
-            onChange={handleChange}
-            placeholder="Optional. Example: 0.85"
-          />
-
-          <label>Approve Status</label>
-          <select name="approveStatus" value={form.approveStatus} disabled>
-            <option value="Draft">Draft</option>
-          </select>
-
-          <div className="form-note">
-            Equipment, land and human allocation details will be added after the
-            allocation plan is created.
-          </div>
+            Back
+          </button>
         </div>
 
-        <div className="form-card">
-          <h3>Selected Experiment</h3>
+        {error && <div className="form-error">{error}</div>}
 
-          {selectedExperiment ? (
-            <div className="experiment-preview">
-              <div>
-                <span>Experiment Name</span>
-                <strong>{selectedExperiment.experimentName}</strong>
-              </div>
+        <form className="allocation-form" onSubmit={handleSubmit}>
+          <div className="form-card">
+            <h3>Allocation Plan Information</h3>
 
-              <div>
-                <span>Researcher</span>
-                <strong>{selectedExperiment.researcherName}</strong>
-              </div>
-
-              <div>
-                <span>Status</span>
-                <strong>{selectedExperiment.status}</strong>
-              </div>
-
-              <div>
-                <span>Expected Period</span>
-                <strong>
-                  {formatDate(selectedExperiment.expectStartDate)} -{" "}
-                  {formatDate(selectedExperiment.expectEndDate)}
-                </strong>
-              </div>
-
-              <div>
-                <span>Priority</span>
-                <strong>{selectedExperiment.priority}</strong>
-              </div>
-
-              <div>
-                <span>Description</span>
-                <p>{selectedExperiment.description || "No description"}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="next-step-box">
-              <p>Select an experiment to preview its planning information.</p>
-            </div>
-          )}
-
-          <div className="form-actions">
-            <button
-              type="button"
-              className="cancel-btn"
-              onClick={() => navigate("/allocation")}
+            <label>Experiment</label>
+            <select
+              name="experimentId"
+              value={form.experimentId}
+              onChange={handleChange}
+              required
             >
-              Cancel
-            </button>
+              <option value="">
+                {loadingExperiments
+                  ? "Loading experiments..."
+                  : "Select experiment"}
+              </option>
 
-            <button type="submit" className="save-btn" disabled={saving}>
-              {saving ? "Saving..." : "Save Allocation Plan"}
-            </button>
+              {experiments.map((experiment) => (
+                <option
+                  key={experiment.experimentId}
+                  value={experiment.experimentId}
+                >
+                  #{experiment.experimentId} - {experiment.experimentName}
+                </option>
+              ))}
+            </select>
+
+            <label>Fitness Score</label>
+            <input
+              type="number"
+              step="0.01"
+              name="fitnessScore"
+              value={form.fitnessScore}
+              onChange={handleChange}
+              placeholder="Optional. Example: 85"
+            />
+
+            <label>Approve Status</label>
+            <select name="approveStatus" value={form.approveStatus} disabled>
+              <option value="Pending">Pending</option>
+            </select>
+
+            <div className="form-note">
+              Equipment, land and human allocation details will be added after
+              the allocation plan is created.
+            </div>
           </div>
-        </div>
-      </form>
-    </div>
+
+          <div className="form-card">
+            <h3>Selected Experiment</h3>
+
+            {selectedExperiment ? (
+              <div className="experiment-preview">
+                <div>
+                  <span>Experiment Name</span>
+                  <strong>{selectedExperiment.experimentName}</strong>
+                </div>
+
+                <div>
+                  <span>Researcher</span>
+                  <strong>{selectedExperiment.researcherName}</strong>
+                </div>
+
+                <div>
+                  <span>Status</span>
+                  <strong>{selectedExperiment.status}</strong>
+                </div>
+
+                <div>
+                  <span>Expected Period</span>
+                  <strong>
+                    {formatDate(selectedExperiment.expectStartDate)} -{" "}
+                    {formatDate(selectedExperiment.expectEndDate)}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Priority</span>
+                  <strong>{selectedExperiment.priority}</strong>
+                </div>
+
+                <div>
+                  <span>Description</span>
+                  <p>{selectedExperiment.description || "No description"}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="next-step-box">
+                <p>Select an experiment to preview its planning information.</p>
+              </div>
+            )}
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={() => navigate("/allocation")}
+              >
+                Cancel
+              </button>
+
+              <button type="submit" className="save-btn" disabled={saving}>
+                {saving ? "Saving..." : "Save Allocation Plan"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </DashboardLayout>
   );
 }

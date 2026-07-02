@@ -2,19 +2,210 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
+
 import AllocationList from "../pages/Allocation/AllocationList";
 import CreateAllocation from "../pages/Allocation/CreateAllocation";
+import EditAllocation from "../pages/Allocation/EditAllocation";
+import AllocationDetail from "../pages/Allocation/AllocationDetail";
+
+import EquipmentList from "../pages/Equipment/EquipmentList";
+
+import RequirementList from "../pages/ExperimentEquipmentRequirement/RequirementList";
+import CreateRequirement from "../pages/ExperimentEquipmentRequirement/CreateRequirement";
+import EditRequirement from "../pages/ExperimentEquipmentRequirement/EditRequirement";
+import RequirementDetail from "../pages/ExperimentEquipmentRequirement/RequirementDetail";
+import ExperimentList from "../pages/Experiment/ExperimentList";
+import CreateExperiment from "../pages/Experiment/CreateExperiment";
+type Role = "Manager" | "Researcher" | "Technician" | "Student";
+
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: Role[];
+}
+
+function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role") as Role | null;
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+function PlaceholderPage({ title }: { title: string }) {
+  return (
+    <ProtectedRoute>
+      <div style={{ padding: "32px", color: "white" }}>
+        <h1>{title}</h1>
+        <p>This page is under development.</p>
+      </div>
+    </ProtectedRoute>
+  );
+}
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
-
       <Route path="/login" element={<LoginPage />} />
 
-      <Route path="/dashboard" element={<DashboardPage />} />
-      <Route path="/allocation" element={<AllocationList />} />
-      <Route path="/allocation/create" element={<CreateAllocation />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/allocation"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Manager", "Researcher", "Technician", "Student"]}
+          >
+            <AllocationList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/allocation/create"
+        element={
+          <ProtectedRoute allowedRoles={["Researcher"]}>
+            <CreateAllocation />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/allocation/edit/:id"
+        element={
+          <ProtectedRoute allowedRoles={["Researcher"]}>
+            <EditAllocation />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/allocation/:id"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Manager", "Researcher", "Technician", "Student"]}
+          >
+            <AllocationDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/equipment"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Manager", "Researcher", "Technician", "Student"]}
+          >
+            <EquipmentList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/equipment-requirements"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Manager", "Researcher", "Technician", "Student"]}
+          >
+            <RequirementList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/equipment-requirements/create"
+        element={
+          <ProtectedRoute allowedRoles={["Researcher"]}>
+            <CreateRequirement />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/equipment-requirements/edit/:id"
+        element={
+          <ProtectedRoute allowedRoles={["Researcher"]}>
+            <EditRequirement />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/equipment-requirements/:id"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Manager", "Researcher", "Technician", "Student"]}
+          >
+            <RequirementDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+  path="/experiments/create"
+  element={
+    <ProtectedRoute allowedRoles={["Researcher"]}>
+      <CreateExperiment />
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+        path="/resources"
+        element={<PlaceholderPage title="Resources" />}
+      />
+
+      <Route
+        path="/reports"
+        element={<PlaceholderPage title="Reports" />}
+      />
+
+      <Route
+        path="/experiments"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Manager", "Researcher", "Technician", "Student"]}
+          >
+            <ExperimentList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/schedules"
+        element={<PlaceholderPage title="Schedules" />}
+      />
+
+      <Route
+        path="/conflicts"
+        element={<PlaceholderPage title="Conflicts" />}
+      />
+
+      <Route
+        path="/results"
+        element={<PlaceholderPage title="Results" />}
+      />
+
+      <Route
+        path="/notifications"
+        element={<PlaceholderPage title="Notifications" />}
+      />
+
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

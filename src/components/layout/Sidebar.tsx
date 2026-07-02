@@ -9,9 +9,11 @@ import {
   Truck,
   BarChart3,
   Bell,
-  Settings,
+  GraduationCap,
 } from "lucide-react";
 import "./Sidebar.css";
+
+type Role = "Manager" | "Researcher" | "Technician" | "Student";
 
 interface MenuItem {
   name: string;
@@ -19,26 +21,46 @@ interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const menuItems: MenuItem[] = [
-  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { name: "Experiments", path: "/dashboard", icon: FlaskConical },
-  { name: "Resources", path: "/dashboard", icon: Trees },
-  { name: "Allocation Planner", path: "/allocation", icon: CalendarDays },
-  { name: "Conflict Detection", path: "/dashboard", icon: AlertTriangle },
-  { name: "Schedules", path: "/dashboard", icon: Calendar },
-  { name: "Equipment Tracking", path: "/dashboard", icon: Truck },
-  { name: "Analytics", path: "/dashboard", icon: BarChart3 },
-  { name: "Notifications", path: "/dashboard", icon: Bell },
-  { name: "Settings", path: "/dashboard", icon: Settings },
-];
+const roleMenus: Record<Role, MenuItem[]> = {
+  Manager: [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { name: "Allocation", path: "/allocation", icon: CalendarDays },
+    { name: "Resources", path: "/resources", icon: Trees },
+    { name: "Equipment", path: "/equipment", icon: Truck },
+    { name: "Reports", path: "/reports", icon: BarChart3 },
+    { name: "Notifications", path: "/notifications", icon: Bell },
+  ],
+
+  Researcher: [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { name: "Experiments", path: "/experiments", icon: FlaskConical },
+    { name: "My Allocations", path: "/allocation", icon: CalendarDays },
+    { name: "Schedules", path: "/schedules", icon: Calendar },
+    { name: "Notifications", path: "/notifications", icon: Bell },
+  ],
+
+  Technician: [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { name: "Equipment", path: "/equipment", icon: Truck },
+    { name: "Schedules", path: "/schedules", icon: Calendar },
+    { name: "Conflicts", path: "/conflicts", icon: AlertTriangle },
+    { name: "Notifications", path: "/notifications", icon: Bell },
+  ],
+
+  Student: [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { name: "Experiments", path: "/experiments", icon: GraduationCap },
+    { name: "Schedules", path: "/schedules", icon: Calendar },
+    { name: "Results", path: "/results", icon: BarChart3 },
+    { name: "Notifications", path: "/notifications", icon: Bell },
+  ],
+};
 
 export default function Sidebar() {
-  const currentUser = {
-    name: "Tran Thi Manager",
-    role: "Manager",
-    avatarUrl:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-  };
+  const role = (localStorage.getItem("role") || "Student") as Role;
+  const fullName = localStorage.getItem("fullName") || "User";
+
+  const menuItems = roleMenus[role] || roleMenus.Student;
 
   return (
     <aside className="sidebar">
@@ -46,6 +68,7 @@ export default function Sidebar() {
         <div className="sidebar-logo-container">
           <Trees size={22} strokeWidth={2.5} />
         </div>
+
         <div className="sidebar-brand-text">
           <span className="sidebar-title-main">FRPAM System</span>
           <span className="sidebar-title-sub">Forestry Planning</span>
@@ -73,15 +96,14 @@ export default function Sidebar() {
 
       <div className="sidebar-footer">
         <div className="sidebar-avatar">
-          <img
-            src={currentUser.avatarUrl}
-            alt={currentUser.name}
-            className="sidebar-avatar-img"
-          />
+          <div className="sidebar-avatar-img">
+            {fullName.charAt(0).toUpperCase()}
+          </div>
         </div>
+
         <div className="sidebar-user-info">
-          <span className="sidebar-username">{currentUser.name}</span>
-          <span className="sidebar-user-role">{currentUser.role}</span>
+          <span className="sidebar-username">{fullName}</span>
+          <span className="sidebar-user-role">{role}</span>
         </div>
       </div>
     </aside>

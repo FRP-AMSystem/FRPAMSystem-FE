@@ -50,6 +50,11 @@ export default function LoginPage() {
       saveToken(response.accessToken);
       saveRole(response.roleName);
 
+      localStorage.setItem("userId", String(response.userId));
+      localStorage.setItem("fullName", response.fullName);
+      localStorage.setItem("username", response.username);
+      localStorage.setItem("email", response.email);
+
       navigate("/dashboard");
 
     } catch (err) {

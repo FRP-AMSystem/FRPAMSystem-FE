@@ -1,24 +1,60 @@
 import api from "./api";
-import type { ApiResponse } from "../types/allocation";
-import type { ExperimentResponse } from "../types/experiment";
 
-type PagedResult<T> = {
-  items?: T[];
-  data?: T[];
-  totalItems?: number;
-  totalCount?: number;
-};
+import type {
+  ExperimentCreateRequest,
+  ExperimentQuery,
+  ExperimentResponse,
+  ExperimentUpdateRequest,
+} from "../types/experiment";
 
-export async function getExperiments() {
-  const response = await api.get<ApiResponse<ExperimentResponse[] | PagedResult<ExperimentResponse>>>(
-    "/Experiments"
-  );
+function unwrapResponse<T>(response: any): T {
+  return response?.data?.data ?? response?.data ?? response;
+}
 
-  const result = response.data.data;
+export async function getExperiments(
+  query?: ExperimentQuery
+): Promise<ExperimentResponse[]> {
+  const response = await api.get("/Experiments", {
+    params: {
+      Keyword: query?.keyword,
+      Status: query?.status,
+      Priority: query?.priority,
+      Page: query?.page,
+      Size: query?.size,
+    },
+  });
 
-  if (Array.isArray(result)) {
-    return result;
-  }
+  const data = unwrapResponse<any>(response);
 
-  return result.items ?? result.data ?? [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data)) return data.data;
+
+  return [];
+}
+
+export async function getExperimentById(
+  id: number
+): Promise<ExperimentResponse> {
+  const response = await api.get(`/Experiments/${id}`);
+  return unwrapResponse<ExperimentResponse>(response);
+}
+
+export async function createExperiment(
+  payload: ExperimentCreateRequest
+): Promise<ExperimentResponse> {
+  const response = await api.post("/Experiments", payload);
+  return unwrapResponse<ExperimentResponse>(response);
+}
+
+export async function updateExperiment(
+  id: number,
+  payload: ExperimentUpdateRequest
+): Promise<ExperimentResponse> {
+  const response = await api.put(`/Experiments/${id}`, payload);
+  return unwrapResponse<ExperimentResponse>(response);
+}
+
+export async function deleteExperiment(id: number): Promise<void> {
+  await api.delete(`/Experiments/${id}`);
 }
