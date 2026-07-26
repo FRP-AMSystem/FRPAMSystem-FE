@@ -1,15 +1,16 @@
 .sidebar {
   width: 260px;
-  background: #ffffff;
-  color: #374151; /* grey-700 */
+  background: var(--card-bg);
+  color: var(--text);
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  border-right: 1px solid #E5E7EB; /* light grey border */
+  border-right: 1px solid var(--border);
   height: 100vh;
   position: sticky;
   top: 0;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .sidebar-brand {
@@ -69,14 +70,14 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #4B5563; /* grey-600 */
+  color: var(--text);
   transition: all 0.2s ease;
   text-decoration: none;
 }
 
 .sidebar-item:hover {
-  background-color: #F3F4F6; /* light grey hover */
-  color: #111827;
+  background-color: var(--border);
+  color: var(--text-h);
 }
 
 .sidebar-item.active {
@@ -103,7 +104,7 @@
 
 .sidebar-footer {
   margin-top: auto;
-  border-top: 1px solid #E5E7EB;
+  border-top: 1px solid var(--border);
   padding-top: 20px;
   display: flex;
   align-items: center;
@@ -138,10 +139,10 @@
 .sidebar-username {
   font-size: 13.5px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-h);
 }
 
 .sidebar-user-role {
   font-size: 11px;
-  color: #6B7280;
+  color: var(--text);
 }

@@ -36,29 +36,27 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-    --brand-primary: #2E7D32;
-    --brand-primary-hover: #388E3C;
-    --brand-light: #1E2D24;
-    --brand-accent: #81C784;
-    --card-bg: #1F2028;
-  }
+:root.dark {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  --brand-primary: #2E7D32;
+  --brand-primary-hover: #388E3C;
+  --brand-light: #1E2D24;
+  --brand-accent: #81C784;
+  --card-bg: #1F2028;
+}
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+:root.dark #social .button-icon {
+  filter: invert(1) brightness(2);
 }
 
 * {
@@ -119,3 +117,23 @@ img {
   flex: 1;
   box-sizing: border-box;
 }
+
+/* Reusable create request / add user button */
+.create-request-btn {
+  background-color: #0A3925; /* dark brand green */
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+}
+
+.create-request-btn:hover {
+  background-color: #1B5E20;
+}

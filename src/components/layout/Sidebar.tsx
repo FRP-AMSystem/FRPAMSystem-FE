@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   FlaskConical,
@@ -10,16 +11,20 @@ import {
   BarChart3,
   Bell,
   Settings,
+  Users,
 } from "lucide-react";
+import { getCurrentProfile } from "../../services/userService";
 import "./Sidebar.css";
 
 interface MenuItem {
   name: string;
   icon: React.ComponentType<{ className?: string }>;
+  path?: string;
 }
 
 const menuItems: MenuItem[] = [
-  { name: "Dashboard", icon: LayoutDashboard },
+  { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+  { name: "Users", icon: Users, path: "/admin/users" },
   { name: "Experiments", icon: FlaskConical },
   { name: "Resources", icon: Trees },
   { name: "Allocation Planner", icon: CalendarDays },
@@ -32,13 +37,43 @@ const menuItems: MenuItem[] = [
 ];
 
 export default function Sidebar() {
-  const [activeItem, setActiveItem] = useState("Dashboard");
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // TODO: Replace active user profile with context or API data
-  const currentUser = {
+  const [profile, setProfile] = useState({
     name: "Marcus Thorne",
     role: "Regional Overseer",
-    avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+  });
+
+  useEffect(() => {
+    getCurrentProfile()
+      .then((data) => {
+        if (data) {
+          setProfile({
+            name: data.fullName || "Marcus Thorne",
+            role: data.role || "Regional Overseer",
+            avatarUrl: data.avatar || "",
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not retrieve current profile session, falling back to mock profile.", err);
+      });
+  }, []);
+
+  const getActiveItem = () => {
+    if (location.pathname.startsWith("/admin/users")) return "Users";
+    if (location.pathname.startsWith("/dashboard")) return "Dashboard";
+    return "Dashboard";
+  };
+
+  const activeItem = getActiveItem();
+
+  const handleItemClick = (item: MenuItem) => {
+    if (item.path) {
+      navigate(item.path);
+    }
   };
 
   return (
@@ -60,7 +95,7 @@ export default function Sidebar() {
             <div
               key={item.name}
               className={`sidebar-item ${activeItem === item.name ? "active" : ""}`}
-              onClick={() => setActiveItem(item.name)}
+              onClick={() => handleItemClick(item)}
             >
               <Icon className="sidebar-item-icon" />
               <span>{item.name}</span>
@@ -71,15 +106,34 @@ export default function Sidebar() {
 
       <div className="sidebar-footer">
         <div className="sidebar-avatar">
-          <img
-            src={currentUser.avatarUrl}
-            alt={currentUser.name}
-            className="sidebar-avatar-img"
-          />
+          {profile.avatarUrl ? (
+            <img
+              src={profile.avatarUrl}
+              alt={profile.name}
+              className="sidebar-avatar-img"
+            />
+          ) : (
+            <div
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                backgroundColor: "#E8F5E9",
+                color: "#1B5E20",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: "14px",
+              }}
+            >
+              {(profile.name || "Marcus Thorne").charAt(0).toUpperCase()}
+            </div>
+          )}
         </div>
         <div className="sidebar-user-info">
-          <span className="sidebar-username">{currentUser.name}</span>
-          <span className="sidebar-user-role">{currentUser.role}</span>
+          <span className="sidebar-username">{profile.name}</span>
+          <span className="sidebar-user-role">{profile.role}</span>
         </div>
       </div>
     </aside>

@@ -397,65 +397,63 @@
 }
 
 /* Dark mode overrides matching index.css dark block variables */
-@media (prefers-color-scheme: dark) {
-  .stat-card {
-    background: #1F2028;
-    border-color: #2E303a;
-  }
-  .stat-total-resources {
-    background-color: #0C3E26;
-    border-color: #0C3E26;
-  }
-  .stat-conflicts {
-    background-color: #2D1E1E;
-    border-color: #3F2323;
-  }
-  .stat-card-value {
-    color: #F3F4F6;
-  }
-  .text-white {
-    color: #ffffff;
-  }
-  .user-avatar-grey {
-    background-color: #2E303a;
-    color: #9CA3AF;
-  }
-  .avatar-plus-count {
-    background-color: #2E303a;
-    color: #9CA3AF;
-  }
-  .dashboard-panel {
-    background: #1F2028;
-    border-color: #2E303a;
-  }
-  .panel-title {
-    color: #F3F4F6;
-  }
-  .pill-dropdown-btn {
-    background-color: #2E303a;
-    color: #D1D5DB;
-  }
-  .pill-dropdown-btn:hover {
-    background-color: #3B3E4A;
-  }
-  .custom-table th {
-    background-color: #1A1B22;
-    border-color: #2E303a;
-  }
-  .custom-table td {
-    color: #D1D5DB;
-    border-color: #2E303a;
-  }
-  .custom-table tr:hover td {
-    background-color: #252630;
-  }
-  .pagination-btn {
-    background: #1F2028;
-    border-color: #2E303a;
-    color: #9CA3AF;
-  }
-  .pagination-btn:hover {
-    background: #2E303a;
-    color: #F3F4F6;
-  }
+:root.dark .stat-card {
+  background: #1F2028;
+  border-color: #2E303a;
+}
+:root.dark .stat-total-resources {
+  background-color: #0C3E26;
+  border-color: #0C3E26;
+}
+:root.dark .stat-conflicts {
+  background-color: #2D1E1E;
+  border-color: #3F2323;
+}
+:root.dark .stat-card-value {
+  color: #F3F4F6;
+}
+:root.dark .text-white {
+  color: #ffffff;
+}
+:root.dark .user-avatar-grey {
+  background-color: #2E303a;
+  color: #9CA3AF;
+}
+:root.dark .avatar-plus-count {
+  background-color: #2E303a;
+  color: #9CA3AF;
+}
+:root.dark .dashboard-panel {
+  background: #1F2028;
+  border-color: #2E303a;
+}
+:root.dark .panel-title {
+  color: #F3F4F6;
+}
+:root.dark .pill-dropdown-btn {
+  background-color: #2E303a;
+  color: #D1D5DB;
+}
+:root.dark .pill-dropdown-btn:hover {
+  background-color: #3B3E4A;
+}
+:root.dark .custom-table th {
+  background-color: #1A1B22;
+  border-color: #2E303a;
+}
+:root.dark .custom-table td {
+  color: #D1D5DB;
+  border-color: #2E303a;
+}
+:root.dark .custom-table tr:hover td {
+  background-color: #252630;
+}
+:root.dark .pagination-btn {
+  background: #1F2028;
+  border-color: #2E303a;
+  color: #9CA3AF;
+}
+:root.dark .pagination-btn:hover {
+  background: #2E303a;
+  color: #F3F4F6;
 }

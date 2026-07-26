@@ -5,4 +5,12 @@ import react from '@vitejs/plugin-react'
 // Trigger config change to force Vite dev server to rebuild pre-bundled dependency cache
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://forestryresourceplanning.runasp.net',
+        changeOrigin: true,
+      },
+    },
+  },
 })
