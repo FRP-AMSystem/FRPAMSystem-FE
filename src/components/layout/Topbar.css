@@ -91,26 +91,24 @@
 }
 
 /* For dark mode responsiveness */
-@media (prefers-color-scheme: dark) {
-  .topbar-header-title {
-    color: #F3F4F6;
-  }
-  .topbar-search {
-    background: #1F2937;
-  }
-  .topbar-search-input {
-    color: #F9FAFB;
-  }
-  .topbar-search:focus-within {
-    background: #111827;
-  }
-  .topbar-action-btn {
-    color: #9CA3AF;
-  }
-  .topbar-action-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #F9FAFB;
-  }
+:root.dark .topbar-header-title {
+  color: #F3F4F6;
+}
+:root.dark .topbar-search {
+  background: #1F2937;
+}
+:root.dark .topbar-search-input {
+  color: #F9FAFB;
+}
+:root.dark .topbar-search:focus-within {
+  background: #111827;
+}
+:root.dark .topbar-action-btn {
+  color: #9CA3AF;
+}
+:root.dark .topbar-action-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #F9FAFB;
 }
 
 @media (max-width: 1024px) {

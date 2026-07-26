@@ -116,7 +116,7 @@ export default function LoginPage() {
 
       {/* RIGHT SIDE */}
       <div className="right">
-        <div className="login-card">
+        <form className="login-card" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
           <h2>Sign In</h2>
 
           <p>Enter your credentials to access the management portal.</p>
@@ -176,8 +176,7 @@ export default function LoginPage() {
           </div>
 
           <button
-            type="button"
-            onClick={handleLogin}
+            type="submit"
             disabled={loading}
           >
             {loading ? "Signing In..." : "Login"}
@@ -189,7 +188,7 @@ export default function LoginPage() {
             <span>System Status</span>
             <span>Technical Support</span>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
