@@ -84,7 +84,37 @@
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.6;
 }
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
 
+.allocation-btn {
+  padding: 11px 18px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.allocation-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.allocation-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 @media (max-width: 900px) {
   .requirement-detail-header,
   .requirement-detail-grid {

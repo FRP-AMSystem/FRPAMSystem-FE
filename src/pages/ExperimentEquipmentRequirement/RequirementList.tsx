@@ -1,5 +1,13 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
@@ -14,8 +22,21 @@ import "./RequirementList.css";
 
 type Role = "Manager" | "Researcher" | "Technician" | "Student";
 
+function formatMinEfficiency(
+  value: number | null | undefined
+): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+
+  const percentage = value <= 1 ? value * 100 : value;
+
+  return `${Number(percentage.toFixed(2))}%`;
+}
+
 export default function RequirementList() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const role = (localStorage.getItem("role") || "Student") as Role;
 
@@ -23,59 +44,126 @@ export default function RequirementList() {
   const canEditRequirement = role === "Researcher";
   const canDeleteRequirement = role === "Researcher";
 
+  const experimentIdFromUrl = searchParams.get("experimentId");
+
+  const selectedExperimentId = useMemo(() => {
+    if (!experimentIdFromUrl) {
+      return undefined;
+    }
+
+    const parsedId = Number(experimentIdFromUrl);
+
+    return Number.isInteger(parsedId) && parsedId > 0
+      ? parsedId
+      : undefined;
+  }, [experimentIdFromUrl]);
+
   const [requirements, setRequirements] = useState<
     ExperimentEquipmentRequirement[]
   >([]);
-
   const [keyword, setKeyword] = useState("");
+  const [activeKeyword, setActiveKeyword] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [error, setError] = useState("");
 
-  const loadRequirements = async () => {
+  const loadRequirements = useCallback(async () => {
     try {
       setLoading(true);
+      setError("");
 
       const data = await getExperimentEquipmentRequirements({
-        keyword,
+        keyword: activeKeyword.trim() || undefined,
+        experimentId: selectedExperimentId,
         page: 1,
         size: 50,
       });
 
-      setRequirements(data);
-    } catch (error) {
-      console.error("Failed to load equipment requirements:", error);
+      setRequirements(Array.isArray(data) ? data : []);
+    } catch (loadError) {
+      console.error(
+        "Failed to load equipment requirements:",
+        loadError
+      );
       setRequirements([]);
+      setError(
+        "Cannot load equipment requirements. Please try again."
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeKeyword, selectedExperimentId]);
 
   useEffect(() => {
-    loadRequirements();
-  }, []);
+    void loadRequirements();
+  }, [loadRequirements]);
+
+  const selectedExperimentName = useMemo(() => {
+    if (selectedExperimentId === undefined) {
+      return "";
+    }
+
+    return (
+      requirements.find(
+        (item) => item.experimentId === selectedExperimentId
+      )?.experimentName || ""
+    );
+  }, [requirements, selectedExperimentId]);
 
   const handleSearch = () => {
-    loadRequirements();
+    setActiveKeyword(keyword.trim());
+  };
+
+  const handleClearSearch = () => {
+    setKeyword("");
+    setActiveKeyword("");
+  };
+
+  const handleCreateRequirement = () => {
+    if (selectedExperimentId !== undefined) {
+      navigate(
+        `/equipment-requirements/create?experimentId=${selectedExperimentId}`
+      );
+      return;
+    }
+
+    navigate("/equipment-requirements/create");
+  };
+
+  const handleViewAllRequirements = () => {
+    navigate("/equipment-requirements");
   };
 
   const handleDelete = async (id: number) => {
-    if (!canDeleteRequirement) return;
+    if (!canDeleteRequirement || deletingId !== null) {
+      return;
+    }
 
     const confirmed = window.confirm(
       "Are you sure you want to delete this requirement?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
+      setDeletingId(id);
+      setError("");
+
       await deleteExperimentEquipmentRequirement(id);
       await loadRequirements();
-    } catch (error) {
-      console.error("Delete requirement failed:", error);
+    } catch (deleteError) {
+      console.error(
+        "Delete equipment requirement failed:",
+        deleteError
+      );
+      setError(
+        "Delete equipment requirement failed. Please try again."
+      );
+    } finally {
+      setDeletingId(null);
     }
-  };
-
-  const getRequirementId = (item: ExperimentEquipmentRequirement) => {
-    return item.requirementId || item.experimentEquipmentRequirementId || 0;
   };
 
   return (
@@ -84,31 +172,83 @@ export default function RequirementList() {
         <div className="requirement-header">
           <div>
             <h1>Equipment Requirements</h1>
-            <p>
-              Researcher creates and updates requirements. Manager reviews and
-              approves or rejects allocations. Technician and Student only view
-              information.
-            </p>
+
+            {selectedExperimentId !== undefined ? (
+              <p>
+                Showing equipment requirements for{" "}
+                <strong>
+                  {selectedExperimentName ||
+                    `Experiment #${selectedExperimentId}`}
+                </strong>
+                .
+              </p>
+            ) : (
+              <p>
+                Researcher creates and updates requirements.
+                Manager, Technician and Student can view the
+                requirement information.
+              </p>
+            )}
           </div>
 
-          {canCreateRequirement && (
-            <button
-              className="requirement-create-btn"
-              onClick={() => navigate("/equipment-requirements/create")}
-            >
-              + Create Requirement
-            </button>
-          )}
+          <div className="requirement-header-actions">
+            {selectedExperimentId !== undefined && (
+              <button
+                type="button"
+                className="requirement-secondary-btn"
+                onClick={handleViewAllRequirements}
+                disabled={deletingId !== null}
+              >
+                View All Requirements
+              </button>
+            )}
+
+            {canCreateRequirement && (
+              <button
+                type="button"
+                className="requirement-create-btn"
+                onClick={handleCreateRequirement}
+                disabled={deletingId !== null}
+              >
+                + Create Requirement
+              </button>
+            )}
+          </div>
         </div>
+
+        {error && <div className="form-error">{error}</div>}
 
         <div className="requirement-toolbar">
           <input
+            type="text"
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(event) => setKeyword(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                handleSearch();
+              }
+            }}
             placeholder="Search by experiment, equipment or note..."
+            disabled={loading || deletingId !== null}
           />
 
-          <button onClick={handleSearch}>Search</button>
+          <button
+            type="button"
+            onClick={handleSearch}
+            disabled={loading || deletingId !== null}
+          >
+            Search
+          </button>
+
+          {(keyword || activeKeyword) && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              disabled={loading || deletingId !== null}
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         <div className="requirement-table-card">
@@ -117,99 +257,123 @@ export default function RequirementList() {
           {loading ? (
             <p className="loading-text">Loading requirements...</p>
           ) : (
-            <table className="requirement-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Experiment</th>
-                  <th>Equipment Type</th>
-                  <th>Quantity</th>
-                  <th>Substitute</th>
-                  <th>Min Efficiency</th>
-                  <th>Note</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
+            <div className="requirement-table-wrapper">
+              <table className="requirement-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Experiment</th>
+                    <th>Equipment Type</th>
+                    <th>Quantity</th>
+                    <th>Substitute</th>
+                    <th>Min Efficiency</th>
+                    <th>Note</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
 
-              <tbody>
-                {requirements.map((item) => {
-                  const id = getRequirementId(item);
+                <tbody>
+                  {requirements.map((item) => {
+                    const id = item.expEquipmentReqId;
+                    const isDeleting = deletingId === id;
+                    const actionDisabled = deletingId !== null;
 
-                  return (
-                    <tr key={id}>
-                      <td>#{id}</td>
+                    return (
+                      <tr key={id}>
+                        <td>#{id}</td>
 
-                      <td>
-                        {item.experimentName ||
-                          `Experiment #${item.experimentId}`}
-                      </td>
+                        <td>
+                          {item.experimentName ||
+                            `Experiment #${item.experimentId}`}
+                        </td>
 
-                      <td>
-                        {item.equipmentTypeName ||
-                          `Equipment Type #${item.equipmentTypeId}`}
-                      </td>
+                        <td>
+                          {item.equipmentTypeName ||
+                            `Equipment Type #${item.equipmentTypeId}`}
+                        </td>
 
-                      <td>{item.quantity}</td>
+                        <td>{item.quantity}</td>
 
-                      <td>
-                        <span
-                          className={
-                            item.allowSubstitute
-                              ? "substitute-yes"
-                              : "substitute-no"
-                          }
-                        >
-                          {item.allowSubstitute ? "Allowed" : "Not allowed"}
-                        </span>
-                      </td>
-
-                      <td>{item.minAcceptableEfficiency}%</td>
-
-                      <td>{item.note || "-"}</td>
-
-                      <td>
-                        <div className="requirement-actions">
-                          <button
-                            onClick={() =>
-                              navigate(`/equipment-requirements/${id}`)
+                        <td>
+                          <span
+                            className={
+                              item.allowSubstitute
+                                ? "substitute-yes"
+                                : "substitute-no"
                             }
                           >
-                            View
-                          </button>
+                            {item.allowSubstitute
+                              ? "Allowed"
+                              : "Not allowed"}
+                          </span>
+                        </td>
 
-                          {canEditRequirement && (
+                        <td>
+                          {formatMinEfficiency(
+                            item.minAcceptableEfficiency
+                          )}
+                        </td>
+
+                        <td>{item.note || "-"}</td>
+
+                        <td>
+                          <div className="requirement-actions">
                             <button
+                              type="button"
+                              disabled={actionDisabled}
                               onClick={() =>
-                                navigate(`/equipment-requirements/edit/${id}`)
+                                navigate(
+                                  `/equipment-requirements/${id}`
+                                )
                               }
                             >
-                              Edit
+                              View
                             </button>
-                          )}
 
-                          {canDeleteRequirement && (
-                            <button
-                              className="danger-btn"
-                              onClick={() => handleDelete(id)}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
+                            {canEditRequirement && (
+                              <button
+                                type="button"
+                                disabled={actionDisabled}
+                                onClick={() =>
+                                  navigate(
+                                    `/equipment-requirements/${id}/edit`
+                                  )
+                                }
+                              >
+                                Edit
+                              </button>
+                            )}
+
+                            {canDeleteRequirement && (
+                              <button
+                                type="button"
+                                className="danger-btn"
+                                disabled={actionDisabled}
+                                onClick={() => void handleDelete(id)}
+                              >
+                                {isDeleting
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {requirements.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="empty-cell">
+                        {selectedExperimentId !== undefined
+                          ? "No equipment requirements found for this experiment."
+                          : "No equipment requirements found."}
                       </td>
                     </tr>
-                  );
-                })}
-
-                {requirements.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="empty-cell">
-                      No equipment requirements found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

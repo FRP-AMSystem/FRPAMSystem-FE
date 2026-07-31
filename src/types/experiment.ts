@@ -3,11 +3,15 @@ export interface ExperimentResponse {
   experimentName: string;
   description?: string | null;
 
-  startDate?: string | null;
-  endDate?: string | null;
+  researcherId?: number | null;
+  researcherName?: string | null;
+
+  expectStartDate?: string | null;
+  expectEndDate?: string | null;
+  deadline?: string | null;
 
   status?: string | null;
-  priority?: string | null;
+  priority?: number | null;
 
   createdByUserId?: number | null;
   createdByName?: string | null;
@@ -19,25 +23,35 @@ export interface ExperimentResponse {
 export interface ExperimentCreateRequest {
   experimentName: string;
   description?: string;
-  startDate?: string;
-  endDate?: string;
-  status?: string;
-  priority?: string;
+
+  researcherId: number;
+
+  expectStartDate: string;
+  expectEndDate: string;
+  deadline: string;
+
+  priority: number;
+  status: string;
 }
 
 export interface ExperimentUpdateRequest {
   experimentName: string;
   description?: string;
-  startDate?: string;
-  endDate?: string;
+
+  researcherId?: number;
+
+  expectStartDate?: string;
+  expectEndDate?: string;
+  deadline?: string;
+
+  priority?: number;
   status?: string;
-  priority?: string;
 }
 
 export interface ExperimentQuery {
   keyword?: string;
   status?: string;
-  priority?: string;
+  priority?: number;
   page?: number;
   size?: number;
 }

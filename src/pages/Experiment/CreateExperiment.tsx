@@ -1,46 +1,159 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { createExperiment } from "../../services/experimentService";
 
 import "./ExperimentForm.css";
 
+interface ExperimentFormState {
+  experimentName: string;
+  description: string;
+  expectStartDate: string;
+  expectEndDate: string;
+  deadline: string;
+  status: string;
+  priority: string;
+}
+
+const priorityLabels: Record<string, string> = {
+  "0": "Low",
+  "1": "Medium",
+  "2": "High",
+  "3": "Urgent",
+};
+
+function convertDateToIso(date: string): string {
+  return new Date(`${date}T00:00:00`).toISOString();
+}
+
+function getApiErrorMessage(error: unknown): string {
+  if (!axios.isAxiosError(error)) {
+    return "Create experiment failed.";
+  }
+
+  const responseData = error.response?.data;
+
+  if (responseData?.errors) {
+    const messages = Object.entries(responseData.errors)
+      .flatMap(([field, value]) => {
+        const fieldErrors = Array.isArray(value)
+          ? value
+          : [String(value)];
+
+        return fieldErrors.map(
+          (message) => `${field}: ${String(message)}`
+        );
+      })
+      .join(" ");
+
+    if (messages) {
+      return messages;
+    }
+  }
+
+  return (
+    responseData?.message ||
+    responseData?.title ||
+    `Create experiment failed${
+      error.response?.status
+        ? ` (${error.response.status})`
+        : ""
+    }.`
+  );
+}
+
 export default function CreateExperiment() {
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ExperimentFormState>({
     experimentName: "",
     description: "",
-    startDate: "",
-    endDate: "",
+    expectStartDate: "",
+    expectEndDate: "",
+    deadline: "",
     status: "Draft",
-    priority: "Medium",
+    priority: "1",
   });
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement |
+      HTMLSelectElement |
+      HTMLTextAreaElement
+    >
   ) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!form.experimentName.trim()) {
+    const experimentName = form.experimentName.trim();
+    const description = form.description.trim();
+
+    if (!experimentName) {
       setError("Experiment name is required.");
       return;
     }
 
-    if (form.startDate && form.endDate && form.startDate > form.endDate) {
-      setError("End date must be after start date.");
+    if (!form.expectStartDate) {
+      setError("Expected start date is required.");
+      return;
+    }
+
+    if (!form.expectEndDate) {
+      setError("Expected end date is required.");
+      return;
+    }
+
+    if (!form.deadline) {
+      setError("Deadline is required.");
+      return;
+    }
+
+    if (form.expectStartDate > form.expectEndDate) {
+      setError(
+        "Expected end date must be after the expected start date."
+      );
+      return;
+    }
+
+    if (form.deadline < form.expectEndDate) {
+      setError(
+        "Deadline must be on or after the expected end date."
+      );
+      return;
+    }
+
+    const researcherId = Number(
+      localStorage.getItem("userId")
+    );
+
+    if (
+      !Number.isInteger(researcherId) ||
+      researcherId <= 0
+    ) {
+      setError(
+        "Researcher information was not found. Please log in again."
+      );
+      return;
+    }
+
+    const priority = Number(form.priority);
+
+    if (!Number.isInteger(priority)) {
+      setError("Priority is invalid.");
       return;
     }
 
@@ -48,18 +161,24 @@ export default function CreateExperiment() {
       setSaving(true);
 
       await createExperiment({
-        experimentName: form.experimentName,
-        description: form.description,
-        startDate: form.startDate,
-        endDate: form.endDate,
+        experimentName,
+        description,
+        researcherId,
+        expectStartDate: convertDateToIso(
+          form.expectStartDate
+        ),
+        expectEndDate: convertDateToIso(
+          form.expectEndDate
+        ),
+        deadline: convertDateToIso(form.deadline),
+        priority,
         status: form.status,
-        priority: form.priority,
       });
 
       navigate("/experiments");
     } catch (err) {
-      console.error(err);
-      setError("Create experiment failed.");
+      console.error("Create experiment error:", err);
+      setError(getApiErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -70,9 +189,16 @@ export default function CreateExperiment() {
       <div className="experiment-form-page">
         <div className="experiment-form-header">
           <div>
-            <p className="breadcrumb">Dashboard / Experiments / Create</p>
+            <p className="breadcrumb">
+              Dashboard / Experiments / Create
+            </p>
+
             <h1>Create Experiment</h1>
-            <span>Create an experiment before adding equipment requirements.</span>
+
+            <span>
+              Create an experiment before adding equipment
+              requirements.
+            </span>
           </div>
 
           <button
@@ -84,14 +210,25 @@ export default function CreateExperiment() {
           </button>
         </div>
 
-        {error && <div className="form-error">{error}</div>}
+        {error && (
+          <div className="form-error">
+            {error}
+          </div>
+        )}
 
-        <form className="experiment-form-grid" onSubmit={handleSubmit}>
+        <form
+          className="experiment-form-grid"
+          onSubmit={handleSubmit}
+        >
           <div className="experiment-form-card">
             <h3>Experiment Information</h3>
 
-            <label>Experiment Name</label>
+            <label htmlFor="experimentName">
+              Experiment Name
+            </label>
+
             <input
+              id="experimentName"
               name="experimentName"
               value={form.experimentName}
               onChange={handleChange}
@@ -99,8 +236,12 @@ export default function CreateExperiment() {
               required
             />
 
-            <label>Description</label>
+            <label htmlFor="description">
+              Description
+            </label>
+
             <textarea
+              id="description"
               name="description"
               value={form.description}
               onChange={handleChange}
@@ -108,37 +249,88 @@ export default function CreateExperiment() {
               rows={5}
             />
 
-            <label>Start Date</label>
+            <label htmlFor="expectStartDate">
+              Expected Start Date
+            </label>
+
             <input
+              id="expectStartDate"
               type="date"
-              name="startDate"
-              value={form.startDate}
+              name="expectStartDate"
+              value={form.expectStartDate}
               onChange={handleChange}
+              required
             />
 
-            <label>End Date</label>
+            <label htmlFor="expectEndDate">
+              Expected End Date
+            </label>
+
             <input
+              id="expectEndDate"
               type="date"
-              name="endDate"
-              value={form.endDate}
+              name="expectEndDate"
+              value={form.expectEndDate}
+              min={form.expectStartDate || undefined}
               onChange={handleChange}
+              required
             />
 
-            <label>Status</label>
-            <select name="status" value={form.status} onChange={handleChange}>
+            <label htmlFor="deadline">
+              Deadline
+            </label>
+
+            <input
+              id="deadline"
+              type="date"
+              name="deadline"
+              value={form.deadline}
+              min={
+                form.expectEndDate ||
+                form.expectStartDate ||
+                undefined
+              }
+              onChange={handleChange}
+              required
+            />
+
+            <label htmlFor="status">
+              Status
+            </label>
+
+            <select
+              id="status"
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+            >
               <option value="Draft">Draft</option>
               <option value="Pending">Pending</option>
-              <option value="InProgress">In Progress</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
+              <option value="InProgress">
+                In Progress
+              </option>
+              <option value="Completed">
+                Completed
+              </option>
+              <option value="Cancelled">
+                Cancelled
+              </option>
             </select>
 
-            <label>Priority</label>
-            <select name="priority" value={form.priority} onChange={handleChange}>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-              <option value="Urgent">Urgent</option>
+            <label htmlFor="priority">
+              Priority
+            </label>
+
+            <select
+              id="priority"
+              name="priority"
+              value={form.priority}
+              onChange={handleChange}
+            >
+              <option value="0">Low</option>
+              <option value="1">Medium</option>
+              <option value="2">High</option>
+              <option value="3">Urgent</option>
             </select>
           </div>
 
@@ -148,7 +340,10 @@ export default function CreateExperiment() {
             <div className="experiment-preview">
               <div>
                 <span>Name</span>
-                <strong>{form.experimentName || "Not entered"}</strong>
+
+                <strong>
+                  {form.experimentName || "Not entered"}
+                </strong>
               </div>
 
               <div>
@@ -158,13 +353,27 @@ export default function CreateExperiment() {
 
               <div>
                 <span>Priority</span>
-                <strong>{form.priority}</strong>
+
+                <strong>
+                  {priorityLabels[form.priority] ??
+                    "Unknown"}
+                </strong>
               </div>
 
               <div>
-                <span>Duration</span>
+                <span>Expected Duration</span>
+
                 <strong>
-                  {form.startDate || "-"} → {form.endDate || "-"}
+                  {form.expectStartDate || "-"} →{" "}
+                  {form.expectEndDate || "-"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Deadline</span>
+
+                <strong>
+                  {form.deadline || "-"}
                 </strong>
               </div>
             </div>
@@ -173,13 +382,21 @@ export default function CreateExperiment() {
               <button
                 type="button"
                 className="cancel-btn"
-                onClick={() => navigate("/experiments")}
+                onClick={() =>
+                  navigate("/experiments")
+                }
               >
                 Cancel
               </button>
 
-              <button type="submit" className="save-btn" disabled={saving}>
-                {saving ? "Saving..." : "Create Experiment"}
+              <button
+                type="submit"
+                className="save-btn"
+                disabled={saving}
+              >
+                {saving
+                  ? "Saving..."
+                  : "Create Experiment"}
               </button>
             </div>
           </div>

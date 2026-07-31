@@ -20,6 +20,8 @@ export default function EditRequirement() {
   const navigate = useNavigate();
   const { id } = useParams();
 
+  const requirementId = Number(id);
+
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
 
@@ -51,14 +53,12 @@ export default function EditRequirement() {
 
   useEffect(() => {
     async function loadData() {
-      if (!id) return;
-
       try {
         setLoading(true);
 
         const [requirementData, experimentData, equipmentTypeData] =
           await Promise.all([
-            getExperimentEquipmentRequirementById(Number(id)),
+            getExperimentEquipmentRequirementById(requirementId),
             getExperiments(),
             getEquipmentTypes(),
           ]);
@@ -67,25 +67,27 @@ export default function EditRequirement() {
         setEquipmentTypes(equipmentTypeData);
 
         setForm({
-          experimentId: String(requirementData.experimentId),
-          equipmentTypeId: String(requirementData.equipmentTypeId),
-          quantity: String(requirementData.quantity),
-          allowSubstitute: String(requirementData.allowSubstitute),
+          experimentId: String(requirementData.experimentId || ""),
+          equipmentTypeId: String(requirementData.equipmentTypeId || ""),
+          quantity: String(requirementData.quantity || "1"),
+          allowSubstitute: String(requirementData.allowSubstitute ?? true),
           minAcceptableEfficiency: String(
-            requirementData.minAcceptableEfficiency
+            requirementData.minAcceptableEfficiency ?? "80"
           ),
           note: requirementData.note || "",
         });
       } catch (err) {
         console.error(err);
-        setError("Cannot load requirement data.");
+        setError("Cannot load requirement information.");
       } finally {
         setLoading(false);
       }
     }
 
-    loadData();
-  }, [id]);
+    if (requirementId) {
+      loadData();
+    }
+  }, [requirementId]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -102,13 +104,13 @@ export default function EditRequirement() {
     e.preventDefault();
     setError("");
 
-    if (!id) {
-      setError("Requirement not found.");
+    if (!form.experimentId) {
+      setError("Please select an experiment.");
       return;
     }
 
-    if (!form.experimentId) {
-      setError("Please select an experiment.");
+    if (selectedExperiment?.status === "Draft") {
+      setError("Experiment must be active before updating requirements.");
       return;
     }
 
@@ -125,7 +127,7 @@ export default function EditRequirement() {
     try {
       setSaving(true);
 
-      await updateExperimentEquipmentRequirement(Number(id), {
+      await updateExperimentEquipmentRequirement(requirementId, {
         experimentId: Number(form.experimentId),
         equipmentTypeId: Number(form.equipmentTypeId),
         quantity: Number(form.quantity),
@@ -147,7 +149,7 @@ export default function EditRequirement() {
     return (
       <DashboardLayout>
         <div className="requirement-form-page">
-          <p>Loading requirement data...</p>
+          <p>Loading requirement...</p>
         </div>
       </DashboardLayout>
     );
@@ -162,9 +164,12 @@ export default function EditRequirement() {
               Dashboard / Equipment Requirements / Edit
             </p>
 
-            <h1>Edit Equipment Requirement #{id}</h1>
+            <h1>Edit Equipment Requirement</h1>
 
-            <span>Update equipment requirement information.</span>
+            <span>
+              Update equipment requirement information for the selected
+              experiment.
+            </span>
           </div>
 
           <button
@@ -188,6 +193,7 @@ export default function EditRequirement() {
               value={form.experimentId}
               onChange={handleChange}
               required
+              disabled
             >
               <option value="">Select experiment</option>
 
@@ -200,6 +206,12 @@ export default function EditRequirement() {
                 </option>
               ))}
             </select>
+
+            {selectedExperiment && (
+              <div className="linked-experiment-badge">
+                Linked to: {selectedExperiment.experimentName}
+              </div>
+            )}
 
             <label>Equipment Type</label>
             <select
@@ -272,6 +284,20 @@ export default function EditRequirement() {
                 </strong>
               </div>
 
+              {selectedExperiment && (
+                <>
+                  <div>
+                    <span>Experiment Status</span>
+                    <strong>{selectedExperiment.status || "-"}</strong>
+                  </div>
+
+                  <div>
+                    <span>Experiment Priority</span>
+                    <strong>{selectedExperiment.priority || "-"}</strong>
+                  </div>
+                </>
+              )}
+
               <div>
                 <span>Selected Equipment Type</span>
                 <strong>
@@ -311,7 +337,7 @@ export default function EditRequirement() {
               </button>
 
               <button type="submit" className="save-btn" disabled={saving}>
-                {saving ? "Saving..." : "Update Requirement"}
+                {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>

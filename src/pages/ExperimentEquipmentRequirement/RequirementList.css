@@ -1,151 +1,302 @@
+
+
 .requirement-page {
-  padding: 28px;
-  color: #ffffff;
+  width: 100%;
+  padding: 28px 32px;
+  color: #f8fafc;
+  box-sizing: border-box;
 }
+
 
 .requirement-header {
   display: flex;
-  justify-content: space-between;
-  gap: 20px;
   align-items: flex-start;
-  margin-bottom: 24px;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
 }
 
 .requirement-header h1 {
   margin: 0 0 8px;
+  color: #ffffff;
   font-size: 30px;
   font-weight: 700;
 }
 
 .requirement-header p {
+  max-width: 700px;
   margin: 0;
-  color: rgba(255, 255, 255, 0.65);
+  color: #aeb9cb;
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 .requirement-create-btn {
+  min-width: 210px;
+  padding: 14px 20px;
   border: none;
-  border-radius: 12px;
-  padding: 12px 18px;
+  border-radius: 10px;
   background: #16a34a;
-  color: white;
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
+.requirement-create-btn:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
+
 .requirement-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 160px;
   gap: 12px;
   margin-bottom: 20px;
 }
 
 .requirement-toolbar input {
-  flex: 1;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.85);
-  color: white;
-  padding: 12px 14px;
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid #31405a;
+  border-radius: 10px;
   outline: none;
+  background: #111a2d;
+  color: #ffffff;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.requirement-toolbar input::placeholder {
+  color: #7f8da3;
+}
+
+.requirement-toolbar input:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgb(34 197 94 / 12%);
 }
 
 .requirement-toolbar button {
+  height: 48px;
   border: none;
-  border-radius: 12px;
-  padding: 12px 18px;
-  background: #334155;
-  color: white;
+  border-radius: 10px;
+  background: #3a4c66;
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease;
 }
 
+.requirement-toolbar button:hover {
+  background: #4a607f;
+}
+
+
 .requirement-table-card {
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 18px;
-  padding: 22px;
   overflow-x: auto;
+  border: 1px solid #293750;
+  border-radius: 16px;
+  background: #101a2e;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 12%);
 }
 
 .requirement-table-card h3 {
-  margin: 0 0 18px;
+  margin: 0;
+  padding: 20px 22px;
+  border-bottom: 1px solid #293750;
+  color: #ffffff;
   font-size: 18px;
 }
 
 .requirement-table {
   width: 100%;
-  min-width: 960px;
+  min-width: 1050px;
   border-collapse: collapse;
 }
 
-.requirement-table th,
-.requirement-table td {
-  padding: 14px 12px;
-  text-align: left;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+.requirement-table thead {
+  background: #26364e;
 }
 
 .requirement-table th {
-  color: rgba(255, 255, 255, 0.58);
+  padding: 16px 14px;
+  color: #f8fafc;
   font-size: 13px;
   font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.requirement-table tbody tr {
+  border-bottom: 1px solid #26344b;
+  transition: background 0.2s ease;
+}
+
+.requirement-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.requirement-table tbody tr:hover {
+  background: #15223a;
 }
 
 .requirement-table td {
-  color: rgba(255, 255, 255, 0.88);
+  padding: 18px 14px;
+  color: #e6edf7;
+  font-size: 14px;
+  line-height: 1.5;
+  vertical-align: middle;
 }
+
+.requirement-table td:nth-child(2),
+.requirement-table td:nth-child(3) {
+  min-width: 170px;
+  font-weight: 600;
+}
+
+.requirement-table td:nth-child(7) {
+  min-width: 180px;
+  max-width: 280px;
+  white-space: normal;
+  color: #cbd5e1;
+}
+
+
 
 .substitute-yes,
 .substitute-no {
   display: inline-flex;
-  border-radius: 999px;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
   padding: 6px 10px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
 }
 
 .substitute-yes {
-  background: rgba(34, 197, 94, 0.16);
+  background: rgb(34 197 94 / 18%);
   color: #4ade80;
 }
 
 .substitute-no {
-  background: rgba(239, 68, 68, 0.16);
+  background: rgb(239 68 68 / 18%);
   color: #f87171;
+}
+
+.requirement-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.requirement-secondary-btn {
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 11px 16px;
+  background: #334155;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.requirement-secondary-btn:hover {
+  background: #475569;
+}
+
+.requirement-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.requirement-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .requirement-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 230px;
 }
 
 .requirement-actions button {
+  min-width: 66px;
+  padding: 9px 12px;
   border: none;
   border-radius: 8px;
-  padding: 7px 10px;
-  background: #334155;
-  color: white;
+  background: #3a4c66;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  font-weight: 600;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.requirement-actions button:hover {
+  background: #4a607f;
+  transform: translateY(-1px);
 }
 
 .requirement-actions .danger-btn {
   background: #dc2626;
 }
 
+.requirement-actions .danger-btn:hover {
+  background: #b91c1c;
+}
+
+
 .loading-text {
-  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  padding: 40px 20px;
+  color: #aeb9cb;
+  text-align: center;
 }
 
 .empty-cell {
+  height: 160px;
+  color: #8c9ab0 !important;
   text-align: center;
-  padding: 28px !important;
-  color: rgba(255, 255, 255, 0.55) !important;
 }
 
+
 @media (max-width: 900px) {
-  .requirement-header,
-  .requirement-toolbar {
+  .requirement-page {
+    padding: 22px 18px;
+  }
+
+  .requirement-header {
     flex-direction: column;
+  }
+
+  .requirement-create-btn {
+    width: 100%;
+  }
+
+  .requirement-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .requirement-page {
+    padding: 16px 12px;
+  }
+
+  .requirement-header h1 {
+    font-size: 25px;
   }
 }

@@ -8,85 +8,187 @@ import {
   updateAllocationPlan,
 } from "../../services/allocationPlanService";
 
-import type { AllocationPlan } from "../../types/allocationPlan";
+import type {
+  AllocationPlan,
+  AllocationPlanStatus,
+} from "../../types/allocationPlan";
 
 import "./CreateAllocation.css";
 
+interface EditAllocationFormState {
+  fitnessScore: string;
+}
+
+function isEditableStatus(
+  status: AllocationPlanStatus
+): boolean {
+  return status === "Draft" || status === "Pending";
+}
+
+function getErrorMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error
+  ) {
+    const response = (
+      error as {
+        response?: {
+          data?: {
+            message?: string;
+            title?: string;
+          };
+        };
+      }
+    ).response;
+
+    return (
+      response?.data?.message ??
+      response?.data?.title ??
+      "Update allocation plan failed."
+    );
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Update allocation plan failed.";
+}
+
 export default function EditAllocation() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
 
-  const [plan, setPlan] = useState<AllocationPlan | null>(null);
+  const allocationPlanId = Number(id);
 
-  const [form, setForm] = useState({
-    fitnessScore: "",
-    approveStatus: "Pending",
-  });
+  const [plan, setPlan] =
+    useState<AllocationPlan | null>(null);
+
+  const [form, setForm] =
+    useState<EditAllocationFormState>({
+      fitnessScore: "",
+    });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function loadAllocationPlan() {
-      if (!id) return;
+      if (
+        !Number.isInteger(allocationPlanId) ||
+        allocationPlanId <= 0
+      ) {
+        setError("Allocation plan ID is invalid.");
+        setLoading(false);
+        return;
+      }
 
       try {
         setLoading(true);
+        setError("");
 
-        const data = await getAllocationPlanById(Number(id));
+        const data =
+          await getAllocationPlanById(
+            allocationPlanId
+          );
+
         setPlan(data);
 
         setForm({
           fitnessScore:
-            data.fitnessScore !== undefined && data.fitnessScore !== null
+            data.fitnessScore !== null &&
+            data.fitnessScore !== undefined
               ? String(data.fitnessScore)
               : "",
-          approveStatus: data.approveStatus || "Pending",
         });
-      } catch (err) {
-        console.error(err);
-        setError("Cannot load allocation plan.");
+      } catch (loadError) {
+        console.error(
+          "Failed to load allocation plan:",
+          loadError
+        );
+
+        setError(
+          getErrorMessage(loadError) ||
+            "Cannot load allocation plan."
+        );
       } finally {
         setLoading(false);
       }
     }
 
-    loadAllocationPlan();
-  }, [id]);
+    void loadAllocationPlan();
+  }, [allocationPlanId]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = event.target;
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
     setError("");
 
-    if (!id || !plan) {
+    if (!plan) {
       setError("Allocation plan not found.");
+      return;
+    }
+
+    if (!isEditableStatus(plan.approveStatus)) {
+      setError(
+        `Allocation plan with status ${plan.approveStatus} cannot be edited.`
+      );
+      return;
+    }
+
+    const fitnessScore =
+      form.fitnessScore.trim() === ""
+        ? null
+        : Number(form.fitnessScore);
+
+    if (
+      fitnessScore !== null &&
+      (Number.isNaN(fitnessScore) ||
+        fitnessScore < 0 ||
+        fitnessScore > 100)
+    ) {
+      setError(
+        "Fitness score must be between 0 and 100."
+      );
       return;
     }
 
     try {
       setSaving(true);
 
-      await updateAllocationPlan(Number(id), {
-        experimentId: plan.experimentId,
-        fitnessScore: form.fitnessScore ? Number(form.fitnessScore) : 0,
-        approveStatus: form.approveStatus,
-      });
+      await updateAllocationPlan(
+        allocationPlanId,
+        {
+          experimentId: plan.experimentId,
+          fitnessScore,
+          approveStatus: plan.approveStatus,
+        }
+      );
 
-      navigate(`/allocation/${id}`);
-    } catch (err) {
-      console.error(err);
-      setError("Update allocation plan failed.");
+      navigate(
+        `/allocation/${allocationPlanId}`
+      );
+    } catch (submitError) {
+      console.error(
+        "Failed to update allocation plan:",
+        submitError
+      );
+
+      setError(getErrorMessage(submitError));
     } finally {
       setSaving(false);
     }
@@ -106,15 +208,44 @@ export default function EditAllocation() {
     return (
       <DashboardLayout>
         <div className="create-allocation-page">
-          <h1>Allocation Plan Not Found</h1>
+          <div className="create-header">
+            <div>
+              <p className="breadcrumb">
+                Dashboard / Allocation / Edit
+              </p>
 
-          <button className="back-btn" onClick={() => navigate("/allocation")}>
-            Back
-          </button>
+              <h1>Allocation Plan Not Found</h1>
+
+              <span>
+                The requested allocation plan could not be
+                loaded.
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="back-btn"
+              onClick={() =>
+                navigate("/allocation")
+              }
+            >
+              Back
+            </button>
+          </div>
+
+          {error && (
+            <div className="form-error">
+              {error}
+            </div>
+          )}
         </div>
       </DashboardLayout>
     );
   }
+
+  const canEdit = isEditableStatus(
+    plan.approveStatus
+  );
 
   return (
     <DashboardLayout>
@@ -122,59 +253,96 @@ export default function EditAllocation() {
         <div className="create-header">
           <div>
             <p className="breadcrumb">
-              Dashboard / Allocation Planner / Edit Allocation
+              Dashboard / Allocation / Edit
             </p>
 
-            <h1>Edit Allocation Plan #{plan.allocationPlanId}</h1>
+            <h1>
+              Edit Allocation Plan #
+              {plan.allocationPlanId}
+            </h1>
 
-            <span>Update allocation fitness score and approval status.</span>
+            <span>
+              Update the fitness score of this allocation
+              plan.
+            </span>
           </div>
 
           <button
             type="button"
             className="back-btn"
-            onClick={() => navigate(`/allocation/${plan.allocationPlanId}`)}
+            onClick={() =>
+              navigate(
+                `/allocation/${plan.allocationPlanId}`
+              )
+            }
           >
             Back
           </button>
         </div>
 
-        {error && <div className="form-error">{error}</div>}
+        {error && (
+          <div className="form-error">{error}</div>
+        )}
 
-        <form className="allocation-form" onSubmit={handleSubmit}>
+        {!canEdit && (
+          <div className="form-error">
+            This allocation plan cannot be edited because
+            its current status is{" "}
+            <strong>{plan.approveStatus}</strong>.
+          </div>
+        )}
+
+        <form
+          className="allocation-form"
+          onSubmit={handleSubmit}
+        >
           <div className="form-card">
-            <h3>Allocation Plan Information</h3>
+            <h3>Allocation Information</h3>
 
-            <label>Experiment</label>
+            <label htmlFor="experiment">
+              Experiment
+            </label>
+
             <input
-              value={`#${plan.experimentId} - ${plan.experimentName}`}
+              id="experiment"
+              value={`#${plan.experimentId} - ${
+                plan.experimentName ??
+                "Unknown experiment"
+              }`}
               disabled
             />
 
-            <label>Fitness Score</label>
+            <label htmlFor="fitnessScore">
+              Fitness Score (%)
+            </label>
+
             <input
+              id="fitnessScore"
               type="number"
-              step="0.01"
               name="fitnessScore"
+              min="0"
+              max="100"
+              step="0.01"
               value={form.fitnessScore}
               onChange={handleChange}
               placeholder="Example: 85"
+              disabled={!canEdit}
             />
 
-            <label>Approve Status</label>
-            <select
-              name="approveStatus"
-              value={form.approveStatus}
-              onChange={handleChange}
-            >
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
+            <label htmlFor="approveStatus">
+              Current Status
+            </label>
+
+            <input
+              id="approveStatus"
+              value={plan.approveStatus}
+              disabled
+            />
 
             <div className="form-note">
-              Only Manager can edit allocation plans.
+              Approval status is not changed from this
+              form. Manager actions use the separate
+              Approve, Reject and Cancel APIs.
             </div>
           </div>
 
@@ -184,32 +352,61 @@ export default function EditAllocation() {
             <div className="experiment-preview">
               <div>
                 <span>Experiment Name</span>
-                <strong>{plan.experimentName}</strong>
+
+                <strong>
+                  {plan.experimentName ??
+                    "Unknown experiment"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Fitness Score</span>
+
+                <strong>
+                  {plan.fitnessScore !== null
+                    ? `${plan.fitnessScore}%`
+                    : "Not set"}
+                </strong>
               </div>
 
               <div>
                 <span>Land Details</span>
-                <strong>{plan.landDetailCount}</strong>
+
+                <strong>
+                  {plan.landDetailCount ?? 0}
+                </strong>
               </div>
 
               <div>
                 <span>Equipment Details</span>
-                <strong>{plan.equipmentDetailCount}</strong>
+
+                <strong>
+                  {plan.equipmentDetailCount ?? 0}
+                </strong>
               </div>
 
               <div>
                 <span>Human Details</span>
-                <strong>{plan.humanDetailCount}</strong>
+
+                <strong>
+                  {plan.humanDetailCount ?? 0}
+                </strong>
               </div>
 
               <div>
                 <span>Schedules</span>
-                <strong>{plan.scheduleCount}</strong>
+
+                <strong>
+                  {plan.scheduleCount ?? 0}
+                </strong>
               </div>
 
               <div>
                 <span>Current Status</span>
-                <strong>{plan.approveStatus}</strong>
+
+                <strong>
+                  {plan.approveStatus}
+                </strong>
               </div>
             </div>
 
@@ -217,13 +414,23 @@ export default function EditAllocation() {
               <button
                 type="button"
                 className="cancel-btn"
-                onClick={() => navigate(`/allocation/${plan.allocationPlanId}`)}
+                onClick={() =>
+                  navigate(
+                    `/allocation/${plan.allocationPlanId}`
+                  )
+                }
               >
                 Cancel
               </button>
 
-              <button type="submit" className="save-btn" disabled={saving}>
-                {saving ? "Saving..." : "Update Allocation"}
+              <button
+                type="submit"
+                className="save-btn"
+                disabled={saving || !canEdit}
+              >
+                {saving
+                  ? "Saving..."
+                  : "Update Allocation"}
               </button>
             </div>
           </div>

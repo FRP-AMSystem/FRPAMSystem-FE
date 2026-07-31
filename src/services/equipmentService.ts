@@ -1,83 +1,220 @@
 import api from "./api";
-import type {
-  EquipmentCategory,
-  EquipmentInstance,
-  EquipmentType,
-} from "../types/equipment";
 
-type ApiResponse<T> = {
-  data?: T;
-  items?: T;
-  result?: T;
-};
+export type EquipmentTrackingType =
+  | "QuantityBased"
+  | "Individual";
 
-function unwrapResponse<T>(responseData: T | ApiResponse<T>): T {
-  if (
-    responseData &&
-    typeof responseData === "object" &&
-    "data" in responseData
-  ) {
-    return (responseData as ApiResponse<T>).data as T;
+export interface EquipmentType {
+  equipmentTypeId: number;
+  equipmentCategoryId: number;
+
+  equipmentCategoryName?: string;
+
+  name: string;
+  equipmentTypeName: string;
+
+  trackingType: EquipmentTrackingType;
+  baseMaintenanceIntervalHours?: number | null;
+  totalQuantity: number;
+  description?: string | null;
+
+  createdAt?: string;
+  updatedAt?: string | null;
+}
+
+export interface EquipmentTypeRequest {
+  equipmentCategoryId: number;
+  name: string;
+  trackingType: EquipmentTrackingType;
+  baseMaintenanceIntervalHours?: number | null;
+  totalQuantity: number;
+  description?: string | null;
+}
+
+export interface EquipmentTypeQuery {
+  keyword?: string;
+  equipmentCategoryId?: number;
+  trackingType?: EquipmentTrackingType;
+  page?: number;
+  size?: number;
+}
+
+function validateId(id: number, fieldName: string): void {
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`${fieldName} is invalid.`);
+  }
+}
+
+function cleanParams(
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) =>
+        value !== undefined &&
+        value !== null &&
+        value !== ""
+    )
+  );
+}
+
+function isRecord(
+  value: unknown
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function unwrapResponse<T>(payload: unknown): T {
+  if (!isRecord(payload)) {
+    return payload as T;
   }
 
-  if (
-    responseData &&
-    typeof responseData === "object" &&
-    "items" in responseData
-  ) {
-    return (responseData as ApiResponse<T>).items as T;
+  if ("data" in payload && payload.data !== undefined) {
+    return unwrapResponse<T>(payload.data);
   }
 
-  if (
-    responseData &&
-    typeof responseData === "object" &&
-    "result" in responseData
-  ) {
-    return (responseData as ApiResponse<T>).result as T;
+  if ("result" in payload && payload.result !== undefined) {
+    return unwrapResponse<T>(payload.result);
   }
 
-  return responseData as T;
+  return payload as T;
 }
 
-export async function getEquipmentCategories(): Promise<EquipmentCategory[]> {
-  const response = await api.get("/EquipmentCategories");
-  const data = unwrapResponse<EquipmentCategory[]>(response.data);
+function normalizeList<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
 
-  return Array.isArray(data) ? data : [];
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  if (Array.isArray(payload.items)) {
+    return payload.items as T[];
+  }
+
+  if ("data" in payload) {
+    const items = normalizeList<T>(payload.data);
+
+    if (items.length > 0 || Array.isArray(payload.data)) {
+      return items;
+    }
+  }
+
+  if ("result" in payload) {
+    const items = normalizeList<T>(payload.result);
+
+    if (
+      items.length > 0 ||
+      Array.isArray(payload.result)
+    ) {
+      return items;
+    }
+  }
+
+  return [];
 }
 
-export async function getEquipmentTypes(): Promise<EquipmentType[]> {
-  const response = await api.get("/EquipmentTypes");
-  const data = unwrapResponse<EquipmentType[]>(response.data);
+function normalizeEquipmentType(
+  value: unknown
+): EquipmentType {
+  const item = isRecord(value) ? value : {};
 
-  return Array.isArray(data) ? data : [];
+  const name =
+    typeof item.name === "string"
+      ? item.name
+      : typeof item.equipmentTypeName === "string"
+        ? item.equipmentTypeName
+        : "";
+
+  return {
+    ...(item as unknown as EquipmentType),
+    equipmentTypeId: Number(item.equipmentTypeId ?? 0),
+    equipmentCategoryId: Number(
+      item.equipmentCategoryId ?? 0
+    ),
+    name,
+    equipmentTypeName: name,
+    trackingType:
+      item.trackingType === "Individual"
+        ? "Individual"
+        : "QuantityBased",
+    totalQuantity: Number(item.totalQuantity ?? 0),
+    baseMaintenanceIntervalHours:
+      item.baseMaintenanceIntervalHours === null ||
+      item.baseMaintenanceIntervalHours === undefined
+        ? null
+        : Number(item.baseMaintenanceIntervalHours),
+    description:
+      typeof item.description === "string"
+        ? item.description
+        : null,
+  };
 }
 
-export async function getEquipmentInstances(): Promise<EquipmentInstance[]> {
-  const response = await api.get("/EquipmentInstances");
-  const data = unwrapResponse<EquipmentInstance[]>(response.data);
+export async function getEquipmentTypes(
+  query: EquipmentTypeQuery = {}
+): Promise<EquipmentType[]> {
+  const response = await api.get("/EquipmentTypes", {
+    params: cleanParams({
+      Keyword: query.keyword,
+      EquipmentCategoryId: query.equipmentCategoryId,
+      TrackingType: query.trackingType,
+      Page: query.page,
+      Size: query.size,
+    }),
+  });
 
-  return Array.isArray(data) ? data : [];
+  return normalizeList<unknown>(response.data).map(
+    normalizeEquipmentType
+  );
 }
 
-export async function getEquipmentInstanceById(
+export async function getEquipmentTypeById(
   id: number
-): Promise<EquipmentInstance> {
-  const response = await api.get(`/EquipmentInstances/${id}`);
-  return unwrapResponse<EquipmentInstance>(response.data);
+): Promise<EquipmentType> {
+  validateId(id, "Equipment type ID");
+
+  const response = await api.get(`/EquipmentTypes/${id}`);
+
+  return normalizeEquipmentType(
+    unwrapResponse<unknown>(response.data)
+  );
 }
 
-export async function createEquipmentInstance(payload: unknown) {
-  const response = await api.post("/EquipmentInstances", payload);
-  return unwrapResponse(response.data);
+export async function createEquipmentType(
+  payload: EquipmentTypeRequest
+): Promise<EquipmentType> {
+  const response = await api.post(
+    "/EquipmentTypes",
+    payload
+  );
+
+  return normalizeEquipmentType(
+    unwrapResponse<unknown>(response.data)
+  );
 }
 
-export async function updateEquipmentInstance(id: number, payload: unknown) {
-  const response = await api.put(`/EquipmentInstances/${id}`, payload);
-  return unwrapResponse(response.data);
+export async function updateEquipmentType(
+  id: number,
+  payload: EquipmentTypeRequest
+): Promise<EquipmentType> {
+  validateId(id, "Equipment type ID");
+
+  const response = await api.put(
+    `/EquipmentTypes/${id}`,
+    payload
+  );
+
+  return normalizeEquipmentType(
+    unwrapResponse<unknown>(response.data)
+  );
 }
 
-export async function deleteEquipmentInstance(id: number) {
-  const response = await api.delete(`/EquipmentInstances/${id}`);
-  return unwrapResponse(response.data);
+export async function deleteEquipmentType(
+  id: number
+): Promise<void> {
+  validateId(id, "Equipment type ID");
+
+  await api.delete(`/EquipmentTypes/${id}`);
 }

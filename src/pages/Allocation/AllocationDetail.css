@@ -1,172 +1,825 @@
 .allocation-detail-page {
+  min-height: 100%;
   padding: 28px;
-  color: #ffffff;
+  color: #f8fafc;
 }
 
 .allocation-detail-header {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
   margin-bottom: 24px;
 }
 
 .allocation-detail-header h1 {
-  margin: 10px 0 6px;
-  font-size: 30px;
-  font-weight: 700;
+  margin: 8px 0 6px;
+  font-size: 32px;
+  line-height: 1.2;
 }
 
-.allocation-detail-header p {
+.allocation-subtitle {
   margin: 0;
-  color: rgba(255, 255, 255, 0.65);
+  color: #94a3b8;
+  font-size: 15px;
 }
 
-.back-btn {
+.allocation-breadcrumb {
+  margin: 14px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.allocation-back-button {
+  padding: 0;
   border: none;
   background: transparent;
-  color: #9ee7c5;
-  cursor: pointer;
+  color: #86efac;
   font-size: 14px;
-  padding: 0;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.allocation-detail-grid {
+.allocation-back-button:hover {
+  color: #bbf7d0;
+}
+
+.allocation-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.allocation-status-draft {
+  background: rgba(234, 179, 8, 0.18);
+  color: #fde047;
+}
+
+.allocation-status-pending {
+  background: rgba(249, 115, 22, 0.18);
+  color: #fb923c;
+}
+
+.allocation-status-approved {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+
+.allocation-status-rejected {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+}
+
+.allocation-status-cancelled {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+}
+
+.allocation-alert {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.allocation-alert.error {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(127, 29, 29, 0.3);
+  color: #fecaca;
+}
+
+.allocation-alert.success {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(20, 83, 45, 0.3);
+  color: #bbf7d0;
+}
+
+.allocation-overview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 
-.detail-card,
-.detail-actions-card {
-  background: rgba(15, 23, 42, 0.9);
+.allocation-info-card,
+.allocation-actions-card,
+.allocation-resource-card,
+.allocation-loading-card,
+.allocation-empty-state {
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 18px;
-  padding: 22px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
 }
 
-.detail-card h3,
-.detail-actions-card h3 {
-  margin: 0 0 18px;
+.allocation-info-card {
+  padding: 22px;
+}
+
+.card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.card-heading h2,
+.allocation-actions-card h2,
+.allocation-resource-header h2 {
+  margin: 5px 0 0;
   font-size: 18px;
 }
 
-.detail-row {
+.card-eyebrow {
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.resource-total {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.13);
+  color: #86efac;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.allocation-info-list {
   display: flex;
+  flex-direction: column;
+}
+
+.allocation-info-row {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
   padding: 12px 0;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.detail-row:last-child {
+.allocation-info-row:last-child {
   border-bottom: none;
 }
 
-.detail-row span {
-  color: rgba(255, 255, 255, 0.6);
+.allocation-info-row span {
+  color: #94a3b8;
+  font-size: 14px;
 }
 
-.detail-row strong {
+.allocation-info-row strong {
+  max-width: 65%;
+  color: #f8fafc;
   text-align: right;
-  color: #ffffff;
+  overflow-wrap: anywhere;
 }
 
-.resource-summary-grid {
+.allocation-resource-summary {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
-.resource-summary-grid div {
-  background: rgba(30, 41, 59, 0.85);
+.allocation-resource-summary>div {
+  padding: 17px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
   border-radius: 14px;
-  padding: 18px;
+  background: rgba(30, 41, 59, 0.86);
 }
 
-.resource-summary-grid span {
+.allocation-resource-summary span {
   display: block;
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 14px;
   margin-bottom: 8px;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
-.resource-summary-grid strong {
-  font-size: 28px;
+.allocation-resource-summary strong {
+  font-size: 26px;
 }
 
-.detail-actions-card {
-  margin-top: 22px;
+.allocation-actions-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 20px;
+  padding: 22px;
 }
 
-.detail-actions {
+.allocation-actions-card p {
+  max-width: 620px;
+  margin: 8px 0 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.allocation-action-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
-.detail-actions button {
+.allocation-button {
+  min-height: 42px;
+  padding: 10px 18px;
   border: none;
   border-radius: 10px;
-  padding: 10px 16px;
-  cursor: pointer;
-  background: #334155;
   color: #ffffff;
-  font-weight: 600;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
 }
 
-.detail-actions .success-btn {
-  background: #16a34a;
+.allocation-button:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
-.detail-actions .warning-btn {
-  background: #f59e0b;
+.allocation-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
-.detail-actions .secondary-btn {
+.allocation-button.secondary {
   background: #475569;
 }
 
-.readonly-note {
-  color: rgba(255, 255, 255, 0.65);
+.allocation-button.approve {
+  background: #16a34a;
 }
 
-.status-badge {
+.allocation-button.reject {
+  background: #dc2626;
+}
+
+.allocation-button.cancel {
+  background: #d97706;
+}
+
+.allocation-readonly-note {
+  margin: 0 !important;
+}
+
+.allocation-resource-card {
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.allocation-resource-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px;
+}
+
+.allocation-resource-header p {
+  margin: 8px 0 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.resource-management-note {
+  max-width: 280px;
+  padding: 10px 13px;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 10px;
+  background: rgba(20, 83, 45, 0.22);
+  color: #bbf7d0;
+  font-size: 13px;
+}
+
+.allocation-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 22px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.allocation-tabs button {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 13px;
+  gap: 8px;
+  padding: 13px 17px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #94a3b8;
   font-weight: 700;
+  cursor: pointer;
 }
 
-.status-pending {
-  background: rgba(245, 158, 11, 0.16);
-  color: #fbbf24;
+.allocation-tabs button.active {
+  border-bottom-color: #22c55e;
+  color: #86efac;
 }
 
-.status-approved {
+.allocation-tabs button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  font-size: 11px;
+}
+
+.allocation-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.allocation-resource-table {
+  width: 100%;
+  min-width: 1050px;
+  border-collapse: collapse;
+}
+
+.allocation-resource-table th,
+.allocation-resource-table td {
+  padding: 15px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.allocation-resource-table th {
+  background: rgba(30, 41, 59, 0.9);
+  color: #cbd5e1;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.allocation-resource-table td {
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+.allocation-resource-table tbody tr:hover {
+  background: rgba(30, 41, 59, 0.45);
+}
+
+.resource-date-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resource-date-range small {
+  color: #64748b;
+}
+
+.resource-status {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.resource-status-proposed {
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+}
+
+.resource-status-reserved {
+  background: rgba(168, 85, 247, 0.16);
+  color: #d8b4fe;
+}
+
+.resource-status-allocated {
   background: rgba(34, 197, 94, 0.16);
-  color: #4ade80;
+  color: #86efac;
 }
 
-.status-rejected {
-  background: rgba(239, 68, 68, 0.16);
-  color: #f87171;
+.resource-status-inuse {
+  background: rgba(249, 115, 22, 0.16);
+  color: #fdba74;
 }
 
-.status-cancelled {
+.resource-status-completed {
+  background: rgba(20, 184, 166, 0.16);
+  color: #5eead4;
+}
+
+.resource-status-cancelled {
   background: rgba(148, 163, 184, 0.18);
   color: #cbd5e1;
 }
 
-@media (max-width: 900px) {
-  .allocation-detail-grid {
+.resource-delete-button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.resource-delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.allocation-resource-empty {
+  padding: 52px 24px;
+  text-align: center;
+}
+
+.allocation-resource-empty h3 {
+  margin: 0 0 8px;
+}
+
+.allocation-resource-empty p {
+  margin: 0;
+  color: #94a3b8;
+}
+
+.allocation-locked-note {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.65);
+  color: #cbd5e1;
+}
+
+.allocation-loading-card,
+.allocation-empty-state {
+  padding: 40px;
+}
+
+.allocation-empty-state {
+  text-align: center;
+}
+
+.allocation-empty-state h1 {
+  margin-top: 0;
+}
+
+.allocation-empty-state p {
+  color: #94a3b8;
+}
+
+.resource-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.resource-header-actions .allocation-button {
+  flex-shrink: 0;
+}
+
+.allocation-resource-form {
+  margin: 20px 0;
+  padding: 24px;
+  border: 1px solid #dfe7e2;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(24, 64, 48, 0.06);
+}
+
+.allocation-form-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.allocation-form-header h3 {
+  margin: 0 0 6px;
+  color: #183f30;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.allocation-form-header p {
+  margin: 0;
+  color: #6b7c74;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.allocation-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.allocation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.allocation-field>span {
+  color: #263a31;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.allocation-field input,
+.allocation-field select,
+.allocation-field textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #ced9d3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #22342c;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.allocation-field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.allocation-field input:focus,
+.allocation-field select:focus,
+.allocation-field textarea:focus {
+  border-color: #2d7a59;
+  box-shadow: 0 0 0 3px rgba(45, 122, 89, 0.12);
+}
+
+.allocation-field input:disabled,
+.allocation-field select:disabled,
+.allocation-field textarea:disabled {
+  background: #f3f6f4;
+  color: #8b9992;
+  cursor: not-allowed;
+}
+
+.allocation-field small {
+  color: #75857d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.allocation-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  align-self: end;
+  min-height: 42px;
+  padding: 10px 0;
+  color: #263a31;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.allocation-checkbox-field input {
+  width: 17px;
+  height: 17px;
+  accent-color: #2d7a59;
+}
+
+.allocation-checkbox-field input:disabled {
+  cursor: not-allowed;
+}
+
+.allocation-resource-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding: 16px 18px;
+  border: 1px solid #d9e6df;
+  border-radius: 10px;
+  background: #f5faf7;
+}
+
+.allocation-resource-preview p {
+  margin: 0;
+  color: #56675e;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.allocation-resource-preview strong {
+  color: #244436;
+}
+
+.allocation-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e5ece8;
+}
+
+.allocation-button {
+  min-height: 40px;
+  padding: 9px 18px;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.allocation-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.allocation-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.allocation-button.approve {
+  background: #287454;
+  color: #ffffff;
+}
+
+.allocation-button.approve:hover:not(:disabled) {
+  background: #205f45;
+}
+
+.allocation-button.secondary {
+  border: 1px solid #cdd8d2;
+  background: #ffffff;
+  color: #44574e;
+}
+
+.allocation-button.secondary:hover:not(:disabled) {
+  background: #f1f5f3;
+}
+
+.allocation-alert {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.allocation-alert.error {
+  border: 1px solid #f1b7b7;
+  background: #fff1f1;
+  color: #a12424;
+}
+
+.allocation-alert.success {
+  border: 1px solid #a8d9be;
+  background: #edf9f2;
+  color: #23633f;
+}
+
+.resource-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.resource-bottom-actions .allocation-button {
+  min-width: 190px;
+}
+
+@media (max-width: 560px) {
+  .resource-bottom-actions {
+    justify-content: stretch;
+  }
+
+  .resource-bottom-actions .allocation-button {
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 992px) {
+  .allocation-resource-preview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .allocation-resource-form {
+    padding: 18px;
+  }
+
+  .allocation-form-header {
+    flex-direction: column;
+  }
+
+  .allocation-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .allocation-detail-header {
+  .allocation-resource-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .allocation-form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .allocation-form-actions .allocation-button {
+    width: 100%;
+  }
+
+  .allocation-form-header .allocation-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .resource-header-actions {
+    width: 100%;
+    align-items: stretch;
     flex-direction: column;
-    gap: 14px;
+  }
+
+  .resource-header-actions .resource-management-note {
+    max-width: none;
+  }
+
+  .resource-header-actions .allocation-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 1100px) {
+  .allocation-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .allocation-actions-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .allocation-action-buttons {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .allocation-detail-page {
+    padding: 18px;
+  }
+
+  .allocation-detail-header,
+  .allocation-resource-header {
+    flex-direction: column;
+  }
+
+  .allocation-resource-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .allocation-tabs {
+    overflow-x: auto;
+  }
+
+  .allocation-tabs button {
+    flex-shrink: 0;
+  }
+
+  .allocation-action-buttons {
+    width: 100%;
+  }
+
+  .allocation-button {
+    width: 100%;
   }
 }

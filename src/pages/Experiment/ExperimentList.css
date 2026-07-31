@@ -1,168 +1,325 @@
+/* =========================
+   EXPERIMENT PAGE
+========================= */
+
 .experiment-page {
-  padding: 28px;
-  color: #ffffff;
+  width: 100%;
+  padding: 28px 32px;
+  color: #f8fafc;
 }
+
+/* =========================
+   HEADER
+========================= */
 
 .experiment-header {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
-  margin-bottom: 24px;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
 }
 
 .experiment-header h1 {
   margin: 0 0 8px;
   font-size: 30px;
   font-weight: 700;
+  color: #ffffff;
 }
 
 .experiment-header p {
+  max-width: 620px;
   margin: 0;
-  color: rgba(255, 255, 255, 0.65);
+  color: #aeb9cb;
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 .experiment-create-btn {
+  min-width: 210px;
+  padding: 14px 22px;
   border: none;
-  border-radius: 12px;
-  padding: 12px 18px;
+  border-radius: 10px;
   background: #16a34a;
-  color: white;
+  color: #ffffff;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 }
 
+.experiment-create-btn:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
+/* =========================
+   SEARCH TOOLBAR
+========================= */
+
 .experiment-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 160px;
   gap: 12px;
   margin-bottom: 20px;
 }
 
 .experiment-toolbar input {
-  flex: 1;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.85);
-  color: white;
-  padding: 12px 14px;
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid #31405a;
+  border-radius: 10px;
   outline: none;
+  background: #111a2d;
+  color: #ffffff;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.experiment-toolbar input::placeholder {
+  color: #7f8da3;
+}
+
+.experiment-toolbar input:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgb(34 197 94 / 12%);
 }
 
 .experiment-toolbar button {
+  height: 48px;
   border: none;
-  border-radius: 12px;
-  padding: 12px 18px;
-  background: #334155;
-  color: white;
+  border-radius: 10px;
+  background: #3a4c66;
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease;
 }
 
+.experiment-toolbar button:hover {
+  background: #4a607f;
+}
+
+/* =========================
+   TABLE CARD
+========================= */
+
 .experiment-table-card {
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 18px;
-  padding: 22px;
-  overflow-x: auto;
+  overflow: hidden;
+  border: 1px solid #293750;
+  border-radius: 16px;
+  background: #101a2e;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 12%);
 }
 
 .experiment-table-card h3 {
-  margin: 0 0 18px;
+  margin: 0;
+  padding: 20px 22px;
+  border-bottom: 1px solid #293750;
+  color: #ffffff;
   font-size: 18px;
+}
+
+/*
+  Cho phép bảng cuộn ngang khi màn hình hẹp.
+*/
+.experiment-table-card {
+  overflow-x: auto;
 }
 
 .experiment-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 1150px;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
-.experiment-table th,
-.experiment-table td {
-  padding: 14px 12px;
-  text-align: left;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+/* =========================
+   TABLE HEADER
+========================= */
+
+.experiment-table thead {
+  background: #26364e;
 }
 
-.experiment-table th {
-  color: rgba(255, 255, 255, 0.58);
+.experiment-table thead th {
+  padding: 16px 14px;
+  color: #f8fafc;
   font-size: 13px;
   font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
 }
 
-.experiment-table td {
-  color: rgba(255, 255, 255, 0.88);
+/* =========================
+   TABLE BODY
+========================= */
+
+.experiment-table tbody tr {
+  border-bottom: 1px solid #26344b;
+  transition: background 0.2s ease;
 }
+
+.experiment-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.experiment-table tbody tr:hover {
+  background: #15223a;
+}
+
+.experiment-table tbody td {
+  padding: 18px 14px;
+  color: #e6edf7;
+  font-size: 14px;
+  line-height: 1.4;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.experiment-table tbody td:nth-child(2) {
+  min-width: 190px;
+  font-weight: 600;
+  white-space: normal;
+}
+
+/* =========================
+   STATUS BADGE
+========================= */
 
 .experiment-status {
   display: inline-flex;
-  border-radius: 999px;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
   padding: 6px 10px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  background: rgba(148, 163, 184, 0.16);
-  color: #cbd5e1;
 }
 
-.status-active,
-.status-approved,
-.status-inprogress,
-.status-in-progress {
-  background: rgba(34, 197, 94, 0.16);
-  color: #4ade80;
-}
-
-.status-pending,
 .status-draft {
-  background: rgba(234, 179, 8, 0.16);
+  background: rgb(234 179 8 / 20%);
   color: #facc15;
 }
 
-.status-rejected,
-.status-cancelled,
-.status-failed {
-  background: rgba(239, 68, 68, 0.16);
-  color: #f87171;
+.status-pending {
+  background: rgb(249 115 22 / 18%);
+  color: #fb923c;
 }
 
-.status-completed {
-  background: rgba(59, 130, 246, 0.16);
+.status-inprogress {
+  background: rgb(59 130 246 / 18%);
   color: #60a5fa;
 }
 
+.status-completed {
+  background: rgb(34 197 94 / 18%);
+  color: #4ade80;
+}
+
+.status-cancelled,
+.status-rejected {
+  background: rgb(239 68 68 / 18%);
+  color: #f87171;
+}
+
+.status-unknown {
+  background: rgb(148 163 184 / 18%);
+  color: #cbd5e1;
+}
+
+/* =========================
+   ACTION BUTTONS
+========================= */
+
 .experiment-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 230px;
 }
 
 .experiment-actions button {
+  min-width: 66px;
+  padding: 9px 13px;
   border: none;
   border-radius: 8px;
-  padding: 7px 10px;
-  background: #334155;
-  color: white;
+  background: #3a4c66;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  font-weight: 600;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.experiment-actions button:hover {
+  background: #4a607f;
+  transform: translateY(-1px);
 }
 
 .experiment-actions .danger-btn {
   background: #dc2626;
 }
 
+.experiment-actions .danger-btn:hover {
+  background: #b91c1c;
+}
+
+/* =========================
+   LOADING AND EMPTY
+========================= */
+
 .loading-text {
-  color: rgba(255, 255, 255, 0.7);
+  padding: 36px 22px;
+  color: #aeb9cb;
+  text-align: center;
 }
 
 .empty-cell {
+  height: 160px;
+  color: #8c9ab0 !important;
   text-align: center;
-  padding: 28px !important;
-  color: rgba(255, 255, 255, 0.55) !important;
 }
 
+/* =========================
+   RESPONSIVE
+========================= */
+
 @media (max-width: 900px) {
-  .experiment-header,
-  .experiment-toolbar {
+  .experiment-page {
+    padding: 22px 18px;
+  }
+
+  .experiment-header {
     flex-direction: column;
+  }
+
+  .experiment-create-btn {
+    width: 100%;
+  }
+
+  .experiment-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .experiment-page {
+    padding: 16px 12px;
+  }
+
+  .experiment-header h1 {
+    font-size: 25px;
+  }
+
+  .experiment-table-card h3 {
+    padding: 16px;
   }
 }

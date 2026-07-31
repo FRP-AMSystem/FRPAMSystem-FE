@@ -1,139 +1,311 @@
+/* =========================
+   ALLOCATION PAGE
+========================= */
+
 .allocation-page {
-  padding: 24px;
-  background: #f5f7f6;
-  min-height: 100vh;
+  width: 100%;
+  padding: 28px 32px;
+  color: #f8fafc;
+  box-sizing: border-box;
 }
+
+/* =========================
+   HEADER
+========================= */
 
 .allocation-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
+  gap: 24px;
+  margin-bottom: 26px;
 }
 
 .allocation-header h1 {
-  margin: 0;
-  color: #1f2937;
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 30px;
+  font-weight: 700;
 }
 
 .allocation-header p {
-  color: #6b7280;
-  margin-top: 6px;
+  max-width: 650px;
+  margin: 0;
+  color: #aeb9cb;
+  font-size: 15px;
+  line-height: 1.6;
 }
 
-.allocation-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.btn-primary {
-  background: #0f6b3e;
-  color: white;
+.primary-btn {
+  min-width: 190px;
+  padding: 14px 20px;
   border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 10px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
-.btn-outline {
-  background: white;
-  border: 1px solid #d1d5db;
-  padding: 10px 18px;
-  border-radius: 8px;
-  cursor: pointer;
+.primary-btn:hover {
+  background: #15803d;
+  transform: translateY(-1px);
 }
 
-.stats-grid {
-  margin-top: 24px;
+/* =========================
+   FILTER TOOLBAR
+========================= */
+
+.allocation-toolbar {
   display: grid;
-  grid-template-columns: repeat(4,1fr);
-  gap: 16px;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #e5e7eb;
-}
-
-.stat-card span {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.stat-card h2 {
-  margin: 12px 0;
-}
-
-.table-section {
-  margin-top: 24px;
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  overflow: hidden;
-}
-
-.table-toolbar {
-  padding: 16px;
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(260px, 1fr) 220px;
   gap: 12px;
+  margin-bottom: 20px;
 }
 
-.table-toolbar input,
-.table-toolbar select,
-.table-toolbar button {
-  height: 42px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-}
-
-table {
+.allocation-toolbar input,
+.allocation-toolbar select {
   width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid #31405a;
+  border-radius: 10px;
+  outline: none;
+  background: #111a2d;
+  color: #ffffff;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.allocation-toolbar input::placeholder {
+  color: #7f8da3;
+}
+
+.allocation-toolbar input:focus,
+.allocation-toolbar select:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgb(34 197 94 / 12%);
+}
+
+.allocation-toolbar select {
+  cursor: pointer;
+}
+
+/* =========================
+   TABLE CARD
+========================= */
+
+.allocation-table-card {
+  overflow-x: auto;
+  border: 1px solid #293750;
+  border-radius: 16px;
+  background: #101a2e;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 12%);
+}
+
+.allocation-table {
+  width: 100%;
+  min-width: 1250px;
   border-collapse: collapse;
 }
 
-th {
-  background: #f3f4f6;
+.allocation-table thead {
+  background: #26364e;
+}
+
+.allocation-table th {
+  padding: 16px 14px;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
   text-align: left;
-  padding: 16px;
+  white-space: nowrap;
 }
 
-td {
-  padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
+.allocation-table tbody tr {
+  border-bottom: 1px solid #26344b;
+  transition: background 0.2s ease;
 }
 
-.status {
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
+.allocation-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.allocation-table tbody tr:hover {
+  background: #15223a;
+}
+
+.allocation-table td {
+  padding: 18px 14px;
+  color: #e6edf7;
+  font-size: 14px;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.allocation-table td:nth-child(2) {
+  min-width: 180px;
   font-weight: 600;
 }
 
-.active {
-  background: #dcfce7;
-  color: #166534;
+.allocation-table td:nth-child(7) {
+  min-width: 280px;
+  color: #cbd5e1;
 }
 
-.conflict {
-  background: #fee2e2;
-  color: #b91c1c;
+/* =========================
+   STATUS BADGES
+========================= */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 82px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.map-card {
-  margin-top: 24px;
-  height: 280px;
-  border-radius: 12px;
-  background: #d9ddd8;
-  position: relative;
+.status-draft {
+  background: rgb(234 179 8 / 18%);
+  color: #facc15;
 }
 
-.map-info {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  background: white;
-  padding: 16px;
-  border-radius: 10px;
+.status-pending {
+  background: rgb(249 115 22 / 18%);
+  color: #fb923c;
+}
+
+.status-approved {
+  background: rgb(34 197 94 / 18%);
+  color: #4ade80;
+}
+
+.status-rejected {
+  background: rgb(239 68 68 / 18%);
+  color: #f87171;
+}
+
+.status-cancelled {
+  background: rgb(148 163 184 / 18%);
+  color: #cbd5e1;
+}
+
+/* =========================
+   ACTION BUTTONS
+========================= */
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 300px;
+}
+
+.action-group button {
+  min-width: 66px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #3a4c66;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.action-group button:hover {
+  background: #4a607f;
+  transform: translateY(-1px);
+}
+
+.action-group .success-btn {
+  background: #16a34a;
+}
+
+.action-group .success-btn:hover {
+  background: #15803d;
+}
+
+.action-group .warning-btn {
+  background: #d97706;
+}
+
+.action-group .warning-btn:hover {
+  background: #b45309;
+}
+
+.action-group .secondary-btn {
+  background: #64748b;
+}
+
+.action-group .secondary-btn:hover {
+  background: #475569;
+}
+
+.action-group .danger-btn {
+  background: #dc2626;
+}
+
+.action-group .danger-btn:hover {
+  background: #b91c1c;
+}
+
+/* =========================
+   EMPTY AND LOADING
+========================= */
+
+.table-message {
+  margin: 0;
+  padding: 40px 20px;
+  color: #aeb9cb;
+  text-align: center;
+}
+
+.empty-table {
+  height: 160px;
+  color: #8c9ab0 !important;
+  text-align: center;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 900px) {
+  .allocation-page {
+    padding: 22px 18px;
+  }
+
+  .allocation-header {
+    flex-direction: column;
+  }
+
+  .primary-btn {
+    width: 100%;
+  }
+
+  .allocation-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .allocation-page {
+    padding: 16px 12px;
+  }
+
+  .allocation-header h1 {
+    font-size: 25px;
+  }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
@@ -14,12 +14,15 @@ import "./RequirementForm.css";
 
 export default function CreateRequirement() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const experimentIdFromUrl = searchParams.get("experimentId") || "";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
 
   const [form, setForm] = useState({
-    experimentId: "",
+    experimentId: experimentIdFromUrl,
     equipmentTypeId: "",
     quantity: "1",
     allowSubstitute: "true",
@@ -29,7 +32,6 @@ export default function CreateRequirement() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState("");
 
   const selectedExperiment = useMemo(() => {
@@ -92,8 +94,25 @@ export default function CreateRequirement() {
       return;
     }
 
-    if (Number(form.quantity) <= 0) {
+    const quantity = Number(form.quantity);
+
+    if (Number.isNaN(quantity) || quantity <= 0) {
       setError("Quantity must be greater than 0.");
+      return;
+    }
+
+    const minEfficiencyPercent = Number(
+      form.minAcceptableEfficiency
+    );
+
+    if (
+      Number.isNaN(minEfficiencyPercent) ||
+      minEfficiencyPercent < 0 ||
+      minEfficiencyPercent > 100
+    ) {
+      setError(
+        "Minimum acceptable efficiency must be between 0 and 100."
+      );
       return;
     }
 
@@ -103,13 +122,15 @@ export default function CreateRequirement() {
       await createExperimentEquipmentRequirement({
         experimentId: Number(form.experimentId),
         equipmentTypeId: Number(form.equipmentTypeId),
-        quantity: Number(form.quantity),
+        quantity,
         allowSubstitute: form.allowSubstitute === "true",
-        minAcceptableEfficiency: Number(form.minAcceptableEfficiency),
-        note: form.note,
+        minAcceptableEfficiency: minEfficiencyPercent / 100,
+        note: form.note.trim(),
       });
 
-      navigate("/equipment-requirements");
+      navigate(
+        `/equipment-requirements?experimentId=${form.experimentId}`
+      );
     } catch (err) {
       console.error(err);
       setError("Create equipment requirement failed.");
@@ -140,8 +161,8 @@ export default function CreateRequirement() {
             <h1>Create Equipment Requirement</h1>
 
             <span>
-              Add equipment requirements for an experiment before manager
-              allocation approval.
+              Add the equipment needed for this experiment before creating
+              its allocation plan.
             </span>
           </div>
 
@@ -166,6 +187,7 @@ export default function CreateRequirement() {
               value={form.experimentId}
               onChange={handleChange}
               required
+              disabled={!!experimentIdFromUrl}
             >
               <option value="">Select experiment</option>
 
@@ -178,6 +200,12 @@ export default function CreateRequirement() {
                 </option>
               ))}
             </select>
+
+            {selectedExperiment && (
+              <div className="linked-experiment-badge">
+                Linked to: {selectedExperiment.experimentName}
+              </div>
+            )}
 
             <label>Equipment Type</label>
             <select
@@ -249,6 +277,20 @@ export default function CreateRequirement() {
                     : "Not selected"}
                 </strong>
               </div>
+
+              {selectedExperiment && (
+                <>
+                  <div>
+                    <span>Experiment Status</span>
+                    <strong>{selectedExperiment.status || "-"}</strong>
+                  </div>
+
+                  <div>
+                    <span>Experiment Priority</span>
+                    <strong>{selectedExperiment.priority || "-"}</strong>
+                  </div>
+                </>
+              )}
 
               <div>
                 <span>Selected Equipment Type</span>

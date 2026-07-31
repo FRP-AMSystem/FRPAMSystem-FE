@@ -1,23 +1,23 @@
 export interface ExperimentEquipmentRequirement {
-  requirementId: number;
-  experimentEquipmentRequirementId?: number;
+  expEquipmentReqId: number;
 
   experimentId: number;
-  experimentName?: string | null;
+  experimentName: string;
 
   equipmentTypeId: number;
-  equipmentTypeName?: string | null;
+  equipmentTypeName: string;
 
   quantity: number;
+
   allowSubstitute: boolean;
+
   minAcceptableEfficiency: number;
 
-  note?: string | null;
+  note?: string;
 
-  createdAt?: string | null;
+  createdAt?: string;
   updatedAt?: string | null;
 }
-
 export interface ExperimentEquipmentRequirementQuery {
   keyword?: string;
   experimentId?: number;

@@ -1,0 +1,360 @@
+.human-requirement-page {
+  min-height: 100%;
+  padding: 28px;
+  color: #e5e7eb;
+}
+
+.human-requirement-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.human-requirement-header h1 {
+  margin: 8px 0;
+  color: #ffffff;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.human-requirement-header > div > p:last-child {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.human-requirement-breadcrumb {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.human-requirement-create-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.human-requirement-create-button:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.human-requirement-error {
+  margin-bottom: 18px;
+  padding: 13px 16px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 10px;
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+  font-size: 14px;
+}
+
+.human-requirement-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.human-requirement-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(520px, 100%);
+  padding: 0 14px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #111827;
+  color: #94a3b8;
+}
+
+.human-requirement-search:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.human-requirement-search input {
+  width: 100%;
+  height: 42px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.human-requirement-search input::placeholder {
+  color: #64748b;
+}
+
+.human-requirement-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.human-requirement-table-card {
+  overflow: hidden;
+  border: 1px solid #253247;
+  border-radius: 14px;
+  background: #111827;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.16);
+}
+
+.human-requirement-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.human-requirement-table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+}
+
+.human-requirement-table th {
+  padding: 15px 16px;
+  border-bottom: 1px solid #253247;
+  background: #172033;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.human-requirement-table td {
+  padding: 16px;
+  border-bottom: 1px solid #1f2937;
+  color: #dbe3ef;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.human-requirement-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.human-requirement-table tbody tr:hover {
+  background: rgba(30, 41, 59, 0.55);
+}
+
+.human-requirement-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.human-requirement-id {
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.human-requirement-main-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.human-requirement-main-cell strong {
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.human-requirement-main-cell span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.human-requirement-muted {
+  color: #64748b;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.human-requirement-quantity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  color: #bfdbfe;
+  font-weight: 700;
+}
+
+.human-requirement-note {
+  display: block;
+  max-width: 210px;
+  overflow: hidden;
+  color: #94a3b8;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.human-requirement-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.human-requirement-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.human-requirement-action.view {
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+}
+
+.human-requirement-action.view:hover {
+  border-color: #3b82f6;
+  background: rgba(37, 99, 235, 0.16);
+}
+
+.human-requirement-action.edit {
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fcd34d;
+}
+
+.human-requirement-action.edit:hover {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.human-requirement-action.delete {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.human-requirement-action.delete:hover {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.human-requirement-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.human-requirement-state,
+.human-requirement-empty {
+  display: flex;
+  min-height: 320px;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.human-requirement-empty {
+  flex-direction: column;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.human-requirement-empty svg {
+  margin-bottom: 14px;
+  color: #475569;
+}
+
+.human-requirement-empty h3 {
+  margin: 0 0 8px;
+  color: #f8fafc;
+  font-size: 19px;
+}
+
+.human-requirement-empty p {
+  margin: 0 0 18px;
+  color: #64748b;
+}
+
+.human-requirement-empty button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.human-requirement-empty button:hover {
+  background: #1d4ed8;
+}
+
+@media (max-width: 900px) {
+  .human-requirement-page {
+    padding: 20px;
+  }
+
+  .human-requirement-header {
+    flex-direction: column;
+  }
+
+  .human-requirement-create-button {
+    width: 100%;
+  }
+
+  .human-requirement-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .human-requirement-search {
+    width: 100%;
+  }
+
+  .human-requirement-count {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 600px) {
+  .human-requirement-page {
+    padding: 16px;
+  }
+
+  .human-requirement-header h1 {
+    font-size: 24px;
+  }
+}
