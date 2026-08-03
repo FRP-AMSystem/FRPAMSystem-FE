@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
 import UsersPage from "../pages/admin/Users/UsersPage";
+import ResourcesPage from "../pages/Resources/ResourcesPage";
 
 export default function AppRoutes() {
   return (
@@ -14,6 +15,8 @@ export default function AppRoutes() {
       <Route path="/dashboard" element={<DashboardPage />} />
 
       <Route path="/admin/users" element={<UsersPage />} />
+
+      <Route path="/resources" element={<ResourcesPage />} />
     </Routes>
   );
 }
