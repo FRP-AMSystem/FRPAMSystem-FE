@@ -4,9 +4,9 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --accent: #16a34a;
+  --accent-bg: rgba(22, 163, 74, 0.1);
+  --accent-border: rgba(22, 163, 74, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
@@ -17,12 +17,12 @@
   --brand-accent: #4CAF50;
   --card-bg: #FFFFFF;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  font: 15px/145% var(--sans);
+  letter-spacing: -0.01em;
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -42,9 +42,9 @@
   --bg: #16171d;
   --border: #2e303a;
   --code-bg: #1f2028;
-  --accent: #c084fc;
-  --accent-bg: rgba(192, 132, 252, 0.15);
-  --accent-border: rgba(192, 132, 252, 0.5);
+  --accent: #4ade80;
+  --accent-bg: rgba(74, 222, 128, 0.15);
+  --accent-border: rgba(74, 222, 128, 0.5);
   --social-bg: rgba(47, 48, 58, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
@@ -59,10 +59,11 @@
   filter: invert(1) brightness(2);
 }
 
-* {
+*, *::before, *::after, body, button, input, select, textarea {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
 }
 
 html,
@@ -73,7 +74,7 @@ body,
 }
 
 body {
-  font-family: Inter, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   background: #f5f7fa;
 }
 
@@ -136,4 +137,219 @@ img {
 
 .create-request-btn:hover {
   background-color: #1B5E20;
+}
+
+/* Custom Global Modern Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+:root.dark ::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+}
+
+:root.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Universal Modern Table Action Buttons */
+.table-actions-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.action-btn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 8px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  outline: none;
+  line-height: 1;
+  background-color: transparent;
+  box-sizing: border-box;
+}
+
+.action-btn-pill.edit,
+.action-btn-pill.primary {
+  background-color: var(--accent-bg, rgba(22, 163, 74, 0.08));
+  color: var(--accent, #16a34a);
+  border-color: var(--accent-border, rgba(22, 163, 74, 0.25));
+}
+
+.action-btn-pill.edit:hover,
+.action-btn-pill.primary:hover {
+  background-color: var(--accent, #16a34a);
+  color: #ffffff;
+  border-color: var(--accent, #16a34a);
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
+}
+
+.action-btn-pill.skills,
+.action-btn-pill.info,
+.action-btn-pill.view {
+  background-color: rgba(37, 99, 235, 0.08);
+  color: #2563EB;
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+.action-btn-pill.skills:hover,
+.action-btn-pill.info:hover,
+.action-btn-pill.view:hover {
+  background-color: #2563EB;
+  color: #ffffff;
+  border-color: #2563EB;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.action-btn-pill.delete,
+.action-btn-pill.danger {
+  background-color: rgba(220, 38, 38, 0.08);
+  color: #DC2626;
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+.action-btn-pill.delete:hover,
+.action-btn-pill.danger:hover {
+  background-color: #DC2626;
+  color: #ffffff;
+  border-color: #DC2626;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+
+:root.dark .action-btn-pill.skills,
+:root.dark .action-btn-pill.view {
+  background-color: rgba(96, 165, 250, 0.15);
+  color: #60A5FA;
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+:root.dark .action-btn-pill.skills:hover,
+:root.dark .action-btn-pill.view:hover {
+  background-color: #3B82F6;
+  color: #ffffff;
+}
+
+:root.dark .action-btn-pill.delete {
+  background-color: rgba(248, 113, 113, 0.15);
+  color: #F87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+:root.dark .action-btn-pill.delete:hover {
+  background-color: #EF4444;
+  color: #ffffff;
+}
+
+/* Universal Compact Modal Close Button */
+.modal-close-btn {
+  background: transparent !important;
+  border: none !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  color: var(--text) !important;
+  opacity: 0.6 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+}
+
+.modal-close-btn:hover {
+  opacity: 1 !important;
+  color: var(--text-h) !important;
+  background-color: var(--border) !important;
+}
+
+/* Universal Modern Custom Select Dropdowns */
+select,
+.custom-select,
+.user-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding: 0 36px 0 14px !important;
+  height: 40px;
+  border: 1px solid var(--border, #E5E7EB);
+  border-radius: 8px;
+  background-color: var(--card-bg, #FFFFFF);
+  color: var(--text-h, #111827);
+  font-size: 13.5px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+select:hover,
+.custom-select:hover,
+.user-filter-select:hover {
+  border-color: var(--accent, #16a34a);
+}
+
+select:focus,
+.custom-select:focus,
+.user-filter-select:focus {
+  border-color: var(--accent, #16a34a);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(22, 163, 74, 0.15));
+}
+
+select option {
+  background-color: var(--card-bg, #ffffff);
+  color: var(--text-h, #111827);
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+:root.dark select,
+:root.dark .custom-select,
+:root.dark .user-filter-select {
+  background-color: #1F2937;
+  border-color: #374151;
+  color: #F9FAFB;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+:root.dark select option {
+  background-color: #1F2937;
+  color: #F9FAFB;
 }

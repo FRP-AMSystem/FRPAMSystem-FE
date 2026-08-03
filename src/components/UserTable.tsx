@@ -1,4 +1,5 @@
 import type { User } from "../types/user";
+import { Eye, Edit2 } from "lucide-react";
 
 interface UserTableProps {
   users: User[];
@@ -157,37 +158,24 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
                 {formatDate(user.createdDate)}
               </td>
               <td style={{ textAlign: "right" }}>
-                <button
-                  type="button"
-                  className="table-action-link"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    cursor: "pointer",
-                    color: "var(--accent)",
-                    marginRight: "12px"
-                  }}
-                  onClick={() => onViewUser(user)}
-                >
-                  View
-                </button>
-                <button
-                  type="button"
-                  className="table-action-link"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    cursor: "pointer",
-                    color: "#0F9D58"
-                  }}
-                  onClick={() => onEditUser(user)}
-                >
-                  Edit
-                </button>
+                <div className="table-actions-cell">
+                  <button
+                    type="button"
+                    className="action-btn-pill view"
+                    onClick={() => onViewUser(user)}
+                  >
+                    <Eye size={12} />
+                    <span>View</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="action-btn-pill edit"
+                    onClick={() => onEditUser(user)}
+                  >
+                    <Edit2 size={12} />
+                    <span>Edit</span>
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

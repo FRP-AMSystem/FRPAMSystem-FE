@@ -115,6 +115,30 @@
   gap: 10px;
   max-height: 500px;
   overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+}
+
+.areas-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.areas-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.areas-list::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.35);
+  border-radius: 10px;
+}
+
+.areas-list::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+:root.dark .areas-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .area-item-card {
@@ -208,6 +232,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
 }
 
 .lands-display-header h3 {
@@ -350,10 +375,14 @@
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   transition: all 0.2s ease;
+  white-space: nowrap;
+  width: fit-content;
+  flex-shrink: 0;
 }
 
 .resource-action-btn.primary {
