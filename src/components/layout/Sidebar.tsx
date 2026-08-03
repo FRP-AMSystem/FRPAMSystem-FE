@@ -32,8 +32,8 @@ const menuItems: MenuItem[] = [
   { name: "Schedules", icon: Calendar },
   { name: "Equipment Tracking", icon: Truck },
   { name: "Analytics", icon: BarChart3 },
-  { name: "Notifications", icon: Bell },
-  { name: "Settings", icon: Settings },
+  { name: "Notifications", icon: Bell, path: "/admin/logs" },
+  { name: "Settings", icon: Settings, path: "/admin/settings" },
 ];
 
 export default function Sidebar() {
@@ -65,6 +65,8 @@ export default function Sidebar() {
   const getActiveItem = () => {
     if (location.pathname.startsWith("/admin/users")) return "Users";
     if (location.pathname.startsWith("/admin/personnel")) return "Personnel";
+    if (location.pathname.startsWith("/admin/settings")) return "Settings";
+    if (location.pathname.startsWith("/admin/logs") || location.pathname.startsWith("/notifications")) return "Notifications";
     if (location.pathname.startsWith("/dashboard")) return "Dashboard";
     if (location.pathname.startsWith("/resources")) return "Resources";
     return "Dashboard";
