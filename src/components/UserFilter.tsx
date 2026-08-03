@@ -14,10 +14,9 @@ export default function UserFilter({
   return (
     <div className="user-filter-wrapper">
       <select
-        className="user-filter-select pill-dropdown-btn"
+        className="user-filter-select"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{ height: "38px", border: "1px solid #E5E7EB", borderRadius: "8px" }}
       >
         <option value="">All Roles</option>
         {roles.map((role) => (

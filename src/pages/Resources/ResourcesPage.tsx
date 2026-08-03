@@ -8,7 +8,9 @@ import {
   Hammer,
   AlertCircle,
   RotateCw,
-  MapPin
+  MapPin,
+  Edit2,
+  Trash2
 } from "lucide-react";
 import {
   getAreas,
@@ -712,35 +714,24 @@ export default function ResourcesPage() {
                                       </span>
                                     </td>
                                     <td style={{ textAlign: "right" }}>
-                                      <button
-                                        type="button"
-                                        className="table-action-link"
-                                        style={{
-                                          background: "none",
-                                          border: "none",
-                                          cursor: "pointer",
-                                          color: "var(--accent)",
-                                          marginRight: "12px",
-                                          font: "inherit",
-                                        }}
-                                        onClick={() => openEditLand(land)}
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="table-action-link"
-                                        style={{
-                                          background: "none",
-                                          border: "none",
-                                          cursor: "pointer",
-                                          color: "#DC2626",
-                                          font: "inherit",
-                                        }}
-                                        onClick={() => handleDeleteLand(land.landId)}
-                                      >
-                                        Delete
-                                      </button>
+                                      <div className="table-actions-cell">
+                                        <button
+                                          type="button"
+                                          className="action-btn-pill edit"
+                                          onClick={() => openEditLand(land)}
+                                        >
+                                          <Edit2 size={12} />
+                                          <span>Edit</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="action-btn-pill delete"
+                                          onClick={() => handleDeleteLand(land.landId)}
+                                        >
+                                          <Trash2 size={12} />
+                                          <span>Delete</span>
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -838,35 +829,24 @@ export default function ResourcesPage() {
                                 </span>
                               </td>
                               <td style={{ textAlign: "right" }}>
-                                <button
-                                  type="button"
-                                  className="table-action-link"
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    color: "var(--accent)",
-                                    marginRight: "12px",
-                                    font: "inherit",
-                                  }}
-                                  onClick={() => openEditEquipment(inst)}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  className="table-action-link"
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    color: "#DC2626",
-                                    font: "inherit",
-                                  }}
-                                  onClick={() => handleDeleteEquipment(inst.equipmentInstanceId)}
-                                >
-                                  Retire
-                                </button>
+                                <div className="table-actions-cell">
+                                  <button
+                                    type="button"
+                                    className="action-btn-pill edit"
+                                    onClick={() => openEditEquipment(inst)}
+                                  >
+                                    <Edit2 size={12} />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="action-btn-pill delete"
+                                    onClick={() => handleDeleteEquipment(inst.equipmentInstanceId)}
+                                  >
+                                    <Trash2 size={12} />
+                                    <span>Retire</span>
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -944,35 +924,24 @@ export default function ResourcesPage() {
                                   {tool.description || "—"}
                                 </td>
                                 <td style={{ textAlign: "right" }}>
-                                  <button
-                                    type="button"
-                                    className="table-action-link"
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      color: "var(--accent)",
-                                      marginRight: "12px",
-                                      font: "inherit",
-                                    }}
-                                    onClick={() => openEditTool(tool)}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="table-action-link"
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      color: "#DC2626",
-                                      font: "inherit",
-                                    }}
-                                    onClick={() => handleDeleteTool(tool.equipmentTypeId)}
-                                  >
-                                    Delete
-                                  </button>
+                                  <div className="table-actions-cell">
+                                    <button
+                                      type="button"
+                                      className="action-btn-pill edit"
+                                      onClick={() => openEditTool(tool)}
+                                    >
+                                      <Edit2 size={12} />
+                                      <span>Edit</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="action-btn-pill delete"
+                                      onClick={() => handleDeleteTool(tool.equipmentTypeId)}
+                                    >
+                                      <Trash2 size={12} />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );

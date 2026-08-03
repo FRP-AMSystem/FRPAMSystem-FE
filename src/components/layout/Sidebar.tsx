@@ -4,7 +4,7 @@ import {
   LayoutDashboard,
   FlaskConical,
   Trees,
-  CalendarDays,
+  Award,
   AlertTriangle,
   Calendar,
   Truck,
@@ -25,9 +25,9 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { name: "Users", icon: Users, path: "/admin/users" },
+  { name: "Personnel", icon: Award, path: "/admin/personnel" },
   { name: "Experiments", icon: FlaskConical },
   { name: "Resources", icon: Trees, path: "/resources" },
-  { name: "Allocation Planner", icon: CalendarDays },
   { name: "Conflict Detection", icon: AlertTriangle },
   { name: "Schedules", icon: Calendar },
   { name: "Equipment Tracking", icon: Truck },
@@ -64,6 +64,7 @@ export default function Sidebar() {
 
   const getActiveItem = () => {
     if (location.pathname.startsWith("/admin/users")) return "Users";
+    if (location.pathname.startsWith("/admin/personnel")) return "Personnel";
     if (location.pathname.startsWith("/dashboard")) return "Dashboard";
     if (location.pathname.startsWith("/resources")) return "Resources";
     return "Dashboard";

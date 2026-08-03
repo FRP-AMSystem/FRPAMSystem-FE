@@ -4,6 +4,7 @@ import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
 import UsersPage from "../pages/admin/Users/UsersPage";
 import ResourcesPage from "../pages/Resources/ResourcesPage";
+import PersonnelPage from "../pages/admin/Personnel/PersonnelPage";
 
 export default function AppRoutes() {
   return (
@@ -17,6 +18,8 @@ export default function AppRoutes() {
       <Route path="/admin/users" element={<UsersPage />} />
 
       <Route path="/resources" element={<ResourcesPage />} />
+
+      <Route path="/admin/personnel" element={<PersonnelPage />} />
     </Routes>
   );
 }
