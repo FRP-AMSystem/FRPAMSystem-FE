@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { Role } from "../types/role";
 import type { User } from "../types/user";
 import { createUser, updateUser } from "../services/userService";
+import { logSystemActivity } from "../services/systemService";
 
 interface UserModalProps {
   isOpen: boolean;
@@ -31,18 +32,18 @@ export default function UserModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize/Reset form when modal opens/closes
+
   useEffect(() => {
     if (isOpen) {
       if (editUser) {
         setFullName(editUser.fullName);
         setUsername(editUser.username || "");
         setEmail(editUser.email);
-        setPassword(""); // password is not updated here
+        setPassword("");
         setPhone(editUser.phone || "");
         setStatus(editUser.status || "Active");
-        
-        // Find roleId matching editUser.role string value
+
+
         const matchedRole = roles.find(
           (r) => r.name.toLowerCase() === editUser.role.toLowerCase()
         );
@@ -104,7 +105,7 @@ export default function UserModal({
       setIsSubmitting(true);
 
       if (editUser) {
-        // Edit mode
+
         await updateUser(editUser.id, {
           fullName,
           username: username || editUser.username || "",
@@ -112,13 +113,19 @@ export default function UserModal({
           email: editUser.email,
         });
 
-        // Store phone and status fallbacks in localStorage
+
         localStorage.setItem(`phone_${editUser.email}`, phone.trim());
         localStorage.setItem(`status_${editUser.email}`, status);
 
+        logSystemActivity(
+          "User Profile Updated",
+          `Admin updated profile details for user: ${fullName} (${editUser.email}).`,
+          "Info"
+        );
+
         onSuccess("User updated successfully!");
       } else {
-        // Create mode
+
         await createUser({
           fullName,
           username,
@@ -131,9 +138,16 @@ export default function UserModal({
           localStorage.setItem(`phone_${email.trim()}`, phone.trim());
         }
 
+        const roleObj = roles.find((r) => String(r.id) === String(role));
+        logSystemActivity(
+          "New User Account Registered",
+          `Admin registered new system user: ${fullName} (${email}) with role ${roleObj?.name || "User"}.`,
+          "Info"
+        );
+
         onSuccess("User created successfully!");
       }
-      
+
       onClose();
     } catch (err: any) {
       console.error(err);
