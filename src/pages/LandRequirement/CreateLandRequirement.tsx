@@ -36,7 +36,6 @@ interface LandRequirementFormState {
   experimentId: string;
   requiredArea: string;
   requiredSoilType: string;
-  isFixedForExperiment: boolean;
   note: string;
 }
 
@@ -124,7 +123,6 @@ export default function CreateLandRequirement() {
 
     requiredArea: "",
     requiredSoilType: "",
-    isFixedForExperiment: false,
     note: "",
   });
 
@@ -202,30 +200,10 @@ export default function CreateLandRequirement() {
       | HTMLTextAreaElement
     >
   ) => {
-    const target =
-      event.target;
-
     const {
       name,
       value,
-    } = target;
-
-    if (
-      target instanceof
-        HTMLInputElement &&
-      target.type ===
-        "checkbox"
-    ) {
-      setForm(
-        (current) => ({
-          ...current,
-          [name]:
-            target.checked,
-        })
-      );
-
-      return;
-    }
+    } = event.target;
 
     setForm(
       (current) => ({
@@ -253,6 +231,9 @@ export default function CreateLandRequirement() {
 
     const requiredSoilType =
       form.requiredSoilType.trim();
+
+    const note =
+      form.note.trim();
 
     if (
       !Number.isInteger(
@@ -300,12 +281,8 @@ export default function CreateLandRequirement() {
             requiredArea,
             requiredSoilType,
 
-            isFixedForExperiment:
-              form.isFixedForExperiment,
-
             note:
-              form.note.trim() ||
-              null,
+              note || null,
           }
         );
 
@@ -507,37 +484,6 @@ export default function CreateLandRequirement() {
               required
             />
 
-            <label
-              htmlFor="isFixedForExperiment"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                id="isFixedForExperiment"
-                type="checkbox"
-                name="isFixedForExperiment"
-                checked={
-                  form.isFixedForExperiment
-                }
-                onChange={
-                  handleChange
-                }
-              />
-
-              Fixed land for this experiment
-            </label>
-
-            <small>
-              Enable this option when
-              the experiment must use
-              the same land resource
-              throughout its lifecycle.
-            </small>
-
             <label htmlFor="note">
               Note
             </label>
@@ -611,13 +557,12 @@ export default function CreateLandRequirement() {
 
               <div>
                 <span>
-                  Fixed for Experiment
+                  Note
                 </span>
 
                 <strong>
-                  {form.isFixedForExperiment
-                    ? "Yes"
-                    : "No"}
+                  {form.note.trim() ||
+                    "No note"}
                 </strong>
               </div>
             </div>

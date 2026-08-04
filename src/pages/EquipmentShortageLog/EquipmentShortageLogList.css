@@ -1,0 +1,471 @@
+.equipment-shortage-page {
+  min-height: 100%;
+  padding: 28px;
+  color: #e2e8f0;
+}
+
+.equipment-shortage-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.equipment-shortage-header p {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.equipment-shortage-header h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 30px;
+}
+
+.equipment-shortage-header span {
+  display: block;
+  max-width: 720px;
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.equipment-shortage-header > button,
+.equipment-shortage-filter > button,
+.equipment-shortage-dialog-actions button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid #2563eb;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.equipment-shortage-header > button:hover,
+.equipment-shortage-filter > button:hover,
+.equipment-shortage-dialog-actions button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.equipment-shortage-filter {
+  display: grid;
+  grid-template-columns:
+    minmax(190px, 1fr)
+    minmax(210px, 1fr)
+    minmax(210px, 1fr)
+    auto
+    auto;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #283245;
+  border-radius: 14px;
+  background: #151c2b;
+}
+
+.equipment-shortage-search {
+  position: relative;
+}
+
+.equipment-shortage-search svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  color: #64748b;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.equipment-shortage-filter input,
+.equipment-shortage-form-grid input,
+.equipment-shortage-form-grid select {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  outline: none;
+  background: #0f172a;
+  color: #f8fafc;
+  font: inherit;
+}
+
+.equipment-shortage-search input {
+  padding-left: 43px;
+}
+
+.equipment-shortage-filter input:focus,
+.equipment-shortage-form-grid input:focus,
+.equipment-shortage-form-grid select:focus {
+  border-color: #3b82f6;
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.equipment-shortage-filter .secondary,
+.equipment-shortage-dialog-actions .secondary {
+  border-color: #475569;
+  background: transparent;
+  color: #cbd5e1;
+}
+
+.equipment-shortage-filter .secondary:hover,
+.equipment-shortage-dialog-actions .secondary:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.equipment-shortage-error {
+  margin-bottom: 18px;
+  padding: 13px 16px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 10px;
+  background: rgba(127, 29, 29, 0.24);
+  color: #fecaca;
+  font-size: 14px;
+}
+
+.equipment-shortage-card {
+  overflow: hidden;
+  border: 1px solid #283245;
+  border-radius: 16px;
+  background: #151c2b;
+}
+
+.equipment-shortage-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 22px;
+  border-bottom: 1px solid #283245;
+}
+
+.equipment-shortage-card-title h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 19px;
+}
+
+.equipment-shortage-card-title p {
+  margin: 5px 0 0;
+  color: #8793a7;
+  font-size: 13px;
+}
+
+.equipment-shortage-card-title > svg {
+  color: #f59e0b;
+}
+
+.equipment-shortage-table-wrap {
+  overflow-x: auto;
+}
+
+.equipment-shortage-table-wrap table {
+  width: 100%;
+  min-width: 1350px;
+  border-collapse: collapse;
+}
+
+.equipment-shortage-table-wrap th {
+  padding: 14px 16px;
+  border-bottom: 1px solid #283245;
+  background: #111827;
+  color: #8f9bb0;
+  font-size: 12px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.equipment-shortage-table-wrap td {
+  padding: 16px;
+  border-bottom: 1px solid #222c3e;
+  color: #dbe3ee;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.equipment-shortage-table-wrap tr:last-child td {
+  border-bottom: 0;
+}
+
+.equipment-shortage-table-wrap tbody tr:hover {
+  background: #192235;
+}
+
+.equipment-shortage-table-wrap td strong,
+.equipment-shortage-table-wrap td small {
+  display: block;
+}
+
+.equipment-shortage-table-wrap td strong {
+  color: #f1f5f9;
+}
+
+.equipment-shortage-table-wrap td small {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.equipment-shortage-requirement-badge,
+.equipment-shortage-quantity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.equipment-shortage-requirement-badge.experiment {
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(37, 99, 235, 0.14);
+  color: #93c5fd;
+}
+
+.equipment-shortage-requirement-badge.phase {
+  border-color: rgba(168, 85, 247, 0.3);
+  background: rgba(126, 34, 206, 0.14);
+  color: #d8b4fe;
+}
+
+.equipment-shortage-quantity {
+  min-width: 52px;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(185, 28, 28, 0.14);
+  color: #fca5a5;
+}
+
+.equipment-shortage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.equipment-shortage-actions button {
+  display: inline-flex;
+  width: 35px;
+  height: 35px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #354158;
+  border-radius: 8px;
+  background: #111827;
+  color: #93c5fd;
+  cursor: pointer;
+}
+
+.equipment-shortage-actions button:hover:not(:disabled) {
+  border-color: #3b82f6;
+  background: rgba(37, 99, 235, 0.15);
+}
+
+.equipment-shortage-actions .danger {
+  color: #fca5a5;
+}
+
+.equipment-shortage-actions .danger:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: rgba(185, 28, 28, 0.15);
+}
+
+.equipment-shortage-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.equipment-shortage-state {
+  display: flex;
+  min-height: 300px;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  color: #8f9bb0;
+}
+
+.equipment-shortage-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.78);
+}
+
+.equipment-shortage-dialog {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  background: #151c2b;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.equipment-shortage-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.equipment-shortage-dialog-head h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 20px;
+}
+
+.equipment-shortage-dialog-head p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.equipment-shortage-dialog-head > button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  background: #111827;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.equipment-shortage-form-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.equipment-shortage-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.equipment-shortage-form-grid input:disabled,
+.equipment-shortage-form-grid select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.equipment-shortage-preview {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.equipment-shortage-preview > div {
+  display: flex;
+  min-height: 72px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 13px;
+  border: 1px solid #2a3548;
+  border-radius: 11px;
+  background: #101725;
+}
+
+.equipment-shortage-preview span {
+  color: #7f8ba0;
+  font-size: 11px;
+}
+
+.equipment-shortage-preview strong {
+  color: #f1f5f9;
+  font-size: 13px;
+}
+
+.equipment-shortage-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.equipment-shortage-dialog-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 1100px) {
+  .equipment-shortage-filter {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .equipment-shortage-preview {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .equipment-shortage-page {
+    padding: 18px;
+  }
+
+  .equipment-shortage-header {
+    flex-direction: column;
+  }
+
+  .equipment-shortage-header > button {
+    width: 100%;
+  }
+
+  .equipment-shortage-filter,
+  .equipment-shortage-form-grid,
+  .equipment-shortage-preview {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .equipment-shortage-page {
+    padding: 14px;
+  }
+
+  .equipment-shortage-header h1 {
+    font-size: 25px;
+  }
+
+  .equipment-shortage-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .equipment-shortage-dialog-actions button {
+    width: 100%;
+  }
+}

@@ -1,50 +1,80 @@
 import api from "./api";
 
-export type LandResourceStatus =
-  | "Available"
-  | "Reserved"
-  | "InUse"
-  | "Maintenance"
-  | "Unavailable";
+import type {
+  LandResource,
+  LandResourceQuery,
+  LandResourceRequest,
+} from "../types/landResource";
 
-export interface LandResource {
-  landId: number;
-  areaId: number;
-
-  areaName?: string;
-
-  landCode: string;
-  areaSize: number;
-  location: string;
-  soilType: string;
-  status: LandResourceStatus;
-
-  createdAt?: string;
-  updatedAt?: string | null;
+function isRecord(
+  value: unknown
+): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null
+  );
 }
 
-export interface LandResourceRequest {
-  areaId: number;
-  landCode: string;
-  areaSize: number;
-  location: string;
-  soilType: string;
-  status: LandResourceStatus;
-}
-
-export interface LandResourceQuery {
-  keyword?: string;
-  areaId?: number;
-  soilType?: string;
-  status?: LandResourceStatus;
-  page?: number;
-  size?: number;
-}
-
-function validateId(id: number, fieldName: string): void {
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new Error(`${fieldName} is invalid.`);
+function unwrapResponse<T>(
+  payload: unknown
+): T {
+  if (!isRecord(payload)) {
+    return payload as T;
   }
+
+  if (
+    "data" in payload &&
+    payload.data !== undefined
+  ) {
+    return unwrapResponse<T>(
+      payload.data
+    );
+  }
+
+  if (
+    "result" in payload &&
+    payload.result !== undefined
+  ) {
+    return unwrapResponse<T>(
+      payload.result
+    );
+  }
+
+  return payload as T;
+}
+
+function normalizeList<T>(
+  payload: unknown
+): T[] {
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  if (
+    Array.isArray(
+      payload.items
+    )
+  ) {
+    return payload.items as T[];
+  }
+
+  if ("data" in payload) {
+    return normalizeList<T>(
+      payload.data
+    );
+  }
+
+  if ("result" in payload) {
+    return normalizeList<T>(
+      payload.result
+    );
+  }
+
+  return [];
 }
 
 function cleanParams(
@@ -60,114 +90,147 @@ function cleanParams(
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+function validateLandId(
+  id: number
+): void {
+  if (
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
+    throw new Error(
+      "Land resource ID is invalid."
+    );
+  }
 }
 
-function unwrapResponse<T>(payload: unknown): T {
-  if (!isRecord(payload)) {
-    return payload as T;
+function validatePayload(
+  payload: LandResourceRequest
+): void {
+  if (
+    !Number.isInteger(
+      payload.areaId
+    ) ||
+    payload.areaId <= 0
+  ) {
+    throw new Error(
+      "Area ID is invalid."
+    );
   }
 
-  if ("data" in payload && payload.data !== undefined) {
-    return unwrapResponse<T>(payload.data);
+  if (
+    !payload.landCode.trim()
+  ) {
+    throw new Error(
+      "Land code is required."
+    );
   }
 
-  if ("result" in payload && payload.result !== undefined) {
-    return unwrapResponse<T>(payload.result);
+  if (
+    !Number.isFinite(
+      payload.areaSize
+    ) ||
+    payload.areaSize <= 0
+  ) {
+    throw new Error(
+      "Area size must be greater than 0."
+    );
   }
 
-  return payload as T;
-}
-
-function normalizeList<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) {
-    return payload as T[];
+  if (
+    !payload.soilType.trim()
+  ) {
+    throw new Error(
+      "Soil type is required."
+    );
   }
-
-  if (!isRecord(payload)) {
-    return [];
-  }
-
-  if (Array.isArray(payload.items)) {
-    return payload.items as T[];
-  }
-
-  if ("data" in payload) {
-    const dataItems = normalizeList<T>(payload.data);
-
-    if (dataItems.length > 0 || Array.isArray(payload.data)) {
-      return dataItems;
-    }
-  }
-
-  if ("result" in payload) {
-    const resultItems = normalizeList<T>(payload.result);
-
-    if (resultItems.length > 0 || Array.isArray(payload.result)) {
-      return resultItems;
-    }
-  }
-
-  return [];
 }
 
 export async function getLandResources(
   query: LandResourceQuery = {}
 ): Promise<LandResource[]> {
-  const response = await api.get("/LandResources", {
-    params: cleanParams({
-      Keyword: query.keyword,
-      AreaId: query.areaId,
-      SoilType: query.soilType,
-      Status: query.status,
-      Page: query.page,
-      Size: query.size,
-    }),
-  });
+  const response =
+    await api.get(
+      "/LandResources",
+      {
+        params: cleanParams({
+          Keyword:
+            query.keyword,
 
-  return normalizeList<LandResource>(response.data);
+          AreaId:
+            query.areaId,
+
+          Status:
+            query.status,
+
+          Page:
+            query.page ?? 1,
+
+          Size:
+            query.size ?? 200,
+        }),
+      }
+    );
+
+  return normalizeList<LandResource>(
+    response.data
+  );
 }
 
 export async function getLandResourceById(
   id: number
 ): Promise<LandResource> {
-  validateId(id, "Land resource ID");
+  validateLandId(id);
 
-  const response = await api.get(`/LandResources/${id}`);
+  const response =
+    await api.get(
+      `/LandResources/${id}`
+    );
 
-  return unwrapResponse<LandResource>(response.data);
+  return unwrapResponse<LandResource>(
+    response.data
+  );
 }
 
 export async function createLandResource(
   payload: LandResourceRequest
 ): Promise<LandResource> {
-  const response = await api.post(
-    "/LandResources",
-    payload
-  );
+  validatePayload(payload);
 
-  return unwrapResponse<LandResource>(response.data);
+  const response =
+    await api.post(
+      "/LandResources",
+      payload
+    );
+
+  return unwrapResponse<LandResource>(
+    response.data
+  );
 }
 
 export async function updateLandResource(
   id: number,
   payload: LandResourceRequest
 ): Promise<LandResource> {
-  validateId(id, "Land resource ID");
+  validateLandId(id);
+  validatePayload(payload);
 
-  const response = await api.put(
-    `/LandResources/${id}`,
-    payload
+  const response =
+    await api.put(
+      `/LandResources/${id}`,
+      payload
+    );
+
+  return unwrapResponse<LandResource>(
+    response.data
   );
-
-  return unwrapResponse<LandResource>(response.data);
 }
 
 export async function deleteLandResource(
   id: number
 ): Promise<void> {
-  validateId(id, "Land resource ID");
+  validateLandId(id);
 
-  await api.delete(`/LandResources/${id}`);
+  await api.delete(
+    `/LandResources/${id}`
+  );
 }

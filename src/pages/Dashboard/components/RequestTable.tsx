@@ -1,78 +1,317 @@
-import type { AllocationPlan } from "../../../types/allocationPlan";
+import {
+  Eye,
+  ListChecks,
+} from "lucide-react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import type {
+  AllocationPlan,
+  AllocationPlanStatus,
+} from "../../../types/allocationPlan";
+
 import "./RequestTable.css";
 
 interface RequestTableProps {
   requests: AllocationPlan[];
 }
 
-export default function RequestTable({ requests }: RequestTableProps) {
-  const formatDate = (date: string | null) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString("vi-VN");
-  };
+function formatDate(
+  value?: string | null
+): string {
+  if (!value) {
+    return "-";
+  }
 
-  const getStatusClass = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "approved":
-        return "status-approved";
-      case "pending":
-        return "status-pending";
-      case "rejected":
-        return "status-rejected";
-      default:
-        return "status-default";
-    }
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "-";
+  }
+
+  return date.toLocaleDateString(
+    "vi-VN"
+  );
+}
+
+function formatFitnessScore(
+  value?: number | null
+): string {
+  if (
+    value === null ||
+    value === undefined ||
+    !Number.isFinite(value)
+  ) {
+    return "-";
+  }
+
+  const percentage =
+    value <= 1
+      ? value * 100
+      : value;
+
+  return `${Math.min(
+    100,
+    Math.max(0, percentage)
+  ).toFixed(
+    percentage % 1 === 0
+      ? 0
+      : 1
+  )}%`;
+}
+
+function getStatusLabel(
+  status: AllocationPlanStatus
+): string {
+  return status;
+}
+
+function getStatusClassName(
+  status: AllocationPlanStatus
+): string {
+  return [
+    "request-status-badge",
+    `request-status-${status.toLowerCase()}`,
+  ].join(" ");
+}
+
+function getResourceTotal(
+  plan: AllocationPlan
+): number {
+  return (
+    (plan.equipmentDetailCount ?? 0) +
+    (plan.humanDetailCount ?? 0) +
+    (plan.landDetailCount ?? 0)
+  );
+}
+
+export default function RequestTable({
+  requests,
+}: RequestTableProps) {
+  const navigate =
+    useNavigate();
+
+  const openDetail = (
+    allocationPlanId: number
+  ) => {
+    navigate(
+      `/allocation/${allocationPlanId}`
+    );
   };
 
   return (
-    <div className="request-table-card">
+    <section className="request-table-card">
       <div className="request-table-header">
-        <h3>Allocation Plans</h3>
-        <span>{requests.length} plans</span>
+        <div>
+          <h3>
+            Recent Allocation Plans
+          </h3>
+
+          <p>
+            Latest allocation plans and
+            approval status
+          </p>
+        </div>
+
+        <div className="request-table-summary">
+          <ListChecks size={18} />
+
+          <span>
+            {requests.length}{" "}
+            {requests.length === 1
+              ? "plan"
+              : "plans"}
+          </span>
+        </div>
       </div>
 
-      <table className="request-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Experiment</th>
-            <th>Fitness Score</th>
-            <th>Created By</th>
-            <th>Status</th>
-            <th>Created Date</th>
-            <th>Resources</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {requests.length === 0 ? (
+      <div className="request-table-wrapper">
+        <table className="request-table">
+          <thead>
             <tr>
-              <td colSpan={7} className="empty-table">
-                No allocation plans found.
-              </td>
+              <th>ID</th>
+              <th>Experiment</th>
+              <th>Fitness</th>
+              <th>Created By</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Resources</th>
+              <th>Schedules</th>
+              <th>Action</th>
             </tr>
-          ) : (
-            requests.map((plan) => (
-              <tr key={plan.allocationPlanId}>
-                <td>#{plan.allocationPlanId}</td>
-                <td>{plan.experimentName}</td>
-                <td>{plan.fitnessScore}</td>
-                <td>{plan.createdByName}</td>
-                <td>
-                  <span className={`status-badge ${getStatusClass(plan.approveStatus)}`}>
-                    {plan.approveStatus}
-                  </span>
-                </td>
-                <td>{formatDate(plan.createdAt)}</td>
-                <td>
-                  Land: {plan.landDetailCount} | Equipment:{" "}
-                  {plan.equipmentDetailCount} | Human: {plan.humanDetailCount}
+          </thead>
+
+          <tbody>
+            {requests.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={9}
+                  className="request-table-empty"
+                >
+                  No allocation plans found.
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+            ) : (
+              requests.map(
+                (plan) => {
+                  const resourceTotal =
+                    getResourceTotal(
+                      plan
+                    );
+
+                  return (
+                    <tr
+                      key={
+                        plan.allocationPlanId
+                      }
+                    >
+                      <td>
+                        <button
+                          type="button"
+                          className="request-id-button"
+                          onClick={() =>
+                            openDetail(
+                              plan.allocationPlanId
+                            )
+                          }
+                        >
+                          #
+                          {
+                            plan.allocationPlanId
+                          }
+                        </button>
+                      </td>
+
+                      <td>
+                        <div className="request-experiment-cell">
+                          <strong>
+                            {plan.experimentName ||
+                              `Experiment #${plan.experimentId}`}
+                          </strong>
+
+                          <span>
+                            Experiment #
+                            {
+                              plan.experimentId
+                            }
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <span className="request-fitness">
+                          {formatFitnessScore(
+                            plan.fitnessScore
+                          )}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className="request-created-by">
+                          <div className="request-created-avatar">
+                            {(
+                              plan.createdByName ||
+                              "U"
+                            )
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {plan.createdByName ||
+                                `User #${plan.createdBy}`}
+                            </strong>
+
+                            <span>
+                              User #
+                              {
+                                plan.createdBy
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td>
+                        <span
+                          className={getStatusClassName(
+                            plan.approveStatus
+                          )}
+                        >
+                          {getStatusLabel(
+                            plan.approveStatus
+                          )}
+                        </span>
+                      </td>
+
+                      <td>
+                        {formatDate(
+                          plan.createdAt
+                        )}
+                      </td>
+
+                      <td>
+                        <div className="request-resource-cell">
+                          <strong>
+                            {resourceTotal} total
+                          </strong>
+
+                          <span>
+                            E:
+                            {plan.equipmentDetailCount ??
+                              0}
+                            {" · "}
+                            H:
+                            {plan.humanDetailCount ??
+                              0}
+                            {" · "}
+                            L:
+                            {plan.landDetailCount ??
+                              0}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <span className="request-schedule-count">
+                          {plan.scheduleCount ??
+                            0}
+                        </span>
+                      </td>
+
+                      <td>
+                        <button
+                          type="button"
+                          className="request-view-button"
+                          title="View allocation detail"
+                          aria-label={`View allocation plan ${plan.allocationPlanId}`}
+                          onClick={() =>
+                            openDetail(
+                              plan.allocationPlanId
+                            )
+                          }
+                        >
+                          <Eye size={16} />
+
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

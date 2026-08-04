@@ -117,6 +117,7 @@ function normalizeRequirement(
     expLandReqId: Number(
       item.expLandReqId ??
         item.expLandRequirementId ??
+        item.id ??
         0
     ),
 
@@ -125,8 +126,7 @@ function normalizeRequirement(
     ),
 
     experimentName:
-      typeof item.experimentName ===
-      "string"
+      typeof item.experimentName === "string"
         ? item.experimentName
         : undefined,
 
@@ -135,31 +135,22 @@ function normalizeRequirement(
     ),
 
     requiredSoilType:
-      typeof item.requiredSoilType ===
-      "string"
+      typeof item.requiredSoilType === "string"
         ? item.requiredSoilType
-        : "",
+        : null,
 
     note:
       typeof item.note === "string"
         ? item.note
         : null,
 
-    isFixedForExperiment:
-      typeof item.isFixedForExperiment ===
-      "boolean"
-        ? item.isFixedForExperiment
-        : false,
-
     createdAt:
-      typeof item.createdAt ===
-      "string"
+      typeof item.createdAt === "string"
         ? item.createdAt
         : undefined,
 
     updatedAt:
-      typeof item.updatedAt ===
-      "string"
+      typeof item.updatedAt === "string"
         ? item.updatedAt
         : null,
   };

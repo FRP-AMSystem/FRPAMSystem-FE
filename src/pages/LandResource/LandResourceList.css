@@ -1,0 +1,341 @@
+.land-resource-page {
+    min-height: 100%;
+    padding: 28px;
+    color: #e2e8f0
+}
+
+.land-resource-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 22px
+}
+
+.land-resource-header p {
+    margin: 0 0 8px;
+    color: #64748b;
+    font-size: 13px
+}
+
+.land-resource-header h1 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 30px
+}
+
+.land-resource-header span {
+    display: block;
+    margin-top: 8px;
+    color: #94a3b8;
+    font-size: 14px
+}
+
+.land-resource-header>button,
+.land-resource-filter>button,
+.land-resource-dialog-actions button {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 17px;
+    border: 0;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer
+}
+
+.land-resource-filter {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) 180px 170px auto auto;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 16px;
+    border: 1px solid #283245;
+    border-radius: 14px;
+    background: #151c2b
+}
+
+.land-resource-search {
+    position: relative
+}
+
+.land-resource-search svg {
+    position: absolute;
+    top: 50%;
+    left: 13px;
+    transform: translateY(-50%);
+    color: #64748b
+}
+
+.land-resource-filter input,
+.land-resource-filter select,
+.land-resource-dialog input,
+.land-resource-dialog select {
+    width: 100%;
+    min-height: 42px;
+    box-sizing: border-box;
+    border: 1px solid #334155;
+    border-radius: 9px;
+    background: #0f172a;
+    color: #f8fafc;
+    font: inherit;
+    outline: none
+}
+
+.land-resource-filter input {
+    padding: 0 12px 0 42px
+}
+
+.land-resource-filter select,
+.land-resource-dialog input,
+.land-resource-dialog select {
+    padding: 0 12px
+}
+
+.land-resource-filter .secondary,
+.land-resource-dialog-actions .secondary {
+    border: 1px solid #475569;
+    background: transparent;
+    color: #cbd5e1
+}
+
+.land-resource-error {
+    margin-bottom: 18px;
+    padding: 13px 15px;
+    border: 1px solid rgba(239, 68, 68, .4);
+    border-radius: 10px;
+    background: rgba(127, 29, 29, .22);
+    color: #fecaca
+}
+
+.land-resource-card {
+    overflow: hidden;
+    border: 1px solid #283245;
+    border-radius: 16px;
+    background: #151c2b
+}
+
+.land-resource-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 22px;
+    border-bottom: 1px solid #283245
+}
+
+.land-resource-card-title h2 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 19px
+}
+
+.land-resource-card-title p {
+    margin: 5px 0 0;
+    color: #8793a7;
+    font-size: 13px
+}
+
+.land-resource-card-title>svg {
+    color: #60a5fa
+}
+
+.land-resource-table-wrap {
+    overflow-x: auto
+}
+
+.land-resource-table-wrap table {
+    width: 100%;
+    min-width: 1100px;
+    border-collapse: collapse
+}
+
+.land-resource-table-wrap th,
+.land-resource-table-wrap td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #283245;
+    text-align: left
+}
+
+.land-resource-table-wrap th {
+    background: #111827;
+    color: #8f9bb0;
+    font-size: 12px;
+    text-transform: uppercase
+}
+
+.land-resource-table-wrap td {
+    color: #d9e0ea;
+    font-size: 13px
+}
+
+.land-resource-table-wrap tr:last-child td {
+    border-bottom: 0
+}
+
+.land-resource-state {
+    display: flex;
+    min-height: 280px;
+    align-items: center;
+    justify-content: center;
+    color: #8f9bb0
+}
+
+.land-resource-actions {
+    display: flex;
+    gap: 8px
+}
+
+.land-resource-actions button {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #354158;
+    border-radius: 8px;
+    background: #111827;
+    color: #93c5fd;
+    cursor: pointer
+}
+
+.land-resource-actions .danger {
+    color: #fca5a5
+}
+
+.land-resource-status {
+    display: inline-flex;
+    min-width: 86px;
+    justify-content: center;
+    padding: 6px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700
+}
+
+.land-resource-status-available {
+    background: rgba(34, 197, 94, .14);
+    color: #86efac
+}
+
+.land-resource-status-reserved {
+    background: rgba(59, 130, 246, .14);
+    color: #93c5fd
+}
+
+.land-resource-status-inuse {
+    background: rgba(245, 158, 11, .14);
+    color: #fcd34d
+}
+
+.land-resource-status-maintenance {
+    background: rgba(168, 85, 247, .14);
+    color: #d8b4fe
+}
+
+.land-resource-status-unavailable {
+    background: rgba(239, 68, 68, .14);
+    color: #fca5a5
+}
+
+.land-resource-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 6, 23, .75)
+}
+
+.land-resource-dialog {
+    width: min(720px, 100%);
+    padding: 22px;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    background: #151c2b;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .4)
+}
+
+.land-resource-dialog-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px
+}
+
+.land-resource-dialog-head h2 {
+    margin: 0;
+    color: #f8fafc
+}
+
+.land-resource-dialog-head p {
+    margin: 6px 0 0;
+    color: #94a3b8;
+    font-size: 13px
+}
+
+.land-resource-dialog-head>button {
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer
+}
+
+.land-resource-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px
+}
+
+.land-resource-dialog label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 600
+}
+
+.land-resource-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px
+}
+
+@media(max-width:950px) {
+    .land-resource-filter {
+        grid-template-columns: 1fr 1fr
+    }
+
+    .land-resource-header {
+        flex-direction: column
+    }
+
+    .land-resource-header>button {
+        width: 100%
+    }
+}
+
+@media(max-width:650px) {
+    .land-resource-page {
+        padding: 16px
+    }
+
+    .land-resource-filter,
+    .land-resource-form-grid {
+        grid-template-columns: 1fr
+    }
+
+    .land-resource-dialog-actions {
+        flex-direction: column-reverse
+    }
+
+    .land-resource-dialog-actions button {
+        width: 100%
+    }
+}

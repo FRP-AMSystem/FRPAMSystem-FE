@@ -1,0 +1,261 @@
+.area-page {
+    padding: 28px;
+    color: #e2e8f0
+}
+
+.area-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 22px
+}
+
+.area-header p {
+    margin: 0 0 8px;
+    color: #64748b;
+    font-size: 13px
+}
+
+.area-header h1 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 30px
+}
+
+.area-header span {
+    display: block;
+    margin-top: 8px;
+    color: #94a3b8
+}
+
+.area-header button,
+.area-filter button,
+.area-dialog-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer
+}
+
+.area-filter {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto auto;
+    gap: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid #283245;
+    border-radius: 14px;
+    background: #151c2b
+}
+
+.area-filter>div {
+    position: relative
+}
+
+.area-filter svg {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b
+}
+
+.area-filter input {
+    width: 100%;
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 0 12px 0 42px;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #f8fafc
+}
+
+.area-filter .secondary,
+.area-dialog-actions .secondary {
+    border: 1px solid #475569;
+    background: transparent;
+    color: #cbd5e1
+}
+
+.area-error {
+    margin-bottom: 16px;
+    padding: 13px 15px;
+    border: 1px solid rgba(239, 68, 68, .4);
+    border-radius: 10px;
+    background: rgba(127, 29, 29, .22);
+    color: #fecaca
+}
+
+.area-card {
+    overflow: hidden;
+    border: 1px solid #283245;
+    border-radius: 16px;
+    background: #151c2b
+}
+
+.area-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 22px;
+    border-bottom: 1px solid #283245
+}
+
+.area-card-title h2 {
+    margin: 0;
+    font-size: 19px
+}
+
+.area-card-title p {
+    margin: 5px 0 0;
+    color: #8793a7;
+    font-size: 13px
+}
+
+.area-table-wrap {
+    overflow-x: auto
+}
+
+.area-card table {
+    width: 100%;
+    min-width: 850px;
+    border-collapse: collapse
+}
+
+.area-card th,
+.area-card td {
+    padding: 15px 16px;
+    border-bottom: 1px solid #283245;
+    text-align: left
+}
+
+.area-card th {
+    background: #111827;
+    color: #8f9bb0;
+    font-size: 12px;
+    text-transform: uppercase
+}
+
+.area-card td {
+    font-size: 14px
+}
+
+.area-state {
+    display: flex;
+    min-height: 280px;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8
+}
+
+.area-actions {
+    display: flex;
+    gap: 8px
+}
+
+.area-actions button,
+.area-dialog-head button {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #354158;
+    border-radius: 8px;
+    background: #111827;
+    color: #93c5fd;
+    cursor: pointer
+}
+
+.area-actions .danger {
+    color: #fca5a5
+}
+
+.area-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 6, 23, .72)
+}
+
+.area-dialog {
+    width: min(520px, 100%);
+    padding: 22px;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    background: #151c2b;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .45)
+}
+
+.area-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px
+}
+
+.area-dialog-head h2 {
+    margin: 0
+}
+
+.area-dialog label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+    color: #cbd5e1;
+    font-size: 14px;
+    font-weight: 600
+}
+
+.area-dialog input,
+.area-dialog textarea {
+    padding: 11px 12px;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #f8fafc;
+    font: inherit
+}
+
+.area-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px
+}
+
+@media(max-width:700px) {
+    .area-page {
+        padding: 16px
+    }
+
+    .area-header {
+        flex-direction: column
+    }
+
+    .area-header>button {
+        width: 100%
+    }
+
+    .area-filter {
+        grid-template-columns: 1fr
+    }
+
+    .area-filter button {
+        width: 100%
+    }
+}

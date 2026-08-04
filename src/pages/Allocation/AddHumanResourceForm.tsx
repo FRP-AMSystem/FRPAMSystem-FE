@@ -12,15 +12,17 @@ import {
 
 import {
   getHumanResourceProfiles,
-  type HumanResourceProfile,
 } from "../../services/humanResourceProfileService";
+
+import type {
+  HumanResourceProfile,
+} from "../../types/humanResourceProfile";
 
 import type {
   AllocationDetailStatus,
 } from "../../types/allocationHumanDetail";
 
 import "./AllocationResourceForm.css";
-
 interface AddHumanResourceFormProps {
   allocationPlanId: number;
   onCreated: () => void | Promise<void>;
@@ -245,7 +247,7 @@ export default function AddHumanResourceForm({
     if (
       selectedResource.maxWorkingHoursPerDay > 0 &&
       workingHours >
-        selectedResource.maxWorkingHoursPerDay
+      selectedResource.maxWorkingHoursPerDay
     ) {
       setError(
         `Working hours cannot exceed ${selectedResource.maxWorkingHoursPerDay} hours per day.`
@@ -469,8 +471,8 @@ export default function AddHumanResourceForm({
             <strong>
               {selectedResource
                 ? getHumanResourceLabel(
-                    selectedResource
-                  )
+                  selectedResource
+                )
                 : "-"}
             </strong>
           </div>

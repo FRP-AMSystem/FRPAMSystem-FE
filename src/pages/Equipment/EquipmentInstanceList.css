@@ -1,0 +1,327 @@
+.equipment-instance-page {
+    padding: 28px;
+    color: #e2e8f0
+}
+
+.equipment-instance-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 22px
+}
+
+.equipment-instance-header p {
+    margin: 0 0 8px;
+    color: #64748b;
+    font-size: 13px
+}
+
+.equipment-instance-header h1 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 30px
+}
+
+.equipment-instance-header span {
+    display: block;
+    margin-top: 8px;
+    color: #94a3b8
+}
+
+.equipment-instance-header button,
+.equipment-instance-filter button,
+.equipment-instance-dialog-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 10px;
+    background: #2563eb;
+    color: white;
+    font-weight: 600;
+    cursor: pointer
+}
+
+.equipment-instance-filter {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) 220px 180px auto;
+    gap: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid #283245;
+    border-radius: 14px;
+    background: #151c2b
+}
+
+.equipment-instance-filter>div {
+    position: relative
+}
+
+.equipment-instance-filter svg {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b
+}
+
+.equipment-instance-filter input,
+.equipment-instance-filter select {
+    width: 100%;
+    min-height: 42px;
+    box-sizing: border-box;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #f8fafc
+}
+
+.equipment-instance-filter input {
+    padding: 0 12px 0 42px
+}
+
+.equipment-instance-filter select {
+    padding: 0 12px
+}
+
+.equipment-instance-error {
+    margin-bottom: 16px;
+    padding: 13px 15px;
+    border: 1px solid rgba(239, 68, 68, .4);
+    border-radius: 10px;
+    background: rgba(127, 29, 29, .22);
+    color: #fecaca
+}
+
+.equipment-instance-card {
+    overflow: hidden;
+    border: 1px solid #283245;
+    border-radius: 16px;
+    background: #151c2b
+}
+
+.equipment-instance-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 22px;
+    border-bottom: 1px solid #283245
+}
+
+.equipment-instance-card-title h2 {
+    margin: 0;
+    font-size: 19px
+}
+
+.equipment-instance-card-title p {
+    margin: 5px 0 0;
+    color: #8793a7;
+    font-size: 13px
+}
+
+.equipment-instance-table-wrap {
+    overflow-x: auto
+}
+
+.equipment-instance-card table {
+    width: 100%;
+    min-width: 1250px;
+    border-collapse: collapse
+}
+
+.equipment-instance-card th,
+.equipment-instance-card td {
+    padding: 14px 15px;
+    border-bottom: 1px solid #283245;
+    text-align: left;
+    vertical-align: middle
+}
+
+.equipment-instance-card th {
+    background: #111827;
+    color: #8f9bb0;
+    font-size: 12px;
+    text-transform: uppercase
+}
+
+.equipment-instance-card td {
+    font-size: 13px
+}
+
+.equipment-instance-card td strong,
+.equipment-instance-card td small {
+    display: block
+}
+
+.equipment-instance-card td small {
+    margin-top: 4px;
+    color: #64748b
+}
+
+.equipment-instance-state {
+    display: flex;
+    min-height: 280px;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8
+}
+
+.condition,
+.status {
+    display: inline-flex;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: #1e293b;
+    font-size: 11px;
+    font-weight: 700
+}
+
+.condition.good,
+.status.available {
+    color: #86efac;
+    background: rgba(21, 128, 61, .16)
+}
+
+.condition.fair,
+.status.reserved,
+.status.inuse {
+    color: #fcd34d;
+    background: rgba(180, 83, 9, .16)
+}
+
+.condition.poor,
+.status.maintenance {
+    color: #fdba74;
+    background: rgba(194, 65, 12, .16)
+}
+
+.condition.broken,
+.status.damaged,
+.status.missing {
+    color: #fca5a5;
+    background: rgba(185, 28, 28, .16)
+}
+
+.equipment-instance-actions {
+    display: flex;
+    gap: 8px
+}
+
+.equipment-instance-actions button,
+.equipment-instance-dialog-head button {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #354158;
+    border-radius: 8px;
+    background: #111827;
+    color: #93c5fd;
+    cursor: pointer
+}
+
+.equipment-instance-actions .danger {
+    color: #fca5a5
+}
+
+.equipment-instance-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 6, 23, .72)
+}
+
+.equipment-instance-dialog {
+    width: min(850px, 100%);
+    max-height: 90vh;
+    overflow: auto;
+    padding: 22px;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    background: #151c2b
+}
+
+.equipment-instance-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px
+}
+
+.equipment-instance-dialog-head h2 {
+    margin: 0
+}
+
+.equipment-instance-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px
+}
+
+.equipment-instance-form-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 600
+}
+
+.equipment-instance-form-grid .wide {
+    grid-column: 1/-1
+}
+
+.equipment-instance-form-grid input,
+.equipment-instance-form-grid select,
+.equipment-instance-form-grid textarea {
+    padding: 10px 12px;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #f8fafc;
+    font: inherit
+}
+
+.equipment-instance-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px
+}
+
+.equipment-instance-dialog-actions .secondary {
+    border: 1px solid #475569;
+    background: transparent;
+    color: #cbd5e1
+}
+
+@media(max-width:850px) {
+    .equipment-instance-page {
+        padding: 16px
+    }
+
+    .equipment-instance-header {
+        flex-direction: column
+    }
+
+    .equipment-instance-header>button {
+        width: 100%
+    }
+
+    .equipment-instance-filter,
+    .equipment-instance-form-grid {
+        grid-template-columns: 1fr
+    }
+
+    .equipment-instance-form-grid .wide {
+        grid-column: auto
+    }
+}

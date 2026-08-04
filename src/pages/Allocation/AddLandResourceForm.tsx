@@ -12,8 +12,11 @@ import {
 
 import {
   getLandResources,
-  type LandResource,
 } from "../../services/landResourceService";
+
+import type {
+  LandResource,
+} from "../../types/landResource";
 
 import type {
   AllocationDetailStatus,
@@ -113,7 +116,7 @@ function getLandLabel(
 
   const size =
     Number.isFinite(land.areaSize) &&
-    land.areaSize > 0
+      land.areaSize > 0
       ? ` - ${land.areaSize} m²`
       : "";
 

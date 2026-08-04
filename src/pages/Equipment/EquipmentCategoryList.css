@@ -1,0 +1,261 @@
+.equipment-category-page {
+    padding: 28px;
+    color: #e2e8f0
+}
+
+.equipment-category-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 22px
+}
+
+.equipment-category-header p {
+    margin: 0 0 8px;
+    color: #64748b;
+    font-size: 13px
+}
+
+.equipment-category-header h1 {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 30px
+}
+
+.equipment-category-header span {
+    display: block;
+    margin-top: 8px;
+    color: #94a3b8
+}
+
+.equipment-category-header button,
+.equipment-category-filter button,
+.equipment-category-dialog-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer
+}
+
+.equipment-category-filter {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto auto;
+    gap: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border: 1px solid #283245;
+    border-radius: 14px;
+    background: #151c2b
+}
+
+.equipment-category-filter>div {
+    position: relative
+}
+
+.equipment-category-filter svg {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b
+}
+
+.equipment-category-filter input {
+    width: 100%;
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 0 12px 0 42px;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #f8fafc
+}
+
+.equipment-category-filter .secondary,
+.equipment-category-dialog-actions .secondary {
+    border: 1px solid #475569;
+    background: transparent;
+    color: #cbd5e1
+}
+
+.equipment-category-error {
+    margin-bottom: 16px;
+    padding: 13px 15px;
+    border: 1px solid rgba(239, 68, 68, .4);
+    border-radius: 10px;
+    background: rgba(127, 29, 29, .22);
+    color: #fecaca
+}
+
+.equipment-category-card {
+    overflow: hidden;
+    border: 1px solid #283245;
+    border-radius: 16px;
+    background: #151c2b
+}
+
+.equipment-category-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 22px;
+    border-bottom: 1px solid #283245
+}
+
+.equipment-category-card-title h2 {
+    margin: 0;
+    font-size: 19px
+}
+
+.equipment-category-card-title p {
+    margin: 5px 0 0;
+    color: #8793a7;
+    font-size: 13px
+}
+
+.equipment-category-table-wrap {
+    overflow-x: auto
+}
+
+.equipment-category-card table {
+    width: 100%;
+    min-width: 850px;
+    border-collapse: collapse
+}
+
+.equipment-category-card th,
+.equipment-category-card td {
+    padding: 15px 16px;
+    border-bottom: 1px solid #283245;
+    text-align: left
+}
+
+.equipment-category-card th {
+    background: #111827;
+    color: #8f9bb0;
+    font-size: 12px;
+    text-transform: uppercase
+}
+
+.equipment-category-card td {
+    font-size: 14px
+}
+
+.equipment-category-state {
+    display: flex;
+    min-height: 280px;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8
+}
+
+.equipment-category-actions {
+    display: flex;
+    gap: 8px
+}
+
+.equipment-category-actions button,
+.equipment-category-dialog-head button {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #354158;
+    border-radius: 8px;
+    background: #111827;
+    color: #93c5fd;
+    cursor: pointer
+}
+
+.equipment-category-actions .danger {
+    color: #fca5a5
+}
+
+.equipment-category-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 6, 23, .72)
+}
+
+.equipment-category-dialog {
+    width: min(520px, 100%);
+    padding: 22px;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    background: #151c2b;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .45)
+}
+
+.equipment-category-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px
+}
+
+.equipment-category-dialog-head h2 {
+    margin: 0
+}
+
+.equipment-category-dialog label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+    color: #cbd5e1;
+    font-size: 14px;
+    font-weight: 600
+}
+
+.equipment-category-dialog input,
+.equipment-category-dialog textarea {
+    padding: 11px 12px;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #f8fafc;
+    font: inherit
+}
+
+.equipment-category-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px
+}
+
+@media(max-width:700px) {
+    .equipment-category-page {
+        padding: 16px
+    }
+
+    .equipment-category-header {
+        flex-direction: column
+    }
+
+    .equipment-category-header>button {
+        width: 100%
+    }
+
+    .equipment-category-filter {
+        grid-template-columns: 1fr
+    }
+
+    .equipment-category-filter button {
+        width: 100%
+    }
+}

@@ -2,7 +2,7 @@ import api from "./api";
 
 import type {
   AllocationHumanDetail,
-  CreateAllocationHumanDetailPayload,
+  AllocationHumanDetailRequest,
 } from "../types/allocationHumanDetail";
 
 interface ApiResponse<T> {
@@ -19,57 +19,112 @@ interface PaginatedResponse<T> {
   items: T[];
 }
 
-export const getAllocationHumanDetails = async (
+function validateId(
+  id: number,
+  fieldName: string
+): void {
+  if (
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
+    throw new Error(
+      `${fieldName} is invalid.`
+    );
+  }
+}
+
+export async function getAllocationHumanDetails(
   allocationPlanId: number
-): Promise<AllocationHumanDetail[]> => {
+): Promise<AllocationHumanDetail[]> {
+  validateId(
+    allocationPlanId,
+    "Allocation plan ID"
+  );
+
   const response = await api.get<
-    ApiResponse<PaginatedResponse<AllocationHumanDetail>>
-  >("/AllocationHumanDetails", {
-    params: {
-      allocationPlanId,
-      page: 1,
-      size: 100,
-    },
-  });
+    ApiResponse<
+      PaginatedResponse<AllocationHumanDetail>
+    >
+  >(
+    "/AllocationHumanDetails",
+    {
+      params: {
+        AllocationPlanId:
+          allocationPlanId,
 
-  return response.data.data?.items ?? [];
-};
+        Page: 1,
+        Size: 100,
+      },
+    }
+  );
 
-export const getAllocationHumanDetailById = async (
+  return (
+    response.data.data?.items ??
+    []
+  );
+}
+
+export async function getAllocationHumanDetailById(
   id: number
-): Promise<AllocationHumanDetail> => {
-  const response = await api.get<ApiResponse<AllocationHumanDetail>>(
+): Promise<AllocationHumanDetail> {
+  validateId(
+    id,
+    "Allocation human detail ID"
+  );
+
+  const response =
+    await api.get<
+      ApiResponse<AllocationHumanDetail>
+    >(
+      `/AllocationHumanDetails/${id}`
+    );
+
+  return response.data.data;
+}
+
+export async function createAllocationHumanDetail(
+  payload: AllocationHumanDetailRequest
+): Promise<AllocationHumanDetail> {
+  const response =
+    await api.post<
+      ApiResponse<AllocationHumanDetail>
+    >(
+      "/AllocationHumanDetails",
+      payload
+    );
+
+  return response.data.data;
+}
+
+export async function updateAllocationHumanDetail(
+  id: number,
+  payload: AllocationHumanDetailRequest
+): Promise<AllocationHumanDetail> {
+  validateId(
+    id,
+    "Allocation human detail ID"
+  );
+
+  const response =
+    await api.put<
+      ApiResponse<AllocationHumanDetail>
+    >(
+      `/AllocationHumanDetails/${id}`,
+      payload
+    );
+
+  return response.data.data;
+}
+
+export async function deleteAllocationHumanDetail(
+  id: number
+): Promise<void> {
+  validateId(
+    id,
+    "Allocation human detail ID"
+  );
+
+  await api.delete(
     `/AllocationHumanDetails/${id}`
   );
-
-  return response.data.data;
-};
-
-export const createAllocationHumanDetail = async (
-  payload: CreateAllocationHumanDetailPayload
-): Promise<AllocationHumanDetail> => {
-  const response = await api.post<ApiResponse<AllocationHumanDetail>>(
-    "/AllocationHumanDetails",
-    payload
-  );
-
-  return response.data.data;
-};
-
-export const updateAllocationHumanDetail = async (
-  id: number,
-  payload: CreateAllocationHumanDetailPayload
-): Promise<AllocationHumanDetail> => {
-  const response = await api.put<ApiResponse<AllocationHumanDetail>>(
-    `/AllocationHumanDetails/${id}`,
-    payload
-  );
-
-  return response.data.data;
-};
-
-export const deleteAllocationHumanDetail = async (
-  id: number
-): Promise<void> => {
-  await api.delete(`/AllocationHumanDetails/${id}`);
-};
+}

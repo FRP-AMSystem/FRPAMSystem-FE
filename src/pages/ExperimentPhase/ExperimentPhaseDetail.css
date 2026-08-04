@@ -1,0 +1,316 @@
+.experiment-phase-detail-page {
+  min-height: 100%;
+  padding: 28px;
+}
+
+.experiment-phase-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.experiment-phase-detail-breadcrumb {
+  margin: 0 0 8px;
+  color: #8b95a7;
+  font-size: 14px;
+}
+
+.experiment-phase-detail-header h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.experiment-phase-detail-description {
+  max-width: 650px;
+  margin: 8px 0 0;
+  color: #9aa4b5;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.experiment-phase-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.experiment-phase-detail-back-button,
+.experiment-phase-detail-edit-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 17px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.experiment-phase-detail-back-button {
+  border: 1px solid #3a465c;
+  background: #151c2b;
+  color: #d5dce7;
+}
+
+.experiment-phase-detail-back-button:hover {
+  border-color: #64748b;
+  background: #202a3c;
+}
+
+.experiment-phase-detail-edit-button {
+  border: 0;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.experiment-phase-detail-edit-button:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.experiment-phase-detail-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 22px;
+  padding: 22px;
+  border: 1px solid #283245;
+  border-radius: 16px;
+  background: #151c2b;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+}
+
+.experiment-phase-detail-summary-icon {
+  display: flex;
+  width: 62px;
+  height: 62px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgb(37 99 235 / 15%);
+  color: #60a5fa;
+}
+
+.experiment-phase-detail-summary-content {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.experiment-phase-detail-summary-content > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.experiment-phase-detail-summary-content span {
+  color: #8591a5;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.experiment-phase-detail-summary-content strong {
+  color: #f1f5f9;
+  font-size: 16px;
+}
+
+.experiment-phase-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.experiment-phase-detail-card {
+  padding: 22px;
+  border: 1px solid #283245;
+  border-radius: 16px;
+  background: #151c2b;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 10%);
+}
+
+.experiment-phase-detail-description-card {
+  grid-column: 1 / -1;
+}
+
+.experiment-phase-detail-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  color: #60a5fa;
+}
+
+.experiment-phase-detail-card-title h2 {
+  margin: 0;
+  color: #f1f5f9;
+  font-size: 18px;
+}
+
+.experiment-phase-detail-information {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.experiment-phase-detail-information > div {
+  min-height: 78px;
+  padding: 14px;
+  border: 1px solid #2a3548;
+  border-radius: 11px;
+  background: #101725;
+}
+
+.experiment-phase-detail-information span {
+  display: block;
+  margin-bottom: 8px;
+  color: #7f8ca3;
+  font-size: 12px;
+}
+
+.experiment-phase-detail-information strong {
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.experiment-phase-detail-description-content {
+  min-height: 90px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #2a3548;
+  border-radius: 11px;
+  background: #101725;
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.experiment-phase-detail-status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px !important;
+  font-weight: 700;
+}
+
+.experiment-phase-detail-status-planned {
+  border-color: rgb(59 130 246 / 35%);
+  background: rgb(37 99 235 / 14%);
+  color: #93c5fd !important;
+}
+
+.experiment-phase-detail-status-progress {
+  border-color: rgb(245 158 11 / 35%);
+  background: rgb(180 83 9 / 16%);
+  color: #fcd34d !important;
+}
+
+.experiment-phase-detail-status-completed {
+  border-color: rgb(34 197 94 / 35%);
+  background: rgb(21 128 61 / 16%);
+  color: #86efac !important;
+}
+
+.experiment-phase-detail-status-cancelled {
+  border-color: rgb(239 68 68 / 35%);
+  background: rgb(185 28 28 / 16%);
+  color: #fca5a5 !important;
+}
+
+.experiment-phase-detail-state {
+  display: flex;
+  min-height: 320px;
+  align-items: center;
+  justify-content: center;
+  color: #8f9bb0;
+  text-align: center;
+}
+
+.experiment-phase-detail-error {
+  padding: 15px 17px;
+  border: 1px solid rgb(239 68 68 / 45%);
+  border-radius: 11px;
+  background: rgb(127 29 29 / 25%);
+  color: #fecaca;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .experiment-phase-detail-page {
+    padding: 20px;
+  }
+
+  .experiment-phase-detail-header {
+    flex-direction: column;
+  }
+
+  .experiment-phase-detail-header-actions {
+    width: 100%;
+  }
+
+  .experiment-phase-detail-back-button,
+  .experiment-phase-detail-edit-button {
+    flex: 1;
+  }
+
+  .experiment-phase-detail-summary-content {
+    grid-template-columns: 1fr;
+  }
+
+  .experiment-phase-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .experiment-phase-detail-description-card {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .experiment-phase-detail-page {
+    padding: 16px;
+  }
+
+  .experiment-phase-detail-header h1 {
+    font-size: 25px;
+  }
+
+  .experiment-phase-detail-header-actions {
+    flex-direction: column;
+  }
+
+  .experiment-phase-detail-back-button,
+  .experiment-phase-detail-edit-button {
+    width: 100%;
+  }
+
+  .experiment-phase-detail-summary-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .experiment-phase-detail-information {
+    grid-template-columns: 1fr;
+  }
+}
