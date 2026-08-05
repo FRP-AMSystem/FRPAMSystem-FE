@@ -44,6 +44,7 @@ import {
 import "./Sidebar.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
@@ -67,6 +68,156 @@ interface MenuGroup {
   items: MenuItem[];
   defaultOpen?: boolean;
 }
+
+/* =====================================================
+   ADMIN MENU
+===================================================== */
+
+const adminMenuGroups: MenuGroup[] = [
+  {
+    id: "planning",
+    title: "Planning",
+    icon: FlaskConical,
+    defaultOpen: true,
+    items: [
+      {
+        name: "Experiments",
+        path: "/experiments",
+        icon: FlaskConical,
+      },
+      {
+        name: "Experiment Phases",
+        path: "/experiment-phases",
+        icon: Layers3,
+      },
+      {
+        name: "Equipment Requirements",
+        path: "/equipment-requirements",
+        icon: ClipboardList,
+      },
+      {
+        name: "Human Requirements",
+        path: "/human-requirements",
+        icon: Users,
+      },
+      {
+        name: "Land Requirements",
+        path: "/land-requirements",
+        icon: LandPlot,
+      },
+      {
+        name: "Allocations",
+        path: "/allocation",
+        icon: CalendarDays,
+      },
+      {
+        name: "Allocation Analytics",
+        path: "/allocation-analytics",
+        icon: BarChart3,
+      },
+    ],
+  },
+  {
+    id: "human-resources",
+    title: "Human Resources",
+    icon: Users,
+    items: [
+      {
+        name: "Human Resources",
+        path: "/human-resource-profiles",
+        icon: UserRound,
+      },
+      {
+        name: "Skills",
+        path: "/skills",
+        icon: BadgeCheck,
+      },
+      {
+        name: "Human Resource Skills",
+        path: "/human-resource-skills",
+        icon: UserRoundCheck,
+      },
+    ],
+  },
+  {
+    id: "equipment-resources",
+    title: "Equipment & Resources",
+    icon: Truck,
+    items: [
+      {
+        name: "Resource Overview",
+        path: "/resources",
+        icon: Trees,
+      },
+      {
+        name: "Equipment Types",
+        path: "/equipment",
+        icon: Truck,
+      },
+      {
+        name: "Equipment Categories",
+        path: "/equipment-categories",
+        icon: ClipboardList,
+      },
+      {
+        name: "Equipment Instances",
+        path: "/equipment-instances",
+        icon: Cpu,
+      },
+      {
+        name: "Equipment Substitutions",
+        path: "/equipment-substitutions",
+        icon: ArrowRightLeft,
+      },
+      {
+        name: "Equipment Shortage Logs",
+        path: "/equipment-shortage-logs",
+        icon: AlertTriangle,
+      },
+      {
+        name: "Areas",
+        path: "/areas",
+        icon: Map,
+      },
+      {
+        name: "Land Resources",
+        path: "/land-resources",
+        icon: LandPlot,
+      },
+    ],
+  },
+  {
+    id: "operations",
+    title: "Operations",
+    icon: Calendar,
+    items: [
+      {
+        name: "Schedules",
+        path: "/schedules",
+        icon: Calendar,
+      },
+      {
+        name: "Conflicts",
+        path: "/conflicts",
+        icon: AlertTriangle,
+      },
+      {
+        name: "Reports",
+        path: "/reports",
+        icon: BarChart3,
+      },
+      {
+        name: "Notifications",
+        path: "/notifications",
+        icon: Bell,
+      },
+    ],
+  },
+];
+
+/* =====================================================
+   MANAGER MENU
+===================================================== */
 
 const managerMenuGroups: MenuGroup[] = [
   {
@@ -210,6 +361,10 @@ const managerMenuGroups: MenuGroup[] = [
   },
 ];
 
+/* =====================================================
+   RESEARCHER MENU
+===================================================== */
+
 const researcherMenuGroups: MenuGroup[] = [
   {
     id: "planning",
@@ -352,6 +507,10 @@ const researcherMenuGroups: MenuGroup[] = [
   },
 ];
 
+/* =====================================================
+   TECHNICIAN MENU
+===================================================== */
+
 const technicianMenuGroups: MenuGroup[] = [
   {
     id: "planning",
@@ -489,6 +648,10 @@ const technicianMenuGroups: MenuGroup[] = [
   },
 ];
 
+/* =====================================================
+   STUDENT MENU
+===================================================== */
+
 const studentMenuGroups: MenuGroup[] = [
   {
     id: "planning",
@@ -583,6 +746,7 @@ const roleMenuGroups: Record<
   Role,
   MenuGroup[]
 > = {
+  Admin: adminMenuGroups,
   Manager: managerMenuGroups,
   Researcher: researcherMenuGroups,
   Technician: technicianMenuGroups,
@@ -594,6 +758,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -636,11 +801,42 @@ function clearAuthenticationStorage(): void {
 
   authenticationKeys.forEach(
     (key) => {
-      localStorage.removeItem(key);
+      localStorage.removeItem(
+        key
+      );
     }
   );
 
   sessionStorage.clear();
+}
+
+function buildInitialOpenGroups(
+  groups: MenuGroup[],
+  currentPath: string
+): Record<string, boolean> {
+  const result:
+    Record<string, boolean> = {};
+
+  groups.forEach(
+    (group) => {
+      const containsActivePath =
+        group.items.some(
+          (item) =>
+            isPathActive(
+              currentPath,
+              item.path
+            )
+        );
+
+      result[group.id] =
+        containsActivePath ||
+        Boolean(
+          group.defaultOpen
+        );
+    }
+  );
+
+  return result;
 }
 
 export default function Sidebar() {
@@ -681,34 +877,25 @@ export default function Sidebar() {
     setOpenGroups,
   ] = useState<
     Record<string, boolean>
-  >(() => {
-    const initialState:
-      Record<string, boolean> = {};
-
-    roleMenuGroups[role].forEach(
-      (group) => {
-        const containsActivePath =
-          group.items.some(
-            (item) =>
-              isPathActive(
-                window.location.pathname,
-                item.path
-              )
-          );
-
-        initialState[group.id] =
-          containsActivePath ||
-          Boolean(
-            group.defaultOpen
-          );
-      }
-    );
-
-    return initialState;
-  });
+  >(() =>
+    buildInitialOpenGroups(
+      roleMenuGroups[role],
+      window.location.pathname
+    )
+  );
 
   const loadUnreadCount =
     useCallback(async () => {
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      if (!token) {
+        setUnreadCount(0);
+        return;
+      }
+
       try {
         const count =
           await getUnreadNotificationCount();
@@ -775,27 +962,35 @@ export default function Sidebar() {
   }, [loadUnreadCount]);
 
   useEffect(() => {
-    const activeGroup =
-      menuGroups.find(
-        (group) =>
-          group.items.some(
-            (item) =>
-              isPathActive(
-                location.pathname,
-                item.path
-              )
-          )
-      );
-
-    if (!activeGroup) {
-      return;
-    }
-
     setOpenGroups(
-      (current) => ({
-        ...current,
-        [activeGroup.id]: true,
-      })
+      (current) => {
+        const nextState = {
+          ...current,
+        };
+
+        menuGroups.forEach(
+          (group) => {
+            const containsActivePath =
+              group.items.some(
+                (item) =>
+                  isPathActive(
+                    location.pathname,
+                    item.path
+                  )
+              );
+
+            if (
+              containsActivePath
+            ) {
+              nextState[
+                group.id
+              ] = true;
+            }
+          }
+        );
+
+        return nextState;
+      }
     );
   }, [
     location.pathname,
@@ -803,35 +998,15 @@ export default function Sidebar() {
   ]);
 
   useEffect(() => {
-    setOpenGroups(() => {
-      const nextState:
-        Record<string, boolean> = {};
-
-      menuGroups.forEach(
-        (group) => {
-          const containsActivePath =
-            group.items.some(
-              (item) =>
-                isPathActive(
-                  location.pathname,
-                  item.path
-                )
-            );
-
-          nextState[group.id] =
-            containsActivePath ||
-            Boolean(
-              group.defaultOpen
-            );
-        }
-      );
-
-      return nextState;
-    });
+    setOpenGroups(
+      buildInitialOpenGroups(
+        menuGroups,
+        location.pathname
+      )
+    );
   }, [
     role,
     menuGroups,
-    location.pathname,
   ]);
 
   const toggleGroup = (
@@ -968,7 +1143,9 @@ export default function Sidebar() {
                       />
 
                       <span>
-                        {group.title}
+                        {
+                          group.title
+                        }
                       </span>
                     </div>
 
@@ -1056,17 +1233,23 @@ export default function Sidebar() {
         <div className="sidebar-user">
           <div className="sidebar-avatar">
             <div className="sidebar-avatar-img">
-              {avatarLetter}
+              {
+                avatarLetter
+              }
             </div>
           </div>
 
           <div className="sidebar-user-info">
             <span className="sidebar-username">
-              {fullName}
+              {
+                fullName
+              }
             </span>
 
             <span className="sidebar-user-role">
-              {role}
+              {
+                role
+              }
             </span>
           </div>
         </div>

@@ -70,6 +70,7 @@ import ReportOverview from "../pages/Report/ReportOverview";
 import NotificationList from "../pages/Notifications/NotificationList";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
@@ -81,16 +82,36 @@ interface ProtectedRouteProps {
 }
 
 const allRoles: Role[] = [
+  "Admin",
   "Manager",
   "Researcher",
   "Technician",
   "Student",
 ];
 
+const adminAndResearcherRoles: Role[] = [
+  "Admin",
+  "Researcher",
+];
+
+const analyticsRoles: Role[] = [
+  "Admin",
+  "Manager",
+  "Researcher",
+];
+
+const operationRoles: Role[] = [
+  "Admin",
+  "Manager",
+  "Researcher",
+  "Technician",
+];
+
 function isValidRole(
   value: string | null
 ): value is Role {
   return (
+    value === "Admin" ||
     value === "Manager" ||
     value === "Researcher" ||
     value === "Technician" ||
@@ -117,13 +138,22 @@ function ProtectedRoute({
     );
   }
 
+  if (!isValidRole(storedRole)) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
+  }
+
   if (
     allowedRoles &&
-    (
-      !isValidRole(storedRole) ||
-      !allowedRoles.includes(
-        storedRole
-      )
+    !allowedRoles.includes(
+      storedRole
     )
   ) {
     return (
@@ -143,11 +173,15 @@ function PlaceholderPage({
   title: string;
 }) {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute
+      allowedRoles={allRoles}
+    >
       <div
         style={{
+          minHeight: "100vh",
           padding: "32px",
-          color: "white",
+          background: "#f8fafc",
+          color: "#111827",
         }}
       >
         <h1>{title}</h1>
@@ -179,7 +213,9 @@ export default function AppRoutes() {
 
       <Route
         path="/login"
-        element={<LoginPage />}
+        element={
+          <LoginPage />
+        }
       />
 
       {/* =========================
@@ -216,9 +252,9 @@ export default function AppRoutes() {
         path="/experiments/create"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <CreateExperiment />
           </ProtectedRoute>
@@ -229,9 +265,9 @@ export default function AppRoutes() {
         path="/experiments/:id/edit"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <EditExperiment />
           </ProtectedRoute>
@@ -268,9 +304,9 @@ export default function AppRoutes() {
         path="/experiment-phases/create"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <CreateExperimentPhase />
           </ProtectedRoute>
@@ -281,9 +317,9 @@ export default function AppRoutes() {
         path="/experiment-phases/:id/edit"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <EditExperimentPhase />
           </ProtectedRoute>
@@ -320,9 +356,9 @@ export default function AppRoutes() {
         path="/equipment-requirements/create"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <CreateRequirement />
           </ProtectedRoute>
@@ -333,9 +369,9 @@ export default function AppRoutes() {
         path="/equipment-requirements/:id/edit"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <EditRequirement />
           </ProtectedRoute>
@@ -372,9 +408,9 @@ export default function AppRoutes() {
         path="/human-requirements/create"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <CreateHumanRequirement />
           </ProtectedRoute>
@@ -385,9 +421,9 @@ export default function AppRoutes() {
         path="/human-requirements/:id/edit"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <EditHumanRequirement />
           </ProtectedRoute>
@@ -406,7 +442,7 @@ export default function AppRoutes() {
       />
 
       {/* =========================
-          HUMAN RESOURCE PROFILES
+          HUMAN RESOURCE MANAGEMENT
       ========================= */}
 
       <Route
@@ -420,10 +456,6 @@ export default function AppRoutes() {
         }
       />
 
-      {/* =========================
-          SKILLS
-      ========================= */}
-
       <Route
         path="/skills"
         element={
@@ -434,10 +466,6 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
-      {/* =========================
-          HUMAN RESOURCE SKILLS
-      ========================= */}
 
       <Route
         path="/human-resource-skills"
@@ -469,9 +497,9 @@ export default function AppRoutes() {
         path="/land-requirements/create"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <CreateLandRequirement />
           </ProtectedRoute>
@@ -482,9 +510,9 @@ export default function AppRoutes() {
         path="/land-requirements/:id/edit"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <EditLandRequirement />
           </ProtectedRoute>
@@ -521,23 +549,27 @@ export default function AppRoutes() {
         path="/allocation/create"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <CreateAllocation />
           </ProtectedRoute>
         }
       />
 
+      {/*
+        Route cố định phải đặt trước /allocation/:id
+        để không bị hiểu "allocation-analytics" là id.
+      */}
+
       <Route
         path="/allocation-analytics"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Manager",
-              "Researcher",
-            ]}
+            allowedRoles={
+              analyticsRoles
+            }
           >
             <AllocationAnalytics />
           </ProtectedRoute>
@@ -548,9 +580,9 @@ export default function AppRoutes() {
         path="/allocation/:id/edit"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <EditAllocation />
           </ProtectedRoute>
@@ -687,9 +719,9 @@ export default function AppRoutes() {
         path="/schedules/create"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <CreateSchedule />
           </ProtectedRoute>
@@ -700,9 +732,9 @@ export default function AppRoutes() {
         path="/schedules/:id/edit"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Researcher",
-            ]}
+            allowedRoles={
+              adminAndResearcherRoles
+            }
           >
             <EditSchedule />
           </ProtectedRoute>
@@ -728,11 +760,9 @@ export default function AppRoutes() {
         path="/conflicts"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Manager",
-              "Researcher",
-              "Technician",
-            ]}
+            allowedRoles={
+              operationRoles
+            }
           >
             <ConflictList />
           </ProtectedRoute>
@@ -747,11 +777,9 @@ export default function AppRoutes() {
         path="/reports"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "Manager",
-              "Researcher",
-              "Technician",
-            ]}
+            allowedRoles={
+              operationRoles
+            }
           >
             <ReportOverview />
           </ProtectedRoute>

@@ -26,10 +26,19 @@ import type {
 import "./DashboardPage.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
   | "Student";
+
+const validRoles: Role[] = [
+  "Admin",
+  "Manager",
+  "Researcher",
+  "Technician",
+  "Student",
+];
 
 type ApprovalStatus =
   AllocationPlan["approveStatus"];
@@ -73,21 +82,14 @@ interface ResourceBreakdownItem {
   color: string;
 }
 
-const validRoles: Role[] = [
-  "Manager",
-  "Researcher",
-  "Technician",
-  "Student",
-];
-
 function getCurrentRole(): Role {
-  const role =
+  const storedRole =
     localStorage.getItem("role");
 
   return validRoles.includes(
-    role as Role
+    storedRole as Role
   )
-    ? (role as Role)
+    ? (storedRole as Role)
     : "Student";
 }
 
@@ -102,6 +104,7 @@ function getErrorMessage(
     const response = (
       error as {
         response?: {
+          status?: number;
           data?: {
             message?: string;
             error?: string;
@@ -114,6 +117,18 @@ function getErrorMessage(
         };
       }
     ).response;
+
+    if (
+      response?.status === 401
+    ) {
+      return "Your login session is invalid or expired. Please log out and sign in again.";
+    }
+
+    if (
+      response?.status === 403
+    ) {
+      return "Your account does not have permission to load dashboard information.";
+    }
 
     if (response?.data?.errors) {
       return Object.values(
@@ -358,6 +373,9 @@ function getRoleTitle(
   role: Role
 ): string {
   switch (role) {
+    case "Admin":
+      return "Admin Dashboard";
+
     case "Manager":
       return "Manager Dashboard";
 
@@ -376,6 +394,9 @@ function getRoleDescription(
   role: Role
 ): string {
   switch (role) {
+    case "Admin":
+      return "Manage system resources, allocations, analytics, reports, schedules, and operational information.";
+
     case "Manager":
       return "Review allocation plans, approval requests and operational resource usage.";
 
@@ -456,6 +477,7 @@ export default function DashboardPage() {
 
         if (active) {
           setAllocationPlans([]);
+
           setError(
             getErrorMessage(
               loadError
@@ -633,67 +655,100 @@ export default function DashboardPage() {
       DashboardStat[]
     >(() => {
       switch (role) {
+        case "Admin":
         case "Manager":
           return [
             {
-              id: "manager-total",
+              id:
+                role === "Admin"
+                  ? "admin-total"
+                  : "manager-total",
+
               title:
                 "Total Allocation Plans",
+
               value:
                 String(
                   dashboardData.totalPlans
                 ),
+
               trend: {
                 value:
                   `${dashboardData.draftPlans} draft · ${dashboardData.cancelledPlans} cancelled`,
+
                 isUp: true,
               },
+
               type:
                 "total-resources",
             },
             {
-              id: "manager-fitness",
+              id:
+                role === "Admin"
+                  ? "admin-fitness"
+                  : "manager-fitness",
+
               title:
                 "Average Fitness",
+
               value:
                 `${dashboardData.averageFitness}%`,
+
               subtext:
                 "Average allocation fitness score",
+
               percentage:
                 dashboardData.averageFitness,
+
               type:
                 "utilization",
             },
             {
-              id: "manager-approved",
+              id:
+                role === "Admin"
+                  ? "admin-approved"
+                  : "manager-approved",
+
               title:
                 "Approved Plans",
+
               value:
                 String(
                   dashboardData.approvedPlans
                 ),
+
               avatars: [
                 "",
                 "",
                 `+${dashboardData.approvedPlans}`,
               ],
+
               type:
                 "active-experiments",
             },
             {
-              id: "manager-pending",
+              id:
+                role === "Admin"
+                  ? "admin-pending"
+                  : "manager-pending",
+
               title:
                 "Pending Approval",
+
               value:
                 String(
                   dashboardData.pendingPlans
                 ),
+
               conflictCount:
                 dashboardData.pendingPlans,
+
               type:
                 "conflicts",
+
               actionLabel:
                 "Review Plans",
+
               actionPath:
                 "/allocation",
             },
@@ -798,8 +853,10 @@ export default function DashboardPage() {
                 0
                   ? Number(
                       (
-                        dashboardData.equipmentCount /
-                        dashboardData.totalResourceDetails *
+                        (
+                          dashboardData.equipmentCount /
+                          dashboardData.totalResourceDetails
+                        ) *
                         100
                       ).toFixed(1)
                     )
@@ -955,7 +1012,12 @@ export default function DashboardPage() {
     );
 
   const canViewAnalytics =
+    role === "Admin" ||
     role === "Manager" ||
+    role === "Researcher";
+
+  const canCreateAllocation =
+    role === "Admin" ||
     role === "Researcher";
 
   return (
@@ -988,8 +1050,7 @@ export default function DashboardPage() {
               </button>
             )}
 
-            {role ===
-              "Researcher" && (
+            {canCreateAllocation && (
               <button
                 type="button"
                 className="dashboard-create-btn"
@@ -1044,13 +1105,44 @@ export default function DashboardPage() {
 
             <div className="charts-grid">
               <LineChartCard
-                data={allocationTrend}
+                data={
+                  allocationTrend
+                }
               />
 
               <BreakdownCard
-                data={resourceBreakdown}
+                data={
+                  resourceBreakdown
+                }
               />
             </div>
+
+            {role === "Admin" && (
+              <div className="role-section-card">
+                <h3>
+                  Admin Workspace
+                </h3>
+
+                <p>
+                  Manage allocations,
+                  resources, analytics,
+                  schedules, conflicts,
+                  reports and system
+                  operations.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      "/reports"
+                    )
+                  }
+                >
+                  View Reports
+                </button>
+              </div>
+            )}
 
             {role ===
               "Researcher" && (
@@ -1089,8 +1181,9 @@ export default function DashboardPage() {
 
                 <p>
                   Review assigned equipment,
-                  resource usage and schedules
-                  for allocation plans.
+                  resource usage and
+                  schedules for allocation
+                  plans.
                 </p>
 
                 <button
@@ -1116,7 +1209,8 @@ export default function DashboardPage() {
                 <p>
                   Review experiments,
                   allocation results and
-                  schedules in read-only mode.
+                  schedules in read-only
+                  mode.
                 </p>
 
                 <button
@@ -1134,7 +1228,9 @@ export default function DashboardPage() {
 
             <div className="table-row-container">
               <RequestTable
-                requests={recentPlans}
+                requests={
+                  recentPlans
+                }
               />
             </div>
 
@@ -1154,8 +1250,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {role ===
-              "Researcher" && (
+            {canCreateAllocation && (
               <button
                 type="button"
                 className="dashboard-fab"
