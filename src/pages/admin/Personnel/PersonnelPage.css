@@ -2,7 +2,7 @@
   padding: 24px;
   background-color: var(--bg);
   min-height: 100%;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--sans);
   color: var(--text);
   box-sizing: border-box;
 }

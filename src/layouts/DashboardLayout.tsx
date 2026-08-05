@@ -1,6 +1,10 @@
+import type {
+  ReactNode,
+} from "react";
+
 import Sidebar from "../components/layout/Sidebar";
-import Topbar from "../components/layout/Topbar";
-import type { ReactNode } from "react";
+
+import "./DashboardLayout.css";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -10,16 +14,14 @@ export default function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
   return (
-    <div className="app-layout">
+    <div className="dashboard-layout">
       <Sidebar />
 
-      <div className="main-content">
-        <Topbar />
-
-        <main className="dashboard-content">
+      <main className="dashboard-main">
+        <div className="dashboard-content">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
-}
+}

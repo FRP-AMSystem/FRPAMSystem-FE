@@ -1,10 +1,20 @@
 export interface LoginRequest {
-    email: string;
-    password: string;
+  usernameOrEmail: string;
+  password: string;
+}
+
+export interface LoginData {
+  accessToken: string;
+  userId: number;
+  fullName: string;
+  username: string;
+  email: string;
+  roleId: number;
+  roleName: string;
 }
 
 export interface LoginResponse {
-    token: string;
-    role: string;
-    userName: string;
+  success: boolean;
+  message: string;
+  data: LoginData;
 }

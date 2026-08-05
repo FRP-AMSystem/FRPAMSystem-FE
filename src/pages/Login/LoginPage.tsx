@@ -1,4 +1,5 @@
 import "./LoginPage.css";
+import forestBg from "../../assets/forest.jpg";
 
 import {
   FaTree,
@@ -34,7 +35,7 @@ export default function LoginPage() {
     setError("");
 
     if (!email.trim()) {
-      setError("Please enter your email.");
+      setError("Please enter your email or username.");
       return;
     }
 
@@ -47,39 +48,26 @@ export default function LoginPage() {
       setLoading(true);
 
       const response = await login({
-        email,
+        usernameOrEmail: email.trim(),
         password,
       });
 
-      saveToken(response.token);
-      saveRole(response.role);
+      saveToken(response.accessToken);
+      saveRole(response.roleName);
 
-      // Save user profile details for dynamic UI rendering
-      const namePart = response.userName || email.split("@")[0] || "User";
-      const formattedName = namePart
-        .split(/[\._\-]/)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
+      localStorage.setItem("userId", String(response.userId));
+      localStorage.setItem("fullName", response.fullName);
+      localStorage.setItem("username", response.username);
+      localStorage.setItem("email", response.email);
 
       saveUserData({
-        userName: formattedName,
-        email: email.trim(),
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formattedName)}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
+        userName: response.fullName || response.username || email.split("@")[0],
+        email: response.email || email.trim(),
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.fullName || response.username || "User")}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
       });
 
       console.log("Remember me:", rememberMe);
-
-      switch (response.role) {
-        case "Admin":
-        case "Manager":
-        case "Researcher":
-        case "Technician":
-          navigate("/dashboard");
-          break;
-
-        default:
-          navigate("/login");
-      }
+      navigate("/dashboard");
     } catch (err) {
       console.error(err);
       setError("Login failed. Please check your credentials.");
@@ -89,7 +77,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="landing">
+    <div
+      className="landing"
+      style={{
+        backgroundImage: `url(${forestBg})`,
+        backgroundPosition: "center",
+        backgroundSize: "cover",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
       <div className="overlay"></div>
 
       {/* HEADER LOGO */}
@@ -150,11 +146,11 @@ export default function LoginPage() {
               {error && <div className="error-alert">{error}</div>}
 
               <div className="form-group">
-                <label>Email Address</label>
+                <label>Email Address / Username</label>
                 <div className="input-box">
                   <FaEnvelope className="input-icon" />
                   <input
-                    type="email"
+                    type="text"
                     placeholder="name@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -216,4 +212,4 @@ export default function LoginPage() {
       )}
     </div>
   );
-}
+}

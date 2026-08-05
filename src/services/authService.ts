@@ -1,22 +1,18 @@
-import apiClient from "./api";
-import type { LoginRequest, LoginResponse } from "../types/auth";
+import api from "./api";
+import type { LoginData, LoginRequest, LoginResponse } from "../types/auth";
 
-export async function login(
-  data: LoginRequest
-): Promise<LoginResponse> {
-  const response = await apiClient.post<any>("/Auth/login", {
-    usernameOrEmail: data.email,
+export async function login(data: LoginRequest | { email?: string; usernameOrEmail?: string; password: string }): Promise<LoginData> {
+  const payload = {
+    usernameOrEmail: ("usernameOrEmail" in data && data.usernameOrEmail) ? data.usernameOrEmail : ("email" in data && data.email) ? data.email : "",
     password: data.password,
-  });
+  };
 
-  const result = response.data;
-  if (result.success && result.data) {
-    return {
-      token: result.data.accessToken,
-      role: result.data.roleName,
-      userName: result.data.fullName || result.data.username,
-    };
+  const response = await api.post<LoginResponse>("/Auth/login", payload);
+  if (response.data && response.data.success && response.data.data) {
+    return response.data.data;
   }
-  
-  throw new Error(result.message || "Login failed");
-}
+  if (response.data && response.data.data) {
+    return response.data.data;
+  }
+  throw new Error(response.data?.message || "Login failed");
+}

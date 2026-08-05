@@ -1,28 +1,28 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
+  --text: #475569;
+  --text-h: #0f172a;
+  --bg: #f8fafc;
+  --border: #e2e8f0;
+  --code-bg: #f1f5f9;
   --accent: #16a34a;
   --accent-bg: rgba(22, 163, 74, 0.1);
-  --accent-border: rgba(22, 163, 74, 0.5);
+  --accent-border: rgba(22, 163, 74, 0.4);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(15, 23, 42, 0.08) 0 10px 15px -3px, rgba(15, 23, 42, 0.04) 0 4px 6px -2px;
 
-  --brand-primary: #1B5E20;
-  --brand-primary-hover: #2E7D32;
-  --brand-light: #E8F5E9;
-  --brand-accent: #4CAF50;
-  --card-bg: #FFFFFF;
+  --brand-primary: #16a34a;
+  --brand-primary-hover: #15803d;
+  --brand-light: #f0fdf4;
+  --brand-accent: #22c55e;
+  --card-bg: #ffffff;
 
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 15px/145% var(--sans);
-  letter-spacing: -0.01em;
+  font: 14.5px/150% var(--sans);
+  letter-spacing: -0.011em;
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -32,38 +32,45 @@
   -moz-osx-font-smoothing: grayscale;
 
   @media (max-width: 1024px) {
-    font-size: 16px;
+    font-size: 15px;
   }
 }
 
 :root.dark {
   --text: #cbd5e1;
   --text-h: #ffffff;
-  --bg: #111827;
-  --border: #1f2937;
-  --code-bg: #1f2937;
+  --bg: #0f172a;
+  --border: #1e293b;
+  --code-bg: #1e293b;
   --accent: #4ade80;
   --accent-bg: rgba(74, 222, 128, 0.15);
   --accent-border: rgba(74, 222, 128, 0.4);
   --social-bg: rgba(47, 48, 58, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  --brand-primary: #16A34A;
-  --brand-primary-hover: #2E7D32;
-  --brand-light: #162C1E;
-  --brand-accent: #4ADE80;
-  --card-bg: #1F2937;
+  --brand-primary: #16a34a;
+  --brand-primary-hover: #15803d;
+  --brand-light: #162c1e;
+  --brand-accent: #4ade80;
+  --card-bg: #1e293b;
 }
 
-:root.dark #social .button-icon {
-  filter: invert(1) brightness(2);
-}
-
-*, *::before, *::after, body, button, input, select, textarea {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+body, input, select, textarea, button {
+  font-family: var(--sans);
+}
+
+h1, h2, h3, h4, h5, h6,
+.font-heading,
+.sidebar-title-main,
+.card-eyebrow {
+  font-family: var(--heading) !important;
+  letter-spacing: -0.02em;
 }
 
 html,
@@ -74,8 +81,9 @@ body,
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-  background: #f5f7fa;
+  font-family: var(--sans);
+  background: #f8fafc;
+  color: #334155;
 }
 
 a {

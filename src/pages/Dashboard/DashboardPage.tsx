@@ -1,119 +1,1194 @@
-import { useState, useEffect } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
 import DashboardLayout from "../../layouts/DashboardLayout";
+
 import StatisticCard from "./components/StatisticCard";
 import LineChartCard from "./components/LineChartCard";
 import BreakdownCard from "./components/BreakdownCard";
 import RequestTable from "./components/RequestTable";
+
 import {
-  allocationTrendData,
-  type StatItem,
-  type BreakdownItem,
-  type ExperimentRequest,
-} from "./data/mockData";
-import { fetchLiveDashboardData } from "../../services/dashboardService";
+  getAllocationPlans,
+} from "../../services/allocationPlanService";
+
+import type {
+  AllocationPlan,
+} from "../../types/allocationPlan";
+
 import "./DashboardPage.css";
 
-const initialZeroStats: StatItem[] = [
-  {
-    id: "stat-1",
-    title: "TOTAL RESOURCES",
-    value: "0",
-    trend: { value: "0 Lands, 0 Machines, 0 Tool Types", isUp: false },
-    type: "total-resources",
-  },
-  {
-    id: "stat-2",
-    title: "RESOURCE UTILIZATION",
-    value: "0%",
-    subtext: "No utilization data",
-    percentage: 0,
-    type: "utilization",
-  },
-  {
-    id: "stat-3",
-    title: "ACTIVE USERS & STAFF",
-    value: "0",
-    avatars: [],
-    type: "active-experiments",
-  },
-  {
-    id: "stat-4",
-    title: "SYSTEM ALERTS",
-    value: "Clear",
-    conflictCount: 0,
-    type: "conflicts",
-  },
+
+type Role =
+  | "Admin"
+  | "Manager"
+  | "Researcher"
+  | "Technician"
+  | "Student";
+
+const validRoles: Role[] = [
+  "Admin",
+  "Manager",
+  "Researcher",
+  "Technician",
+  "Student",
 ];
 
-const initialZeroBreakdown: BreakdownItem[] = [
-  { name: "Equipment & Tools", value: 0, color: "#16A34A" },
-  { name: "Personnel", value: 0, color: "#15803D" },
-  { name: "Land Plots", value: 0, color: "#86EFAC" },
-];
+type ApprovalStatus =
+  AllocationPlan["approveStatus"];
+
+type DashboardStatType =
+  | "total-resources"
+  | "utilization"
+  | "active-experiments"
+  | "conflicts";
+
+interface DashboardStat {
+  id: string;
+  title: string;
+  value: string;
+
+  subtext?: string;
+
+  trend?: {
+    value: string;
+    isUp: boolean;
+  };
+
+  type: DashboardStatType;
+
+  percentage?: number;
+  conflictCount?: number;
+  avatars?: string[];
+
+  actionLabel?: string;
+  actionPath?: string;
+}
+
+interface AllocationTrendPoint {
+  month: string;
+  load: number;
+}
+
+interface ResourceBreakdownItem {
+  name: string;
+  value: number;
+  color: string;
+}
+
+function getCurrentRole(): Role {
+  const storedRole =
+    localStorage.getItem("role");
+
+  return validRoles.includes(
+    storedRole as Role
+  )
+    ? (storedRole as Role)
+    : "Student";
+}
+
+function getErrorMessage(
+  error: unknown
+): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error
+  ) {
+    const response = (
+      error as {
+        response?: {
+          status?: number;
+          data?: {
+            message?: string;
+            error?: string;
+            title?: string;
+            errors?: Record<
+              string,
+              string[]
+            >;
+          };
+        };
+      }
+    ).response;
+
+    if (
+      response?.status === 401
+    ) {
+      return "Your login session is invalid or expired. Please log out and sign in again.";
+    }
+
+    if (
+      response?.status === 403
+    ) {
+      return "Your account does not have permission to load dashboard information.";
+    }
+
+    if (response?.data?.errors) {
+      return Object.values(
+        response.data.errors
+      )
+        .flat()
+        .join(" ");
+    }
+
+    return (
+      response?.data?.message ||
+      response?.data?.error ||
+      response?.data?.title ||
+      "Unable to load dashboard information."
+    );
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unable to load dashboard information.";
+}
+
+function normalizeFitnessScore(
+  value?: number | null
+): number {
+  if (
+    value === null ||
+    value === undefined ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  const percentage =
+    value <= 1
+      ? value * 100
+      : value;
+
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      percentage
+    )
+  );
+}
+
+function countStatus(
+  plans: AllocationPlan[],
+  status: ApprovalStatus
+): number {
+  return plans.filter(
+    (plan) =>
+      plan.approveStatus === status
+  ).length;
+}
+
+function getMonthKey(
+  date: Date
+): string {
+  return [
+    date.getFullYear(),
+    String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    ),
+  ].join("-");
+}
+
+function getDateTime(
+  value?: string | null
+): number {
+  if (!value) {
+    return 0;
+  }
+
+  const date =
+    new Date(value);
+
+  return Number.isNaN(
+    date.getTime()
+  )
+    ? 0
+    : date.getTime();
+}
+
+function buildAllocationTrend(
+  plans: AllocationPlan[]
+): AllocationTrendPoint[] {
+  const formatter =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        month: "short",
+      }
+    );
+
+  const now =
+    new Date();
+
+  const months =
+    Array.from(
+      {
+        length: 6,
+      },
+      (_, index) => {
+        const date =
+          new Date(
+            now.getFullYear(),
+            now.getMonth() -
+              (5 - index),
+            1
+          );
+
+        return {
+          key:
+            getMonthKey(date),
+
+          month:
+            formatter.format(
+              date
+            ),
+
+          load: 0,
+        };
+      }
+    );
+
+  const monthMap =
+    new Map(
+      months.map(
+        (item) => [
+          item.key,
+          item,
+        ]
+      )
+    );
+
+  plans.forEach(
+    (plan) => {
+      if (!plan.createdAt) {
+        return;
+      }
+
+      const createdAt =
+        new Date(
+          plan.createdAt
+        );
+
+      if (
+        Number.isNaN(
+          createdAt.getTime()
+        )
+      ) {
+        return;
+      }
+
+      const item =
+        monthMap.get(
+          getMonthKey(
+            createdAt
+          )
+        );
+
+      if (item) {
+        item.load += 1;
+      }
+    }
+  );
+
+  return months.map(
+    ({
+      month,
+      load,
+    }) => ({
+      month,
+      load,
+    })
+  );
+}
+
+function buildResourceBreakdown(
+  plans: AllocationPlan[]
+): ResourceBreakdownItem[] {
+  const equipment =
+    plans.reduce(
+      (sum, plan) =>
+        sum +
+        (
+          plan.equipmentDetailCount ??
+          0
+        ),
+      0
+    );
+
+  const human =
+    plans.reduce(
+      (sum, plan) =>
+        sum +
+        (
+          plan.humanDetailCount ??
+          0
+        ),
+      0
+    );
+
+  const land =
+    plans.reduce(
+      (sum, plan) =>
+        sum +
+        (
+          plan.landDetailCount ??
+          0
+        ),
+      0
+    );
+
+  return [
+    {
+      name: "Equipment",
+      value: equipment,
+      color: "#2563eb",
+    },
+    {
+      name: "Human Resources",
+      value: human,
+      color: "#22c55e",
+    },
+    {
+      name: "Land",
+      value: land,
+      color: "#f59e0b",
+    },
+  ];
+}
+
+function getRoleTitle(
+  role: Role
+): string {
+  switch (role) {
+    case "Admin":
+      return "Admin Dashboard";
+
+    case "Manager":
+      return "Manager Dashboard";
+
+    case "Researcher":
+      return "Researcher Dashboard";
+
+    case "Technician":
+      return "Technician Dashboard";
+
+    case "Student":
+      return "Student Dashboard";
+  }
+}
+
+function getRoleDescription(
+  role: Role
+): string {
+  switch (role) {
+    case "Admin":
+      return "Manage system resources, allocations, analytics, reports, schedules, and operational information.";
+
+    case "Manager":
+      return "Review allocation plans, approval requests and operational resource usage.";
+
+    case "Researcher":
+      return "Create experiments and monitor allocation plans through the approval workflow.";
+
+    case "Technician":
+      return "Review equipment assignments, schedules and operational resource information.";
+
+    case "Student":
+      return "View experiments, schedules and approved allocation information.";
+  }
+}
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<StatItem[]>(initialZeroStats);
-  const [breakdown, setBreakdown] = useState<BreakdownItem[]>(initialZeroBreakdown);
-  const [requests, setRequests] = useState<ExperimentRequest[]>([]);
+  const navigate =
+    useNavigate();
+
+  const role =
+    getCurrentRole();
+
+  const fullName =
+    localStorage
+      .getItem("fullName")
+      ?.trim() ||
+    "User";
+
+  const userId =
+    Number(
+      localStorage.getItem(
+        "userId"
+      )
+    );
+
+  const [
+    allocationPlans,
+    setAllocationPlans,
+  ] = useState<
+    AllocationPlan[]
+  >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
 
   useEffect(() => {
-    let isMounted = true;
+    let active = true;
 
     async function loadDashboard() {
       try {
-        const liveData = await fetchLiveDashboardData();
-        if (isMounted) {
-          setStats(liveData.stats);
-          setBreakdown(liveData.resourceBreakdown);
-          setRequests(liveData.recentRequests);
+        setLoading(true);
+        setError("");
+
+        const data =
+          await getAllocationPlans({
+            page: 1,
+            size: 500,
+          });
+
+        if (active) {
+          setAllocationPlans(
+            Array.isArray(data)
+              ? data
+              : []
+          );
         }
-      } catch (err) {
-        console.warn("Error fetching live dashboard metrics:", err);
+      } catch (loadError) {
+        console.error(
+          "Load dashboard failed:",
+          loadError
+        );
+
+        if (active) {
+          setAllocationPlans([]);
+
+          setError(
+            getErrorMessage(
+              loadError
+            )
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
-    loadDashboard();
+    void loadDashboard();
 
     return () => {
-      isMounted = false;
+      active = false;
     };
   }, []);
+
+  const visiblePlans =
+    useMemo(() => {
+      if (
+        role !== "Researcher" ||
+        !Number.isInteger(userId) ||
+        userId <= 0
+      ) {
+        return allocationPlans;
+      }
+
+      return allocationPlans.filter(
+        (plan) =>
+          plan.createdBy ===
+          userId
+      );
+    }, [
+      allocationPlans,
+      role,
+      userId,
+    ]);
+
+  const dashboardData =
+    useMemo(() => {
+      const totalPlans =
+        visiblePlans.length;
+
+      const draftPlans =
+        countStatus(
+          visiblePlans,
+          "Draft"
+        );
+
+      const pendingPlans =
+        countStatus(
+          visiblePlans,
+          "Pending"
+        );
+
+      const approvedPlans =
+        countStatus(
+          visiblePlans,
+          "Approved"
+        );
+
+      const rejectedPlans =
+        countStatus(
+          visiblePlans,
+          "Rejected"
+        );
+
+      const cancelledPlans =
+        countStatus(
+          visiblePlans,
+          "Cancelled"
+        );
+
+      const fitnessValues =
+        visiblePlans
+          .map(
+            (plan) =>
+              normalizeFitnessScore(
+                plan.fitnessScore
+              )
+          )
+          .filter(
+            (value) =>
+              value > 0
+          );
+
+      const averageFitness =
+        fitnessValues.length > 0
+          ? Number(
+              (
+                fitnessValues.reduce(
+                  (
+                    sum,
+                    value
+                  ) =>
+                    sum +
+                    value,
+                  0
+                ) /
+                fitnessValues.length
+              ).toFixed(1)
+            )
+          : 0;
+
+      const equipmentCount =
+        visiblePlans.reduce(
+          (sum, plan) =>
+            sum +
+            (
+              plan.equipmentDetailCount ??
+              0
+            ),
+          0
+        );
+
+      const humanCount =
+        visiblePlans.reduce(
+          (sum, plan) =>
+            sum +
+            (
+              plan.humanDetailCount ??
+              0
+            ),
+          0
+        );
+
+      const landCount =
+        visiblePlans.reduce(
+          (sum, plan) =>
+            sum +
+            (
+              plan.landDetailCount ??
+              0
+            ),
+          0
+        );
+
+      const scheduleCount =
+        visiblePlans.reduce(
+          (sum, plan) =>
+            sum +
+            (
+              plan.scheduleCount ??
+              0
+            ),
+          0
+        );
+
+      const totalResourceDetails =
+        equipmentCount +
+        humanCount +
+        landCount;
+
+      return {
+        totalPlans,
+        draftPlans,
+        pendingPlans,
+        approvedPlans,
+        rejectedPlans,
+        cancelledPlans,
+        averageFitness,
+        equipmentCount,
+        humanCount,
+        landCount,
+        scheduleCount,
+        totalResourceDetails,
+      };
+    }, [visiblePlans]);
+
+  const stats =
+    useMemo<
+      DashboardStat[]
+    >(() => {
+      switch (role) {
+        case "Admin":
+        case "Manager":
+          return [
+            {
+              id:
+                role === "Admin"
+                  ? "admin-total"
+                  : "manager-total",
+
+              title:
+                "Total Allocation Plans",
+
+              value:
+                String(
+                  dashboardData.totalPlans
+                ),
+
+              trend: {
+                value:
+                  `${dashboardData.draftPlans} draft · ${dashboardData.cancelledPlans} cancelled`,
+
+                isUp: true,
+              },
+
+              type:
+                "total-resources",
+            },
+            {
+              id:
+                role === "Admin"
+                  ? "admin-fitness"
+                  : "manager-fitness",
+
+              title:
+                "Average Fitness",
+
+              value:
+                `${dashboardData.averageFitness}%`,
+
+              subtext:
+                "Average allocation fitness score",
+
+              percentage:
+                dashboardData.averageFitness,
+
+              type:
+                "utilization",
+            },
+            {
+              id:
+                role === "Admin"
+                  ? "admin-approved"
+                  : "manager-approved",
+
+              title:
+                "Approved Plans",
+
+              value:
+                String(
+                  dashboardData.approvedPlans
+                ),
+
+              avatars: [
+                "",
+                "",
+                `+${dashboardData.approvedPlans}`,
+              ],
+
+              type:
+                "active-experiments",
+            },
+            {
+              id:
+                role === "Admin"
+                  ? "admin-pending"
+                  : "manager-pending",
+
+              title:
+                "Pending Approval",
+
+              value:
+                String(
+                  dashboardData.pendingPlans
+                ),
+
+              conflictCount:
+                dashboardData.pendingPlans,
+
+              type:
+                "conflicts",
+
+              actionLabel:
+                "Review Plans",
+
+              actionPath:
+                "/allocation",
+            },
+          ];
+
+        case "Researcher":
+          return [
+            {
+              id: "researcher-total",
+              title:
+                "My Allocation Plans",
+              value:
+                String(
+                  dashboardData.totalPlans
+                ),
+              trend: {
+                value:
+                  `${dashboardData.draftPlans} draft · ${dashboardData.rejectedPlans} rejected`,
+                isUp: true,
+              },
+              type:
+                "total-resources",
+            },
+            {
+              id: "researcher-fitness",
+              title:
+                "Average Fitness",
+              value:
+                `${dashboardData.averageFitness}%`,
+              subtext:
+                "Average score of your plans",
+              percentage:
+                dashboardData.averageFitness,
+              type:
+                "utilization",
+            },
+            {
+              id: "researcher-approved",
+              title:
+                "Approved Plans",
+              value:
+                String(
+                  dashboardData.approvedPlans
+                ),
+              avatars: [
+                "",
+                "",
+                `+${dashboardData.approvedPlans}`,
+              ],
+              type:
+                "active-experiments",
+            },
+            {
+              id: "researcher-pending",
+              title:
+                "Pending Review",
+              value:
+                String(
+                  dashboardData.pendingPlans
+                ),
+              conflictCount:
+                dashboardData.pendingPlans,
+              type:
+                "conflicts",
+              actionLabel:
+                "View Plans",
+              actionPath:
+                "/allocation",
+            },
+          ];
+
+        case "Technician":
+          return [
+            {
+              id: "technician-plans",
+              title:
+                "Approved Plans",
+              value:
+                String(
+                  dashboardData.approvedPlans
+                ),
+              trend: {
+                value:
+                  `${dashboardData.totalResourceDetails} assigned resource records`,
+                isUp: true,
+              },
+              type:
+                "total-resources",
+            },
+            {
+              id: "technician-equipment",
+              title:
+                "Equipment Assignments",
+              value:
+                String(
+                  dashboardData.equipmentCount
+                ),
+              subtext:
+                "Allocated equipment records",
+              percentage:
+                dashboardData.totalResourceDetails >
+                0
+                  ? Number(
+                      (
+                        (
+                          dashboardData.equipmentCount /
+                          dashboardData.totalResourceDetails
+                        ) *
+                        100
+                      ).toFixed(1)
+                    )
+                  : 0,
+              type:
+                "utilization",
+            },
+            {
+              id: "technician-schedules",
+              title:
+                "Schedules",
+              value:
+                String(
+                  dashboardData.scheduleCount
+                ),
+              avatars: [
+                "",
+                "",
+                `+${dashboardData.scheduleCount}`,
+              ],
+              type:
+                "active-experiments",
+            },
+            {
+              id: "technician-pending",
+              title:
+                "Pending Plans",
+              value:
+                String(
+                  dashboardData.pendingPlans
+                ),
+              conflictCount:
+                dashboardData.pendingPlans,
+              type:
+                "conflicts",
+              actionLabel:
+                "View Allocation",
+              actionPath:
+                "/allocation",
+            },
+          ];
+
+        case "Student":
+          return [
+            {
+              id: "student-plans",
+              title:
+                "Visible Plans",
+              value:
+                String(
+                  dashboardData.totalPlans
+                ),
+              trend: {
+                value:
+                  `${dashboardData.approvedPlans} approved plans`,
+                isUp: true,
+              },
+              type:
+                "total-resources",
+            },
+            {
+              id: "student-fitness",
+              title:
+                "Average Fitness",
+              value:
+                `${dashboardData.averageFitness}%`,
+              subtext:
+                "Average allocation result",
+              percentage:
+                dashboardData.averageFitness,
+              type:
+                "utilization",
+            },
+            {
+              id: "student-approved",
+              title:
+                "Approved Plans",
+              value:
+                String(
+                  dashboardData.approvedPlans
+                ),
+              avatars: [
+                "",
+                "",
+                `+${dashboardData.approvedPlans}`,
+              ],
+              type:
+                "active-experiments",
+            },
+            {
+              id: "student-schedules",
+              title:
+                "Schedules",
+              value:
+                String(
+                  dashboardData.scheduleCount
+                ),
+              conflictCount:
+                dashboardData.scheduleCount,
+              type:
+                "conflicts",
+              actionLabel:
+                "View Schedules",
+              actionPath:
+                "/schedules",
+            },
+          ];
+      }
+    }, [
+      dashboardData,
+      role,
+    ]);
+
+  const allocationTrend =
+    useMemo(
+      () =>
+        buildAllocationTrend(
+          visiblePlans
+        ),
+      [visiblePlans]
+    );
+
+  const resourceBreakdown =
+    useMemo(
+      () =>
+        buildResourceBreakdown(
+          visiblePlans
+        ),
+      [visiblePlans]
+    );
+
+  const recentPlans =
+    useMemo(
+      () =>
+        [...visiblePlans]
+          .sort(
+            (
+              first,
+              second
+            ) =>
+              getDateTime(
+                second.createdAt
+              ) -
+              getDateTime(
+                first.createdAt
+              )
+          )
+          .slice(
+            0,
+            10
+          ),
+      [visiblePlans]
+    );
+
+  const canViewAnalytics =
+    role === "Admin" ||
+    role === "Manager" ||
+    role === "Researcher";
+
+  const canCreateAllocation =
+    role === "Admin" ||
+    role === "Researcher";
 
   return (
     <DashboardLayout>
       <div className="dashboard-page-container">
-        
-        {/* Top Metric Cards Grid */}
-        <div className="stats-grid">
-          {stats.map((stat) => (
-            <StatisticCard key={stat.id} stat={stat} />
-          ))}
+        <div className="dashboard-header">
+          <div>
+            <h1>
+              {getRoleTitle(role)}
+            </h1>
+
+            <p>
+              Welcome back, {fullName}.{" "}
+              {getRoleDescription(role)}
+            </p>
+          </div>
+
+          <div className="dashboard-header-actions">
+            {canViewAnalytics && (
+              <button
+                type="button"
+                className="dashboard-analytics-btn"
+                onClick={() =>
+                  navigate(
+                    "/allocation-analytics"
+                  )
+                }
+              >
+                View Analytics
+              </button>
+            )}
+
+            {canCreateAllocation && (
+              <button
+                type="button"
+                className="dashboard-create-btn"
+                onClick={() =>
+                  navigate(
+                    "/allocation/create"
+                  )
+                }
+              >
+                + Create Allocation
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Middle Visualization Panels */}
-        <div className="charts-grid">
-          {/* Monthly Allocation Trend Area Chart */}
-          <LineChartCard data={allocationTrendData} />
+        {error && (
+          <div className="dashboard-error">
+            {error}
+          </div>
+        )}
 
-          {/* Resource Breakdown Donut Chart */}
-          <BreakdownCard data={breakdown} />
-        </div>
+        {loading ? (
+          <div className="dashboard-loading">
+            Loading dashboard data...
+          </div>
+        ) : (
+          <>
+            <div className="stats-grid">
+              {stats.map((stat) => {
+                const actionPath = stat.actionPath;
 
-        {/* Bottom Pending Requests Table Panel */}
-        <div className="table-row-container">
-          <RequestTable requests={requests} />
-        </div>
+                return (
+                  <StatisticCard
+                    key={stat.id}
+                    stat={stat}
+                    onAction={
+                      actionPath
+                        ? () => {
+                            navigate(actionPath);
+                          }
+                        : undefined
+                    }
+                  />
+                );
+              })}
+            </div>
 
-        {/* Floating Action Button (FAB) */}
-        <button
-          className="dashboard-fab"
-          title="Quick Action"
-          onClick={() => window.location.href = "/resources"}
-        >
-          +
-        </button>
-        
+            <div className="charts-grid">
+              <LineChartCard data={allocationTrend} />
+              <BreakdownCard data={resourceBreakdown} />
+            </div>
+
+            {role === "Admin" && (
+              <div className="role-section-card">
+                <h3>Admin Workspace</h3>
+                <p>
+                  Manage allocations, resources, analytics, schedules,
+                  conflicts, reports and system operations.
+                </p>
+                <button type="button" onClick={() => navigate("/reports")}>
+                  View Reports
+                </button>
+              </div>
+            )}
+
+            {role === "Researcher" && (
+              <div className="role-section-card">
+                <h3>Researcher Workspace</h3>
+                <p>
+                  Create experiments, requirements and draft allocation plans,
+                  then submit them for manager approval.
+                </p>
+                <button type="button" onClick={() => navigate("/allocation")}>
+                  View My Allocations
+                </button>
+              </div>
+            )}
+
+            {role === "Technician" && (
+              <div className="role-section-card">
+                <h3>Technician Workspace</h3>
+                <p>
+                  Review assigned equipment, resource usage and schedules for
+                  allocation plans.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate("/equipment-instances")}
+                >
+                  View Equipment
+                </button>
+              </div>
+            )}
+
+            {role === "Student" && (
+              <div className="role-section-card">
+                <h3>Student Workspace</h3>
+                <p>
+                  Review experiments, allocation results and schedules in
+                  read-only mode.
+                </p>
+                <button type="button" onClick={() => navigate("/schedules")}>
+                  View Schedules
+                </button>
+              </div>
+            )}
+
+            <div className="table-row-container">
+              <RequestTable requests={recentPlans} />
+            </div>
+
+            {canViewAnalytics && (
+              <div className="dashboard-action-row">
+                <button
+                  type="button"
+                  className="dashboard-outline-btn"
+                  onClick={() => navigate("/allocation-analytics")}
+                >
+                  View Allocation Analytics
+                </button>
+              </div>
+            )}
+
+            {canCreateAllocation && (
+              <button
+                type="button"
+                className="dashboard-fab"
+                title="Create Allocation"
+                aria-label="Create allocation"
+                onClick={() => navigate("/allocation/create")}
+              >
+                +
+              </button>
+            )}
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
-}
+}

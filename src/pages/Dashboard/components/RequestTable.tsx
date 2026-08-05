@@ -1,122 +1,193 @@
-import { useNavigate } from "react-router-dom";
-import StatusBadge from "./StatusBadge";
+import {
+  Eye,
+  ListChecks,
+} from "lucide-react";
 
-interface ExperimentRequest {
-  id: string;
-  name: string;
-  priority: "URGENT" | "MEDIUM" | "LOW";
-  date: string;
-  status: "Pending Review" | "Review Started" | "Pending";
-}
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import type {
+  AllocationPlan,
+  AllocationPlanStatus,
+} from "../../../types/allocationPlan";
+
+import "./RequestTable.css";
 
 interface RequestTableProps {
-  requests: ExperimentRequest[];
+  requests: AllocationPlan[];
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleDateString("vi-VN");
+}
+
+function formatFitnessScore(value?: number | null): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  const percentage = value <= 1 ? value * 100 : value;
+
+  return `${Math.min(100, Math.max(0, percentage)).toFixed(
+    percentage % 1 === 0 ? 0 : 1
+  )}%`;
+}
+
+function getStatusLabel(status: AllocationPlanStatus): string {
+  return status;
+}
+
+function getStatusClassName(status: AllocationPlanStatus): string {
+  return [
+    "request-status-badge",
+    `request-status-${status.toLowerCase()}`,
+  ].join(" ");
+}
+
+function getResourceTotal(plan: AllocationPlan): number {
+  return (
+    (plan.equipmentDetailCount ?? 0) +
+    (plan.humanDetailCount ?? 0) +
+    (plan.landDetailCount ?? 0)
+  );
 }
 
 export default function RequestTable({ requests }: RequestTableProps) {
   const navigate = useNavigate();
 
-  const handleAction = (requestName?: string) => {
-    if (requestName) {
-      navigate("/admin/logs", { state: { search: requestName } });
-    } else {
-      navigate("/admin/logs");
-    }
+  const openDetail = (allocationPlanId: number) => {
+    navigate(`/allocation/${allocationPlanId}`);
   };
 
   return (
-    <div className="dashboard-panel requests-panel">
-      {/* Table Title and Topbar Section */}
-      <div className="panel-header" style={{ marginBottom: "20px", borderBottom: "none" }}>
+    <section className="request-table-card">
+      <div className="request-table-header">
         <div>
-          <h3 className="panel-title">Pending Experiment Requests</h3>
-          <p className="panel-subtitle">Current queue requiring management approval</p>
+          <h3>Recent Allocation Plans</h3>
+          <p>Latest allocation plans and approval status</p>
         </div>
-        <div>
-          {/* Header Action Button */}
-          <button className="create-request-btn" onClick={() => handleAction()}>
-            + Create Request
-          </button>
+
+        <div className="request-table-summary">
+          <ListChecks size={18} />
+          <span>
+            {requests.length} {requests.length === 1 ? "plan" : "plans"}
+          </span>
         </div>
       </div>
 
-      {/* Table Main Container */}
-      <div className="table-responsive">
-        <table className="custom-table">
+      <div className="request-table-wrapper">
+        <table className="request-table">
           <thead>
             <tr>
-              <th>REQUEST ID</th>
-              <th>EXPERIMENT NAME</th>
-              <th>PRIORITY</th>
-              <th>DATE</th>
-              <th>STATUS</th>
-              <th style={{ textAlign: "right" }}>ACTIONS</th>
+              <th>ID</th>
+              <th>Experiment</th>
+              <th>Fitness</th>
+              <th>Created By</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Resources</th>
+              <th>Schedules</th>
+              <th>Action</th>
             </tr>
           </thead>
+
           <tbody>
-            {requests.length > 0 ? (
-              requests.map((request) => (
-                <tr key={request.id}>
-                  <td style={{ color: "#1B5E20", fontWeight: 700 }}>
-                    <span className="request-link-id" onClick={() => handleAction(request.name)} style={{ cursor: "pointer" }}>
-                      {request.id}
-                    </span>
-                  </td>
-                  <td style={{ fontWeight: 500, color: "#111827" }}>
-                    {request.name}
-                  </td>
-                  <td>
-                    <StatusBadge type="priority" value={request.priority} />
-                  </td>
-                  <td style={{ color: "#6B7280", fontSize: "13px" }}>
-                    {request.date}
-                  </td>
-                  <td>
-                    <StatusBadge type="status" value={request.status} />
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {/* Action Link Button */}
-                    <span className="table-action-link" onClick={() => handleAction(request.name)} style={{ cursor: "pointer" }}>
-                      View Details
-                    </span>
-                  </td>
-                </tr>
-              ))
-            ) : (
+            {requests.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#6B7280" }}>
-                  No pending requests requiring review.
+                <td colSpan={9} className="request-table-empty">
+                  No allocation plans found.
                 </td>
               </tr>
+            ) : (
+              requests.map((plan) => {
+                const resourceTotal = getResourceTotal(plan);
+
+                return (
+                  <tr key={plan.allocationPlanId}>
+                    <td>
+                      <button
+                        type="button"
+                        className="request-id-button"
+                        onClick={() => openDetail(plan.allocationPlanId)}
+                      >
+                        #{plan.allocationPlanId}
+                      </button>
+                    </td>
+
+                    <td>
+                      <div className="request-experiment-cell">
+                        <strong>
+                          {plan.experimentName ||
+                            `Experiment #${plan.experimentId}`}
+                        </strong>
+                        <span>Experiment #{plan.experimentId}</span>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span className="request-fitness">
+                        {formatFitnessScore(plan.fitnessScore)}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="request-user-cell">
+                        <span>
+                          {plan.createdByName ||
+                            `User #${plan.createdBy ?? "-"}`}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span className={getStatusClassName(plan.approveStatus)}>
+                        {getStatusLabel(plan.approveStatus)}
+                      </span>
+                    </td>
+
+                    <td>{formatDate(plan.createdAt)}</td>
+
+                    <td>
+                      <span className="request-count-badge">
+                        {resourceTotal} items
+                      </span>
+                    </td>
+
+                    <td>
+                      <span className="request-count-badge">
+                        {plan.scheduleCount ?? 0} schedules
+                      </span>
+                    </td>
+
+                    <td>
+                      <button
+                        type="button"
+                        className="request-action-button"
+                        onClick={() => openDetail(plan.allocationPlanId)}
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                        <span>View</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
-
-      {/* Table Pagination Footer */}
-      <div className="table-footer">
-        <div className="table-footer-summary">
-          {requests.length > 0
-            ? `Showing ${requests.length} of ${requests.length} pending requests`
-            : "0 requests pending"}
-        </div>
-        <div className="table-pagination-controls">
-          <button
-            className="pagination-btn"
-            onClick={() => handleAction()}
-            title="Previous Page"
-          >
-            &lt;
-          </button>
-          <button
-            className="pagination-btn"
-            onClick={() => handleAction()}
-            title="Next Page"
-          >
-            &gt;
-          </button>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 }

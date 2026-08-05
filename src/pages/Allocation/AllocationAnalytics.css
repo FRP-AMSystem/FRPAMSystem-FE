@@ -1,0 +1,393 @@
+.allocation-analytics-page {
+  min-height: 100%;
+  padding: 28px;
+  color: #1f2937;
+}
+
+.allocation-analytics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.allocation-analytics-header p {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.allocation-analytics-header h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 30px;
+}
+
+.allocation-analytics-header span {
+  display: block;
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.allocation-analytics-header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.allocation-analytics-header-actions button,
+.allocation-analytics-view-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 15px;
+  border: 1px solid #2563eb;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.allocation-analytics-header-actions button.secondary {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.allocation-analytics-header-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.allocation-analytics-spin {
+  animation: allocation-analytics-spin 0.8s linear infinite;
+}
+
+@keyframes allocation-analytics-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.allocation-analytics-loading,
+.allocation-analytics-empty {
+  display: flex;
+  min-height: 280px;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+}
+
+.allocation-analytics-error {
+  margin-bottom: 18px;
+  padding: 13px 16px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  font-size: 14px;
+}
+
+.allocation-analytics-summary-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.allocation-analytics-summary-grid article {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow:
+    0 2px 10px rgba(15, 23, 42, 0.04);
+}
+
+.allocation-analytics-summary-icon {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.allocation-analytics-summary-icon.blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.allocation-analytics-summary-icon.orange {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.allocation-analytics-summary-icon.green {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.allocation-analytics-summary-icon.red {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.allocation-analytics-summary-icon.purple {
+  background: #f3e8ff;
+  color: #9333ea;
+}
+
+.allocation-analytics-summary-grid article > div:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.allocation-analytics-summary-grid span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.allocation-analytics-summary-grid strong {
+  margin-top: 2px;
+  color: #111827;
+  font-size: 23px;
+}
+
+.allocation-analytics-summary-grid small {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.allocation-analytics-chart-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.25fr)
+    minmax(320px, 0.75fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.allocation-analytics-card {
+  overflow: hidden;
+  margin-bottom: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 15px;
+  background: #ffffff;
+  box-shadow:
+    0 2px 10px rgba(15, 23, 42, 0.04);
+}
+
+.allocation-analytics-card-header {
+  padding: 19px 21px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.allocation-analytics-card-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+}
+
+.allocation-analytics-card-header p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.allocation-analytics-pie-wrap {
+  position: relative;
+  height: 330px;
+}
+
+.allocation-analytics-pie-total {
+  position: absolute;
+  top: 47%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.allocation-analytics-pie-total strong {
+  color: #111827;
+  font-size: 26px;
+}
+
+.allocation-analytics-pie-total span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.allocation-analytics-resource-summary {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 22px;
+}
+
+.allocation-analytics-resource-summary > div {
+  display: flex;
+  min-height: 100px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.allocation-analytics-resource-summary span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.allocation-analytics-resource-summary strong {
+  margin-top: 6px;
+  color: #111827;
+  font-size: 26px;
+}
+
+.allocation-analytics-bar-wrap {
+  height: 430px;
+  padding: 20px;
+}
+
+.allocation-analytics-table-wrap {
+  overflow-x: auto;
+}
+
+.allocation-analytics-table-wrap table {
+  width: 100%;
+  min-width: 1050px;
+  border-collapse: collapse;
+}
+
+.allocation-analytics-table-wrap th {
+  padding: 13px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.allocation-analytics-table-wrap td {
+  padding: 15px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  font-size: 13px;
+}
+
+.allocation-analytics-table-wrap tr:last-child td {
+  border-bottom: 0;
+}
+
+.allocation-analytics-table-wrap td strong {
+  color: #111827;
+}
+
+.allocation-analytics-status {
+  display: inline-flex;
+  min-width: 76px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.allocation-analytics-status-draft,
+.allocation-analytics-status-cancelled {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.allocation-analytics-status-pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.allocation-analytics-status-approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.allocation-analytics-status-rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.allocation-analytics-view-button {
+  min-height: 32px;
+  padding: 0 11px;
+}
+
+.allocation-analytics-empty-cell {
+  height: 170px;
+  color: #94a3b8 !important;
+  text-align: center !important;
+}
+
+@media (max-width: 1200px) {
+  .allocation-analytics-summary-grid {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .allocation-analytics-page {
+    padding: 20px;
+  }
+
+  .allocation-analytics-header {
+    flex-direction: column;
+  }
+
+  .allocation-analytics-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .allocation-analytics-summary-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .allocation-analytics-page {
+    padding: 15px;
+  }
+
+  .allocation-analytics-header-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .allocation-analytics-header-actions button {
+    width: 100%;
+  }
+
+  .allocation-analytics-summary-grid,
+  .allocation-analytics-resource-summary {
+    grid-template-columns: 1fr;
+  }
+}
