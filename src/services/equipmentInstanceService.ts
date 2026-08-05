@@ -56,7 +56,11 @@ function normalizeList(
     return [];
   }
 
-  if (Array.isArray(payload.items)) {
+  if (
+    Array.isArray(
+      payload.items
+    )
+  ) {
     return payload.items;
   }
 
@@ -125,17 +129,19 @@ function normalizeEquipmentInstance(
       : {};
 
   return {
-    equipmentInstanceId: Number(
-      item.equipmentInstanceId ??
-      item.instanceId ??
-      item.id ??
-      0
-    ),
+    equipmentInstanceId:
+      Number(
+        item.equipmentInstanceId ??
+          item.instanceId ??
+          item.id ??
+          0
+      ),
 
-    equipmentTypeId: Number(
-      item.equipmentTypeId ??
-      0
-    ),
+    equipmentTypeId:
+      Number(
+        item.equipmentTypeId ??
+          0
+      ),
 
     equipmentTypeName:
       normalizeNullableString(
@@ -144,7 +150,7 @@ function normalizeEquipmentInstance(
 
     assetCode:
       typeof item.assetCode ===
-        "string"
+      "string"
         ? item.assetCode
         : "",
 
@@ -161,14 +167,15 @@ function normalizeEquipmentInstance(
     conditionLevel:
       normalizeCondition(
         item.conditionLevel ??
-        item.condition
+          item.condition
       ),
 
-    usageHours: Number(
-      item.usageHours ??
-      item.totalUsageHours ??
-      0
-    ),
+    usageHours:
+      Number(
+        item.usageHours ??
+          item.totalUsageHours ??
+          0
+      ),
 
     lastMaintenanceDate:
       normalizeNullableString(
@@ -223,6 +230,21 @@ function validateId(
   }
 }
 
+function validateEquipmentTypeId(
+  equipmentTypeId: number
+): void {
+  if (
+    !Number.isInteger(
+      equipmentTypeId
+    ) ||
+    equipmentTypeId <= 0
+  ) {
+    throw new Error(
+      "Equipment type ID is invalid."
+    );
+  }
+}
+
 export async function getEquipmentInstances(
   query: EquipmentInstanceQuery = {}
 ): Promise<EquipmentInstance[]> {
@@ -236,6 +258,9 @@ export async function getEquipmentInstances(
 
           EquipmentTypeId:
             query.equipmentTypeId,
+
+          EquipmentCategoryId:
+            undefined,
 
           Status:
             query.status,
@@ -256,6 +281,30 @@ export async function getEquipmentInstances(
     response.data
   ).map(
     normalizeEquipmentInstance
+  );
+}
+
+export async function getAvailableEquipmentInstances(
+  equipmentTypeId: number
+): Promise<EquipmentInstance[]> {
+  validateEquipmentTypeId(
+    equipmentTypeId
+  );
+
+  const instances =
+    await getEquipmentInstances({
+      equipmentTypeId,
+      status: "Available",
+      page: 1,
+      size: 300,
+    });
+
+  return instances.filter(
+    (instance) =>
+      instance.equipmentTypeId ===
+        equipmentTypeId &&
+      instance.status ===
+        "Available"
   );
 }
 

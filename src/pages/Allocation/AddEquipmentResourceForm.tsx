@@ -24,7 +24,7 @@ import type {
 
 import type {
   EquipmentInstance,
-} from "../../types/equipment";
+} from "../../types/equipmentInstance";
 
 import type {
   ExperimentEquipmentRequirement,
@@ -63,6 +63,7 @@ function getErrorMessage(
         response?: {
           data?: {
             message?: string;
+            error?: string;
             title?: string;
             errors?: Record<
               string,
@@ -73,10 +74,6 @@ function getErrorMessage(
       }
     ).response;
 
-    if (response?.data?.message) {
-      return response.data.message;
-    }
-
     if (response?.data?.errors) {
       return Object.values(
         response.data.errors
@@ -85,9 +82,12 @@ function getErrorMessage(
         .join(" ");
     }
 
-    if (response?.data?.title) {
-      return response.data.title;
-    }
+    return (
+      response?.data?.message ||
+      response?.data?.error ||
+      response?.data?.title ||
+      "Cannot create equipment allocation."
+    );
   }
 
   if (error instanceof Error) {
@@ -102,7 +102,8 @@ function normalizeEfficiencyToPercent(
 ): number {
   if (
     value === null ||
-    value === undefined
+    value === undefined ||
+    !Number.isFinite(value)
   ) {
     return 100;
   }
@@ -129,9 +130,7 @@ function getEquipmentInstanceLabel(
   instance: EquipmentInstance
 ): string {
   const name =
-    instance.instanceName ||
     instance.assetCode ||
-    instance.code ||
     `Equipment Instance #${instance.equipmentInstanceId}`;
 
   const information: string[] = [
@@ -139,28 +138,23 @@ function getEquipmentInstanceLabel(
     name,
   ];
 
-  if (
-    instance.assetCode &&
-    instance.assetCode !== name
-  ) {
-    information.push(
-      `Asset: ${instance.assetCode}`
-    );
-  }
-
   if (instance.serialNumber) {
     information.push(
       `Serial: ${instance.serialNumber}`
     );
   }
 
-  if (instance.conditionLevel) {
-    information.push(
-      `Condition: ${instance.conditionLevel}`
-    );
-  }
+  information.push(
+    `Condition: ${instance.conditionLevel}`
+  );
 
-  return information.join(" - ");
+  information.push(
+    `Status: ${instance.status}`
+  );
+
+  return information.join(
+    " - "
+  );
 }
 
 export default function AddEquipmentResourceForm({
@@ -179,7 +173,9 @@ export default function AddEquipmentResourceForm({
   const [
     equipmentInstances,
     setEquipmentInstances,
-  ] = useState<EquipmentInstance[]>([]);
+  ] = useState<
+    EquipmentInstance[]
+  >([]);
 
   const [
     form,
@@ -244,6 +240,8 @@ export default function AddEquipmentResourceForm({
     ]);
 
   useEffect(() => {
+    let active = true;
+
     async function loadRequirements() {
       if (
         !Number.isInteger(
@@ -255,16 +253,24 @@ export default function AddEquipmentResourceForm({
         ) ||
         experimentId <= 0
       ) {
-        setError(
-          "Allocation plan or experiment ID is invalid."
-        );
+        if (active) {
+          setError(
+            "Allocation plan or experiment ID is invalid."
+          );
 
-        setLoadingRequirements(false);
+          setLoadingRequirements(
+            false
+          );
+        }
+
         return;
       }
 
       try {
-        setLoadingRequirements(true);
+        setLoadingRequirements(
+          true
+        );
+
         setError("");
 
         const data =
@@ -274,36 +280,50 @@ export default function AddEquipmentResourceForm({
             size: 100,
           });
 
-        setRequirements(
-          Array.isArray(data)
-            ? data
-            : []
-        );
+        if (active) {
+          setRequirements(
+            Array.isArray(data)
+              ? data
+              : []
+          );
+        }
       } catch (loadError) {
         console.error(
           "Load equipment requirements failed:",
           loadError
         );
 
-        setError(
-          getErrorMessage(
-            loadError
-          )
-        );
+        if (active) {
+          setError(
+            getErrorMessage(
+              loadError
+            )
+          );
 
-        setRequirements([]);
+          setRequirements([]);
+        }
       } finally {
-        setLoadingRequirements(false);
+        if (active) {
+          setLoadingRequirements(
+            false
+          );
+        }
       }
     }
 
     void loadRequirements();
+
+    return () => {
+      active = false;
+    };
   }, [
     allocationPlanId,
     experimentId,
   ]);
 
   useEffect(() => {
+    let active = true;
+
     async function loadEquipmentInstances() {
       if (!selectedRequirement) {
         setEquipmentInstances([]);
@@ -337,7 +357,10 @@ export default function AddEquipmentResourceForm({
       }
 
       try {
-        setLoadingInstances(true);
+        setLoadingInstances(
+          true
+        );
+
         setError("");
 
         const data =
@@ -345,24 +368,14 @@ export default function AddEquipmentResourceForm({
             equipmentTypeId
           );
 
-        const validInstances =
-          Array.isArray(data)
-            ? data.filter(
-                (instance) =>
-                  Number.isInteger(
-                    instance.equipmentInstanceId
-                  ) &&
-                  instance.equipmentInstanceId >
-                    0 &&
-                  instance.equipmentTypeId ===
-                    equipmentTypeId &&
-                  instance.status ===
-                    "Available"
-              )
-            : [];
+        if (!active) {
+          return;
+        }
 
         setEquipmentInstances(
-          validInstances
+          Array.isArray(data)
+            ? data
+            : []
         );
 
         setForm(
@@ -377,19 +390,29 @@ export default function AddEquipmentResourceForm({
           loadError
         );
 
-        setEquipmentInstances([]);
+        if (active) {
+          setEquipmentInstances([]);
 
-        setError(
-          getErrorMessage(
-            loadError
-          )
-        );
+          setError(
+            getErrorMessage(
+              loadError
+            )
+          );
+        }
       } finally {
-        setLoadingInstances(false);
+        if (active) {
+          setLoadingInstances(
+            false
+          );
+        }
       }
     }
 
     void loadEquipmentInstances();
+
+    return () => {
+      active = false;
+    };
   }, [selectedRequirement]);
 
   const handleInputChange = (
@@ -419,17 +442,27 @@ export default function AddEquipmentResourceForm({
       setForm(
         (current) => ({
           ...current,
-          expEquipmentReqId: value,
-          equipmentInstanceId: "",
-          quantity: "1",
-          isSubstitute: false,
-          efficiencyRate: requirement
-            ? String(
-                normalizeEfficiencyToPercent(
-                  requirement.minAcceptableEfficiency
+
+          expEquipmentReqId:
+            value,
+
+          equipmentInstanceId:
+            "",
+
+          quantity:
+            "1",
+
+          isSubstitute:
+            false,
+
+          efficiencyRate:
+            requirement
+              ? String(
+                  normalizeEfficiencyToPercent(
+                    requirement.minAcceptableEfficiency
+                  )
                 )
-              )
-            : "100",
+              : "100",
         })
       );
 
@@ -443,13 +476,35 @@ export default function AddEquipmentResourceForm({
       setForm(
         (current) => ({
           ...current,
-          equipmentInstanceId: value,
 
-          // Một instance là một thiết bị cụ thể,
-          // nên quantity phải bằng 1.
-          quantity: value
-            ? "1"
-            : current.quantity,
+          equipmentInstanceId:
+            value,
+
+          quantity:
+            value
+              ? "1"
+              : current.quantity,
+        })
+      );
+
+      return;
+    }
+
+    if (
+      name === "startDate"
+    ) {
+      setForm(
+        (current) => ({
+          ...current,
+
+          startDate:
+            value,
+
+          endDate:
+            current.endDate &&
+            current.endDate < value
+              ? ""
+              : current.endDate,
         })
       );
 
@@ -497,7 +552,9 @@ export default function AddEquipmentResourceForm({
     }
 
     const quantity =
-      Number(form.quantity);
+      Number(
+        form.quantity
+      );
 
     const efficiencyPercent =
       Number(
@@ -589,14 +646,26 @@ export default function AddEquipmentResourceForm({
     }
 
     if (
+      selectedEquipmentInstance &&
+      selectedEquipmentInstance.status !==
+        "Available"
+    ) {
+      setError(
+        "The selected equipment instance is no longer available."
+      );
+
+      return;
+    }
+
+    if (
       !Number.isFinite(
         efficiencyPercent
       ) ||
-      efficiencyPercent < 0 ||
+      efficiencyPercent <= 0 ||
       efficiencyPercent > 100
     ) {
       setError(
-        "Efficiency rate must be between 0 and 100."
+        "Efficiency rate must be greater than 0 and less than or equal to 100."
       );
 
       return;
@@ -677,6 +746,7 @@ export default function AddEquipmentResourceForm({
 
     try {
       setSaving(true);
+      setError("");
 
       await createAllocationEquipmentDetail({
         allocationPlanId,
@@ -770,6 +840,7 @@ export default function AddEquipmentResourceForm({
           onChange={
             handleInputChange
           }
+          disabled={saving}
           required
         >
           <option value="">
@@ -793,8 +864,7 @@ export default function AddEquipmentResourceForm({
                 {" - "}
                 {requirement.equipmentTypeName ||
                   `Equipment Type #${requirement.equipmentTypeId}`}
-                {" - "}
-                Quantity:{" "}
+                {" - Quantity: "}
                 {
                   requirement.quantity
                 }
@@ -825,6 +895,7 @@ export default function AddEquipmentResourceForm({
             handleInputChange
           }
           disabled={
+            saving ||
             !selectedRequirement ||
             loadingInstances
           }
@@ -895,7 +966,6 @@ export default function AddEquipmentResourceForm({
 
               <strong>
                 {selectedEquipmentInstance.assetCode ||
-                  selectedEquipmentInstance.code ||
                   "-"}
               </strong>
             </div>
@@ -917,8 +987,9 @@ export default function AddEquipmentResourceForm({
               </span>
 
               <strong>
-                {selectedEquipmentInstance.conditionLevel ||
-                  "-"}
+                {
+                  selectedEquipmentInstance.conditionLevel
+                }
               </strong>
             </div>
 
@@ -928,8 +999,9 @@ export default function AddEquipmentResourceForm({
               </span>
 
               <strong>
-                {selectedEquipmentInstance.status ||
-                  "-"}
+                {
+                  selectedEquipmentInstance.status
+                }
               </strong>
             </div>
           </div>
@@ -955,9 +1027,12 @@ export default function AddEquipmentResourceForm({
           onChange={
             handleInputChange
           }
-          disabled={Boolean(
-            selectedEquipmentInstance
-          )}
+          disabled={
+            saving ||
+            Boolean(
+              selectedEquipmentInstance
+            )
+          }
           required
         />
 
@@ -980,6 +1055,7 @@ export default function AddEquipmentResourceForm({
               handleCheckboxChange
             }
             disabled={
+              saving ||
               !selectedRequirement
                 ?.allowSubstitute
             }
@@ -1006,7 +1082,7 @@ export default function AddEquipmentResourceForm({
           id="efficiencyRate"
           type="number"
           name="efficiencyRate"
-          min="0"
+          min="0.01"
           max="100"
           step="0.01"
           value={
@@ -1015,13 +1091,13 @@ export default function AddEquipmentResourceForm({
           onChange={
             handleInputChange
           }
+          disabled={saving}
           required
         />
 
         {selectedRequirement && (
           <small>
-            Minimum acceptable
-            efficiency:{" "}
+            Minimum acceptable efficiency:{" "}
             {normalizeEfficiencyToPercent(
               selectedRequirement.minAcceptableEfficiency
             )}
@@ -1049,14 +1125,7 @@ export default function AddEquipmentResourceForm({
           onChange={
             handleInputChange
           }
-          onClick={(event) => {
-            const input =
-              event.currentTarget as HTMLInputElement & {
-                showPicker?: () => void;
-              };
-
-            input.showPicker?.();
-          }}
+          disabled={saving}
           required
         />
 
@@ -1078,14 +1147,7 @@ export default function AddEquipmentResourceForm({
           onChange={
             handleInputChange
           }
-          onClick={(event) => {
-            const input =
-              event.currentTarget as HTMLInputElement & {
-                showPicker?: () => void;
-              };
-
-            input.showPicker?.();
-          }}
+          disabled={saving}
           required
         />
 
@@ -1102,6 +1164,7 @@ export default function AddEquipmentResourceForm({
           onChange={
             handleInputChange
           }
+          disabled={saving}
         >
           <option value="Proposed">
             Proposed

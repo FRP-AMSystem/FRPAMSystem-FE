@@ -137,13 +137,13 @@ export default function LandResourceList() {
     };
 
     const closeDialog = () => {
-    if (saving) return;
+        if (saving) return;
 
-    setDialogOpen(false);
-    setEditing(null);
-    setForm(emptyForm);
-    setError("");
-};
+        setDialogOpen(false);
+        setEditing(null);
+        setForm(emptyForm);
+        setError("");
+    };
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -169,6 +169,8 @@ export default function LandResourceList() {
             else await createLandResource(payload);
             setDialogOpen(false);
             await loadData();
+            setEditing(null);
+            setForm(emptyForm);
         } catch (submitError) {
             setError(getErrorMessage(submitError));
         } finally {
