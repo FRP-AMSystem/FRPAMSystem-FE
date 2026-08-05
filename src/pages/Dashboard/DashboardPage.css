@@ -31,7 +31,7 @@
   background: #ffffff;
   border: 1px solid #E5E7EB;
   border-radius: 12px;
-  padding: 24px; /* Equal internal padding following 8px spacing system */
+  padding: 16px 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
@@ -48,9 +48,61 @@
   border-color: #0A3925;
 }
 
-.stat-conflicts {
+.stat-conflicts-clear {
+  background-color: #F0FDF4; /* Soft green background */
+  border-color: #DCFCE7;
+  padding: 14px 18px;
+}
+
+.stat-conflicts-active {
   background-color: #FDF2F2; /* Soft red background */
   border-color: #FEE2E2;
+  padding: 14px 18px;
+}
+
+/* Conflict Alerts Button */
+.stat-card-action-wrapper {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.stat-card-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  height: 24px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.2s ease;
+  width: auto;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.stat-card-action-btn.clear-btn {
+  background-color: rgba(22, 163, 74, 0.12);
+  color: #15803D;
+  border: 1px solid rgba(22, 163, 74, 0.3);
+}
+
+.stat-card-action-btn.clear-btn:hover {
+  background-color: #16A34A;
+  color: #ffffff;
+}
+
+.stat-card-action-btn.alert-btn {
+  background-color: #DC2626;
+  color: #ffffff;
+  border: 1px solid transparent;
+}
+
+.stat-card-action-btn.alert-btn:hover {
+  background-color: #B91C1C;
 }
 
 /* Text styles inside metrics */
@@ -149,28 +201,6 @@
   color: #4B5563;
   font-size: 10px;
   font-weight: 700;
-}
-
-/* Conflict Alerts Button */
-.stat-card-action-wrapper {
-  margin-top: 6px;
-}
-
-.stat-card-action-btn {
-  width: 100%;
-  background-color: #B91C1C; /* deep red button */
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.stat-card-action-btn:hover {
-  background-color: #991B1B;
 }
 
 /* Layout Panels (Charts and Tables) */
@@ -398,62 +428,88 @@
 
 /* Dark mode overrides matching index.css dark block variables */
 :root.dark .stat-card {
-  background: #1F2028;
-  border-color: #2E303a;
+  background: #1F2937;
+  border-color: #374151;
+}
+:root.dark .stat-card-label {
+  color: #9CA3AF;
 }
 :root.dark .stat-total-resources {
-  background-color: #0C3E26;
-  border-color: #0C3E26;
+  background-color: #0F392B;
+  border-color: #154D3B;
 }
 :root.dark .stat-conflicts {
-  background-color: #2D1E1E;
-  border-color: #3F2323;
+  background-color: #381E1E;
+  border-color: #4D2626;
+}
+:root.dark .stat-conflicts-clear {
+  background-color: #102C1E;
+  border-color: #18442E;
+}
+:root.dark .stat-conflicts-clear .stat-card-label {
+  color: #86EFAC;
+}
+:root.dark .stat-conflicts-clear .stat-card-value {
+  color: #4ADE80;
+}
+:root.dark .clear-btn {
+  background-color: rgba(74, 222, 128, 0.12);
+  color: #4ADE80;
+  border-color: rgba(74, 222, 128, 0.3);
+}
+:root.dark .clear-btn:hover {
+  background-color: #4ADE80;
+  color: #064E3B;
 }
 :root.dark .stat-card-value {
-  color: #F3F4F6;
+  color: #FFFFFF;
 }
 :root.dark .text-white {
-  color: #ffffff;
+  color: #FFFFFF;
 }
 :root.dark .user-avatar-grey {
-  background-color: #2E303a;
-  color: #9CA3AF;
+  background-color: #374151;
+  color: #D1D5DB;
 }
 :root.dark .avatar-plus-count {
-  background-color: #2E303a;
-  color: #9CA3AF;
+  background-color: #374151;
+  color: #D1D5DB;
 }
 :root.dark .dashboard-panel {
-  background: #1F2028;
-  border-color: #2E303a;
+  background: #1F2937;
+  border-color: #374151;
 }
 :root.dark .panel-title {
-  color: #F3F4F6;
+  color: #FFFFFF;
 }
-:root.dark .pill-dropdown-btn {
-  background-color: #2E303a;
-  color: #D1D5DB;
-}
-:root.dark .pill-dropdown-btn:hover {
-  background-color: #3B3E4A;
-}
-:root.dark .custom-table th {
-  background-color: #1A1B22;
-  border-color: #2E303a;
-}
-:root.dark .custom-table td {
-  color: #D1D5DB;
-  border-color: #2E303a;
-}
-:root.dark .custom-table tr:hover td {
-  background-color: #252630;
-}
-:root.dark .pagination-btn {
-  background: #1F2028;
-  border-color: #2E303a;
+:root.dark .panel-subtitle {
   color: #9CA3AF;
 }
+:root.dark .pill-dropdown-btn {
+  background-color: #374151;
+  color: #E5E7EB;
+}
+:root.dark .pill-dropdown-btn:hover {
+  background-color: #4B5563;
+}
+:root.dark .custom-table th {
+  background-color: #111827;
+  border-color: #374151;
+  color: #9CA3AF;
+}
+:root.dark .custom-table td {
+  color: #E5E7EB;
+  border-color: #374151;
+}
+:root.dark .custom-table tr:hover td {
+  background-color: #2D3748;
+}
+:root.dark .pagination-btn {
+  background: #1F2937;
+  border-color: #374151;
+  color: #D1D5DB;
+}
 :root.dark .pagination-btn:hover {
-  background: #2E303a;
-  color: #F3F4F6;
+  background: #374151;
+  color: #FFFFFF;
 }

@@ -37,22 +37,22 @@
 }
 
 :root.dark {
-  --text: #9ca3af;
-  --text-h: #f3f4f6;
-  --bg: #16171d;
-  --border: #2e303a;
-  --code-bg: #1f2028;
+  --text: #cbd5e1;
+  --text-h: #ffffff;
+  --bg: #111827;
+  --border: #1f2937;
+  --code-bg: #1f2937;
   --accent: #4ade80;
   --accent-bg: rgba(74, 222, 128, 0.15);
-  --accent-border: rgba(74, 222, 128, 0.5);
+  --accent-border: rgba(74, 222, 128, 0.4);
   --social-bg: rgba(47, 48, 58, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  --brand-primary: #2E7D32;
-  --brand-primary-hover: #388E3C;
-  --brand-light: #1E2D24;
-  --brand-accent: #81C784;
-  --card-bg: #1F2028;
+  --brand-primary: #16A34A;
+  --brand-primary-hover: #2E7D32;
+  --brand-light: #162C1E;
+  --brand-accent: #4ADE80;
+  --card-bg: #1F2937;
 }
 
 :root.dark #social .button-icon {
@@ -265,33 +265,66 @@ img {
   color: #ffffff;
 }
 
-/* Universal Compact Modal Close Button */
-.modal-close-btn {
+/* Universal Modal Header Layout: Title Centered, Close Button Fixed at Top-Right */
+.modal-header {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px 20px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.modal-header h2,
+.modal-header h3,
+.modal-header h4 {
+  margin: 0 !important;
+  text-align: center !important;
+  flex: 1 !important;
+  width: 100% !important;
+  padding: 0 36px !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: var(--text-h) !important;
+  letter-spacing: -0.2px !important;
+}
+
+.modal-close-btn,
+.modal-header .modal-close-btn {
+  position: absolute !important;
+  right: 18px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
   background: transparent !important;
   border: none !important;
-  width: 28px !important;
-  height: 28px !important;
-  min-width: 28px !important;
-  min-height: 28px !important;
-  border-radius: 6px !important;
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  border-radius: 8px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 16px !important;
+  font-size: 20px !important;
   line-height: 1 !important;
   color: var(--text) !important;
-  opacity: 0.6 !important;
+  opacity: 0.65 !important;
   cursor: pointer !important;
   padding: 0 !important;
   margin: 0 !important;
   transition: all 0.2s ease !important;
   outline: none !important;
+  z-index: 10 !important;
 }
 
-.modal-close-btn:hover {
+.modal-close-btn:hover,
+.modal-header .modal-close-btn:hover {
   opacity: 1 !important;
   color: var(--text-h) !important;
   background-color: var(--border) !important;
+  transform: translateY(-50%) scale(1.05) !important;
 }
 
 /* Universal Modern Custom Select Dropdowns */

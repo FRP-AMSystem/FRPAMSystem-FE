@@ -1,4 +1,5 @@
-import { AlertTriangle, TrendingUp } from "lucide-react";
+import { AlertTriangle, TrendingUp, CheckCircle2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface StatItem {
   id: string;
@@ -20,8 +21,8 @@ interface StatisticCardProps {
 }
 
 export default function StatisticCard({ stat }: StatisticCardProps) {
-  // TODO: Replace dashboard statistics fetching from backend with real endpoints
-  
+  const navigate = useNavigate();
+
   if (stat.type === "total-resources") {
     return (
       <div className="stat-card stat-total-resources">
@@ -32,20 +33,6 @@ export default function StatisticCard({ stat }: StatisticCardProps) {
         <div className="stat-card-footer text-white-muted" style={{ gap: "6px" }}>
           <TrendingUp size={14} style={{ color: "#E8F5E9" }} />
           <span>{stat.trend?.value}</span>
-        </div>
-
-        {/* Small sparkline vector inside the card for premium feel */}
-        <div className="stat-sparkline">
-          <svg viewBox="0 0 100 40" width="100%" height="100%">
-            <path
-              d="M 5 35 Q 25 15, 45 25 T 85 5"
-              fill="none"
-              stroke="rgba(255, 255, 255, 0.25)"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            <circle cx="85" cy="5" r="3" fill="#ffffff" />
-          </svg>
         </div>
       </div>
     );
@@ -70,11 +57,11 @@ export default function StatisticCard({ stat }: StatisticCardProps) {
               width: "6px",
               height: "6px",
               borderRadius: "50%",
-              backgroundColor: "#2E7D32",
+              backgroundColor: "var(--accent)",
               display: "inline-block",
             }}
           />
-          <span className="stat-card-subtext" style={{ color: "#1B5E20", fontWeight: 600 }}>
+          <span className="stat-card-subtext" style={{ color: "var(--accent)", fontWeight: 600 }}>
             {stat.subtext}
           </span>
         </div>
@@ -89,19 +76,67 @@ export default function StatisticCard({ stat }: StatisticCardProps) {
           <span className="stat-card-label">{stat.title}</span>
         </div>
         <div className="stat-card-value">{stat.value}</div>
-        <div className="stat-avatar-row">
-          {/* Avatar circles representation */}
-          <div className="stat-avatar-circle user-avatar-green">👤</div>
-          <div className="stat-avatar-circle user-avatar-grey">👤</div>
-          <div className="stat-avatar-circle avatar-plus-count">{stat.avatars?.[2]}</div>
-        </div>
+        {stat.avatars && stat.avatars.length > 0 && (
+          <div className="stat-avatar-row">
+            {stat.avatars.map((av, idx) => {
+              if (av.startsWith("http")) {
+                return (
+                  <div key={idx} className="stat-avatar-circle" style={{ overflow: "hidden" }}>
+                    <img src={av} alt="User Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </div>
+                );
+              }
+              const isPlusBadge = av.startsWith("+");
+              return (
+                <div
+                  key={idx}
+                  className={`stat-avatar-circle ${
+                    isPlusBadge
+                      ? "avatar-plus-count"
+                      : idx === 0
+                      ? "user-avatar-green"
+                      : "user-avatar-grey"
+                  }`}
+                >
+                  {av}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
   if (stat.type === "conflicts") {
+    const hasConflicts = (stat.conflictCount && stat.conflictCount > 0) || (stat.value !== "Clear" && !stat.value.includes("Clear"));
+
+    if (!hasConflicts) {
+      return (
+        <div className="stat-card stat-conflicts-clear">
+          <div className="stat-card-header">
+            <span className="stat-card-label">
+              {stat.title}
+            </span>
+            <CheckCircle2 size={18} style={{ color: "var(--accent)" }} />
+          </div>
+          <div className="stat-card-value">
+            Clear
+          </div>
+          <div className="stat-card-action-wrapper">
+            <button
+              className="stat-card-action-btn clear-btn"
+              onClick={() => navigate("/admin/logs")}
+            >
+              View System Logs
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="stat-card stat-conflicts">
+      <div className="stat-card stat-conflicts-active">
         <div className="stat-card-header">
           <span className="stat-card-label" style={{ color: "#991B1B" }}>
             {stat.title}
@@ -112,7 +147,12 @@ export default function StatisticCard({ stat }: StatisticCardProps) {
           {stat.value}
         </div>
         <div className="stat-card-action-wrapper">
-          <button className="stat-card-action-btn">Resolve Now</button>
+          <button
+            className="stat-card-action-btn alert-btn"
+            onClick={() => navigate("/admin/logs")}
+          >
+            Resolve Now
+          </button>
         </div>
       </div>
     );

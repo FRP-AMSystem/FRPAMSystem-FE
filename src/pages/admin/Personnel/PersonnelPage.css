@@ -1,7 +1,3 @@
-/* ==========================================================================
-   Personnel Page Styling
-   ========================================================================== */
-
 .personnel-page-container {
   padding: 24px;
   background-color: var(--bg);
@@ -142,27 +138,27 @@
 .skill-tag-pill.expert {
   border-left: 3px solid #E65100;
 }
+
 .skill-tag-pill.advanced {
   border-left: 3px solid #0D47A1;
 }
+
 .skill-tag-pill.intermediate {
   border-left: 3px solid #1B5E20;
 }
+
 .skill-tag-pill.beginner {
   border-left: 3px solid #757575;
 }
 
 /* Modal Skills Manager List */
 .skills-manager-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 240px;
+  max-height: 220px;
   overflow-y: auto;
   margin-bottom: 20px;
   border: 1px solid var(--border);
-  padding: 10px;
-  border-radius: 8px;
+  padding: 6px 14px;
+  border-radius: 12px;
   background-color: var(--bg);
 }
 
@@ -170,7 +166,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -181,54 +177,85 @@
 .skill-info-block {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .skill-name-label {
-  font-weight: 600;
-  font-size: 13.5px;
+  font-weight: 700;
+  font-size: 14px;
   color: var(--text-h);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .skill-desc-label {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text);
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .skill-level-badge {
   font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background-color: var(--border);
-  margin-left: 8px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: capitalize;
 }
 
-.skill-level-badge.expert { color: #E65100; background-color: #FFE0B2; }
-.skill-level-badge.advanced { color: #0D47A1; background-color: #BBDEFB; }
-.skill-level-badge.intermediate { color: #1B5E20; background-color: #C8E6C9; }
-.skill-level-badge.beginner { color: #424242; background-color: #E0E0E0; }
+.skill-level-badge.expert {
+  color: #E65100;
+  background-color: #FFE0B2;
+}
 
-:root.dark .skill-level-badge.expert { background-color: rgba(230, 81, 0, 0.2); }
-:root.dark .skill-level-badge.advanced { background-color: rgba(13, 71, 161, 0.2); }
-:root.dark .skill-level-badge.intermediate { background-color: rgba(27, 94, 32, 0.2); }
-:root.dark .skill-level-badge.beginner { background-color: rgba(66, 66, 66, 0.2); }
+.skill-level-badge.advanced {
+  color: #0D47A1;
+  background-color: #BBDEFB;
+}
+
+.skill-level-badge.intermediate {
+  color: #1B5E20;
+  background-color: #C8E6C9;
+}
+
+.skill-level-badge.beginner {
+  color: #424242;
+  background-color: #E0E0E0;
+}
+
+:root.dark .skill-level-badge.expert {
+  background-color: rgba(230, 81, 0, 0.2);
+}
+
+:root.dark .skill-level-badge.advanced {
+  background-color: rgba(13, 71, 161, 0.2);
+}
+
+:root.dark .skill-level-badge.intermediate {
+  background-color: rgba(27, 94, 32, 0.2);
+}
+
+:root.dark .skill-level-badge.beginner {
+  background-color: rgba(66, 66, 66, 0.2);
+}
 
 .skill-delete-icon-btn {
   background: transparent;
   border: none;
   color: #DC2626;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
 .skill-delete-icon-btn:hover {
-  background-color: rgba(220, 38, 38, 0.1);
+  background-color: rgba(220, 38, 38, 0.12);
 }
 
 /* Modal Skill Assignment Form section */
@@ -236,55 +263,55 @@
   font-size: 14px;
   font-weight: 700;
   color: var(--text-h);
-  margin: 12px 0 10px 0;
+  margin: 16px 0 12px 0;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
+  padding-top: 16px;
 }
 
 .add-skill-inline-form {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto;
   gap: 12px;
-  align-items: flex-end;
+  align-items: end;
 }
 
 .inline-form-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1;
 }
 
 .inline-form-group label {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-h);
 }
 
 .inline-form-group select {
-  height: 38px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background-color: var(--bg);
-  color: var(--text-h);
-  padding: 0 10px;
-  outline: none;
+  height: 40px !important;
+  box-sizing: border-box !important;
 }
 
 .add-skill-submit-btn {
-  height: 38px;
-  padding: 0 16px;
-  font-weight: 600;
-  font-size: 13.5px;
-  border-radius: 8px;
-  border: none;
-  background-color: var(--accent);
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  height: 40px !important;
+  padding: 0 18px !important;
+  font-weight: 700 !important;
+  font-size: 13.5px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  background-color: var(--accent) !important;
+  color: white !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
 }
 
 .add-skill-submit-btn:hover {
   opacity: 0.9;
+  transform: translateY(-1px);
 }

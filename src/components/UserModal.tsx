@@ -25,7 +25,6 @@ export default function UserModal({
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("Active");
 
@@ -40,7 +39,6 @@ export default function UserModal({
         setUsername(editUser.username || "");
         setEmail(editUser.email);
         setPassword("");
-        setPhone(editUser.phone || "");
         setStatus(editUser.status || "Active");
 
 
@@ -53,7 +51,6 @@ export default function UserModal({
         setUsername("");
         setEmail("");
         setPassword("");
-        setPhone("");
         setRole("");
         setStatus("Active");
       }
@@ -114,7 +111,6 @@ export default function UserModal({
         });
 
 
-        localStorage.setItem(`phone_${editUser.email}`, phone.trim());
         localStorage.setItem(`status_${editUser.email}`, status);
 
         logSystemActivity(
@@ -134,9 +130,7 @@ export default function UserModal({
           roleId: Number(role),
         });
 
-        if (phone.trim()) {
-          localStorage.setItem(`phone_${email.trim()}`, phone.trim());
-        }
+        localStorage.setItem(`createdDate_${email.trim()}`, new Date().toISOString());
 
         const roleObj = roles.find((r) => String(r.id) === String(role));
         logSystemActivity(
@@ -226,17 +220,6 @@ export default function UserModal({
               {errors.password && <span className="error-text">{errors.password}</span>}
             </div>
           )}
-
-          <div className="form-group">
-            <label htmlFor="phone" style={{ color: "var(--text)" }}>Phone Number</label>
-            <input
-              type="text"
-              id="phone"
-              placeholder="+1 (555) 019-2834"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </div>
 
           <div className="form-row">
             <div className="form-group flex-1">

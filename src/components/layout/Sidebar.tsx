@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -12,8 +13,10 @@ import {
   Bell,
   Settings,
   Users,
+  LogOut,
 } from "lucide-react";
 import { getCurrentProfile } from "../../services/userService";
+import { getRole, getUserData, logout as performLogout } from "../../utils/storage";
 import "./Sidebar.css";
 
 interface MenuItem {
@@ -40,25 +43,41 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [profile, setProfile] = useState({
-    name: "Marcus Thorne",
-    role: "Regional Overseer",
-    avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const [profile, setProfile] = useState(() => {
+    const savedRole = getRole() || "Admin";
+    const savedUser = getUserData();
+    const name = savedUser.userName || (savedUser.email ? savedUser.email.split("@")[0] : "Admin User");
+    return {
+      name,
+      role: savedRole,
+      avatarUrl: savedUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
+    };
   });
 
   useEffect(() => {
     getCurrentProfile()
       .then((data) => {
-        if (data) {
+        if (data && data.fullName) {
+          const savedRole = getRole() || data.role || "Admin";
           setProfile({
-            name: data.fullName || "Marcus Thorne",
-            role: data.role || "Regional Overseer",
-            avatarUrl: data.avatar || "",
+            name: data.fullName,
+            role: savedRole,
+            avatarUrl: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.fullName)}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
           });
         }
       })
-      .catch((err) => {
-        console.warn("Could not retrieve current profile session, falling back to mock profile.", err);
+      .catch(() => {
+        // Fallback to active local storage session
+        const savedRole = getRole() || "Admin";
+        const savedUser = getUserData();
+        const name = savedUser.userName || (savedUser.email ? savedUser.email.split("@")[0] : "Admin User");
+        setProfile({
+          name,
+          role: savedRole,
+          avatarUrl: savedUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
+        });
       });
   }, []);
 
@@ -78,6 +97,11 @@ export default function Sidebar() {
     if (item.path) {
       navigate(item.path);
     }
+  };
+
+  const handleConfirmLogout = () => {
+    performLogout();
+    navigate("/login");
   };
 
   return (
@@ -109,37 +133,149 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="sidebar-avatar">
-          {profile.avatarUrl ? (
-            <img
-              src={profile.avatarUrl}
-              alt={profile.name}
-              className="sidebar-avatar-img"
-            />
-          ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+          <div className="sidebar-avatar">
+            {profile.avatarUrl ? (
+              <img
+                src={profile.avatarUrl}
+                alt={profile.name}
+                className="sidebar-avatar-img"
+              />
+            ) : (
+              <div
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  backgroundColor: "#E8F5E9",
+                  color: "#1B5E20",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 700,
+                  fontSize: "14px",
+                }}
+              >
+                {(profile.name || "Marcus Thorne").charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-username">{profile.name}</span>
+            <span className="sidebar-user-role">{profile.role}</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="sidebar-logout-btn"
+          onClick={() => setShowLogoutConfirm(true)}
+          title="Sign Out / Logout"
+        >
+          <LogOut size={18} />
+        </button>
+      </div>
+
+      {/* Logout Confirmation Modal - Mounted via Portal to body to prevent CSS stacking context overlaps */}
+      {showLogoutConfirm &&
+        createPortal(
+          <div
+            className="modal-overlay"
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 99999,
+              backdropFilter: "blur(4px)",
+            }}
+          >
             <div
               style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                backgroundColor: "#E8F5E9",
-                color: "#1B5E20",
+                backgroundColor: "var(--card-bg)",
+                borderRadius: "16px",
+                padding: "24px",
+                width: "90%",
+                maxWidth: "380px",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+                border: "1px solid var(--border)",
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: "14px",
+                textAlign: "center",
               }}
             >
-              {(profile.name || "Marcus Thorne").charAt(0).toUpperCase()}
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  borderRadius: "50%",
+                  backgroundColor: "#FEF2F2",
+                  color: "#DC2626",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: "16px",
+                }}
+              >
+                <LogOut size={24} />
+              </div>
+
+              <h3 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-h)", margin: "0 0 8px 0" }}>
+                Sign Out Confirmation
+              </h3>
+              <p style={{ fontSize: "13.5px", color: "var(--text)", opacity: 0.8, margin: "0 0 24px 0", lineHeight: 1.5 }}>
+                Are you sure you want to log out of PRRAM System? Your active session will be ended.
+              </p>
+
+              <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  style={{
+                    flex: 1,
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg)",
+                    color: "var(--text-h)",
+                    fontWeight: 600,
+                    fontSize: "13.5px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmLogout}
+                  style={{
+                    flex: 1,
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    backgroundColor: "#DC2626",
+                    color: "#ffffff",
+                    fontWeight: 600,
+                    fontSize: "13.5px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 4px rgba(220, 38, 38, 0.2)",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  Log Out
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-        <div className="sidebar-user-info">
-          <span className="sidebar-username">{profile.name}</span>
-          <span className="sidebar-user-role">{profile.role}</span>
-        </div>
-      </div>
+          </div>,
+          document.body
+        )}
     </aside>
   );
 }

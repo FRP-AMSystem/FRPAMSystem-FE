@@ -35,6 +35,9 @@ export default function UserDetailModal({ user, onClose }: UserDetailModalProps)
 
   if (!user) return null;
 
+  const nameForAvatar = detailedUser?.fullName || user.fullName || "User";
+  const avatarUrl = detailedUser?.avatar || detailedUser?.avatarUrl || user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(nameForAvatar)}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`;
+
   const displayUser = {
     id: user.id,
     fullName: detailedUser?.fullName || user.fullName || "—",
@@ -42,7 +45,7 @@ export default function UserDetailModal({ user, onClose }: UserDetailModalProps)
     email: detailedUser?.email || user.email || "—",
     role: detailedUser?.roleName || user.role || "User",
     status: user.status || "Active",
-    phone: localStorage.getItem(`phone_${detailedUser?.email || user.email}`) || user.phone || "—",
+    avatar: avatarUrl,
     createdDate: user.createdDate,
   };
 
@@ -115,8 +118,8 @@ export default function UserDetailModal({ user, onClose }: UserDetailModalProps)
             {/* Avatar section */}
             <div className="profile-header-section" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="profile-avatar-large" style={{ backgroundColor: "#E8F5E9", color: "#1B5E20" }}>
-                {user.avatar ? (
-                  <img src={user.avatar} alt={displayUser.fullName} />
+                {displayUser.avatar ? (
+                  <img src={displayUser.avatar} alt={displayUser.fullName} />
                 ) : (
                   getAvatarFallback(displayUser.fullName)
                 )}
@@ -169,15 +172,6 @@ export default function UserDetailModal({ user, onClose }: UserDetailModalProps)
                 </span>
                 <span className="field-value" style={{ color: "var(--text-h)", fontSize: "14px", fontWeight: 550 }}>
                   {displayUser.email}
-                </span>
-              </div>
-
-              <div className="profile-field">
-                <span className="field-label" style={{ color: "var(--text)", fontSize: "11px", fontWeight: 600, opacity: 0.7 }}>
-                  PHONE NUMBER
-                </span>
-                <span className="field-value" style={{ color: "var(--text-h)", fontSize: "14px", fontWeight: 550 }}>
-                  {displayUser.phone}
                 </span>
               </div>
 

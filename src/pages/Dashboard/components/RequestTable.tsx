@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import StatusBadge from "./StatusBadge";
 
 interface ExperimentRequest {
@@ -13,29 +14,14 @@ interface RequestTableProps {
 }
 
 export default function RequestTable({ requests }: RequestTableProps) {
-  // TODO: Replace request list with API pagination
-  // TODO: Add search handlers for "future searching"
-  // TODO: Add filter states for "future filtering" (e.g. filter by priority or status)
-  // TODO: Add sort handlers for column clicks (e.g. sort by Request ID or Date)
+  const navigate = useNavigate();
 
-  // const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-  //   // TODO: Connect query to API search query params
-  //   console.log("Future Search Query:", event.target.value);
-  // };
-
-  const handleSort = (columnKey: string) => {
-    // TODO: Trigger API refetch with orderby clause (columnKey)
-    console.log("Future Sort column:", columnKey);
-  };
-
-  // const handleFilter = (filterKey: string, filterValue: string) => {
-  //   // TODO: Apply filter parameters to API search string
-  //   console.log("Future Filter:", filterKey, filterValue);
-  // };
-
-  const handlePageChange = (direction: "prev" | "next") => {
-    // TODO: Fetch previous/next page index from API pagination response
-    console.log("Future Page Change direction:", direction);
+  const handleAction = (requestName?: string) => {
+    if (requestName) {
+      navigate("/admin/logs", { state: { search: requestName } });
+    } else {
+      navigate("/admin/logs");
+    }
   };
 
   return (
@@ -48,7 +34,7 @@ export default function RequestTable({ requests }: RequestTableProps) {
         </div>
         <div>
           {/* Header Action Button */}
-          <button className="create-request-btn">
+          <button className="create-request-btn" onClick={() => handleAction()}>
             + Create Request
           </button>
         </div>
@@ -59,50 +45,50 @@ export default function RequestTable({ requests }: RequestTableProps) {
         <table className="custom-table">
           <thead>
             <tr>
-              <th onClick={() => handleSort("id")} style={{ cursor: "pointer" }}>
-                REQUEST ID
-              </th>
-              <th onClick={() => handleSort("name")} style={{ cursor: "pointer" }}>
-                EXPERIMENT NAME
-              </th>
-              <th onClick={() => handleSort("priority")} style={{ cursor: "pointer" }}>
-                PRIORITY
-              </th>
-              <th onClick={() => handleSort("date")} style={{ cursor: "pointer" }}>
-                DATE
-              </th>
-              <th onClick={() => handleSort("status")} style={{ cursor: "pointer" }}>
-                STATUS
-              </th>
+              <th>REQUEST ID</th>
+              <th>EXPERIMENT NAME</th>
+              <th>PRIORITY</th>
+              <th>DATE</th>
+              <th>STATUS</th>
               <th style={{ textAlign: "right" }}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
-            {requests.map((request) => (
-              <tr key={request.id}>
-                <td style={{ color: "#1B5E20", fontWeight: 700 }}>
-                  <span className="request-link-id">{request.id}</span>
-                </td>
-                <td style={{ fontWeight: 500, color: "#111827" }}>
-                  {request.name}
-                </td>
-                <td>
-                  <StatusBadge type="priority" value={request.priority} />
-                </td>
-                <td style={{ color: "#6B7280", fontSize: "13px" }}>
-                  {request.date}
-                </td>
-                <td>
-                  <StatusBadge type="status" value={request.status} />
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  {/* Action Link Button */}
-                  <span className="table-action-link">
-                    View Details
-                  </span>
+            {requests.length > 0 ? (
+              requests.map((request) => (
+                <tr key={request.id}>
+                  <td style={{ color: "#1B5E20", fontWeight: 700 }}>
+                    <span className="request-link-id" onClick={() => handleAction(request.name)} style={{ cursor: "pointer" }}>
+                      {request.id}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 500, color: "#111827" }}>
+                    {request.name}
+                  </td>
+                  <td>
+                    <StatusBadge type="priority" value={request.priority} />
+                  </td>
+                  <td style={{ color: "#6B7280", fontSize: "13px" }}>
+                    {request.date}
+                  </td>
+                  <td>
+                    <StatusBadge type="status" value={request.status} />
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    {/* Action Link Button */}
+                    <span className="table-action-link" onClick={() => handleAction(request.name)} style={{ cursor: "pointer" }}>
+                      View Details
+                    </span>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", padding: "24px", color: "#6B7280" }}>
+                  No pending requests requiring review.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -110,19 +96,21 @@ export default function RequestTable({ requests }: RequestTableProps) {
       {/* Table Pagination Footer */}
       <div className="table-footer">
         <div className="table-footer-summary">
-          Showing 4 of 8 pending requests
+          {requests.length > 0
+            ? `Showing ${requests.length} of ${requests.length} pending requests`
+            : "0 requests pending"}
         </div>
         <div className="table-pagination-controls">
           <button
             className="pagination-btn"
-            onClick={() => handlePageChange("prev")}
+            onClick={() => handleAction()}
             title="Previous Page"
           >
             &lt;
           </button>
           <button
             className="pagination-btn"
-            onClick={() => handlePageChange("next")}
+            onClick={() => handleAction()}
             title="Next Page"
           >
             &gt;
