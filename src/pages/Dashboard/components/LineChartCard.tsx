@@ -39,14 +39,14 @@ export default function LineChartCard({ data }: LineChartCardProps) {
           >
             <defs>
               <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#1B5E20" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#1B5E20" stopOpacity={0.0} />
+                <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.0} />
               </linearGradient>
             </defs>
 
             <CartesianGrid
               vertical={false}
-              stroke="#F3F4F6"
+              stroke="var(--border)"
               strokeDasharray="0"
             />
 
@@ -69,13 +69,13 @@ export default function LineChartCard({ data }: LineChartCardProps) {
                           width="40"
                           height="20"
                           rx="4"
-                          fill="#E8F5E9"
+                          fill="var(--accent-bg)"
                         />
                         <text
                           x="0"
                           y="20"
                           textAnchor="middle"
-                          fill="#1B5E20"
+                          fill="var(--accent)"
                           style={{ fontSize: "11px", fontWeight: 700 }}
                         >
                           {payload.value}
@@ -86,7 +86,7 @@ export default function LineChartCard({ data }: LineChartCardProps) {
                         x="0"
                         y="20"
                         textAnchor="middle"
-                        fill="#9CA3AF"
+                        fill="var(--text)"
                         style={{ fontSize: "11px", fontWeight: 500 }}
                       >
                         {payload.value}
@@ -103,13 +103,14 @@ export default function LineChartCard({ data }: LineChartCardProps) {
                   return (
                     <div
                       style={{
-                        backgroundColor: "#1F2937",
-                        color: "#ffffff",
+                        backgroundColor: "var(--card-bg)",
+                        color: "var(--text-h)",
+                        border: "1px solid var(--border)",
                         padding: "8px 12px",
                         borderRadius: "8px",
                         fontSize: "12px",
                         fontWeight: 600,
-                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.2)",
                       }}
                     >
                       {payload[0].value}% Allocation
@@ -123,11 +124,11 @@ export default function LineChartCard({ data }: LineChartCardProps) {
             <Area
               type="monotone"
               dataKey="load"
-              stroke="#1B5E20"
+              stroke="var(--accent)"
               strokeWidth={2.5}
               fillOpacity={1}
               fill="url(#chartGradient)"
-              activeDot={{ r: 6, fill: "#1B5E20", stroke: "#ffffff", strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: "var(--accent)", stroke: "var(--card-bg)", strokeWidth: 2 }}
             />
           </AreaChart>
         </ResponsiveContainer>

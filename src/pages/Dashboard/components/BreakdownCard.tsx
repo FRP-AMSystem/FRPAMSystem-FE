@@ -11,7 +11,11 @@ interface BreakdownCardProps {
 }
 
 export default function BreakdownCard({ data }: BreakdownCardProps) {
-  // TODO: Connect chart data to database
+  // Calculate dynamic total percentage from actual data props
+  const totalPercentage = Math.min(
+    100,
+    data.reduce((acc, item) => acc + (item.value || 0), 0)
+  );
 
   return (
     <div className="dashboard-panel breakdown-panel">
@@ -57,13 +61,13 @@ export default function BreakdownCard({ data }: BreakdownCardProps) {
             style={{
               fontSize: "24px",
               fontWeight: 700,
-              color: "#111827",
+              color: "var(--text-h)",
               lineHeight: 1,
             }}
           >
-            88%
+            {totalPercentage > 0 ? `${totalPercentage}%` : "0%"}
           </span>
-          <span style={{ fontSize: "11px", color: "#6B7280", fontWeight: 500, marginTop: "4px" }}>
+          <span style={{ fontSize: "11px", color: "var(--text)", fontWeight: 500, marginTop: "4px" }}>
             Total
           </span>
         </div>
@@ -79,7 +83,7 @@ export default function BreakdownCard({ data }: BreakdownCardProps) {
               alignItems: "center",
               justifyContent: "space-between",
               padding: "10px 0",
-              borderTop: "1px solid #F3F4F6",
+              borderTop: "1px solid var(--border)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -92,11 +96,11 @@ export default function BreakdownCard({ data }: BreakdownCardProps) {
                   display: "inline-block",
                 }}
               />
-              <span style={{ fontSize: "13.5px", fontWeight: 500, color: "#4B5563" }}>
+              <span style={{ fontSize: "13.5px", fontWeight: 500, color: "var(--text)" }}>
                 {item.name}
               </span>
             </div>
-            <span style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
+            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-h)" }}>
               {item.value}%
             </span>
           </div>

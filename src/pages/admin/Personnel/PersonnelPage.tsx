@@ -9,7 +9,9 @@ import {
   RotateCw,
   Edit2,
   Award,
-  UserMinus
+  UserMinus,
+  ChevronDown,
+  UserCheck,
 } from "lucide-react";
 import {
   getHumanResourceProfiles,
@@ -37,6 +39,43 @@ interface ToastState {
   visible: boolean;
 }
 
+// Dynamic role badge colors matching UserTable
+const getRoleBadgeStyles = (role: string) => {
+  const normRole = (role || "").toLowerCase().trim();
+  switch (normRole) {
+    case "admin":
+      return {
+        backgroundColor: "#FCE7F3",
+        color: "#9D174D",
+      };
+    case "manager":
+      return {
+        backgroundColor: "#DBEAFE",
+        color: "#1E40AF",
+      };
+    case "researcher":
+      return {
+        backgroundColor: "#D1FAE5",
+        color: "#065F46",
+      };
+    case "technician":
+      return {
+        backgroundColor: "#FEF3C7",
+        color: "#92400E",
+      };
+    case "student":
+      return {
+        backgroundColor: "#CCFBF1",
+        color: "#115E59",
+      };
+    default:
+      return {
+        backgroundColor: "#F3F4F6",
+        color: "#374151",
+      };
+  }
+};
+
 export default function PersonnelPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,6 +88,10 @@ export default function PersonnelPage() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Searchable user dropdown state for Activate Personnel modal
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState<ToastState>({
@@ -115,6 +158,18 @@ export default function PersonnelPage() {
     loadData();
   }, []);
 
+  // Close searchable dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".searchable-select-container")) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const closeModal = () => {
     setModalType(null);
     setSelectedProfile(null);
@@ -123,6 +178,8 @@ export default function PersonnelPage() {
     setFormStatus("Available");
     setFormSkillId(0);
     setFormSkillLevel("Intermediate");
+    setUserSearchQuery("");
+    setIsUserDropdownOpen(false);
   };
 
   // Open Edit Profile Modal
@@ -242,8 +299,8 @@ export default function PersonnelPage() {
   // Filter users that are NOT yet in HumanResourceProfiles
   const availableUsers = users.filter(
     (u) => {
-      const uId = u.id; // Map key fallback
-      return !profiles.some((p) => p.userId === Number(uId));
+      const uId = (u as any).userId ?? u.id;
+      return !!uId && !profiles.some((p) => p.userId === Number(uId));
     }
   );
 
@@ -271,8 +328,10 @@ export default function PersonnelPage() {
               className="resource-action-btn primary"
               onClick={() => {
                 if (availableUsers.length > 0) {
-                  const firstUserId = Number(availableUsers[0].id);
+                  const firstUserId = Number((availableUsers[0] as any).userId ?? availableUsers[0].id);
                   setFormUserId(firstUserId);
+                } else {
+                  setFormUserId(0);
                 }
                 setModalType("add");
               }}
@@ -352,8 +411,20 @@ export default function PersonnelPage() {
                               {profile.fullName}
                             </td>
                             <td style={{ color: "var(--text)" }}>
-                              <div style={{ fontWeight: 500, color: "var(--accent)" }}>
-                                {profile.roleName}
+                              <div style={{ marginBottom: "4px" }}>
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    padding: "2px 8px",
+                                    borderRadius: "12px",
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    ...getRoleBadgeStyles(profile.roleName),
+                                  }}
+                                >
+                                  {profile.roleName}
+                                </span>
                               </div>
                               <div style={{ fontSize: "12px", opacity: 0.8 }}>{profile.email}</div>
                             </td>
@@ -484,26 +555,222 @@ export default function PersonnelPage() {
               <form onSubmit={handleProfileSubmit} className="modal-form">
                 {modalType === "add" ? (
                   <div className="form-group">
-                    <label htmlFor="userId" style={{ color: "var(--text)" }}>Select Staff Member <span className="required">*</span></label>
-                    <select
-                      id="userId"
-                      value={formUserId || ""}
-                      onChange={(e) => setFormUserId(Number(e.target.value))}
-                      required
-                    >
-                      <option value="">Choose User</option>
-                      {availableUsers.map((u) => {
-                        const uId = u.id;
-                        const roleDisplay = u.role ?? (u as any).roleName ?? '';
-                        return (
-                          <option key={uId} value={uId}>
-                            {u.fullName}{roleDisplay ? ` (${roleDisplay})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
+                    <label style={{ color: "var(--text)" }}>Select Staff Member <span className="required">*</span></label>
+                    
+                    {/* Searchable Select Combobox */}
+                    <div className="searchable-select-container" style={{ position: "relative" }}>
+                      <div
+                        className="searchable-select-input-wrapper"
+                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "9px 12px",
+                          border: "1px solid var(--border)",
+                          borderRadius: "8px",
+                          backgroundColor: "var(--bg)",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, overflow: "hidden" }}>
+                          {(() => {
+                            const selectedUser = availableUsers.find(
+                              (u) => Number((u as any).userId ?? u.id) === formUserId
+                            );
+                            if (selectedUser) {
+                              const roleDisplay = selectedUser.role ?? (selectedUser as any).roleName ?? 'User';
+                              return (
+                                <>
+                                  <div style={{
+                                    width: "26px",
+                                    height: "26px",
+                                    borderRadius: "50%",
+                                    backgroundColor: "#E8F5E9",
+                                    color: "#1B5E20",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: "12px",
+                                    fontWeight: 700,
+                                    flexShrink: 0
+                                  }}>
+                                    {selectedUser.fullName.trim().charAt(0).toUpperCase()}
+                                  </div>
+                                  <span style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text-h)" }}>
+                                    {selectedUser.fullName}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "11px",
+                                      fontWeight: 700,
+                                      padding: "2px 8px",
+                                      borderRadius: "12px",
+                                      textTransform: "uppercase",
+                                      ...getRoleBadgeStyles(roleDisplay),
+                                    }}
+                                  >
+                                    {roleDisplay}
+                                  </span>
+                                </>
+                              );
+                            }
+                            return (
+                              <span style={{ fontSize: "13.5px", color: "var(--text)", opacity: 0.6 }}>
+                                Choose staff member (Type to search)...
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <ChevronDown size={16} style={{ color: "var(--text)", opacity: 0.6, flexShrink: 0 }} />
+                      </div>
+
+                      {/* Dropdown Menu Overlay */}
+                      {isUserDropdownOpen && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "calc(100% + 4px)",
+                            left: 0,
+                            right: 0,
+                            zIndex: 100,
+                            backgroundColor: "var(--card-bg)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "10px",
+                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15)",
+                            padding: "8px",
+                            maxHeight: "240px",
+                            overflowY: "auto",
+                          }}
+                        >
+                          <div style={{ marginBottom: "8px" }}>
+                            <div style={{ position: "relative" }}>
+                              <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text)", opacity: 0.6 }} />
+                              <input
+                                type="text"
+                                placeholder="Search by name, email, or role..."
+                                value={userSearchQuery}
+                                onChange={(e) => setUserSearchQuery(e.target.value)}
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  width: "100%",
+                                  padding: "7px 10px 7px 32px",
+                                  fontSize: "12.5px",
+                                  borderRadius: "6px",
+                                  border: "1px solid var(--border)",
+                                  backgroundColor: "var(--bg)",
+                                  color: "var(--text-h)",
+                                  outline: "none",
+                                  boxSizing: "border-box",
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {availableUsers
+                            .filter((u) => {
+                              const q = userSearchQuery.trim().toLowerCase();
+                              if (!q) return true;
+                              const roleName = u.role ?? (u as any).roleName ?? '';
+                              return (
+                                u.fullName.toLowerCase().includes(q) ||
+                                u.email.toLowerCase().includes(q) ||
+                                roleName.toLowerCase().includes(q)
+                              );
+                            })
+                            .map((u) => {
+                              const uId = Number((u as any).userId ?? u.id);
+                              const isSelected = formUserId === uId;
+                              const roleDisplay = u.role ?? (u as any).roleName ?? 'User';
+                              return (
+                                <div
+                                  key={uId}
+                                  onClick={() => {
+                                    setFormUserId(uId);
+                                    setIsUserDropdownOpen(false);
+                                    setUserSearchQuery("");
+                                  }}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    padding: "8px 10px",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    backgroundColor: isSelected ? "var(--border)" : "transparent",
+                                    transition: "background 0.15s ease",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isSelected) e.currentTarget.style.backgroundColor = "var(--bg)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
+                                  }}
+                                >
+                                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    <div style={{
+                                      width: "28px",
+                                      height: "28px",
+                                      borderRadius: "50%",
+                                      backgroundColor: "#E8F5E9",
+                                      color: "#1B5E20",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: "12px",
+                                      fontWeight: 700,
+                                      flexShrink: 0
+                                    }}>
+                                      {u.fullName.trim().charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-h)" }}>
+                                        {u.fullName}
+                                      </div>
+                                      <div style={{ fontSize: "11px", color: "var(--text)", opacity: 0.7 }}>
+                                        {u.email}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <span
+                                    style={{
+                                      fontSize: "10px",
+                                      fontWeight: 700,
+                                      padding: "2px 8px",
+                                      borderRadius: "12px",
+                                      textTransform: "uppercase",
+                                      ...getRoleBadgeStyles(roleDisplay),
+                                    }}
+                                  >
+                                    {roleDisplay}
+                                  </span>
+                                </div>
+                              );
+                            })}
+
+                          {availableUsers.filter((u) => {
+                            const q = userSearchQuery.trim().toLowerCase();
+                            if (!q) return true;
+                            const roleName = u.role ?? (u as any).roleName ?? '';
+                            return (
+                              u.fullName.toLowerCase().includes(q) ||
+                              u.email.toLowerCase().includes(q) ||
+                              roleName.toLowerCase().includes(q)
+                            );
+                          }).length === 0 && (
+                            <div style={{ padding: "12px", textAlign: "center", fontSize: "12.5px", color: "var(--text)", opacity: 0.6 }}>
+                              No matching staff members found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     {availableUsers.length === 0 && (
-                      <p style={{ fontSize: "12px", color: "#DC2626", marginTop: "4px" }}>
+                      <p style={{ fontSize: "12px", color: "#DC2626", marginTop: "6px" }}>
                         All existing system users already have personnel profiles active.
                       </p>
                     )}
@@ -576,7 +843,7 @@ export default function PersonnelPage() {
         {/* 2. Modal Manage Skills */}
         {modalType === "skills" && selectedProfile && (
           <div className="modal-overlay">
-            <div className="modal-container" style={{ border: "1px solid var(--border)", background: "var(--card-bg)" }}>
+            <div className="modal-container detail-modal" style={{ border: "1px solid var(--border)", background: "var(--card-bg)" }}>
               <div className="modal-header" style={{ borderBottom: "1px solid var(--border)" }}>
                 <h3 style={{ color: "var(--text-h)" }}>
                   Skills Manager: {selectedProfile.fullName}
@@ -587,14 +854,14 @@ export default function PersonnelPage() {
               </div>
 
               <div className="modal-form" style={{ paddingBottom: "10px" }}>
-                <label style={{ color: "var(--text)", fontWeight: 600, display: "block", marginBottom: "8px" }}>
+                <label style={{ color: "var(--text-h)", fontWeight: 700, display: "block", marginBottom: "10px", fontSize: "14px" }}>
                   Assigned Skills ({assignedSkills.filter((as) => as.humanResourceId === selectedProfile.humanResourceId).length})
                 </label>
 
                 {/* List of currently assigned skills */}
                 <div className="skills-manager-list">
                   {assignedSkills.filter((as) => as.humanResourceId === selectedProfile.humanResourceId).length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: "var(--text)", opacity: 0.6, fontSize: "13px" }}>
+                    <div style={{ textAlign: "center", padding: "24px", color: "var(--text)", opacity: 0.6, fontSize: "13px" }}>
                       No skills currently assigned to this personnel.
                     </div>
                   ) : (
@@ -604,13 +871,13 @@ export default function PersonnelPage() {
                         <div key={sk.humanResourceSkillId} className="skill-manager-row">
                           <div className="skill-info-block">
                             <div className="skill-name-label">
-                              {sk.skillName}
+                              <span>{sk.skillName}</span>
                               <span className={`skill-level-badge ${sk.skillLevel.toLowerCase()}`}>
                                 {sk.skillLevel}
                               </span>
                             </div>
                             <span className="skill-desc-label">
-                              {sk.skillDescription || "No description"}
+                              {sk.skillDescription || "No description provided."}
                             </span>
                           </div>
                           <button
@@ -619,7 +886,7 @@ export default function PersonnelPage() {
                             onClick={() => handleRemoveSkill(sk.humanResourceSkillId)}
                             title="Remove Skill"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       ))
@@ -646,7 +913,7 @@ export default function PersonnelPage() {
                     </select>
                   </div>
 
-                  <div className="inline-form-group" style={{ maxWidth: "150px" }}>
+                  <div className="inline-form-group">
                     <label htmlFor="levelSelect">Skill Level <span className="required">*</span></label>
                     <select
                       id="levelSelect"
@@ -662,7 +929,7 @@ export default function PersonnelPage() {
                   </div>
 
                   <button type="submit" className="add-skill-submit-btn">
-                    <Plus size={14} />
+                    <Plus size={16} />
                     <span>Assign</span>
                   </button>
                 </form>
@@ -672,7 +939,7 @@ export default function PersonnelPage() {
                     type="button"
                     className="btn-secondary"
                     onClick={closeModal}
-                    style={{ color: "var(--text-h)", border: "1px solid var(--border)", background: "transparent", marginInlineStart: "auto" }}
+                    style={{ color: "var(--text-h)", border: "1px solid var(--border)", background: "transparent", marginInlineStart: "auto", padding: "8px 24px" }}
                   >
                     Done
                   </button>

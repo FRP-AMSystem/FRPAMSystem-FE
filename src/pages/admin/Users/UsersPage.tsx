@@ -81,6 +81,24 @@ export default function UsersPage() {
           const matchedRole = roleData.find((r) => r.id === u.roleId.toString());
           if (matchedRole) roleName = matchedRole.name;
         }
+        const rawBackendDate = u.createdDate || u.createdAt || u.created_at || u.createDate || u.createAt || u.createdTime || u.dateCreated;
+
+        let finalCreatedDate = rawBackendDate;
+        if (!finalCreatedDate) {
+          const storedDate = localStorage.getItem(`createdDate_${u.email}`);
+          if (storedDate) {
+            finalCreatedDate = storedDate;
+          } else {
+            finalCreatedDate = new Date().toISOString();
+            if (u.email) {
+              localStorage.setItem(`createdDate_${u.email}`, finalCreatedDate);
+            }
+          }
+        }
+
+        const userFullName = u.fullName || u.username || "User";
+        const avatarUrl = u.avatar || u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(userFullName)}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`;
+
         return {
           id: (u.userId ?? u.id)?.toString() || "",
           fullName: u.fullName || "",
@@ -88,8 +106,8 @@ export default function UsersPage() {
           email: u.email || "",
           role: roleName,
           status: localStorage.getItem(`status_${u.email}`) || u.status || "Active",
-          phone: localStorage.getItem(`phone_${u.email}`) || u.phone || "",
-          createdDate: u.createdDate || u.createdAt || new Date().toISOString(),
+          avatar: avatarUrl,
+          createdDate: finalCreatedDate,
         };
       });
 
