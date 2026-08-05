@@ -6,6 +6,7 @@ import {
   Gauge,
   Layers3,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardStat {
   id: string;
@@ -38,25 +39,15 @@ interface StatisticCardProps {
   onAction?: () => void;
 }
 
-function clampPercentage(
-  value?: number
-): number {
-  if (
-    value === undefined ||
-    !Number.isFinite(value)
-  ) {
+function clampPercentage(value?: number): number {
+  if (value === undefined || !Number.isFinite(value)) {
     return 0;
   }
 
-  return Math.min(
-    100,
-    Math.max(0, value)
-  );
+  return Math.min(100, Math.max(0, value));
 }
 
-function getIcon(
-  type: DashboardStat["type"]
-) {
+function getIcon(type: DashboardStat["type"]) {
   switch (type) {
     case "total-resources":
       return Layers3;
@@ -72,9 +63,7 @@ function getIcon(
   }
 }
 
-function getIconClassName(
-  type: DashboardStat["type"]
-): string {
+function getIconClassName(type: DashboardStat["type"]): string {
   switch (type) {
     case "total-resources":
       return "statistic-icon statistic-icon-blue";
@@ -90,36 +79,28 @@ function getIconClassName(
   }
 }
 
-export default function StatisticCard({
-  stat,
-  onAction,
-}: StatisticCardProps) {
-  const Icon =
-    getIcon(stat.type);
+export default function StatisticCard({ stat, onAction }: StatisticCardProps) {
+  const navigate = useNavigate();
+  const Icon = getIcon(stat.type);
+  const percentage = clampPercentage(stat.percentage);
 
-  const percentage =
-    clampPercentage(
-      stat.percentage
-    );
+  const handleCardClick = () => {
+    if (onAction) {
+      onAction();
+    } else if (stat.actionPath) {
+      navigate(stat.actionPath);
+    }
+  };
 
   return (
     <article className="statistic-card">
       <div className="statistic-card-header">
         <div>
-          <p className="statistic-card-title">
-            {stat.title}
-          </p>
-
-          <h2 className="statistic-card-value">
-            {stat.value}
-          </h2>
+          <p className="statistic-card-title">{stat.title}</p>
+          <h2 className="statistic-card-value">{stat.value}</h2>
         </div>
 
-        <div
-          className={getIconClassName(
-            stat.type
-          )}
-        >
+        <div className={getIconClassName(stat.type)}>
           <Icon size={20} />
         </div>
       </div>
@@ -128,35 +109,22 @@ export default function StatisticCard({
         <div
           className={[
             "statistic-card-trend",
-            stat.trend.isUp
-              ? "trend-up"
-              : "trend-down",
+            stat.trend.isUp ? "trend-up" : "trend-down",
           ].join(" ")}
         >
           {stat.trend.isUp ? (
-            <ArrowUpRight
-              size={15}
-            />
+            <ArrowUpRight size={15} />
           ) : (
-            <ArrowDownRight
-              size={15}
-            />
+            <ArrowDownRight size={15} />
           )}
 
-          <span>
-            {stat.trend.value}
-          </span>
+          <span>{stat.trend.value}</span>
         </div>
       )}
 
-      {stat.subtext && (
-        <p className="statistic-card-subtext">
-          {stat.subtext}
-        </p>
-      )}
+      {stat.subtext && <p className="statistic-card-subtext">{stat.subtext}</p>}
 
-      {stat.type ===
-        "utilization" && (
+      {stat.type === "utilization" && (
         <div className="statistic-progress">
           <div className="statistic-progress-track">
             <div
@@ -168,70 +136,46 @@ export default function StatisticCard({
           </div>
 
           <span>
-            {percentage.toFixed(
-              percentage % 1 === 0
-                ? 0
-                : 1
-            )}
-            %
+            {percentage.toFixed(percentage % 1 === 0 ? 0 : 1)}%
           </span>
         </div>
       )}
 
-      {stat.avatars &&
-        stat.avatars.length >
-          0 && (
-          <div className="statistic-avatars">
-            {stat.avatars.map(
-              (
-                avatar,
-                index
-              ) => (
-                <div
-                  key={`${stat.id}-${index}`}
-                  className="statistic-avatar"
-                >
-                  {avatar ||
-                    String(
-                      index + 1
-                    )}
-                </div>
-              )
-            )}
-          </div>
-        )}
+      {stat.avatars && stat.avatars.length > 0 && (
+        <div className="statistic-avatars">
+          {stat.avatars.map((avatar, index) => (
+            <div
+              key={`${stat.id}-${index}`}
+              className="statistic-avatar"
+            >
+              {avatar || String(index + 1)}
+            </div>
+          ))}
+        </div>
+      )}
 
-      {stat.type ===
-        "conflicts" &&
-        stat.conflictCount !==
-          undefined && (
-          <div className="statistic-conflict-info">
-            <AlertTriangle
-              size={15}
-            />
+      {stat.type === "conflicts" && stat.conflictCount !== undefined && (
+        <div className="statistic-conflict-info">
+          <AlertTriangle size={15} />
 
-            <span>
-              {
-                stat.conflictCount
-              }{" "}
-              {stat.conflictCount ===
-              1
-                ? "item requires attention"
-                : "items require attention"}
-            </span>
-          </div>
-        )}
+          <span>
+            {stat.conflictCount}{" "}
+            {stat.conflictCount === 1
+              ? "item requires attention"
+              : "items require attention"}
+          </span>
+        </div>
+      )}
 
-      {stat.actionLabel &&
-        onAction && (
-          <button
-            type="button"
-            className="statistic-card-action"
-            onClick={onAction}
-          >
-            {stat.actionLabel}
-          </button>
-        )}
+      {stat.actionLabel && (
+        <button
+          type="button"
+          className="statistic-card-action"
+          onClick={handleCardClick}
+        >
+          {stat.actionLabel}
+        </button>
+      )}
     </article>
   );
-}
+}

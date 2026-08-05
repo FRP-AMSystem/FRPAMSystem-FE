@@ -8,9 +8,11 @@
   height: 100vh;
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #475569;
+  border-right: 1px solid var(--border, #e5e7eb);
+  background: var(--card-bg, #ffffff);
+  color: var(--text, #475569);
+  box-sizing: border-box;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 .sidebar-brand {
@@ -20,7 +22,7 @@
   gap: 12px;
   box-sizing: border-box;
   padding: 16px 20px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border, #f1f5f9);
 }
 
 .sidebar-logo-container {
@@ -105,7 +107,7 @@
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: #64748b;
+  color: var(--text, #64748b);
   font: inherit;
   cursor: pointer;
   transition:
@@ -194,8 +196,9 @@
   margin: 2px 0;
   padding: 0 14px;
   border-radius: 9px;
-  color: #526075;
+  color: var(--text, #526075);
   text-decoration: none;
+  cursor: pointer;
   transition:
     background-color 0.18s ease,
     color 0.18s ease,
@@ -288,8 +291,8 @@
   gap: 10px;
   box-sizing: border-box;
   padding: 12px 14px 12px 18px;
-  border-top: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-top: 1px solid var(--border, #e5e7eb);
+  background: var(--card-bg, #ffffff);
 }
 
 .sidebar-user {
@@ -300,6 +303,15 @@
 }
 
 .sidebar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: #E5E7EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #D1D5DB;
   flex-shrink: 0;
 }
 
@@ -325,7 +337,7 @@
 .sidebar-username {
   max-width: 125px;
   overflow: hidden;
-  color: #1f2937;
+  color: var(--text-h, #1f2937);
   font-size: 13px;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -339,6 +351,7 @@
   font-weight: 600;
 }
 
+.sidebar-logout-btn,
 .sidebar-logout-button {
   display: inline-flex;
   width: 38px;
@@ -358,6 +371,7 @@
     transform 0.18s ease;
 }
 
+.sidebar-logout-btn:hover,
 .sidebar-logout-button:hover {
   border-color: #ef4444;
   background: #fee2e2;
@@ -365,6 +379,7 @@
   transform: translateY(-1px);
 }
 
+.sidebar-logout-btn:focus-visible,
 .sidebar-logout-button:focus-visible {
   outline: 3px solid rgba(239, 68, 68, 0.2);
   outline-offset: 2px;
@@ -387,4 +402,4 @@
   .sidebar-username {
     max-width: 100px;
   }
-}
+}

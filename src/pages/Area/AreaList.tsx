@@ -31,6 +31,7 @@ import type {
 import "./AreaList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
@@ -41,6 +42,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -126,7 +128,7 @@ export default function AreaList() {
     getCurrentRole();
 
   const canManage =
-    role === "Manager";
+    role === "Admin" || role === "Manager";
 
   const [
     areas,

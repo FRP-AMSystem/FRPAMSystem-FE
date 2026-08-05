@@ -17,45 +17,28 @@ interface LineChartCardProps {
   data: ChartDataPoint[];
 }
 
-export default function LineChartCard({
-  data,
-}: LineChartCardProps) {
-  const totalPlans =
-    data.reduce(
-      (sum, item) =>
-        sum + item.load,
-      0
-    );
+export default function LineChartCard({ data }: LineChartCardProps) {
+  const totalPlans = data.reduce((sum, item) => sum + item.load, 0);
 
   return (
     <div className="dashboard-panel chart-panel">
       <div className="panel-header">
         <div>
-          <h3 className="panel-title">
-            Monthly Allocation Trend
-          </h3>
+          <h3 className="panel-title">Monthly Allocation Trend</h3>
 
           <p className="panel-subtitle">
-            {totalPlans} allocation{" "}
-            {totalPlans === 1
-              ? "plan"
-              : "plans"}{" "}
+            {totalPlans} allocation {totalPlans === 1 ? "plan" : "plans"}{" "}
             created in the last 6 months
           </p>
         </div>
 
         <div className="panel-header-action">
-          <span className="pill-dropdown-btn">
-            Last 6 Months
-          </span>
+          <span className="pill-dropdown-btn">Last 6 Months</span>
         </div>
       </div>
 
       <div className="chart-wrapper">
-        <ResponsiveContainer
-          width="100%"
-          height="100%"
-        >
+        <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={data}
             margin={{
@@ -73,24 +56,12 @@ export default function LineChartCard({
                 x2="0"
                 y2="1"
               >
-                <stop
-                  offset="5%"
-                  stopColor="#1B5E20"
-                  stopOpacity={0.2}
-                />
-
-                <stop
-                  offset="95%"
-                  stopColor="#1B5E20"
-                  stopOpacity={0}
-                />
+                <stop offset="5%" stopColor="#16a34a" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
               </linearGradient>
             </defs>
 
-            <CartesianGrid
-              vertical={false}
-              stroke="#F3F4F6"
-            />
+            <CartesianGrid vertical={false} stroke="#E5E7EB" />
 
             <XAxis
               dataKey="month"
@@ -114,41 +85,26 @@ export default function LineChartCard({
             />
 
             <Tooltip
-              formatter={(
-                value
-              ) => [
-                `${Number(
-                  value
-                )} plans`,
-                "Allocations",
-              ]}
-              labelFormatter={(
-                label
-              ) =>
-                `Month: ${label}`
-              }
+              formatter={(value) => [`${Number(value)} plans`, "Allocations"]}
+              labelFormatter={(label) => `Month: ${label}`}
               contentStyle={{
                 border: "none",
                 borderRadius: "8px",
-                background:
-                  "#1F2937",
+                background: "#1F2937",
                 color: "#ffffff",
                 fontSize: "12px",
-              }}
-              labelStyle={{
-                color: "#ffffff",
               }}
             />
 
             <Area
               type="monotone"
               dataKey="load"
-              stroke="#1B5E20"
+              stroke="#16a34a"
               strokeWidth={2.5}
               fill="url(#allocationChartGradient)"
               activeDot={{
                 r: 6,
-                fill: "#1B5E20",
+                fill: "#16a34a",
                 stroke: "#ffffff",
                 strokeWidth: 2,
               }}
@@ -158,4 +114,4 @@ export default function LineChartCard({
       </div>
     </div>
   );
-}
+}

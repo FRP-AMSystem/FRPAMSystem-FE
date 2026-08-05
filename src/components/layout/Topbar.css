@@ -1,11 +1,11 @@
 .topbar {
-  height: 80px;
+  height: 64px;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   transition: all 0.3s ease;
   box-sizing: border-box;
 }
@@ -17,7 +17,7 @@
 
 .topbar-header-title {
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
   color: #111827; /* grey-900 */
   margin: 0;
   letter-spacing: -0.5px;
@@ -26,102 +26,127 @@
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 40px;
 }
 
 .topbar-search {
   display: flex;
   align-items: center;
-  background: #F3F4F6; /* light grey input field */
+  background: var(--card-bg, #F3F4F6);
   border-radius: 9999px; /* pill shape */
-  padding: 8px 16px;
-  width: 240px;
-  gap: 8px;
+  padding: 0 16px;
+  height: 40px;
+  width: 280px;
+  gap: 10px;
   transition: all 0.2s ease;
-  border: 1px solid transparent;
+  border: 1px solid var(--border, #E5E7EB);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  margin: 0;
+  align-self: center;
 }
 
 .topbar-search:focus-within {
-  background: #ffffff;
-  border-color: #1B5E20; /* brand green focus border */
-  box-shadow: 0 0 0 2px rgba(27, 94, 32, 0.15);
+  background: var(--bg, #ffffff);
+  border-color: var(--accent, #16a34a);
+  box-shadow: 0 0 0 3px var(--accent-bg, rgba(22, 163, 74, 0.15));
 }
 
 .topbar-search-icon {
   color: #6B7280;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: block;
 }
 
 .topbar-search-input {
   border: none;
   background: transparent;
   outline: none;
-  color: #111827;
+  color: var(--text-h, #111827);
   font-size: 13.5px;
   width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  display: block;
 }
 
 .topbar-search-input::placeholder {
   color: #9CA3AF;
-  font-weight: 450;
+  font-weight: 400;
 }
 
 .topbar-action-btn {
-  background: transparent;
-  border: none;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #E5E7EB);
   color: #4B5563; /* grey-600 */
   cursor: pointer;
-  padding: 8px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  align-self: center;
+  outline: none;
 }
 
 .topbar-action-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #111827;
+  background: var(--accent-bg, rgba(22, 163, 74, 0.1));
+  color: var(--accent, #16a34a);
+  border-color: var(--accent-border, rgba(22, 163, 74, 0.5));
 }
 
 .topbar-action-btn-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 /* For dark mode responsiveness */
-@media (prefers-color-scheme: dark) {
-  .topbar-header-title {
-    color: #F3F4F6;
-  }
-  .topbar-search {
-    background: #1F2937;
-  }
-  .topbar-search-input {
-    color: #F9FAFB;
-  }
-  .topbar-search:focus-within {
-    background: #111827;
-  }
-  .topbar-action-btn {
-    color: #9CA3AF;
-  }
-  .topbar-action-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #F9FAFB;
-  }
+:root.dark .topbar-header-title {
+  color: #F3F4F6;
+}
+:root.dark .topbar-search {
+  background: #1F2937;
+  border-color: #374151;
+}
+:root.dark .topbar-search-input {
+  color: #F9FAFB;
+}
+:root.dark .topbar-search:focus-within {
+  background: #111827;
+}
+:root.dark .topbar-action-btn {
+  background: #1F2937;
+  border-color: #374151;
+  color: #9CA3AF;
+}
+:root.dark .topbar-action-btn:hover {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.5);
 }
 
 @media (max-width: 1024px) {
   .topbar-header-title {
-    font-size: 16px;
+    font-size: 18px;
   }
   .topbar-search {
-    width: 160px;
-    padding: 6px 12px;
+    width: 220px;
+    height: 38px;
   }
-  .topbar-right {
-    gap: 12px;
+  .topbar-action-btn {
+    width: 38px;
+    height: 38px;
   }
 }

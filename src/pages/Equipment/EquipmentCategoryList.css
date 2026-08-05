@@ -1,6 +1,7 @@
 .equipment-category-page {
     padding: 28px;
-    color: #e2e8f0
+    color: #1e293b;
+    box-sizing: border-box;
 }
 
 .equipment-category-header {
@@ -18,14 +19,15 @@
 
 .equipment-category-header h1 {
     margin: 0;
-    color: #f8fafc;
-    font-size: 30px
+    color: #111827;
+    font-size: 30px;
+    font-weight: 750;
 }
 
 .equipment-category-header span {
     display: block;
     margin-top: 8px;
-    color: #94a3b8
+    color: #64748b
 }
 
 .equipment-category-header button,
@@ -37,12 +39,20 @@
     gap: 8px;
     min-height: 42px;
     padding: 0 16px;
-    border: 0;
+    border: 1px solid #16a34a;
     border-radius: 10px;
-    background: #2563eb;
+    background: #16a34a;
     color: #fff;
-    font-weight: 600;
-    cursor: pointer
+    font-weight: 650;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.equipment-category-header button:hover,
+.equipment-category-filter button:hover,
+.equipment-category-dialog-actions button:hover:not(.secondary) {
+    background: #15803d;
+    border-color: #15803d;
 }
 
 .equipment-category-filter {
@@ -51,9 +61,10 @@
     gap: 12px;
     padding: 16px;
     margin-bottom: 20px;
-    border: 1px solid #283245;
+    border: 1px solid #e5e7eb;
     border-radius: 14px;
-    background: #151c2b
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .equipment-category-filter>div {
@@ -65,7 +76,7 @@
     left: 13px;
     top: 50%;
     transform: translateY(-50%);
-    color: #64748b
+    color: #94a3b8
 }
 
 .equipment-category-filter input {
@@ -73,33 +84,46 @@
     min-height: 42px;
     box-sizing: border-box;
     padding: 0 12px 0 42px;
-    border: 1px solid #334155;
+    border: 1px solid #cbd5e1;
     border-radius: 10px;
-    background: #0f172a;
-    color: #f8fafc
+    background: #ffffff;
+    color: #1e293b;
+    transition: all 0.2s ease;
+}
+
+.equipment-category-filter input:focus {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 .equipment-category-filter .secondary,
 .equipment-category-dialog-actions .secondary {
-    border: 1px solid #475569;
-    background: transparent;
-    color: #cbd5e1
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569
+}
+
+.equipment-category-filter .secondary:hover,
+.equipment-category-dialog-actions .secondary:hover {
+    border-color: #94a3b8;
+    background: #e2e8f0;
 }
 
 .equipment-category-error {
     margin-bottom: 16px;
     padding: 13px 15px;
-    border: 1px solid rgba(239, 68, 68, .4);
+    border: 1px solid rgba(239, 68, 68, .35);
     border-radius: 10px;
-    background: rgba(127, 29, 29, .22);
-    color: #fecaca
+    background: rgba(239, 68, 68, .08);
+    color: #b91c1c
 }
 
 .equipment-category-card {
     overflow: hidden;
-    border: 1px solid #283245;
+    border: 1px solid #e5e7eb;
     border-radius: 16px;
-    background: #151c2b
+    background: #ffffff;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .equipment-category-card-title {
@@ -107,17 +131,19 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 22px;
-    border-bottom: 1px solid #283245
+    border-bottom: 1px solid #e5e7eb
 }
 
 .equipment-category-card-title h2 {
     margin: 0;
-    font-size: 19px
+    font-size: 19px;
+    font-weight: 700;
+    color: #111827;
 }
 
 .equipment-category-card-title p {
     margin: 5px 0 0;
-    color: #8793a7;
+    color: #64748b;
     font-size: 13px
 }
 
@@ -134,19 +160,29 @@
 .equipment-category-card th,
 .equipment-category-card td {
     padding: 15px 16px;
-    border-bottom: 1px solid #283245;
+    border-bottom: 1px solid #f1f5f9;
     text-align: left
 }
 
 .equipment-category-card th {
-    background: #111827;
-    color: #8f9bb0;
-    font-size: 12px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
     text-transform: uppercase
 }
 
 .equipment-category-card td {
+    color: #334155;
     font-size: 14px
+}
+
+.equipment-category-card tbody tr {
+    transition: background-color 0.18s ease;
+}
+
+.equipment-category-card tbody tr:hover {
+    background: #f8fafc;
 }
 
 .equipment-category-state {
@@ -154,7 +190,7 @@
     min-height: 280px;
     align-items: center;
     justify-content: center;
-    color: #94a3b8
+    color: #64748b
 }
 
 .equipment-category-actions {
@@ -169,15 +205,28 @@
     height: 34px;
     align-items: center;
     justify-content: center;
-    border: 1px solid #354158;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    background: #111827;
-    color: #93c5fd;
-    cursor: pointer
+    background: #ffffff;
+    color: #2563eb;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.equipment-category-actions button:hover,
+.equipment-category-dialog-head button:hover {
+    border-color: #2563eb;
+    background: rgba(37, 99, 235, 0.08);
 }
 
 .equipment-category-actions .danger {
-    color: #fca5a5
+    color: #dc2626;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.equipment-category-actions .danger:hover {
+    border-color: #dc2626;
+    background: rgba(239, 68, 68, 0.08);
 }
 
 .equipment-category-overlay {
@@ -188,16 +237,17 @@
     align-items: center;
     justify-content: center;
     padding: 20px;
-    background: rgba(2, 6, 23, .72)
+    background: rgba(15, 23, 42, .6);
+    backdrop-filter: blur(4px);
 }
 
 .equipment-category-dialog {
     width: min(520px, 100%);
     padding: 22px;
-    border: 1px solid #334155;
+    border: 1px solid #e5e7eb;
     border-radius: 16px;
-    background: #151c2b;
-    box-shadow: 0 24px 70px rgba(0, 0, 0, .45)
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .15)
 }
 
 .equipment-category-dialog-head {
@@ -208,7 +258,10 @@
 }
 
 .equipment-category-dialog-head h2 {
-    margin: 0
+    margin: 0;
+    color: #111827;
+    font-size: 20px;
+    font-weight: 700;
 }
 
 .equipment-category-dialog label {
@@ -216,7 +269,7 @@
     flex-direction: column;
     gap: 8px;
     margin-bottom: 16px;
-    color: #cbd5e1;
+    color: #334155;
     font-size: 14px;
     font-weight: 600
 }
@@ -224,11 +277,18 @@
 .equipment-category-dialog input,
 .equipment-category-dialog textarea {
     padding: 11px 12px;
-    border: 1px solid #334155;
+    border: 1px solid #cbd5e1;
     border-radius: 10px;
-    background: #0f172a;
-    color: #f8fafc;
-    font: inherit
+    background: #ffffff;
+    color: #1e293b;
+    font: inherit;
+    transition: all 0.2s ease;
+}
+
+.equipment-category-dialog input:focus,
+.equipment-category-dialog textarea:focus {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 .equipment-category-dialog-actions {
@@ -258,4 +318,4 @@
     .equipment-category-filter button {
         width: 100%
     }
-}
+}

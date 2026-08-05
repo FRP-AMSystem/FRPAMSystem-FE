@@ -25,6 +25,7 @@ import type {
 
 import "./DashboardPage.css";
 
+
 type Role =
   | "Admin"
   | "Manager"
@@ -1079,159 +1080,87 @@ export default function DashboardPage() {
         ) : (
           <>
             <div className="stats-grid">
-              {stats.map(
-                (stat) => {
-                  const actionPath =
-                    stat.actionPath;
+              {stats.map((stat) => {
+                const actionPath = stat.actionPath;
 
-                  return (
-                    <StatisticCard
-                      key={stat.id}
-                      stat={stat}
-                      onAction={
-                        actionPath
-                          ? () => {
-                              navigate(
-                                actionPath
-                              );
-                            }
-                          : undefined
-                      }
-                    />
-                  );
-                }
-              )}
+                return (
+                  <StatisticCard
+                    key={stat.id}
+                    stat={stat}
+                    onAction={
+                      actionPath
+                        ? () => {
+                            navigate(actionPath);
+                          }
+                        : undefined
+                    }
+                  />
+                );
+              })}
             </div>
 
             <div className="charts-grid">
-              <LineChartCard
-                data={
-                  allocationTrend
-                }
-              />
-
-              <BreakdownCard
-                data={
-                  resourceBreakdown
-                }
-              />
+              <LineChartCard data={allocationTrend} />
+              <BreakdownCard data={resourceBreakdown} />
             </div>
 
             {role === "Admin" && (
               <div className="role-section-card">
-                <h3>
-                  Admin Workspace
-                </h3>
-
+                <h3>Admin Workspace</h3>
                 <p>
-                  Manage allocations,
-                  resources, analytics,
-                  schedules, conflicts,
-                  reports and system
-                  operations.
+                  Manage allocations, resources, analytics, schedules,
+                  conflicts, reports and system operations.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/reports"
-                    )
-                  }
-                >
+                <button type="button" onClick={() => navigate("/reports")}>
                   View Reports
                 </button>
               </div>
             )}
 
-            {role ===
-              "Researcher" && (
+            {role === "Researcher" && (
               <div className="role-section-card">
-                <h3>
-                  Researcher Workspace
-                </h3>
-
+                <h3>Researcher Workspace</h3>
                 <p>
-                  Create experiments,
-                  requirements and draft
-                  allocation plans, then
-                  submit them for manager
-                  approval.
+                  Create experiments, requirements and draft allocation plans,
+                  then submit them for manager approval.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/allocation"
-                    )
-                  }
-                >
+                <button type="button" onClick={() => navigate("/allocation")}>
                   View My Allocations
                 </button>
               </div>
             )}
 
-            {role ===
-              "Technician" && (
+            {role === "Technician" && (
               <div className="role-section-card">
-                <h3>
-                  Technician Workspace
-                </h3>
-
+                <h3>Technician Workspace</h3>
                 <p>
-                  Review assigned equipment,
-                  resource usage and
-                  schedules for allocation
-                  plans.
+                  Review assigned equipment, resource usage and schedules for
+                  allocation plans.
                 </p>
-
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate(
-                      "/equipment-instances"
-                    )
-                  }
+                  onClick={() => navigate("/equipment-instances")}
                 >
                   View Equipment
                 </button>
               </div>
             )}
 
-            {role ===
-              "Student" && (
+            {role === "Student" && (
               <div className="role-section-card">
-                <h3>
-                  Student Workspace
-                </h3>
-
+                <h3>Student Workspace</h3>
                 <p>
-                  Review experiments,
-                  allocation results and
-                  schedules in read-only
-                  mode.
+                  Review experiments, allocation results and schedules in
+                  read-only mode.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/schedules"
-                    )
-                  }
-                >
+                <button type="button" onClick={() => navigate("/schedules")}>
                   View Schedules
                 </button>
               </div>
             )}
 
             <div className="table-row-container">
-              <RequestTable
-                requests={
-                  recentPlans
-                }
-              />
+              <RequestTable requests={recentPlans} />
             </div>
 
             {canViewAnalytics && (
@@ -1239,11 +1168,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   className="dashboard-outline-btn"
-                  onClick={() =>
-                    navigate(
-                      "/allocation-analytics"
-                    )
-                  }
+                  onClick={() => navigate("/allocation-analytics")}
                 >
                   View Allocation Analytics
                 </button>
@@ -1256,11 +1181,7 @@ export default function DashboardPage() {
                 className="dashboard-fab"
                 title="Create Allocation"
                 aria-label="Create allocation"
-                onClick={() =>
-                  navigate(
-                    "/allocation/create"
-                  )
-                }
+                onClick={() => navigate("/allocation/create")}
               >
                 +
               </button>
@@ -1270,4 +1191,4 @@ export default function DashboardPage() {
       </div>
     </DashboardLayout>
   );
-}
+}

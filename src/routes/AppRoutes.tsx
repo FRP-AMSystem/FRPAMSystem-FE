@@ -10,6 +10,12 @@ import {
 
 import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
+import UsersPage from "../pages/admin/Users/UsersPage";
+import ResourcesPage from "../pages/Resources/ResourcesPage";
+import PersonnelPage from "../pages/admin/Personnel/PersonnelPage";
+import SettingsPage from "../pages/admin/Settings/SettingsPage";
+
+
 
 import ExperimentList from "../pages/Experiment/ExperimentList";
 import CreateExperiment from "../pages/Experiment/CreateExperiment";
@@ -211,12 +217,7 @@ export default function AppRoutes() {
         }
       />
 
-      <Route
-        path="/login"
-        element={
-          <LoginPage />
-        }
-      />
+      <Route path="/login" element={<LoginPage />} />
 
       {/* =========================
           DASHBOARD
@@ -225,13 +226,13 @@ export default function AppRoutes() {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute
-            allowedRoles={allRoles}
-          >
+          <ProtectedRoute allowedRoles={allRoles}>
             <DashboardPage />
           </ProtectedRoute>
         }
       />
+
+
 
       {/* =========================
           EXPERIMENT ROUTES
@@ -802,21 +803,45 @@ export default function AppRoutes() {
       />
 
       {/* =========================
-          PLACEHOLDER ROUTES
+          ADMIN & RESOURCE PAGES
       ========================= */}
-
       <Route
-        path="/results"
+        path="/admin/users"
         element={
-          <PlaceholderPage
-            title="Results"
-          />
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <UsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/resources"
+        element={
+          <ProtectedRoute allowedRoles={allRoles}>
+            <ResourcesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/personnel"
+        element={
+          <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
+            <PersonnelPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <SettingsPage />
+          </ProtectedRoute>
         }
       />
 
       {/* =========================
           FALLBACK
       ========================= */}
+
 
       <Route
         path="*"
@@ -829,4 +854,4 @@ export default function AppRoutes() {
       />
     </Routes>
   );
-}
+}

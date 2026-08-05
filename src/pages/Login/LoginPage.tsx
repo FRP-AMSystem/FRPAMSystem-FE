@@ -1,4 +1,5 @@
 import "./LoginPage.css";
+import forestBg from "../../assets/forest.jpg";
 
 import {
   FaTree,
@@ -6,16 +7,20 @@ import {
   FaLock,
   FaEye,
   FaEyeSlash,
+  FaArrowRight,
+  FaTimes,
 } from "react-icons/fa";
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { login } from "../../services/authService";
-import { saveRole, saveToken } from "../../utils/storage";
+import { saveRole, saveToken, saveUserData } from "../../utils/storage";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +35,7 @@ export default function LoginPage() {
     setError("");
 
     if (!email.trim()) {
-      setError("Please enter your email.");
+      setError("Please enter your email or username.");
       return;
     }
 
@@ -43,7 +48,7 @@ export default function LoginPage() {
       setLoading(true);
 
       const response = await login({
-        usernameOrEmail: email,
+        usernameOrEmail: email.trim(),
         password,
       });
 
@@ -55,127 +60,156 @@ export default function LoginPage() {
       localStorage.setItem("username", response.username);
       localStorage.setItem("email", response.email);
 
-      navigate("/dashboard");
+      saveUserData({
+        userName: response.fullName || response.username || email.split("@")[0],
+        email: response.email || email.trim(),
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.fullName || response.username || "User")}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
+      });
 
+      console.log("Remember me:", rememberMe);
+      navigate("/dashboard");
     } catch (err) {
       console.error(err);
-      setError("Login failed. Please check your email or password.");
+      setError("Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login">
-      {/* LEFT SIDE */}
-      <div className="left">
-        <div className="overlay"></div>
+    <div
+      className="landing"
+      style={{
+        backgroundImage: `url(${forestBg})`,
+        backgroundPosition: "center",
+        backgroundSize: "cover",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      <div className="overlay"></div>
 
-        <div className="content">
-          <div className="logo">
+      {/* HEADER LOGO */}
+      <header className="header">
+        <div className="logo-brand">
+          <div className="logo-badge">
             <FaTree />
           </div>
+          <span className="logo-text">PRRAM System</span>
+        </div>
+      </header>
 
-          <h1>PRRAM System</h1>
+      {/* HERO SECTION */}
+      <main className="hero">
+        <h1 className="hero-title">PRRAM System</h1>
 
-          <p>
-            Optimizing our forests through intelligent planning and sustainable
-            resource allocation.
-          </p>
+        <p className="hero-slogan">
+          Optimizing forest resources through intelligent planning and sustainable resource allocation.
+        </p>
 
-          <div className="cards">
-            <div>
-              <span>EFFICIENCY</span>
-              <h2>+24%</h2>
-              <small>Resource utilization</small>
+        <button
+          className="login-trigger-btn"
+          onClick={() => setIsLoginOpen(true)}
+        >
+          <span>Login</span>
+          <FaArrowRight className="btn-arrow" />
+        </button>
+      </main>
+
+      {/* LOGIN MODAL */}
+      {isLoginOpen && (
+        <div className="modal-backdrop" onClick={() => setIsLoginOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setIsLoginOpen(false)}
+              aria-label="Close login dialog"
+            >
+              <FaTimes />
+            </button>
+
+            <div className="modal-header">
+              <div className="modal-logo">
+                <FaTree />
+              </div>
+              <span className="welcome-subtitle">Welcome Back</span>
+              <h2>Sign In</h2>
+              <p className="modal-desc">Enter your credentials to access the management portal.</p>
             </div>
 
-            <div>
-              <span>IMPACT</span>
-              <h2>Carbon</h2>
-              <small>Footprint reduction</small>
-            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleLogin();
+              }}
+            >
+              {error && <div className="error-alert">{error}</div>}
+
+              <div className="form-group">
+                <label>Email Address / Username</label>
+                <div className="input-box">
+                  <FaEnvelope className="input-icon" />
+                  <input
+                    type="text"
+                    placeholder="name@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Password</label>
+                <div className="input-box">
+                  <FaLock className="input-icon" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-options">
+                <label className="remember-check">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <span>Remember me</span>
+                </label>
+
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="forgot-link"
+                >
+                  Forgot password?
+                </a>
+              </div>
+
+              <button
+                type="submit"
+                className="submit-btn"
+                disabled={loading}
+              >
+                {loading ? "Signing In..." : "Login"}
+              </button>
+            </form>
           </div>
         </div>
-      </div>
-
-      {/* RIGHT SIDE */}
-      <div className="right">
-        <div className="login-card">
-          <h2>Sign In</h2>
-
-          <p>Enter your credentials to access the management portal.</p>
-
-          {error && <p className="error">{error}</p>}
-
-          <label>Email</label>
-
-          <div className="input">
-            <FaEnvelope />
-
-            <input
-              type="email"
-              placeholder="name@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          <label>Password</label>
-
-          <div className="input">
-            <FaLock />
-
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="********"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-
-            {showPassword ? (
-              <FaEyeSlash
-                className="eye-icon"
-                onClick={() => setShowPassword(false)}
-              />
-            ) : (
-              <FaEye
-                className="eye-icon"
-                onClick={() => setShowPassword(true)}
-              />
-            )}
-          </div>
-
-          <div className="option">
-            <label className="remember">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-
-              Remember me
-            </label>
-
-            <a href="#">Forgot password?</a>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogin}
-            disabled={loading}
-          >
-            {loading ? "Signing In..." : "Login"}
-          </button>
-
-          <hr />
-
-          <div className="footer">
-            <span>System Status</span>
-            <span>Technical Support</span>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

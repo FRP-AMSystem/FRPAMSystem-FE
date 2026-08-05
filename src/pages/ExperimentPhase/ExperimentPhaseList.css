@@ -1,6 +1,8 @@
 .experiment-phase-list-page {
   padding: 28px;
   min-height: 100%;
+  color: #1e293b;
+  box-sizing: border-box;
 }
 
 .experiment-phase-list-header {
@@ -13,22 +15,22 @@
 
 .experiment-phase-list-breadcrumb {
   margin: 0 0 8px;
-  color: #8b95a7;
+  color: #64748b;
   font-size: 14px;
 }
 
 .experiment-phase-list-header h1 {
   margin: 0;
-  color: #f8fafc;
+  color: #111827;
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .experiment-phase-list-description {
   margin: 8px 0 0;
   max-width: 650px;
-  color: #9aa4b5;
-  font-size: 15px;
+  color: #64748b;
+  font-size: 14px;
   line-height: 1.6;
 }
 
@@ -39,20 +41,19 @@
   gap: 8px;
   min-height: 42px;
   padding: 0 18px;
-  border: 0;
+  border: 1px solid #16a34a;
   border-radius: 10px;
-  background: #2563eb;
+  background: #16a34a;
   color: #ffffff;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
-  transition:
-    background 0.2s ease,
-    transform 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .experiment-phase-create-button:hover {
-  background: #1d4ed8;
+  background: #15803d;
+  border-color: #15803d;
   transform: translateY(-1px);
 }
 
@@ -62,9 +63,10 @@
   gap: 12px;
   margin-bottom: 20px;
   padding: 16px;
-  border: 1px solid #283245;
+  border: 1px solid #f1f5f9;
   border-radius: 14px;
-  background: #151c2b;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
 }
 
 .experiment-phase-search-wrapper {
@@ -77,7 +79,7 @@
   position: absolute;
   top: 50%;
   left: 14px;
-  color: #7f8ca3;
+  color: #94a3b8;
   transform: translateY(-50%);
   pointer-events: none;
 }
@@ -87,42 +89,41 @@
   min-height: 42px;
   box-sizing: border-box;
   padding: 0 14px 0 42px;
-  border: 1px solid #334057;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   outline: none;
-  background: #101725;
-  color: #f8fafc;
+  background: #ffffff;
+  color: #1e293b;
   font-size: 14px;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .experiment-phase-search-wrapper input::placeholder {
-  color: #6f7b90;
+  color: #94a3b8;
 }
 
 .experiment-phase-search-wrapper input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgb(59 130 246 / 15%);
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 .experiment-phase-status-filter {
   min-width: 170px;
   min-height: 42px;
   padding: 0 12px;
-  border: 1px solid #334057;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   outline: none;
-  background: #101725;
-  color: #e5e7eb;
+  background: #ffffff;
+  color: #1e293b;
   font-size: 14px;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .experiment-phase-status-filter:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgb(59 130 246 / 15%);
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 .experiment-phase-search-button,
@@ -131,48 +132,49 @@
   padding: 0 18px;
   border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .experiment-phase-search-button {
-  border: 0;
-  background: #2563eb;
+  border: 1px solid #16a34a;
+  background: #16a34a;
   color: #ffffff;
 }
 
 .experiment-phase-search-button:hover {
-  background: #1d4ed8;
+  background: #15803d;
 }
 
 .experiment-phase-clear-button {
-  border: 1px solid #3b465b;
-  background: transparent;
-  color: #cbd5e1;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
 }
 
 .experiment-phase-clear-button:hover {
-  border-color: #64748b;
-  background: #202a3c;
+  border-color: #cbd5e1;
+  background: #f8fafc;
 }
 
 .experiment-phase-error {
   margin-bottom: 18px;
   padding: 13px 16px;
-  border: 1px solid rgb(239 68 68 / 45%);
+  border: 1px solid rgba(239, 68, 68, 0.35);
   border-radius: 10px;
-  background: rgb(127 29 29 / 25%);
-  color: #fecaca;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
   font-size: 14px;
   line-height: 1.5;
 }
 
 .experiment-phase-table-card {
   overflow: hidden;
-  border: 1px solid #283245;
+  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  background: #151c2b;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+  background: #ffffff;
+  box-shadow: none;
 }
 
 .experiment-phase-table-header {
@@ -181,18 +183,19 @@
   justify-content: space-between;
   gap: 20px;
   padding: 20px 22px;
-  border-bottom: 1px solid #283245;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .experiment-phase-table-header h2 {
   margin: 0;
-  color: #f8fafc;
+  color: #111827;
   font-size: 19px;
+  font-weight: 700;
 }
 
 .experiment-phase-table-header p {
   margin: 5px 0 0;
-  color: #8793a7;
+  color: #64748b;
   font-size: 13px;
 }
 
@@ -203,26 +206,30 @@
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: rgb(37 99 235 / 14%);
-  color: #60a5fa;
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
 }
 
 .experiment-phase-table-wrapper {
   overflow-x: auto;
+  border: none;
+  outline: none;
 }
 
 .experiment-phase-table {
   width: 100%;
   min-width: 1180px;
   border-collapse: collapse;
+  border: none;
+  outline: none;
 }
 
 .experiment-phase-table th {
   padding: 14px 16px;
-  border-bottom: 1px solid #283245;
-  background: #111827;
-  color: #8f9bb0;
-  font-size: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
   font-weight: 700;
   text-align: left;
   text-transform: uppercase;
@@ -232,18 +239,18 @@
 
 .experiment-phase-table td {
   padding: 16px;
-  border-bottom: 1px solid #222c3e;
-  color: #d9e0ea;
-  font-size: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  font-size: 13px;
   vertical-align: middle;
 }
 
 .experiment-phase-table tbody tr {
-  transition: background 0.2s ease;
+  transition: background-color 0.18s ease;
 }
 
 .experiment-phase-table tbody tr:hover {
-  background: #192235;
+  background: #f8fafc;
 }
 
 .experiment-phase-table tbody tr:last-child td {
@@ -251,7 +258,7 @@
 }
 
 .experiment-phase-id {
-  color: #93c5fd;
+  color: #16a34a;
   font-weight: 700;
 }
 
@@ -265,7 +272,7 @@
 
 .experiment-phase-experiment strong,
 .experiment-phase-name strong {
-  color: #f1f5f9;
+  color: #0f172a;
   font-weight: 600;
 }
 
@@ -273,7 +280,7 @@
 .experiment-phase-name span {
   max-width: 260px;
   overflow: hidden;
-  color: #7f8ca3;
+  color: #64748b;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -286,10 +293,10 @@
   min-width: 34px;
   height: 30px;
   padding: 0 8px;
-  border: 1px solid #37445a;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #111827;
-  color: #dbeafe;
+  background: #f8fafc;
+  color: #1e293b;
   font-weight: 700;
 }
 
@@ -297,12 +304,12 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #cbd5e1;
+  color: #475569;
   white-space: nowrap;
 }
 
 .experiment-phase-date svg {
-  color: #70819b;
+  color: #64748b;
 }
 
 .experiment-phase-status {
@@ -313,33 +320,33 @@
   padding: 6px 10px;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .experiment-phase-status-planned {
-  border-color: rgb(59 130 246 / 35%);
-  background: rgb(37 99 235 / 14%);
-  color: #93c5fd;
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
 }
 
 .experiment-phase-status-progress {
-  border-color: rgb(245 158 11 / 35%);
-  background: rgb(180 83 9 / 16%);
-  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
 }
 
 .experiment-phase-status-completed {
-  border-color: rgb(34 197 94 / 35%);
-  background: rgb(21 128 61 / 16%);
-  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
 }
 
 .experiment-phase-status-cancelled {
-  border-color: rgb(239 68 68 / 35%);
-  background: rgb(185 28 28 / 16%);
-  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
 }
 
 .experiment-phase-actions {
@@ -355,14 +362,11 @@
   width: 34px;
   height: 34px;
   padding: 0;
-  border: 1px solid #354158;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #111827;
+  background: #ffffff;
   cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease,
-    color 0.2s ease;
+  transition: all 0.18s ease;
 }
 
 .experiment-phase-action-button:disabled {
@@ -371,30 +375,30 @@
 }
 
 .experiment-phase-view-button {
-  color: #60a5fa;
+  color: #2563eb;
 }
 
 .experiment-phase-view-button:hover:not(:disabled) {
-  border-color: #3b82f6;
-  background: rgb(37 99 235 / 16%);
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .experiment-phase-edit-button {
-  color: #fbbf24;
+  color: #d97706;
 }
 
 .experiment-phase-edit-button:hover:not(:disabled) {
   border-color: #d97706;
-  background: rgb(180 83 9 / 16%);
+  background: rgba(245, 158, 11, 0.08);
 }
 
 .experiment-phase-delete-button {
-  color: #f87171;
+  color: #dc2626;
 }
 
 .experiment-phase-delete-button:hover:not(:disabled) {
-  border-color: #ef4444;
-  background: rgb(185 28 28 / 16%);
+  border-color: #dc2626;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .experiment-phase-state,
@@ -404,7 +408,7 @@
   align-items: center;
   justify-content: center;
   padding: 32px;
-  color: #8f9bb0;
+  color: #64748b;
   text-align: center;
 }
 
@@ -414,19 +418,19 @@
 
 .experiment-phase-empty-state svg {
   margin-bottom: 14px;
-  color: #55647d;
+  color: #94a3b8;
 }
 
 .experiment-phase-empty-state h3 {
   margin: 0;
-  color: #e2e8f0;
+  color: #1e293b;
   font-size: 18px;
 }
 
 .experiment-phase-empty-state p {
   max-width: 480px;
   margin: 9px 0 18px;
-  color: #7f8ca3;
+  color: #64748b;
   line-height: 1.6;
 }
 
@@ -437,16 +441,16 @@
   gap: 8px;
   min-height: 40px;
   padding: 0 16px;
-  border: 0;
+  border: 1px solid #16a34a;
   border-radius: 9px;
-  background: #2563eb;
+  background: #16a34a;
   color: #ffffff;
   font-weight: 600;
   cursor: pointer;
 }
 
 .experiment-phase-empty-state button:hover {
-  background: #1d4ed8;
+  background: #15803d;
 }
 
 @media (max-width: 900px) {
@@ -490,4 +494,4 @@
   .experiment-phase-table-header {
     padding: 17px;
   }
-}
+}
