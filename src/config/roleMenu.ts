@@ -5,7 +5,6 @@ import {
   Trees,
   Truck,
   BarChart3,
-  Settings,
 } from "lucide-react";
 
 export const roleMenus = {

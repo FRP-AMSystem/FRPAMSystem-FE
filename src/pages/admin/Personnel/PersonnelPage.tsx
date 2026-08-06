@@ -11,7 +11,6 @@ import {
   Award,
   UserMinus,
   ChevronDown,
-  UserCheck,
 } from "lucide-react";
 import {
   getHumanResourceProfiles,

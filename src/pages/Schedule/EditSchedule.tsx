@@ -28,8 +28,11 @@ import {
 
 import {
   getHumanResourceProfiles,
-  type HumanResourceProfile,
 } from "../../services/humanResourceProfileService";
+
+import type {
+  HumanResourceProfile,
+} from "../../types/humanResourceProfile";
 
 import {
   getScheduleById,
