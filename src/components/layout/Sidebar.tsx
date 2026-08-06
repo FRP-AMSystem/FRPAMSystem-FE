@@ -30,6 +30,8 @@ import {
   LayoutDashboard,
   LogOut,
   Map,
+  Settings,
+  ShieldCheck,
   Trees,
   Truck,
   UserRound,
@@ -41,14 +43,12 @@ import {
   getUnreadNotificationCount,
 } from "../../services/notificationService";
 
-import "./Sidebar.css";
+import {
+  getStoredRole,
+  type Role,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Admin"
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./Sidebar.css";
 
 interface MenuIconProps {
   className?: string;
@@ -69,138 +69,130 @@ interface MenuGroup {
   defaultOpen?: boolean;
 }
 
-/* =====================================================
-   ADMIN MENU
-===================================================== */
+const planningItems: MenuItem[] = [
+  {
+    name: "Experiments",
+    path: "/experiments",
+    icon: FlaskConical,
+  },
+  {
+    name: "Experiment Phases",
+    path: "/experiment-phases",
+    icon: Layers3,
+  },
+  {
+    name: "Equipment Requirements",
+    path: "/equipment-requirements",
+    icon: ClipboardList,
+  },
+  {
+    name: "Human Requirements",
+    path: "/human-requirements",
+    icon: Users,
+  },
+  {
+    name: "Land Requirements",
+    path: "/land-requirements",
+    icon: LandPlot,
+  },
+  {
+    name: "Allocations",
+    path: "/allocation",
+    icon: CalendarDays,
+  },
+];
+
+const humanResourceItems: MenuItem[] = [
+  {
+    name: "Human Resources",
+    path: "/human-resource-profiles",
+    icon: UserRound,
+  },
+  {
+    name: "Skills",
+    path: "/skills",
+    icon: BadgeCheck,
+  },
+  {
+    name: "Human Resource Skills",
+    path: "/human-resource-skills",
+    icon: UserRoundCheck,
+  },
+];
+
+const resourceItems: MenuItem[] = [
+  {
+    name: "Resource Overview",
+    path: "/resources",
+    icon: Trees,
+  },
+  {
+    name: "Equipment Types",
+    path: "/equipment",
+    icon: Truck,
+  },
+  {
+    name: "Equipment Categories",
+    path: "/equipment-categories",
+    icon: ClipboardList,
+  },
+  {
+    name: "Equipment Instances",
+    path: "/equipment-instances",
+    icon: Cpu,
+  },
+  {
+    name: "Equipment Substitutions",
+    path: "/equipment-substitutions",
+    icon: ArrowRightLeft,
+  },
+  {
+    name: "Equipment Shortage Logs",
+    path: "/equipment-shortage-logs",
+    icon: AlertTriangle,
+  },
+  {
+    name: "Areas",
+    path: "/areas",
+    icon: Map,
+  },
+  {
+    name: "Land Resources",
+    path: "/land-resources",
+    icon: LandPlot,
+  },
+];
+
+const standardOperations: MenuItem[] = [
+  {
+    name: "Schedules",
+    path: "/schedules",
+    icon: Calendar,
+  },
+  {
+    name: "Conflicts",
+    path: "/conflicts",
+    icon: AlertTriangle,
+  },
+  {
+    name: "Reports",
+    path: "/reports",
+    icon: BarChart3,
+  },
+  {
+    name: "Notifications",
+    path: "/notifications",
+    icon: Bell,
+  },
+];
 
 const adminMenuGroups: MenuGroup[] = [
   {
-    id: "planning",
-    title: "Planning",
-    icon: FlaskConical,
+    id: "administration",
+    title: "Administration",
+    icon: ShieldCheck,
     defaultOpen: true,
     items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
-      {
-        name: "Allocation Analytics",
-        path: "/allocation-analytics",
-        icon: BarChart3,
-      },
-    ],
-  },
-  {
-    id: "human-resources",
-    title: "Human Resources",
-    icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
-  },
-  {
-    id: "equipment-resources",
-    title: "Equipment & Resources",
-    icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
-  },
-  {
-    id: "operations",
-    title: "Operations",
-    icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
       {
         name: "Reports",
         path: "/reports",
@@ -213,11 +205,13 @@ const adminMenuGroups: MenuGroup[] = [
       },
     ],
   },
+  {
+    id: "coming-soon",
+    title: "System Management",
+    icon: Settings,
+    items: [],
+  },
 ];
-
-/* =====================================================
-   MANAGER MENU
-===================================================== */
 
 const managerMenuGroups: MenuGroup[] = [
   {
@@ -226,36 +220,7 @@ const managerMenuGroups: MenuGroup[] = [
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
+      ...planningItems,
       {
         name: "Allocation Analytics",
         path: "/allocation-analytics",
@@ -267,103 +232,21 @@ const managerMenuGroups: MenuGroup[] = [
     id: "human-resources",
     title: "Human Resources",
     icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
+    items: humanResourceItems,
   },
   {
-    id: "equipment-resources",
+    id: "resources",
     title: "Equipment & Resources",
     icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems,
   },
   {
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: BarChart3,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations,
   },
 ];
-
-/* =====================================================
-   RESEARCHER MENU
-===================================================== */
 
 const researcherMenuGroups: MenuGroup[] = [
   {
@@ -372,36 +255,11 @@ const researcherMenuGroups: MenuGroup[] = [
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "My Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
+      ...planningItems.map((item) =>
+        item.path === "/allocation"
+          ? { ...item, name: "My Allocations" }
+          : item
+      ),
       {
         name: "Allocation Analytics",
         path: "/allocation-analytics",
@@ -413,103 +271,21 @@ const researcherMenuGroups: MenuGroup[] = [
     id: "human-resources",
     title: "Human Resources",
     icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
+    items: humanResourceItems,
   },
   {
-    id: "equipment-resources",
+    id: "resources",
     title: "Equipment & Resources",
     icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems,
   },
   {
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: BarChart3,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations,
   },
 ];
-
-/* =====================================================
-   TECHNICIAN MENU
-===================================================== */
 
 const technicianMenuGroups: MenuGroup[] = [
   {
@@ -517,140 +293,27 @@ const technicianMenuGroups: MenuGroup[] = [
     title: "Planning Information",
     icon: FlaskConical,
     defaultOpen: true,
-    items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
-    ],
+    items: planningItems,
   },
   {
     id: "human-resources",
     title: "Human Resources",
     icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
+    items: humanResourceItems,
   },
   {
-    id: "equipment-resources",
+    id: "resources",
     title: "Equipment & Resources",
     icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems,
   },
   {
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: BarChart3,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations,
   },
 ];
-
-/* =====================================================
-   STUDENT MENU
-===================================================== */
 
 const studentMenuGroups: MenuGroup[] = [
   {
@@ -658,94 +321,33 @@ const studentMenuGroups: MenuGroup[] = [
     title: "Learning & Planning",
     icon: GraduationCap,
     defaultOpen: true,
-    items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: GraduationCap,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
-    ],
+    items: planningItems,
   },
   {
     id: "resources",
     title: "Resources",
     icon: Trees,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems.filter((item) =>
+      [
+        "/resources",
+        "/equipment",
+        "/equipment-instances",
+        "/areas",
+        "/land-resources",
+      ].includes(item.path)
+    ),
   },
   {
     id: "operations",
     title: "Schedule & Notifications",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations.filter((item) =>
+      ["/schedules", "/notifications"].includes(item.path)
+    ),
   },
 ];
 
-const roleMenuGroups: Record<
-  Role,
-  MenuGroup[]
-> = {
+const roleMenuGroups: Record<Role, MenuGroup[]> = {
   Admin: adminMenuGroups,
   Manager: managerMenuGroups,
   Researcher: researcherMenuGroups,
@@ -753,41 +355,33 @@ const roleMenuGroups: Record<
   Student: studentMenuGroups,
 };
 
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Admin" ||
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
-
 function isPathActive(
   currentPath: string,
   itemPath: string
 ): boolean {
-  if (itemPath === "/dashboard") {
-    return currentPath === itemPath;
-  }
-
   return (
     currentPath === itemPath ||
-    currentPath.startsWith(
-      `${itemPath}/`
-    )
+    currentPath.startsWith(`${itemPath}/`)
+  );
+}
+
+function buildInitialOpenGroups(
+  groups: MenuGroup[],
+  currentPath: string
+): Record<string, boolean> {
+  return Object.fromEntries(
+    groups.map((group) => [
+      group.id,
+      Boolean(group.defaultOpen) ||
+        group.items.some((item) =>
+          isPathActive(currentPath, item.path)
+        ),
+    ])
   );
 }
 
 function clearAuthenticationStorage(): void {
-  const authenticationKeys = [
+  [
     "token",
     "accessToken",
     "refreshToken",
@@ -797,85 +391,26 @@ function clearAuthenticationStorage(): void {
     "fullName",
     "username",
     "email",
-  ];
-
-  authenticationKeys.forEach(
-    (key) => {
-      localStorage.removeItem(
-        key
-      );
-    }
-  );
+  ].forEach((key) => localStorage.removeItem(key));
 
   sessionStorage.clear();
 }
 
-function buildInitialOpenGroups(
-  groups: MenuGroup[],
-  currentPath: string
-): Record<string, boolean> {
-  const result:
-    Record<string, boolean> = {};
-
-  groups.forEach(
-    (group) => {
-      const containsActivePath =
-        group.items.some(
-          (item) =>
-            isPathActive(
-              currentPath,
-              item.path
-            )
-        );
-
-      result[group.id] =
-        containsActivePath ||
-        Boolean(
-          group.defaultOpen
-        );
-    }
-  );
-
-  return result;
-}
-
 export default function Sidebar() {
-  const location =
-    useLocation();
-
-  const navigate =
-    useNavigate();
-
-  const role =
-    getCurrentRole();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const role = getStoredRole();
 
   const fullName =
-    localStorage
-      .getItem("fullName")
-      ?.trim() ||
-    "User";
+    localStorage.getItem("fullName")?.trim() || "User";
 
-  const menuGroups =
-    useMemo(
-      () =>
-        roleMenuGroups[role],
-      [role]
-    );
+  const menuGroups = useMemo(
+    () => roleMenuGroups[role],
+    [role]
+  );
 
-  const avatarLetter =
-    fullName
-      .charAt(0)
-      .toUpperCase();
-
-  const [
-    unreadCount,
-    setUnreadCount,
-  ] = useState(0);
-
-  const [
-    openGroups,
-    setOpenGroups,
-  ] = useState<
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [openGroups, setOpenGroups] = useState<
     Record<string, boolean>
   >(() =>
     buildInitialOpenGroups(
@@ -884,178 +419,89 @@ export default function Sidebar() {
     )
   );
 
-  const loadUnreadCount =
-    useCallback(async () => {
-      const token =
-        localStorage.getItem(
-          "token"
-        );
+  const loadUnreadCount = useCallback(async () => {
+    if (!localStorage.getItem("token")) {
+      setUnreadCount(0);
+      return;
+    }
 
-      if (!token) {
-        setUnreadCount(0);
-        return;
-      }
-
-      try {
-        const count =
-          await getUnreadNotificationCount();
-
-        setUnreadCount(
-          Number.isFinite(count)
-            ? Math.max(
-                0,
-                count
-              )
-            : 0
-        );
-      } catch (error) {
-        console.error(
-          "Load unread notification count failed:",
-          error
-        );
-
-        setUnreadCount(0);
-      }
-    }, []);
+    try {
+      const count = await getUnreadNotificationCount();
+      setUnreadCount(
+        Number.isFinite(count) ? Math.max(0, count) : 0
+      );
+    } catch (error) {
+      console.error(
+        "Load unread notification count failed:",
+        error
+      );
+      setUnreadCount(0);
+    }
+  }, []);
 
   useEffect(() => {
     void loadUnreadCount();
 
-    const intervalId =
-      window.setInterval(
-        () => {
-          void loadUnreadCount();
-        },
-        60_000
-      );
-
-    const handleNotificationUpdated =
-      () => {
-        void loadUnreadCount();
-      };
-
-    window.addEventListener(
-      "notification-updated",
-      handleNotificationUpdated
+    const intervalId = window.setInterval(
+      () => void loadUnreadCount(),
+      60_000
     );
 
-    window.addEventListener(
-      "focus",
-      handleNotificationUpdated
-    );
+    const refresh = () => void loadUnreadCount();
+
+    window.addEventListener("notification-updated", refresh);
+    window.addEventListener("focus", refresh);
 
     return () => {
-      window.clearInterval(
-        intervalId
-      );
-
+      window.clearInterval(intervalId);
       window.removeEventListener(
         "notification-updated",
-        handleNotificationUpdated
+        refresh
       );
-
-      window.removeEventListener(
-        "focus",
-        handleNotificationUpdated
-      );
+      window.removeEventListener("focus", refresh);
     };
   }, [loadUnreadCount]);
 
   useEffect(() => {
-    setOpenGroups(
-      (current) => {
-        const nextState = {
-          ...current,
-        };
+    setOpenGroups((current) => {
+      const next = { ...current };
 
-        menuGroups.forEach(
-          (group) => {
-            const containsActivePath =
-              group.items.some(
-                (item) =>
-                  isPathActive(
-                    location.pathname,
-                    item.path
-                  )
-              );
+      menuGroups.forEach((group) => {
+        if (
+          group.items.some((item) =>
+            isPathActive(location.pathname, item.path)
+          )
+        ) {
+          next[group.id] = true;
+        }
+      });
 
-            if (
-              containsActivePath
-            ) {
-              nextState[
-                group.id
-              ] = true;
-            }
-          }
-        );
-
-        return nextState;
-      }
-    );
-  }, [
-    location.pathname,
-    menuGroups,
-  ]);
-
-  useEffect(() => {
-    setOpenGroups(
-      buildInitialOpenGroups(
-        menuGroups,
-        location.pathname
-      )
-    );
-  }, [
-    role,
-    menuGroups,
-  ]);
-
-  const toggleGroup = (
-    groupId: string
-  ) => {
-    setOpenGroups(
-      (current) => ({
-        ...current,
-        [groupId]:
-          !current[groupId],
-      })
-    );
-  };
+      return next;
+    });
+  }, [location.pathname, menuGroups]);
 
   const handleLogout = () => {
-    const confirmed =
-      window.confirm(
-        "Bạn có chắc chắn muốn đăng xuất để chuyển sang tài khoản khác không?"
-      );
+    const confirmed = window.confirm(
+      "Bạn có chắc chắn muốn đăng xuất để chuyển sang tài khoản khác không?"
+    );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     clearAuthenticationStorage();
-
-    navigate(
-      "/login",
-      {
-        replace: true,
-      }
-    );
+    navigate("/login", { replace: true });
   };
 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
         <div className="sidebar-logo-container">
-          <Trees
-            size={22}
-            strokeWidth={2.5}
-          />
+          <Trees size={22} strokeWidth={2.5} />
         </div>
 
         <div className="sidebar-brand-text">
           <span className="sidebar-title-main">
             FRPAM System
           </span>
-
           <span className="sidebar-title-sub">
             Forestry Planning
           </span>
@@ -1065,167 +511,107 @@ export default function Sidebar() {
       <nav className="sidebar-nav">
         <NavLink
           to="/dashboard"
-          className={({
-            isActive,
-          }) =>
+          className={({ isActive }) =>
             [
               "sidebar-item",
               "sidebar-dashboard-item",
-              isActive
-                ? "active"
-                : "",
+              isActive ? "active" : "",
             ]
               .filter(Boolean)
               .join(" ")
           }
         >
           <LayoutDashboard className="sidebar-item-icon" />
-
-          <span className="sidebar-item-label">
-            Dashboard
-          </span>
+          <span className="sidebar-item-label">Dashboard</span>
         </NavLink>
 
         <div className="sidebar-menu-groups">
-          {menuGroups.map(
-            (group) => {
-              const GroupIcon =
-                group.icon;
+          {menuGroups.map((group) => {
+            if (group.items.length === 0) {
+              return null;
+            }
 
-              const isOpen =
-                Boolean(
-                  openGroups[
-                    group.id
-                  ]
-                );
+            const GroupIcon = group.icon;
+            const isOpen = Boolean(openGroups[group.id]);
+            const hasActiveItem = group.items.some((item) =>
+              isPathActive(location.pathname, item.path)
+            );
 
-              const hasActiveItem =
-                group.items.some(
-                  (item) =>
-                    isPathActive(
-                      location.pathname,
-                      item.path
-                    )
-                );
-
-              return (
-                <div
-                  key={group.id}
-                  className={[
-                    "sidebar-menu-group",
-                    isOpen
-                      ? "open"
-                      : "",
-                    hasActiveItem
-                      ? "has-active-item"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+            return (
+              <div
+                key={group.id}
+                className={[
+                  "sidebar-menu-group",
+                  isOpen ? "open" : "",
+                  hasActiveItem ? "has-active-item" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <button
+                  type="button"
+                  className="sidebar-group-button"
+                  onClick={() =>
+                    setOpenGroups((current) => ({
+                      ...current,
+                      [group.id]: !current[group.id],
+                    }))
+                  }
+                  aria-expanded={isOpen}
                 >
-                  <button
-                    type="button"
-                    className="sidebar-group-button"
-                    onClick={() =>
-                      toggleGroup(
-                        group.id
-                      )
-                    }
-                    aria-expanded={
-                      isOpen
-                    }
-                    aria-controls={`sidebar-group-${group.id}`}
-                  >
-                    <div className="sidebar-group-title">
-                      <GroupIcon
-                        className="sidebar-group-icon"
-                        size={18}
-                      />
-
-                      <span>
-                        {
-                          group.title
-                        }
-                      </span>
-                    </div>
-
-                    <ChevronDown
-                      size={17}
-                      className="sidebar-group-chevron"
+                  <div className="sidebar-group-title">
+                    <GroupIcon
+                      className="sidebar-group-icon"
+                      size={18}
                     />
-                  </button>
+                    <span>{group.title}</span>
+                  </div>
 
-                  <div
-                    id={`sidebar-group-${group.id}`}
-                    className="sidebar-group-content"
-                  >
-                    <div className="sidebar-group-content-inner">
-                      {group.items.map(
-                        (item) => {
-                          const Icon =
-                            item.icon;
+                  <ChevronDown
+                    size={17}
+                    className="sidebar-group-chevron"
+                  />
+                </button>
 
-                          const isNotificationItem =
-                            item.path ===
-                            "/notifications";
+                <div className="sidebar-group-content">
+                  <div className="sidebar-group-content-inner">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const isNotification =
+                        item.path === "/notifications";
 
-                          return (
-                            <NavLink
-                              key={
-                                item.path
-                              }
-                              to={
-                                item.path
-                              }
-                              className={({
-                                isActive,
-                              }) =>
-                                [
-                                  "sidebar-item",
-                                  "sidebar-child-item",
-                                  isActive
-                                    ? "active"
-                                    : "",
-                                ]
-                                  .filter(
-                                    Boolean
-                                  )
-                                  .join(
-                                    " "
-                                  )
-                              }
-                            >
-                              <Icon className="sidebar-item-icon" />
+                      return (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          className={({ isActive }) =>
+                            [
+                              "sidebar-item",
+                              "sidebar-child-item",
+                              isActive ? "active" : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")
+                          }
+                        >
+                          <Icon className="sidebar-item-icon" />
+                          <span className="sidebar-item-label">
+                            {item.name}
+                          </span>
 
-                              <span className="sidebar-item-label">
-                                {
-                                  item.name
-                                }
-                              </span>
-
-                              {isNotificationItem &&
-                                unreadCount >
-                                  0 && (
-                                  <span
-                                    className="sidebar-notification-badge"
-                                    title={`${unreadCount} unread notifications`}
-                                  >
-                                    {unreadCount >
-                                    99
-                                      ? "99+"
-                                      : unreadCount}
-                                  </span>
-                                )}
-                            </NavLink>
-                          );
-                        }
-                      )}
-                    </div>
+                          {isNotification && unreadCount > 0 && (
+                            <span className="sidebar-notification-badge">
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                          )}
+                        </NavLink>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            }
-          )}
+              </div>
+            );
+          })}
         </div>
       </nav>
 
@@ -1233,33 +619,20 @@ export default function Sidebar() {
         <div className="sidebar-user">
           <div className="sidebar-avatar">
             <div className="sidebar-avatar-img">
-              {
-                avatarLetter
-              }
+              {fullName.charAt(0).toUpperCase()}
             </div>
           </div>
 
           <div className="sidebar-user-info">
-            <span className="sidebar-username">
-              {
-                fullName
-              }
-            </span>
-
-            <span className="sidebar-user-role">
-              {
-                role
-              }
-            </span>
+            <span className="sidebar-username">{fullName}</span>
+            <span className="sidebar-user-role">{role}</span>
           </div>
         </div>
 
         <button
           type="button"
           className="sidebar-logout-button"
-          onClick={
-            handleLogout
-          }
+          onClick={handleLogout}
           title="Đăng xuất"
           aria-label="Đăng xuất"
         >

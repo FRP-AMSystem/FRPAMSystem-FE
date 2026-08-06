@@ -12,10 +12,12 @@ import {
 import axios from "axios";
 
 import {
+  CheckCircle2,
   Eye,
   Layers3,
   Pencil,
   Plus,
+  Send,
   Trash2,
 } from "lucide-react";
 
@@ -23,6 +25,7 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
   getExperimentById,
+  submitExperiment,
 } from "../../services/experimentService";
 
 import {
@@ -32,6 +35,7 @@ import {
 
 import type {
   ExperimentResponse,
+  ExperimentStatus,
 } from "../../types/experiment";
 
 import type {
@@ -43,17 +47,40 @@ import "./ExperimentDetail.css";
 import "./ExperimentPhaseSection.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
   | "Student";
 
-const priorityLabels: Record<number, string> = {
+const priorityLabels: Record<
+  number,
+  string
+> = {
   0: "Low",
   1: "Medium",
   2: "High",
   3: "Urgent",
 };
+
+function getCurrentRole(): Role {
+  const storedRole =
+    localStorage.getItem(
+      "role"
+    );
+
+  if (
+    storedRole === "Admin" ||
+    storedRole === "Manager" ||
+    storedRole === "Researcher" ||
+    storedRole === "Technician" ||
+    storedRole === "Student"
+  ) {
+    return storedRole;
+  }
+
+  return "Student";
+}
 
 function formatDate(
   value?: string | null
@@ -132,6 +159,20 @@ function getErrorMessage(
         .join(" ");
     }
 
+    if (
+      error.response?.status ===
+      401
+    ) {
+      return "Your login session is invalid or expired. Please sign in again.";
+    }
+
+    if (
+      error.response?.status ===
+      403
+    ) {
+      return "You do not have permission to perform this action.";
+    }
+
     return (
       responseData?.message ||
       responseData?.error ||
@@ -148,6 +189,64 @@ function getErrorMessage(
   }
 
   return "Unable to complete the request.";
+}
+
+function getExperimentStatusLabel(
+  status?: ExperimentStatus | string | null
+): string {
+  switch (status) {
+    case "Draft":
+      return "Draft";
+
+    case "Submitted":
+      return "Submitted";
+
+    case "Planning":
+      return "Planning";
+
+    case "Ready":
+      return "Ready";
+
+    case "Running":
+      return "Running";
+
+    case "Completed":
+      return "Completed";
+
+    case "Cancelled":
+      return "Cancelled";
+
+    default:
+      return status || "-";
+  }
+}
+
+function getExperimentStatusClassName(
+  status?: ExperimentStatus | string | null
+): string {
+  switch (status) {
+    case "Submitted":
+      return "experiment-status experiment-status-submitted";
+
+    case "Planning":
+      return "experiment-status experiment-status-planning";
+
+    case "Ready":
+      return "experiment-status experiment-status-ready";
+
+    case "Running":
+      return "experiment-status experiment-status-running";
+
+    case "Completed":
+      return "experiment-status experiment-status-completed";
+
+    case "Cancelled":
+      return "experiment-status experiment-status-cancelled";
+
+    case "Draft":
+    default:
+      return "experiment-status experiment-status-draft";
+  }
 }
 
 function getStatusLabel(
@@ -200,7 +299,8 @@ function normalizePhaseList(
   }
 
   if (
-    typeof response === "object" &&
+    typeof response ===
+      "object" &&
     response !== null
   ) {
     const objectResponse =
@@ -226,7 +326,8 @@ function normalizePhaseList(
     }
 
     if (
-      typeof objectResponse.data === "object" &&
+      typeof objectResponse.data ===
+        "object" &&
       objectResponse.data !== null
     ) {
       const nestedData =
@@ -247,6 +348,19 @@ function normalizePhaseList(
   return [];
 }
 
+function canSubmitExperimentStatus(
+  status?: string | null
+): boolean {
+  if (!status) {
+    return true;
+  }
+
+  return (
+    status === "Draft" ||
+    status === "Created"
+  );
+}
+
 export default function ExperimentDetail() {
   const {
     id,
@@ -260,18 +374,8 @@ export default function ExperimentDetail() {
   const experimentId =
     Number(id);
 
-  const storedRole =
-    localStorage.getItem(
-      "role"
-    );
-
-  const role: Role =
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-      ? storedRole
-      : "Student";
+  const role =
+    getCurrentRole();
 
   const canManageExperiment =
     role === "Researcher";
@@ -294,11 +398,21 @@ export default function ExperimentDetail() {
   );
 
   const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
+
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] = useState("");
+
+  const [
     phases,
     setPhases,
-  ] = useState<ExperimentPhase[]>(
-    []
-  );
+  ] = useState<
+    ExperimentPhase[]
+  >([]);
 
   const [
     loadingPhases,
@@ -313,9 +427,9 @@ export default function ExperimentDetail() {
   const [
     deletingPhaseId,
     setDeletingPhaseId,
-  ] = useState<number | null>(
-    null
-  );
+  ] = useState<
+    number | null
+  >(null);
 
   const loadExperiment =
     useCallback(async () => {
@@ -331,6 +445,7 @@ export default function ExperimentDetail() {
         );
 
         setLoading(false);
+
         return;
       }
 
@@ -374,6 +489,7 @@ export default function ExperimentDetail() {
         experimentId <= 0
       ) {
         setLoadingPhases(false);
+
         return;
       }
 
@@ -382,13 +498,11 @@ export default function ExperimentDetail() {
         setPhaseError("");
 
         const response =
-          await getExperimentPhases(
-            {
-              experimentId,
-              page: 1,
-              size: 100,
-            }
-          );
+          await getExperimentPhases({
+            experimentId,
+            page: 1,
+            size: 100,
+          });
 
         const normalizedPhases =
           normalizePhaseList(
@@ -398,7 +512,8 @@ export default function ExperimentDetail() {
               (phase) =>
                 Number(
                   phase.experimentId
-                ) === experimentId
+                ) ===
+                experimentId
             )
             .sort(
               (
@@ -442,6 +557,82 @@ export default function ExperimentDetail() {
     loadExperimentPhases,
   ]);
 
+  const handleSubmitExperiment =
+    async () => {
+      if (
+        !experiment ||
+        !canManageExperiment ||
+        submitting
+      ) {
+        return;
+      }
+
+      if (
+        !canSubmitExperimentStatus(
+          experiment.status
+        )
+      ) {
+        setError(
+          `Experiment cannot be submitted while its status is "${experiment.status}".`
+        );
+
+        return;
+      }
+
+      if (
+        phases.length === 0
+      ) {
+        setError(
+          "Please create at least one experiment phase before submitting the experiment."
+        );
+
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `Submit experiment "${experiment.experimentName}" for planning?\n\nAfter submission, editing may be restricted.`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setSubmitting(true);
+        setError("");
+        setSuccessMessage("");
+
+        const updatedExperiment =
+          await submitExperiment(
+            experiment.experimentId
+          );
+
+        setExperiment(
+          updatedExperiment
+        );
+
+        setSuccessMessage(
+          "Experiment submitted successfully."
+        );
+
+        await loadExperiment();
+      } catch (submitError) {
+        console.error(
+          "Submit experiment failed:",
+          submitError
+        );
+
+        setError(
+          getErrorMessage(
+            submitError
+          )
+        );
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
   const handleDeletePhase =
     async (
       phase: ExperimentPhase
@@ -449,6 +640,18 @@ export default function ExperimentDetail() {
       if (
         !canManageExperiment
       ) {
+        return;
+      }
+
+      if (
+        !canSubmitExperimentStatus(
+          experiment?.status
+        )
+      ) {
+        setPhaseError(
+          "Experiment phases can only be deleted while the experiment is in Draft status."
+        );
+
         return;
       }
 
@@ -525,7 +728,7 @@ export default function ExperimentDetail() {
   }
 
   if (
-    error ||
+    error &&
     !experiment
   ) {
     return (
@@ -564,6 +767,10 @@ export default function ExperimentDetail() {
     );
   }
 
+  if (!experiment) {
+    return null;
+  }
+
   const priority =
     experiment.priority ===
       null ||
@@ -576,6 +783,15 @@ export default function ExperimentDetail() {
         String(
           experiment.priority
         );
+
+  const experimentIsEditable =
+    canSubmitExperimentStatus(
+      experiment.status
+    );
+
+  const canSubmit =
+    canManageExperiment &&
+    experimentIsEditable;
 
   return (
     <DashboardLayout>
@@ -609,6 +825,24 @@ export default function ExperimentDetail() {
           </button>
         </div>
 
+        {error && (
+          <div className="error-message">
+            {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="experiment-success-message">
+            <CheckCircle2
+              size={18}
+            />
+
+            <span>
+              {successMessage}
+            </span>
+          </div>
+        )}
+
         <div className="detail-grid">
           <div className="detail-card">
             <h3>
@@ -634,8 +868,15 @@ export default function ExperimentDetail() {
               </span>
 
               <strong>
-                {experiment.status ||
-                  "-"}
+                <span
+                  className={getExperimentStatusClassName(
+                    experiment.status
+                  )}
+                >
+                  {getExperimentStatusLabel(
+                    experiment.status
+                  )}
+                </span>
               </strong>
             </div>
 
@@ -759,29 +1000,63 @@ export default function ExperimentDetail() {
 
         {canManageExperiment && (
           <div className="detail-actions">
-            <button
-              type="button"
-              className="edit-btn"
-              onClick={() =>
-                navigate(
-                  `/experiments/${experiment.experimentId}/edit`
-                )
-              }
-            >
-              Edit Experiment
-            </button>
+            {experimentIsEditable && (
+              <>
+                <button
+                  type="button"
+                  className="edit-btn"
+                  onClick={() =>
+                    navigate(
+                      `/experiments/${experiment.experimentId}/edit`
+                    )
+                  }
+                >
+                  Edit Experiment
+                </button>
 
-            <button
-              type="button"
-              className="requirement-btn"
-              onClick={() =>
-                navigate(
-                  `/equipment-requirements/create?experimentId=${experiment.experimentId}`
-                )
-              }
-            >
-              Create Requirement
-            </button>
+                <button
+                  type="button"
+                  className="requirement-btn"
+                  onClick={() =>
+                    navigate(
+                      `/equipment-requirements/create?experimentId=${experiment.experimentId}`
+                    )
+                  }
+                >
+                  Create Requirement
+                </button>
+              </>
+            )}
+
+            {canSubmit && (
+              <button
+                type="button"
+                className="experiment-submit-button"
+                disabled={
+                  submitting ||
+                  phases.length ===
+                    0
+                }
+                onClick={() =>
+                  void handleSubmitExperiment()
+                }
+              >
+                <Send
+                  size={18}
+                />
+
+                {submitting
+                  ? "Submitting..."
+                  : "Submit Experiment"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {canSubmit &&
+          phases.length === 0 && (
+          <div className="experiment-submit-hint">
+            Create at least one phase before submitting this experiment.
           </div>
         )}
 
@@ -800,14 +1075,13 @@ export default function ExperimentDetail() {
                 </h2>
 
                 <p>
-                  Manage the stages and
-                  expected timeline of this
-                  experiment.
+                  Manage the stages and expected timeline of this experiment.
                 </p>
               </div>
             </div>
 
-            {canManageExperiment && (
+            {canManageExperiment &&
+              experimentIsEditable && (
               <button
                 type="button"
                 className="experiment-phase-create-button"
@@ -847,11 +1121,11 @@ export default function ExperimentDetail() {
               </h3>
 
               <p>
-                This experiment does not
-                have any phases yet.
+                This experiment does not have any phases yet.
               </p>
 
-              {canManageExperiment && (
+              {canManageExperiment &&
+                experimentIsEditable && (
                 <button
                   type="button"
                   className="experiment-phase-create-button"
@@ -987,7 +1261,8 @@ export default function ExperimentDetail() {
                                 />
                               </button>
 
-                              {canManageExperiment && (
+                              {canManageExperiment &&
+                                experimentIsEditable && (
                                 <>
                                   <button
                                     type="button"
