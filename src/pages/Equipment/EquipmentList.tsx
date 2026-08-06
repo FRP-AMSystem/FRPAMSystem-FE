@@ -22,9 +22,12 @@ import {
 
 import type {
   EquipmentCategory,
-  EquipmentInstance,
   EquipmentType,
 } from "../../types/equipment";
+
+import type {
+  EquipmentInstance,
+} from "../../types/equipmentInstance";
 
 import "./EquipmentList.css";
 
@@ -127,11 +130,9 @@ function getInstanceName(
   instance: EquipmentInstance
 ): string {
   return (
-    instance.instanceName ||
     instance.assetCode ||
-    instance.code ||
     instance.equipmentTypeName ||
-    instance.typeName ||
+    instance.serialNumber ||
     `Equipment #${instance.equipmentInstanceId}`
   );
 }
@@ -139,11 +140,7 @@ function getInstanceName(
 function getInstanceCode(
   instance: EquipmentInstance
 ): string {
-  return (
-    instance.assetCode ||
-    instance.code ||
-    "-"
-  );
+  return instance.assetCode || "-";
 }
 
 function getInstanceTypeName(
@@ -151,26 +148,13 @@ function getInstanceTypeName(
 ): string {
   return (
     instance.equipmentTypeName ||
-    instance.typeName ||
     `Equipment type #${instance.equipmentTypeId}`
   );
 }
 
 function getInstanceCategoryName(
-  instance: EquipmentInstance
+  _instance: EquipmentInstance
 ): string {
-  if (
-    instance.equipmentCategoryName
-  ) {
-    return instance.equipmentCategoryName;
-  }
-
-  if (
-    instance.equipmentCategoryId
-  ) {
-    return `Category #${instance.equipmentCategoryId}`;
-  }
-
   return "-";
 }
 
@@ -329,7 +313,6 @@ export default function EquipmentList() {
             item.serialNumber,
             item.status,
             item.conditionLevel,
-            item.location,
             item.note,
           ]
             .filter(Boolean)

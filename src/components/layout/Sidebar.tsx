@@ -27,7 +27,6 @@ import {
   ChevronDown,
   ClipboardList,
   Cpu,
-  FileText,
   FlaskConical,
   GraduationCap,
   LandPlot,
@@ -49,16 +48,17 @@ import {
   getUnreadNotificationCount,
 } from "../../services/notificationService";
 
-import { getRole, getUserData, logout as performLogout } from "../../utils/storage";
+import {
+  getStoredRole,
+  type Role,
+} from "../../config/rolePermissions";
+
+import {
+  getUserData,
+  logout as performLogout,
+} from "../../utils/storage";
 
 import "./Sidebar.css";
-
-type Role =
-  | "Admin"
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
 
 interface MenuIconProps {
   className?: string;
@@ -79,138 +79,130 @@ interface MenuGroup {
   defaultOpen?: boolean;
 }
 
-/* =====================================================
-   ADMIN MENU
-===================================================== */
+const planningItems: MenuItem[] = [
+  {
+    name: "Experiments",
+    path: "/experiments",
+    icon: FlaskConical,
+  },
+  {
+    name: "Experiment Phases",
+    path: "/experiment-phases",
+    icon: Layers3,
+  },
+  {
+    name: "Equipment Requirements",
+    path: "/equipment-requirements",
+    icon: ClipboardList,
+  },
+  {
+    name: "Human Requirements",
+    path: "/human-requirements",
+    icon: Users,
+  },
+  {
+    name: "Land Requirements",
+    path: "/land-requirements",
+    icon: LandPlot,
+  },
+  {
+    name: "Allocations",
+    path: "/allocation",
+    icon: CalendarDays,
+  },
+];
+
+const humanResourceItems: MenuItem[] = [
+  {
+    name: "Human Resources",
+    path: "/human-resource-profiles",
+    icon: UserRound,
+  },
+  {
+    name: "Skills",
+    path: "/skills",
+    icon: BadgeCheck,
+  },
+  {
+    name: "Human Resource Skills",
+    path: "/human-resource-skills",
+    icon: UserRoundCheck,
+  },
+];
+
+const resourceItems: MenuItem[] = [
+  {
+    name: "Resource Overview",
+    path: "/resources",
+    icon: Trees,
+  },
+  {
+    name: "Equipment Types",
+    path: "/equipment",
+    icon: Truck,
+  },
+  {
+    name: "Equipment Categories",
+    path: "/equipment-categories",
+    icon: ClipboardList,
+  },
+  {
+    name: "Equipment Instances",
+    path: "/equipment-instances",
+    icon: Cpu,
+  },
+  {
+    name: "Equipment Substitutions",
+    path: "/equipment-substitutions",
+    icon: ArrowRightLeft,
+  },
+  {
+    name: "Equipment Shortage Logs",
+    path: "/equipment-shortage-logs",
+    icon: AlertTriangle,
+  },
+  {
+    name: "Areas",
+    path: "/areas",
+    icon: Map,
+  },
+  {
+    name: "Land Resources",
+    path: "/land-resources",
+    icon: LandPlot,
+  },
+];
+
+const standardOperations: MenuItem[] = [
+  {
+    name: "Schedules",
+    path: "/schedules",
+    icon: Calendar,
+  },
+  {
+    name: "Conflicts",
+    path: "/conflicts",
+    icon: AlertTriangle,
+  },
+  {
+    name: "Reports",
+    path: "/reports",
+    icon: BarChart3,
+  },
+  {
+    name: "Notifications",
+    path: "/notifications",
+    icon: Bell,
+  },
+];
 
 const adminMenuGroups: MenuGroup[] = [
   {
-    id: "planning",
-    title: "Planning",
-    icon: FlaskConical,
+    id: "administration",
+    title: "Administration",
+    icon: ShieldCheck,
     defaultOpen: true,
     items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
-      {
-        name: "Allocation Analytics",
-        path: "/allocation-analytics",
-        icon: BarChart3,
-      },
-    ],
-  },
-  {
-    id: "human-resources",
-    title: "Human Resources",
-    icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
-  },
-  {
-    id: "equipment-resources",
-    title: "Equipment & Resources",
-    icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
-  },
-  {
-    id: "operations",
-    title: "Operations",
-    icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
       {
         name: "Reports",
         path: "/reports",
@@ -227,6 +219,7 @@ const adminMenuGroups: MenuGroup[] = [
     id: "system-admin",
     title: "System Administration",
     icon: ShieldCheck,
+    defaultOpen: true,
     items: [
       {
         name: "User & Role Management",
@@ -247,10 +240,6 @@ const adminMenuGroups: MenuGroup[] = [
   },
 ];
 
-/* =====================================================
-   MANAGER MENU
-===================================================== */
-
 const managerMenuGroups: MenuGroup[] = [
   {
     id: "planning",
@@ -258,36 +247,7 @@ const managerMenuGroups: MenuGroup[] = [
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
+      ...planningItems,
       {
         name: "Allocation Analytics",
         path: "/allocation-analytics",
@@ -299,103 +259,21 @@ const managerMenuGroups: MenuGroup[] = [
     id: "human-resources",
     title: "Human Resources",
     icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
+    items: humanResourceItems,
   },
   {
-    id: "equipment-resources",
+    id: "resources",
     title: "Equipment & Resources",
     icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems,
   },
   {
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: BarChart3,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations,
   },
 ];
-
-/* =====================================================
-   RESEARCHER MENU
-===================================================== */
 
 const researcherMenuGroups: MenuGroup[] = [
   {
@@ -404,36 +282,14 @@ const researcherMenuGroups: MenuGroup[] = [
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "My Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
+      ...planningItems.map((item) =>
+        item.path === "/allocation"
+          ? {
+              ...item,
+              name: "My Allocations",
+            }
+          : item
+      ),
       {
         name: "Allocation Analytics",
         path: "/allocation-analytics",
@@ -445,103 +301,21 @@ const researcherMenuGroups: MenuGroup[] = [
     id: "human-resources",
     title: "Human Resources",
     icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
+    items: humanResourceItems,
   },
   {
-    id: "equipment-resources",
+    id: "resources",
     title: "Equipment & Resources",
     icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems,
   },
   {
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: BarChart3,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations,
   },
 ];
-
-/* =====================================================
-   TECHNICIAN MENU
-===================================================== */
 
 const technicianMenuGroups: MenuGroup[] = [
   {
@@ -549,140 +323,27 @@ const technicianMenuGroups: MenuGroup[] = [
     title: "Planning Information",
     icon: FlaskConical,
     defaultOpen: true,
-    items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: FlaskConical,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
-    ],
+    items: planningItems,
   },
   {
     id: "human-resources",
     title: "Human Resources",
     icon: Users,
-    items: [
-      {
-        name: "Human Resources",
-        path: "/human-resource-profiles",
-        icon: UserRound,
-      },
-      {
-        name: "Skills",
-        path: "/skills",
-        icon: BadgeCheck,
-      },
-      {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
-        icon: UserRoundCheck,
-      },
-    ],
+    items: humanResourceItems,
   },
   {
-    id: "equipment-resources",
+    id: "resources",
     title: "Equipment & Resources",
     icon: Truck,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Categories",
-        path: "/equipment-categories",
-        icon: ClipboardList,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Equipment Substitutions",
-        path: "/equipment-substitutions",
-        icon: ArrowRightLeft,
-      },
-      {
-        name: "Equipment Shortage Logs",
-        path: "/equipment-shortage-logs",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems,
   },
   {
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Conflicts",
-        path: "/conflicts",
-        icon: AlertTriangle,
-      },
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: BarChart3,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations,
   },
 ];
-
-/* =====================================================
-   STUDENT MENU
-===================================================== */
 
 const studentMenuGroups: MenuGroup[] = [
   {
@@ -690,87 +351,32 @@ const studentMenuGroups: MenuGroup[] = [
     title: "Learning & Planning",
     icon: GraduationCap,
     defaultOpen: true,
-    items: [
-      {
-        name: "Experiments",
-        path: "/experiments",
-        icon: GraduationCap,
-      },
-      {
-        name: "Experiment Phases",
-        path: "/experiment-phases",
-        icon: Layers3,
-      },
-      {
-        name: "Equipment Requirements",
-        path: "/equipment-requirements",
-        icon: ClipboardList,
-      },
-      {
-        name: "Human Requirements",
-        path: "/human-requirements",
-        icon: Users,
-      },
-      {
-        name: "Land Requirements",
-        path: "/land-requirements",
-        icon: LandPlot,
-      },
-      {
-        name: "Allocations",
-        path: "/allocation",
-        icon: CalendarDays,
-      },
-    ],
+    items: planningItems,
   },
   {
     id: "resources",
     title: "Resources",
     icon: Trees,
-    items: [
-      {
-        name: "Resource Overview",
-        path: "/resources",
-        icon: Trees,
-      },
-      {
-        name: "Equipment Types",
-        path: "/equipment",
-        icon: Truck,
-      },
-      {
-        name: "Equipment Instances",
-        path: "/equipment-instances",
-        icon: Cpu,
-      },
-      {
-        name: "Areas",
-        path: "/areas",
-        icon: Map,
-      },
-      {
-        name: "Land Resources",
-        path: "/land-resources",
-        icon: LandPlot,
-      },
-    ],
+    items: resourceItems.filter((item) =>
+      [
+        "/resources",
+        "/equipment",
+        "/equipment-instances",
+        "/areas",
+        "/land-resources",
+      ].includes(item.path)
+    ),
   },
   {
     id: "operations",
     title: "Schedule & Notifications",
     icon: Calendar,
-    items: [
-      {
-        name: "Schedules",
-        path: "/schedules",
-        icon: Calendar,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: standardOperations.filter((item) =>
+      [
+        "/schedules",
+        "/notifications",
+      ].includes(item.path)
+    ),
   },
 ];
 
@@ -782,23 +388,10 @@ const roleMenuGroups: Record<Role, MenuGroup[]> = {
   Student: studentMenuGroups,
 };
 
-function getCurrentRole(): Role {
-  const storedRole = getRole() || localStorage.getItem("role");
-
-  if (
-    storedRole === "Admin" ||
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
-
-function isPathActive(currentPath: string, itemPath: string): boolean {
+function isPathActive(
+  currentPath: string,
+  itemPath: string
+): boolean {
   if (itemPath === "/dashboard") {
     return currentPath === itemPath;
   }
@@ -809,231 +402,478 @@ function isPathActive(currentPath: string, itemPath: string): boolean {
   );
 }
 
+function buildInitialOpenGroups(
+  groups: MenuGroup[],
+  currentPath: string
+): Record<string, boolean> {
+  return Object.fromEntries(
+    groups.map((group) => [
+      group.id,
+      Boolean(group.defaultOpen) ||
+        group.items.some((item) =>
+          isPathActive(currentPath, item.path)
+        ),
+    ])
+  );
+}
+
 function clearAuthenticationStorage(): void {
-  performLogout();
+  try {
+    performLogout();
+  } catch (error) {
+    console.error(
+      "Storage logout helper failed:",
+      error
+    );
+  }
+
+  [
+    "token",
+    "accessToken",
+    "refreshToken",
+    "role",
+    "roleName",
+    "userId",
+    "fullName",
+    "username",
+    "email",
+  ].forEach((key) => {
+    localStorage.removeItem(key);
+  });
+
+  sessionStorage.clear();
 }
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const role = getCurrentRole();
-  const menuGroups = useMemo(() => roleMenuGroups[role] ?? studentMenuGroups, [role]);
+  const role = getStoredRole();
+
+  const menuGroups = useMemo(
+    () =>
+      roleMenuGroups[role] ??
+      studentMenuGroups,
+    [role]
+  );
 
   const savedUser = getUserData();
+
   const fullName =
-    localStorage.getItem("fullName")?.trim() ||
+    localStorage
+      .getItem("fullName")
+      ?.trim() ||
     savedUser.userName ||
-    localStorage.getItem("username")?.trim() ||
+    localStorage
+      .getItem("username")
+      ?.trim() ||
     "User";
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const initialState: Record<string, boolean> = {};
+  const avatarLetter =
+    fullName.charAt(0).toUpperCase() ||
+    "U";
 
-    menuGroups.forEach((group) => {
-      const containsActiveItem = group.items.some((item) =>
-        isPathActive(location.pathname, item.path)
-      );
+  const navRef =
+    useRef<HTMLElement | null>(null);
 
-      initialState[group.id] = containsActiveItem || Boolean(group.defaultOpen);
-    });
+  const [
+    openGroups,
+    setOpenGroups,
+  ] = useState<Record<string, boolean>>(
+    () =>
+      buildInitialOpenGroups(
+        menuGroups,
+        window.location.pathname
+      )
+  );
 
-    return initialState;
-  });
+  const [
+    unreadCount,
+    setUnreadCount,
+  ] = useState(0);
 
-  const [unreadCount, setUnreadCount] = useState<number>(0);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [
+    showLogoutConfirm,
+    setShowLogoutConfirm,
+  ] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadUnreadCount() {
-      try {
-        const count = await getUnreadNotificationCount();
-        if (active) setUnreadCount(count);
-      } catch {
-        if (active) setUnreadCount(0);
-      }
-    }
-
-    void loadUnreadCount();
-    const intervalId = window.setInterval(() => void loadUnreadCount(), 60_000);
-
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  useEffect(() => {
-    setOpenGroups((prev) => {
-      const nextState = { ...prev };
-      let changed = false;
-
-      menuGroups.forEach((group) => {
-        const containsActiveItem = group.items.some((item) =>
-          isPathActive(location.pathname, item.path)
+  const loadUnreadCount =
+    useCallback(async () => {
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem(
+          "accessToken"
         );
 
-        if (containsActiveItem && !nextState[group.id]) {
-          nextState[group.id] = true;
-          changed = true;
+      if (!token) {
+        setUnreadCount(0);
+        return;
+      }
+
+      try {
+        const count =
+          await getUnreadNotificationCount();
+
+        setUnreadCount(
+          Number.isFinite(count)
+            ? Math.max(0, count)
+            : 0
+        );
+      } catch (error) {
+        console.error(
+          "Load unread notification count failed:",
+          error
+        );
+
+        setUnreadCount(0);
+      }
+    }, []);
+
+  useEffect(() => {
+    void loadUnreadCount();
+
+    const intervalId =
+      window.setInterval(
+        () =>
+          void loadUnreadCount(),
+        60_000
+      );
+
+    const refresh = () =>
+      void loadUnreadCount();
+
+    window.addEventListener(
+      "notification-updated",
+      refresh
+    );
+
+    window.addEventListener(
+      "focus",
+      refresh
+    );
+
+    return () => {
+      window.clearInterval(
+        intervalId
+      );
+
+      window.removeEventListener(
+        "notification-updated",
+        refresh
+      );
+
+      window.removeEventListener(
+        "focus",
+        refresh
+      );
+    };
+  }, [loadUnreadCount]);
+
+  useEffect(() => {
+    setOpenGroups((current) => {
+      const next = {
+        ...current,
+      };
+
+      menuGroups.forEach((group) => {
+        if (
+          group.items.some((item) =>
+            isPathActive(
+              location.pathname,
+              item.path
+            )
+          )
+        ) {
+          next[group.id] = true;
         }
       });
 
-      return changed ? nextState : prev;
+      return next;
     });
-  }, [location.pathname, menuGroups]);
+  }, [
+    location.pathname,
+    menuGroups,
+  ]);
 
-  const navRef = useRef<HTMLElement | null>(null);
-
-  const handleNavScroll = useCallback(() => {
-    if (navRef.current) {
-      sessionStorage.setItem("sidebar_scroll_pos", String(navRef.current.scrollTop));
-    }
-  }, []);
+  const handleNavScroll =
+    useCallback(() => {
+      if (navRef.current) {
+        sessionStorage.setItem(
+          "sidebar_scroll_pos",
+          String(
+            navRef.current.scrollTop
+          )
+        );
+      }
+    }, []);
 
   useLayoutEffect(() => {
-    const savedPos = sessionStorage.getItem("sidebar_scroll_pos");
-    if (savedPos && navRef.current) {
-      navRef.current.scrollTop = Number(savedPos);
+    const savedPosition =
+      sessionStorage.getItem(
+        "sidebar_scroll_pos"
+      );
+
+    if (
+      savedPosition &&
+      navRef.current
+    ) {
+      navRef.current.scrollTop =
+        Number(savedPosition);
     }
-  }, [location.pathname, openGroups]);
+  }, [
+    location.pathname,
+    openGroups,
+  ]);
 
-  const toggleGroup = useCallback((groupId: string) => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [groupId]: !prev[groupId],
-    }));
-  }, []);
+  const toggleGroup =
+    useCallback(
+      (groupId: string) => {
+        setOpenGroups(
+          (current) => ({
+            ...current,
+            [groupId]:
+              !current[groupId],
+          })
+        );
+      },
+      []
+    );
 
-  const handleConfirmLogout = useCallback(() => {
-    clearAuthenticationStorage();
-    navigate("/login");
-  }, [navigate]);
+  const handleConfirmLogout =
+    useCallback(() => {
+      clearAuthenticationStorage();
 
-  const avatarLetter = fullName.charAt(0).toUpperCase() || "U";
+      navigate(
+        "/login",
+        {
+          replace: true,
+        }
+      );
+    }, [navigate]);
 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
         <div className="sidebar-logo-container">
-          <Trees size={22} strokeWidth={2.5} />
+          <Trees
+            size={22}
+            strokeWidth={2.5}
+          />
         </div>
 
         <div className="sidebar-brand-text">
-          <span className="sidebar-title-main">PRRAM System</span>
-          <span className="sidebar-title-sub">Forestry Planning</span>
+          <span className="sidebar-title-main">
+            FRPAM System
+          </span>
+
+          <span className="sidebar-title-sub">
+            Forestry Planning
+          </span>
         </div>
       </div>
 
-      <nav className="sidebar-nav" ref={navRef} onScroll={handleNavScroll}>
+      <nav
+        ref={navRef}
+        className="sidebar-nav"
+        onScroll={handleNavScroll}
+      >
         <NavLink
           to="/dashboard"
           className={({ isActive }) =>
-            ["sidebar-item", "sidebar-dashboard-item", isActive ? "active" : ""]
+            [
+              "sidebar-item",
+              "sidebar-dashboard-item",
+              isActive
+                ? "active"
+                : "",
+            ]
               .filter(Boolean)
               .join(" ")
           }
         >
           <LayoutDashboard className="sidebar-item-icon" />
-          <span className="sidebar-item-label">Dashboard</span>
+
+          <span className="sidebar-item-label">
+            Dashboard
+          </span>
         </NavLink>
 
         <div className="sidebar-menu-groups">
-          {menuGroups.map((group) => {
-            const GroupIcon = group.icon;
-            const isOpen = Boolean(openGroups[group.id]);
-            const hasActiveItem = group.items.some((item) =>
-              isPathActive(location.pathname, item.path)
-            );
+          {menuGroups.map(
+            (group) => {
+              if (
+                group.items.length === 0
+              ) {
+                return null;
+              }
 
-            return (
-              <div
-                key={group.id}
-                className={[
-                  "sidebar-menu-group",
-                  isOpen ? "open" : "",
-                  hasActiveItem ? "has-active-item" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
-                <button
-                  type="button"
-                  className="sidebar-group-button"
-                  onClick={() => toggleGroup(group.id)}
-                  aria-expanded={isOpen}
-                  aria-controls={`sidebar-group-${group.id}`}
+              const GroupIcon =
+                group.icon;
+
+              const isOpen =
+                Boolean(
+                  openGroups[
+                    group.id
+                  ]
+                );
+
+              const hasActiveItem =
+                group.items.some(
+                  (item) =>
+                    isPathActive(
+                      location.pathname,
+                      item.path
+                    )
+                );
+
+              return (
+                <div
+                  key={group.id}
+                  className={[
+                    "sidebar-menu-group",
+                    isOpen
+                      ? "open"
+                      : "",
+                    hasActiveItem
+                      ? "has-active-item"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
-                  <div className="sidebar-group-title">
-                    <GroupIcon className="sidebar-group-icon" size={18} />
-                    <span>{group.title}</span>
-                  </div>
+                  <button
+                    type="button"
+                    className="sidebar-group-button"
+                    onClick={() =>
+                      toggleGroup(
+                        group.id
+                      )
+                    }
+                    aria-expanded={
+                      isOpen
+                    }
+                    aria-controls={`sidebar-group-${group.id}`}
+                  >
+                    <div className="sidebar-group-title">
+                      <GroupIcon
+                        className="sidebar-group-icon"
+                        size={18}
+                      />
 
-                  <ChevronDown size={17} className="sidebar-group-chevron" />
-                </button>
+                      <span>
+                        {group.title}
+                      </span>
+                    </div>
 
-                <div id={`sidebar-group-${group.id}`} className="sidebar-group-content">
-                  <div className="sidebar-group-content-inner">
-                    {group.items.map((item) => {
-                      const Icon = item.icon;
-                      const isNotificationItem = item.path === "/notifications";
+                    <ChevronDown
+                      size={17}
+                      className="sidebar-group-chevron"
+                    />
+                  </button>
 
-                      return (
-                        <NavLink
-                          key={item.path}
-                          to={item.path}
-                          className={({ isActive }) =>
-                            [
-                              "sidebar-item",
-                              "sidebar-child-item",
-                              isActive ? "active" : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")
-                          }
-                        >
-                          <Icon className="sidebar-item-icon" />
+                  <div
+                    id={`sidebar-group-${group.id}`}
+                    className="sidebar-group-content"
+                  >
+                    <div className="sidebar-group-content-inner">
+                      {group.items.map(
+                        (item) => {
+                          const Icon =
+                            item.icon;
 
-                          <span className="sidebar-item-label">{item.name}</span>
+                          const isNotificationItem =
+                            item.path ===
+                            "/notifications";
 
-                          {isNotificationItem && unreadCount > 0 && (
-                            <span
-                              className="sidebar-notification-badge"
-                              title={`${unreadCount} unread notifications`}
+                          return (
+                            <NavLink
+                              key={
+                                item.path
+                              }
+                              to={
+                                item.path
+                              }
+                              className={({
+                                isActive,
+                              }) =>
+                                [
+                                  "sidebar-item",
+                                  "sidebar-child-item",
+                                  isActive
+                                    ? "active"
+                                    : "",
+                                ]
+                                  .filter(
+                                    Boolean
+                                  )
+                                  .join(
+                                    " "
+                                  )
+                              }
                             >
-                              {unreadCount > 99 ? "99+" : unreadCount}
-                            </span>
-                          )}
-                        </NavLink>
-                      );
-                    })}
+                              <Icon className="sidebar-item-icon" />
+
+                              <span className="sidebar-item-label">
+                                {
+                                  item.name
+                                }
+                              </span>
+
+                              {isNotificationItem &&
+                                unreadCount >
+                                  0 && (
+                                  <span
+                                    className="sidebar-notification-badge"
+                                    title={`${unreadCount} unread notifications`}
+                                  >
+                                    {unreadCount >
+                                    99
+                                      ? "99+"
+                                      : unreadCount}
+                                  </span>
+                                )}
+                            </NavLink>
+                          );
+                        }
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            }
+          )}
         </div>
       </nav>
 
       <div className="sidebar-footer">
         <div className="sidebar-user">
           <div className="sidebar-avatar">
-            <div className="sidebar-avatar-img">{avatarLetter}</div>
+            <div className="sidebar-avatar-img">
+              {avatarLetter}
+            </div>
           </div>
 
           <div className="sidebar-user-info">
-            <span className="sidebar-username">{fullName}</span>
-            <span className="sidebar-user-role">{role}</span>
+            <span className="sidebar-username">
+              {fullName}
+            </span>
+
+            <span className="sidebar-user-role">
+              {role}
+            </span>
           </div>
         </div>
 
         <button
           type="button"
           className="sidebar-logout-btn"
-          onClick={() => setShowLogoutConfirm(true)}
+          onClick={() =>
+            setShowLogoutConfirm(
+              true
+            )
+          }
           title="Sign Out / Logout"
+          aria-label="Sign out"
         >
           <LogOut size={18} />
         </button>
@@ -1043,92 +883,169 @@ export default function Sidebar() {
         createPortal(
           <div
             className="modal-overlay"
+            role="presentation"
+            onMouseDown={(
+              event
+            ) => {
+              if (
+                event.target ===
+                event.currentTarget
+              ) {
+                setShowLogoutConfirm(
+                  false
+                );
+              }
+            }}
             style={{
               position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              inset: 0,
+              backgroundColor:
+                "rgba(0, 0, 0, 0.5)",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              justifyContent:
+                "center",
               zIndex: 99999,
-              backdropFilter: "blur(4px)",
+              backdropFilter:
+                "blur(4px)",
             }}
           >
             <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="logout-dialog-title"
               style={{
-                backgroundColor: "var(--card-bg, #ffffff)",
-                borderRadius: "16px",
+                backgroundColor:
+                  "var(--card-bg, #ffffff)",
+                borderRadius:
+                  "16px",
                 padding: "24px",
                 width: "90%",
                 maxWidth: "380px",
-                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
-                border: "1px solid var(--border, #e2e8f0)",
+                boxShadow:
+                  "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+                border:
+                  "1px solid var(--border, #e2e8f0)",
                 display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
+                flexDirection:
+                  "column",
+                alignItems:
+                  "center",
+                textAlign:
+                  "center",
               }}
             >
               <div
                 style={{
                   width: "48px",
                   height: "48px",
-                  borderRadius: "50%",
-                  backgroundColor: "#FEF2F2",
-                  color: "#DC2626",
+                  borderRadius:
+                    "50%",
+                  backgroundColor:
+                    "#fef2f2",
+                  color: "#dc2626",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: "16px",
+                  alignItems:
+                    "center",
+                  justifyContent:
+                    "center",
+                  marginBottom:
+                    "16px",
                 }}
               >
                 <LogOut size={24} />
               </div>
 
-              <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1e293b", margin: "0 0 8px 0" }}>
+              <h3
+                id="logout-dialog-title"
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color:
+                    "var(--text-primary, #1e293b)",
+                  margin:
+                    "0 0 8px",
+                }}
+              >
                 Sign Out Confirmation
               </h3>
-              <p style={{ fontSize: "13.5px", color: "#64748b", opacity: 0.9, margin: "0 0 24px 0", lineHeight: 1.5 }}>
-                Are you sure you want to log out of PRRAM System? Your active session will be ended.
+
+              <p
+                style={{
+                  fontSize:
+                    "13.5px",
+                  color:
+                    "var(--text-secondary, #64748b)",
+                  margin:
+                    "0 0 24px",
+                  lineHeight: 1.5,
+                }}
+              >
+                Are you sure you want
+                to log out of FRPAM
+                System? Your active
+                session will be ended.
               </p>
 
-              <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  width: "100%",
+                }}
+              >
                 <button
                   type="button"
-                  onClick={() => setShowLogoutConfirm(false)}
+                  onClick={() =>
+                    setShowLogoutConfirm(
+                      false
+                    )
+                  }
                   style={{
                     flex: 1,
-                    padding: "10px 16px",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    backgroundColor: "#ffffff",
-                    color: "#334155",
+                    padding:
+                      "10px 16px",
+                    borderRadius:
+                      "8px",
+                    border:
+                      "1px solid #cbd5e1",
+                    backgroundColor:
+                      "#ffffff",
+                    color:
+                      "#334155",
                     fontWeight: 600,
-                    fontSize: "13.5px",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
+                    fontSize:
+                      "13.5px",
+                    cursor:
+                      "pointer",
                   }}
                 >
                   Cancel
                 </button>
+
                 <button
                   type="button"
-                  onClick={handleConfirmLogout}
+                  onClick={
+                    handleConfirmLogout
+                  }
                   style={{
                     flex: 1,
-                    padding: "10px 16px",
-                    borderRadius: "8px",
+                    padding:
+                      "10px 16px",
+                    borderRadius:
+                      "8px",
                     border: "none",
-                    backgroundColor: "#DC2626",
-                    color: "#ffffff",
+                    backgroundColor:
+                      "#dc2626",
+                    color:
+                      "#ffffff",
                     fontWeight: 600,
-                    fontSize: "13.5px",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 4px rgba(220, 38, 38, 0.2)",
-                    transition: "all 0.2s ease",
+                    fontSize:
+                      "13.5px",
+                    cursor:
+                      "pointer",
+                    boxShadow:
+                      "0 2px 4px rgba(220, 38, 38, 0.2)",
                   }}
                 >
                   Log Out

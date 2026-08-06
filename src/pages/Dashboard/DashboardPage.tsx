@@ -25,7 +25,6 @@ import type {
 
 import "./DashboardPage.css";
 
-
 type Role =
   | "Admin"
   | "Manager"
@@ -131,7 +130,9 @@ function getErrorMessage(
       return "Your account does not have permission to load dashboard information.";
     }
 
-    if (response?.data?.errors) {
+    if (
+      response?.data?.errors
+    ) {
       return Object.values(
         response.data.errors
       )
@@ -147,7 +148,9 @@ function getErrorMessage(
     );
   }
 
-  if (error instanceof Error) {
+  if (
+    error instanceof Error
+  ) {
     return error.message;
   }
 
@@ -194,6 +197,7 @@ function getMonthKey(
 ): string {
   return [
     date.getFullYear(),
+
     String(
       date.getMonth() + 1
     ).padStart(
@@ -388,6 +392,9 @@ function getRoleTitle(
 
     case "Student":
       return "Student Dashboard";
+
+    default:
+      return "Dashboard";
   }
 }
 
@@ -396,7 +403,7 @@ function getRoleDescription(
 ): string {
   switch (role) {
     case "Admin":
-      return "Manage system resources, allocations, analytics, reports, schedules, and operational information.";
+      return "Manage users, roles, system configuration, audit information, reports, and notifications.";
 
     case "Manager":
       return "Review allocation plans, approval requests and operational resource usage.";
@@ -409,6 +416,9 @@ function getRoleDescription(
 
     case "Student":
       return "View experiments, schedules and approved allocation information.";
+
+    default:
+      return "Welcome to the forestry resource planning system.";
   }
 }
 
@@ -453,6 +463,18 @@ export default function DashboardPage() {
     let active = true;
 
     async function loadDashboard() {
+      if (
+        role === "Admin"
+      ) {
+        if (active) {
+          setAllocationPlans([]);
+          setError("");
+          setLoading(false);
+        }
+
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -497,7 +519,7 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [role]);
 
   const visiblePlans =
     useMemo(() => {
@@ -657,13 +679,12 @@ export default function DashboardPage() {
     >(() => {
       switch (role) {
         case "Admin":
+          return [];
+
         case "Manager":
           return [
             {
-              id:
-                role === "Admin"
-                  ? "admin-total"
-                  : "manager-total",
+              id: "manager-total",
 
               title:
                 "Total Allocation Plans",
@@ -685,9 +706,7 @@ export default function DashboardPage() {
             },
             {
               id:
-                role === "Admin"
-                  ? "admin-fitness"
-                  : "manager-fitness",
+                "manager-fitness",
 
               title:
                 "Average Fitness",
@@ -706,9 +725,7 @@ export default function DashboardPage() {
             },
             {
               id:
-                role === "Admin"
-                  ? "admin-approved"
-                  : "manager-approved",
+                "manager-approved",
 
               title:
                 "Approved Plans",
@@ -729,9 +746,7 @@ export default function DashboardPage() {
             },
             {
               id:
-                role === "Admin"
-                  ? "admin-pending"
-                  : "manager-pending",
+                "manager-pending",
 
               title:
                 "Pending Approval",
@@ -758,64 +773,88 @@ export default function DashboardPage() {
         case "Researcher":
           return [
             {
-              id: "researcher-total",
+              id:
+                "researcher-total",
+
               title:
                 "My Allocation Plans",
+
               value:
                 String(
                   dashboardData.totalPlans
                 ),
+
               trend: {
                 value:
                   `${dashboardData.draftPlans} draft · ${dashboardData.rejectedPlans} rejected`,
+
                 isUp: true,
               },
+
               type:
                 "total-resources",
             },
             {
-              id: "researcher-fitness",
+              id:
+                "researcher-fitness",
+
               title:
                 "Average Fitness",
+
               value:
                 `${dashboardData.averageFitness}%`,
+
               subtext:
                 "Average score of your plans",
+
               percentage:
                 dashboardData.averageFitness,
+
               type:
                 "utilization",
             },
             {
-              id: "researcher-approved",
+              id:
+                "researcher-approved",
+
               title:
                 "Approved Plans",
+
               value:
                 String(
                   dashboardData.approvedPlans
                 ),
+
               avatars: [
                 "",
                 "",
                 `+${dashboardData.approvedPlans}`,
               ],
+
               type:
                 "active-experiments",
             },
             {
-              id: "researcher-pending",
+              id:
+                "researcher-pending",
+
               title:
                 "Pending Review",
+
               value:
                 String(
                   dashboardData.pendingPlans
                 ),
+
               conflictCount:
                 dashboardData.pendingPlans,
+
               type:
                 "conflicts",
+
               actionLabel:
                 "View Plans",
+
               actionPath:
                 "/allocation",
             },
@@ -824,31 +863,42 @@ export default function DashboardPage() {
         case "Technician":
           return [
             {
-              id: "technician-plans",
+              id:
+                "technician-plans",
+
               title:
                 "Approved Plans",
+
               value:
                 String(
                   dashboardData.approvedPlans
                 ),
+
               trend: {
                 value:
                   `${dashboardData.totalResourceDetails} assigned resource records`,
+
                 isUp: true,
               },
+
               type:
                 "total-resources",
             },
             {
-              id: "technician-equipment",
+              id:
+                "technician-equipment",
+
               title:
                 "Equipment Assignments",
+
               value:
                 String(
                   dashboardData.equipmentCount
                 ),
+
               subtext:
                 "Allocated equipment records",
+
               percentage:
                 dashboardData.totalResourceDetails >
                 0
@@ -862,39 +912,52 @@ export default function DashboardPage() {
                       ).toFixed(1)
                     )
                   : 0,
+
               type:
                 "utilization",
             },
             {
-              id: "technician-schedules",
+              id:
+                "technician-schedules",
+
               title:
                 "Schedules",
+
               value:
                 String(
                   dashboardData.scheduleCount
                 ),
+
               avatars: [
                 "",
                 "",
                 `+${dashboardData.scheduleCount}`,
               ],
+
               type:
                 "active-experiments",
             },
             {
-              id: "technician-pending",
+              id:
+                "technician-pending",
+
               title:
                 "Pending Plans",
+
               value:
                 String(
                   dashboardData.pendingPlans
                 ),
+
               conflictCount:
                 dashboardData.pendingPlans,
+
               type:
                 "conflicts",
+
               actionLabel:
                 "View Allocation",
+
               actionPath:
                 "/allocation",
             },
@@ -903,68 +966,95 @@ export default function DashboardPage() {
         case "Student":
           return [
             {
-              id: "student-plans",
+              id:
+                "student-plans",
+
               title:
                 "Visible Plans",
+
               value:
                 String(
                   dashboardData.totalPlans
                 ),
+
               trend: {
                 value:
                   `${dashboardData.approvedPlans} approved plans`,
+
                 isUp: true,
               },
+
               type:
                 "total-resources",
             },
             {
-              id: "student-fitness",
+              id:
+                "student-fitness",
+
               title:
                 "Average Fitness",
+
               value:
                 `${dashboardData.averageFitness}%`,
+
               subtext:
                 "Average allocation result",
+
               percentage:
                 dashboardData.averageFitness,
+
               type:
                 "utilization",
             },
             {
-              id: "student-approved",
+              id:
+                "student-approved",
+
               title:
                 "Approved Plans",
+
               value:
                 String(
                   dashboardData.approvedPlans
                 ),
+
               avatars: [
                 "",
                 "",
                 `+${dashboardData.approvedPlans}`,
               ],
+
               type:
                 "active-experiments",
             },
             {
-              id: "student-schedules",
+              id:
+                "student-schedules",
+
               title:
                 "Schedules",
+
               value:
                 String(
                   dashboardData.scheduleCount
                 ),
+
               conflictCount:
                 dashboardData.scheduleCount,
+
               type:
                 "conflicts",
+
               actionLabel:
                 "View Schedules",
+
               actionPath:
                 "/schedules",
             },
           ];
+
+        default:
+          return [];
       }
     }, [
       dashboardData,
@@ -1013,12 +1103,10 @@ export default function DashboardPage() {
     );
 
   const canViewAnalytics =
-    role === "Admin" ||
     role === "Manager" ||
     role === "Researcher";
 
   const canCreateAllocation =
-    role === "Admin" ||
     role === "Researcher";
 
   return (
@@ -1073,94 +1161,165 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {loading ? (
+        {role === "Admin" ? (
+          <div className="role-section-card">
+            <h3>
+              Admin Workspace
+            </h3>
+
+            <p>
+              Admin manages users, roles,
+              system configuration, audit
+              information, reports, and
+              notifications. Operational
+              planning actions belong to
+              Researcher and Manager.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate(
+                  "/reports"
+                )
+              }
+            >
+              View System Reports
+            </button>
+          </div>
+        ) : loading ? (
           <div className="dashboard-loading">
             Loading dashboard data...
           </div>
         ) : (
           <>
             <div className="stats-grid">
-              {stats.map((stat) => {
-                const actionPath = stat.actionPath;
+              {stats.map(
+                (stat) => {
+                  const actionPath =
+                    stat.actionPath;
 
-                return (
-                  <StatisticCard
-                    key={stat.id}
-                    stat={stat}
-                    onAction={
-                      actionPath
-                        ? () => {
-                            navigate(actionPath);
-                          }
-                        : undefined
-                    }
-                  />
-                );
-              })}
+                  return (
+                    <StatisticCard
+                      key={stat.id}
+                      stat={stat}
+                      onAction={
+                        actionPath
+                          ? () => {
+                              navigate(
+                                actionPath
+                              );
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                }
+              )}
             </div>
 
             <div className="charts-grid">
-              <LineChartCard data={allocationTrend} />
-              <BreakdownCard data={resourceBreakdown} />
+              <LineChartCard
+                data={
+                  allocationTrend
+                }
+              />
+
+              <BreakdownCard
+                data={
+                  resourceBreakdown
+                }
+              />
             </div>
 
-            {role === "Admin" && (
+            {role ===
+              "Researcher" && (
               <div className="role-section-card">
-                <h3>Admin Workspace</h3>
-                <p>
-                  Manage allocations, resources, analytics, schedules,
-                  conflicts, reports and system operations.
-                </p>
-                <button type="button" onClick={() => navigate("/reports")}>
-                  View Reports
-                </button>
-              </div>
-            )}
+                <h3>
+                  Researcher Workspace
+                </h3>
 
-            {role === "Researcher" && (
-              <div className="role-section-card">
-                <h3>Researcher Workspace</h3>
                 <p>
-                  Create experiments, requirements and draft allocation plans,
-                  then submit them for manager approval.
+                  Create experiments,
+                  requirements and draft
+                  allocation plans, then
+                  submit them for manager
+                  approval.
                 </p>
-                <button type="button" onClick={() => navigate("/allocation")}>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      "/allocation"
+                    )
+                  }
+                >
                   View My Allocations
                 </button>
               </div>
             )}
 
-            {role === "Technician" && (
+            {role ===
+              "Technician" && (
               <div className="role-section-card">
-                <h3>Technician Workspace</h3>
+                <h3>
+                  Technician Workspace
+                </h3>
+
                 <p>
-                  Review assigned equipment, resource usage and schedules for
-                  allocation plans.
+                  Review assigned equipment,
+                  resource usage and
+                  schedules for allocation
+                  plans.
                 </p>
+
                 <button
                   type="button"
-                  onClick={() => navigate("/equipment-instances")}
+                  onClick={() =>
+                    navigate(
+                      "/equipment-instances"
+                    )
+                  }
                 >
                   View Equipment
                 </button>
               </div>
             )}
 
-            {role === "Student" && (
+            {role ===
+              "Student" && (
               <div className="role-section-card">
-                <h3>Student Workspace</h3>
+                <h3>
+                  Student Workspace
+                </h3>
+
                 <p>
-                  Review experiments, allocation results and schedules in
-                  read-only mode.
+                  Review experiments,
+                  allocation results and
+                  schedules in read-only
+                  mode.
                 </p>
-                <button type="button" onClick={() => navigate("/schedules")}>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      "/schedules"
+                    )
+                  }
+                >
                   View Schedules
                 </button>
               </div>
             )}
 
             <div className="table-row-container">
-              <RequestTable requests={recentPlans} />
+              <RequestTable
+                requests={
+                  recentPlans
+                }
+              />
             </div>
 
             {canViewAnalytics && (
@@ -1168,7 +1327,11 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   className="dashboard-outline-btn"
-                  onClick={() => navigate("/allocation-analytics")}
+                  onClick={() =>
+                    navigate(
+                      "/allocation-analytics"
+                    )
+                  }
                 >
                   View Allocation Analytics
                 </button>
@@ -1181,7 +1344,11 @@ export default function DashboardPage() {
                 className="dashboard-fab"
                 title="Create Allocation"
                 aria-label="Create allocation"
-                onClick={() => navigate("/allocation/create")}
+                onClick={() =>
+                  navigate(
+                    "/allocation/create"
+                  )
+                }
               >
                 +
               </button>
@@ -1191,4 +1358,4 @@ export default function DashboardPage() {
       </div>
     </DashboardLayout>
   );
-}
+}
