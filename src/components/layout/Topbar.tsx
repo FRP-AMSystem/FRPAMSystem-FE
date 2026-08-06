@@ -1,7 +1,10 @@
-import { Bell, Search, HelpCircle } from "lucide-react";
+import { Bell, Search, HelpCircle, Sun, Moon } from "lucide-react";
+import { useTheme } from "../../context/ThemeContext";
 import "./Topbar.css";
 
 export default function Topbar() {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -25,6 +28,18 @@ export default function Topbar() {
 
         <button className="topbar-action-btn" title="Help / Documentation">
           <HelpCircle className="topbar-action-btn-icon" />
+        </button>
+
+        <button 
+          className="topbar-action-btn" 
+          onClick={toggleTheme} 
+          title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+        >
+          {theme === "light" ? (
+            <Moon className="topbar-action-btn-icon" />
+          ) : (
+            <Sun className="topbar-action-btn-icon" />
+          )}
         </button>
       </div>
     </header>

@@ -1,72 +1,46 @@
 import api from "./api";
+import type { Role, RoleQuery, RoleResponse } from "../types/role";
 
-import type {
-  RoleQuery,
-  RoleResponse,
-} from "../types/role";
+export type RoleItem = RoleResponse & Role;
 
-function normalizeRoleList(
-  value: unknown
-): RoleResponse[] {
+function normalizeRoleList(value: unknown): RoleItem[] {
+  let list: any[] = [];
   if (Array.isArray(value)) {
-    return value as RoleResponse[];
+    list = value;
+  } else if (typeof value === "object" && value !== null) {
+    const response = value as { data?: unknown; items?: unknown };
+    if (Array.isArray(response.items)) list = response.items;
+    else if (Array.isArray(response.data)) list = response.data;
+    else if (typeof response.data === "object" && response.data !== null) {
+      const nestedData = response.data as { items?: unknown; data?: unknown };
+      if (Array.isArray(nestedData.items)) list = nestedData.items;
+      else if (Array.isArray(nestedData.data)) list = nestedData.data;
+    }
   }
 
-  if (
-    typeof value === "object" &&
-    value !== null
-  ) {
-    const response = value as {
-      data?: unknown;
-      items?: unknown;
+  return list.map((r: any) => {
+    const roleId = Number(r.roleId ?? r.id ?? 0);
+    const roleName = String(r.roleName ?? r.name ?? "");
+    return {
+      roleId,
+      roleName,
+      id: String(roleId),
+      name: roleName,
+      createdAt: r.createdAt ?? null,
+      updatedAt: r.updatedAt ?? null,
     };
-
-    if (Array.isArray(response.items)) {
-      return response.items as RoleResponse[];
-    }
-
-    if (Array.isArray(response.data)) {
-      return response.data as RoleResponse[];
-    }
-
-    if (
-      typeof response.data === "object" &&
-      response.data !== null
-    ) {
-      const nestedData = response.data as {
-        items?: unknown;
-        data?: unknown;
-      };
-
-      if (Array.isArray(nestedData.items)) {
-        return nestedData.items as RoleResponse[];
-      }
-
-      if (Array.isArray(nestedData.data)) {
-        return nestedData.data as RoleResponse[];
-      }
-    }
-  }
-
-  return [];
+  });
 }
 
-export async function getRoles(
-  query: RoleQuery = {}
-): Promise<RoleResponse[]> {
-  const response = await api.get(
-    "/Roles",
-    {
-      params: {
-        Keyword:
-          query.keyword || undefined,
-        Page: query.page ?? 1,
-        Size: query.size ?? 100,
-      },
-    }
-  );
+export async function getRoles(query: RoleQuery = {}): Promise<RoleItem[]> {
+  const response = await api.get("/Roles", {
+    params: {
+      Keyword: query.keyword || undefined,
+      Page: query.page ?? 1,
+      Size: query.size ?? 100,
+    },
+  });
 
-  return normalizeRoleList(
-    response.data
-  );
+  return normalizeRoleList(response.data);
 }
+

@@ -1,6 +1,7 @@
 .equipment-page {
   padding: 28px;
-  color: #ffffff;
+  color: #1e293b;
+  box-sizing: border-box;
 }
 
 .equipment-header {
@@ -14,22 +15,30 @@
 .equipment-header h1 {
   margin: 0 0 8px;
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 750;
+  color: #111827;
 }
 
 .equipment-header p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.65);
+  color: #64748b;
+  font-size: 14px;
 }
 
 .equipment-create-btn {
-  border: none;
-  border-radius: 12px;
+  border: 1px solid #16a34a;
+  border-radius: 10px;
   padding: 12px 18px;
   background: #16a34a;
   color: white;
-  font-weight: 700;
+  font-weight: 650;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.equipment-create-btn:hover {
+  background: #15803d;
+  border-color: #15803d;
 }
 
 .equipment-toolbar {
@@ -46,13 +55,15 @@
 }
 
 .equipment-tabs button {
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.75);
-  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
   border-radius: 999px;
-  padding: 10px 16px;
+  padding: 8px 16px;
   cursor: pointer;
   font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s ease;
 }
 
 .equipment-tabs button.active {
@@ -63,36 +74,47 @@
 
 .equipment-search {
   min-width: 260px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.8);
-  color: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1e293b;
   padding: 10px 14px;
   outline: none;
+  font-size: 14px;
+  transition: all 0.2s ease;
 }
 
 .equipment-search::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: #94a3b8;
+}
+
+.equipment-search:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 .equipment-loading {
-  background: rgba(15, 23, 42, 0.9);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 18px;
   padding: 24px;
-  color: rgba(255, 255, 255, 0.75);
+  color: #64748b;
 }
 
 .equipment-table-card {
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
   padding: 22px;
   overflow-x: auto;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .equipment-table-card h3 {
   margin: 0 0 18px;
   font-size: 18px;
+  font-weight: 700;
+  color: #111827;
 }
 
 .equipment-table {
@@ -103,54 +125,69 @@
 
 .equipment-table th,
 .equipment-table td {
-  padding: 14px 12px;
+  padding: 14px 16px;
   text-align: left;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .equipment-table th {
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 13px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
 .equipment-table td {
-  color: rgba(255, 255, 255, 0.88);
+  color: #334155;
+  font-size: 13px;
+}
+
+.equipment-table tbody tr {
+  transition: background-color 0.18s ease;
+}
+
+.equipment-table tbody tr:hover {
+  background: #f8fafc;
 }
 
 .equipment-status {
   display: inline-flex;
   border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 5px 10px;
+  font-size: 11px;
   font-weight: 700;
-  background: rgba(148, 163, 184, 0.18);
-  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.15);
+  color: #475569;
 }
 
 .status-available,
 .status-active {
-  background: rgba(34, 197, 94, 0.16);
-  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .status-inuse,
 .status-in-use,
 .status-used {
-  background: rgba(59, 130, 246, 0.16);
-  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.25);
 }
 
 .status-maintenance,
 .status-repair {
-  background: rgba(245, 158, 11, 0.16);
-  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .status-broken,
 .status-unavailable {
-  background: rgba(239, 68, 68, 0.16);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .equipment-actions {
@@ -160,23 +197,38 @@
 }
 
 .equipment-actions button {
-  border: none;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 7px 10px;
-  background: #334155;
-  color: white;
+  padding: 7px 12px;
+  background: #ffffff;
+  color: #334155;
   cursor: pointer;
   font-weight: 600;
+  font-size: 12px;
+  transition: all 0.18s ease;
+}
+
+.equipment-actions button:hover {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+  color: #2563eb;
 }
 
 .equipment-actions .danger-btn {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.06);
+  color: #dc2626;
+}
+
+.equipment-actions .danger-btn:hover {
   background: #dc2626;
+  color: #ffffff;
 }
 
 .empty-cell {
   text-align: center;
   padding: 28px !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: #94a3b8 !important;
 }
 
 @media (max-width: 900px) {
@@ -189,4 +241,4 @@
     width: 100%;
     min-width: unset;
   }
-}
+}

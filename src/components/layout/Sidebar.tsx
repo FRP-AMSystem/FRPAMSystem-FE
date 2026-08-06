@@ -1,10 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentType,
 } from "react";
+
+import { createPortal } from "react-dom";
 
 import {
   NavLink,
@@ -34,6 +38,7 @@ import {
   ShieldCheck,
   Trees,
   Truck,
+  UserCheck,
   UserRound,
   UserRoundCheck,
   Users,
@@ -47,6 +52,11 @@ import {
   getStoredRole,
   type Role,
 } from "../../config/rolePermissions";
+
+import {
+  getUserData,
+  logout as performLogout,
+} from "../../utils/storage";
 
 import "./Sidebar.css";
 
@@ -206,10 +216,27 @@ const adminMenuGroups: MenuGroup[] = [
     ],
   },
   {
-    id: "coming-soon",
-    title: "System Management",
-    icon: Settings,
-    items: [],
+    id: "system-admin",
+    title: "System Administration",
+    icon: ShieldCheck,
+    defaultOpen: true,
+    items: [
+      {
+        name: "User & Role Management",
+        path: "/admin/users",
+        icon: UserCheck,
+      },
+      {
+        name: "Personnel Directory",
+        path: "/admin/personnel",
+        icon: UserRound,
+      },
+      {
+        name: "System Settings",
+        path: "/admin/settings",
+        icon: Settings,
+      },
+    ],
   },
 ];
 
@@ -257,7 +284,10 @@ const researcherMenuGroups: MenuGroup[] = [
     items: [
       ...planningItems.map((item) =>
         item.path === "/allocation"
-          ? { ...item, name: "My Allocations" }
+          ? {
+              ...item,
+              name: "My Allocations",
+            }
           : item
       ),
       {
@@ -342,7 +372,10 @@ const studentMenuGroups: MenuGroup[] = [
     title: "Schedule & Notifications",
     icon: Calendar,
     items: standardOperations.filter((item) =>
-      ["/schedules", "/notifications"].includes(item.path)
+      [
+        "/schedules",
+        "/notifications",
+      ].includes(item.path)
     ),
   },
 ];
@@ -359,6 +392,10 @@ function isPathActive(
   currentPath: string,
   itemPath: string
 ): boolean {
+  if (itemPath === "/dashboard") {
+    return currentPath === itemPath;
+  }
+
   return (
     currentPath === itemPath ||
     currentPath.startsWith(`${itemPath}/`)
@@ -381,6 +418,15 @@ function buildInitialOpenGroups(
 }
 
 function clearAuthenticationStorage(): void {
+  try {
+    performLogout();
+  } catch (error) {
+    console.error(
+      "Storage logout helper failed:",
+      error
+    );
+  }
+
   [
     "token",
     "accessToken",
@@ -391,85 +437,151 @@ function clearAuthenticationStorage(): void {
     "fullName",
     "username",
     "email",
-  ].forEach((key) => localStorage.removeItem(key));
+  ].forEach((key) => {
+    localStorage.removeItem(key);
+  });
 
   sessionStorage.clear();
 }
 
 export default function Sidebar() {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
+
   const role = getStoredRole();
 
-  const fullName =
-    localStorage.getItem("fullName")?.trim() || "User";
-
   const menuGroups = useMemo(
-    () => roleMenuGroups[role],
+    () =>
+      roleMenuGroups[role] ??
+      studentMenuGroups,
     [role]
   );
 
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [openGroups, setOpenGroups] = useState<
-    Record<string, boolean>
-  >(() =>
-    buildInitialOpenGroups(
-      roleMenuGroups[role],
-      window.location.pathname
-    )
+  const savedUser = getUserData();
+
+  const fullName =
+    localStorage
+      .getItem("fullName")
+      ?.trim() ||
+    savedUser.userName ||
+    localStorage
+      .getItem("username")
+      ?.trim() ||
+    "User";
+
+  const avatarLetter =
+    fullName.charAt(0).toUpperCase() ||
+    "U";
+
+  const navRef =
+    useRef<HTMLElement | null>(null);
+
+  const [
+    openGroups,
+    setOpenGroups,
+  ] = useState<Record<string, boolean>>(
+    () =>
+      buildInitialOpenGroups(
+        menuGroups,
+        window.location.pathname
+      )
   );
 
-  const loadUnreadCount = useCallback(async () => {
-    if (!localStorage.getItem("token")) {
-      setUnreadCount(0);
-      return;
-    }
+  const [
+    unreadCount,
+    setUnreadCount,
+  ] = useState(0);
 
-    try {
-      const count = await getUnreadNotificationCount();
-      setUnreadCount(
-        Number.isFinite(count) ? Math.max(0, count) : 0
-      );
-    } catch (error) {
-      console.error(
-        "Load unread notification count failed:",
-        error
-      );
-      setUnreadCount(0);
-    }
-  }, []);
+  const [
+    showLogoutConfirm,
+    setShowLogoutConfirm,
+  ] = useState(false);
+
+  const loadUnreadCount =
+    useCallback(async () => {
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem(
+          "accessToken"
+        );
+
+      if (!token) {
+        setUnreadCount(0);
+        return;
+      }
+
+      try {
+        const count =
+          await getUnreadNotificationCount();
+
+        setUnreadCount(
+          Number.isFinite(count)
+            ? Math.max(0, count)
+            : 0
+        );
+      } catch (error) {
+        console.error(
+          "Load unread notification count failed:",
+          error
+        );
+
+        setUnreadCount(0);
+      }
+    }, []);
 
   useEffect(() => {
     void loadUnreadCount();
 
-    const intervalId = window.setInterval(
-      () => void loadUnreadCount(),
-      60_000
+    const intervalId =
+      window.setInterval(
+        () =>
+          void loadUnreadCount(),
+        60_000
+      );
+
+    const refresh = () =>
+      void loadUnreadCount();
+
+    window.addEventListener(
+      "notification-updated",
+      refresh
     );
 
-    const refresh = () => void loadUnreadCount();
-
-    window.addEventListener("notification-updated", refresh);
-    window.addEventListener("focus", refresh);
+    window.addEventListener(
+      "focus",
+      refresh
+    );
 
     return () => {
-      window.clearInterval(intervalId);
+      window.clearInterval(
+        intervalId
+      );
+
       window.removeEventListener(
         "notification-updated",
         refresh
       );
-      window.removeEventListener("focus", refresh);
+
+      window.removeEventListener(
+        "focus",
+        refresh
+      );
     };
   }, [loadUnreadCount]);
 
   useEffect(() => {
     setOpenGroups((current) => {
-      const next = { ...current };
+      const next = {
+        ...current,
+      };
 
       menuGroups.forEach((group) => {
         if (
           group.items.some((item) =>
-            isPathActive(location.pathname, item.path)
+            isPathActive(
+              location.pathname,
+              item.path
+            )
           )
         ) {
           next[group.id] = true;
@@ -478,140 +590,258 @@ export default function Sidebar() {
 
       return next;
     });
-  }, [location.pathname, menuGroups]);
+  }, [
+    location.pathname,
+    menuGroups,
+  ]);
 
-  const handleLogout = () => {
-    const confirmed = window.confirm(
-      "Bạn có chắc chắn muốn đăng xuất để chuyển sang tài khoản khác không?"
+  const handleNavScroll =
+    useCallback(() => {
+      if (navRef.current) {
+        sessionStorage.setItem(
+          "sidebar_scroll_pos",
+          String(
+            navRef.current.scrollTop
+          )
+        );
+      }
+    }, []);
+
+  useLayoutEffect(() => {
+    const savedPosition =
+      sessionStorage.getItem(
+        "sidebar_scroll_pos"
+      );
+
+    if (
+      savedPosition &&
+      navRef.current
+    ) {
+      navRef.current.scrollTop =
+        Number(savedPosition);
+    }
+  }, [
+    location.pathname,
+    openGroups,
+  ]);
+
+  const toggleGroup =
+    useCallback(
+      (groupId: string) => {
+        setOpenGroups(
+          (current) => ({
+            ...current,
+            [groupId]:
+              !current[groupId],
+          })
+        );
+      },
+      []
     );
 
-    if (!confirmed) return;
+  const handleConfirmLogout =
+    useCallback(() => {
+      clearAuthenticationStorage();
 
-    clearAuthenticationStorage();
-    navigate("/login", { replace: true });
-  };
+      navigate(
+        "/login",
+        {
+          replace: true,
+        }
+      );
+    }, [navigate]);
 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
         <div className="sidebar-logo-container">
-          <Trees size={22} strokeWidth={2.5} />
+          <Trees
+            size={22}
+            strokeWidth={2.5}
+          />
         </div>
 
         <div className="sidebar-brand-text">
           <span className="sidebar-title-main">
             FRPAM System
           </span>
+
           <span className="sidebar-title-sub">
             Forestry Planning
           </span>
         </div>
       </div>
 
-      <nav className="sidebar-nav">
+      <nav
+        ref={navRef}
+        className="sidebar-nav"
+        onScroll={handleNavScroll}
+      >
         <NavLink
           to="/dashboard"
           className={({ isActive }) =>
             [
               "sidebar-item",
               "sidebar-dashboard-item",
-              isActive ? "active" : "",
+              isActive
+                ? "active"
+                : "",
             ]
               .filter(Boolean)
               .join(" ")
           }
         >
           <LayoutDashboard className="sidebar-item-icon" />
-          <span className="sidebar-item-label">Dashboard</span>
+
+          <span className="sidebar-item-label">
+            Dashboard
+          </span>
         </NavLink>
 
         <div className="sidebar-menu-groups">
-          {menuGroups.map((group) => {
-            if (group.items.length === 0) {
-              return null;
-            }
+          {menuGroups.map(
+            (group) => {
+              if (
+                group.items.length === 0
+              ) {
+                return null;
+              }
 
-            const GroupIcon = group.icon;
-            const isOpen = Boolean(openGroups[group.id]);
-            const hasActiveItem = group.items.some((item) =>
-              isPathActive(location.pathname, item.path)
-            );
+              const GroupIcon =
+                group.icon;
 
-            return (
-              <div
-                key={group.id}
-                className={[
-                  "sidebar-menu-group",
-                  isOpen ? "open" : "",
-                  hasActiveItem ? "has-active-item" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
-                <button
-                  type="button"
-                  className="sidebar-group-button"
-                  onClick={() =>
-                    setOpenGroups((current) => ({
-                      ...current,
-                      [group.id]: !current[group.id],
-                    }))
-                  }
-                  aria-expanded={isOpen}
+              const isOpen =
+                Boolean(
+                  openGroups[
+                    group.id
+                  ]
+                );
+
+              const hasActiveItem =
+                group.items.some(
+                  (item) =>
+                    isPathActive(
+                      location.pathname,
+                      item.path
+                    )
+                );
+
+              return (
+                <div
+                  key={group.id}
+                  className={[
+                    "sidebar-menu-group",
+                    isOpen
+                      ? "open"
+                      : "",
+                    hasActiveItem
+                      ? "has-active-item"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
-                  <div className="sidebar-group-title">
-                    <GroupIcon
-                      className="sidebar-group-icon"
-                      size={18}
+                  <button
+                    type="button"
+                    className="sidebar-group-button"
+                    onClick={() =>
+                      toggleGroup(
+                        group.id
+                      )
+                    }
+                    aria-expanded={
+                      isOpen
+                    }
+                    aria-controls={`sidebar-group-${group.id}`}
+                  >
+                    <div className="sidebar-group-title">
+                      <GroupIcon
+                        className="sidebar-group-icon"
+                        size={18}
+                      />
+
+                      <span>
+                        {group.title}
+                      </span>
+                    </div>
+
+                    <ChevronDown
+                      size={17}
+                      className="sidebar-group-chevron"
                     />
-                    <span>{group.title}</span>
-                  </div>
+                  </button>
 
-                  <ChevronDown
-                    size={17}
-                    className="sidebar-group-chevron"
-                  />
-                </button>
+                  <div
+                    id={`sidebar-group-${group.id}`}
+                    className="sidebar-group-content"
+                  >
+                    <div className="sidebar-group-content-inner">
+                      {group.items.map(
+                        (item) => {
+                          const Icon =
+                            item.icon;
 
-                <div className="sidebar-group-content">
-                  <div className="sidebar-group-content-inner">
-                    {group.items.map((item) => {
-                      const Icon = item.icon;
-                      const isNotification =
-                        item.path === "/notifications";
+                          const isNotificationItem =
+                            item.path ===
+                            "/notifications";
 
-                      return (
-                        <NavLink
-                          key={item.path}
-                          to={item.path}
-                          className={({ isActive }) =>
-                            [
-                              "sidebar-item",
-                              "sidebar-child-item",
-                              isActive ? "active" : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")
-                          }
-                        >
-                          <Icon className="sidebar-item-icon" />
-                          <span className="sidebar-item-label">
-                            {item.name}
-                          </span>
+                          return (
+                            <NavLink
+                              key={
+                                item.path
+                              }
+                              to={
+                                item.path
+                              }
+                              className={({
+                                isActive,
+                              }) =>
+                                [
+                                  "sidebar-item",
+                                  "sidebar-child-item",
+                                  isActive
+                                    ? "active"
+                                    : "",
+                                ]
+                                  .filter(
+                                    Boolean
+                                  )
+                                  .join(
+                                    " "
+                                  )
+                              }
+                            >
+                              <Icon className="sidebar-item-icon" />
 
-                          {isNotification && unreadCount > 0 && (
-                            <span className="sidebar-notification-badge">
-                              {unreadCount > 99 ? "99+" : unreadCount}
-                            </span>
-                          )}
-                        </NavLink>
-                      );
-                    })}
+                              <span className="sidebar-item-label">
+                                {
+                                  item.name
+                                }
+                              </span>
+
+                              {isNotificationItem &&
+                                unreadCount >
+                                  0 && (
+                                  <span
+                                    className="sidebar-notification-badge"
+                                    title={`${unreadCount} unread notifications`}
+                                  >
+                                    {unreadCount >
+                                    99
+                                      ? "99+"
+                                      : unreadCount}
+                                  </span>
+                                )}
+                            </NavLink>
+                          );
+                        }
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            }
+          )}
         </div>
       </nav>
 
@@ -619,26 +849,212 @@ export default function Sidebar() {
         <div className="sidebar-user">
           <div className="sidebar-avatar">
             <div className="sidebar-avatar-img">
-              {fullName.charAt(0).toUpperCase()}
+              {avatarLetter}
             </div>
           </div>
 
           <div className="sidebar-user-info">
-            <span className="sidebar-username">{fullName}</span>
-            <span className="sidebar-user-role">{role}</span>
+            <span className="sidebar-username">
+              {fullName}
+            </span>
+
+            <span className="sidebar-user-role">
+              {role}
+            </span>
           </div>
         </div>
 
         <button
           type="button"
-          className="sidebar-logout-button"
-          onClick={handleLogout}
-          title="Đăng xuất"
-          aria-label="Đăng xuất"
+          className="sidebar-logout-btn"
+          onClick={() =>
+            setShowLogoutConfirm(
+              true
+            )
+          }
+          title="Sign Out / Logout"
+          aria-label="Sign out"
         >
           <LogOut size={18} />
         </button>
       </div>
+
+      {showLogoutConfirm &&
+        createPortal(
+          <div
+            className="modal-overlay"
+            role="presentation"
+            onMouseDown={(
+              event
+            ) => {
+              if (
+                event.target ===
+                event.currentTarget
+              ) {
+                setShowLogoutConfirm(
+                  false
+                );
+              }
+            }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor:
+                "rgba(0, 0, 0, 0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent:
+                "center",
+              zIndex: 99999,
+              backdropFilter:
+                "blur(4px)",
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="logout-dialog-title"
+              style={{
+                backgroundColor:
+                  "var(--card-bg, #ffffff)",
+                borderRadius:
+                  "16px",
+                padding: "24px",
+                width: "90%",
+                maxWidth: "380px",
+                boxShadow:
+                  "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+                border:
+                  "1px solid var(--border, #e2e8f0)",
+                display: "flex",
+                flexDirection:
+                  "column",
+                alignItems:
+                  "center",
+                textAlign:
+                  "center",
+              }}
+            >
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  borderRadius:
+                    "50%",
+                  backgroundColor:
+                    "#fef2f2",
+                  color: "#dc2626",
+                  display: "flex",
+                  alignItems:
+                    "center",
+                  justifyContent:
+                    "center",
+                  marginBottom:
+                    "16px",
+                }}
+              >
+                <LogOut size={24} />
+              </div>
+
+              <h3
+                id="logout-dialog-title"
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color:
+                    "var(--text-primary, #1e293b)",
+                  margin:
+                    "0 0 8px",
+                }}
+              >
+                Sign Out Confirmation
+              </h3>
+
+              <p
+                style={{
+                  fontSize:
+                    "13.5px",
+                  color:
+                    "var(--text-secondary, #64748b)",
+                  margin:
+                    "0 0 24px",
+                  lineHeight: 1.5,
+                }}
+              >
+                Are you sure you want
+                to log out of FRPAM
+                System? Your active
+                session will be ended.
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  width: "100%",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowLogoutConfirm(
+                      false
+                    )
+                  }
+                  style={{
+                    flex: 1,
+                    padding:
+                      "10px 16px",
+                    borderRadius:
+                      "8px",
+                    border:
+                      "1px solid #cbd5e1",
+                    backgroundColor:
+                      "#ffffff",
+                    color:
+                      "#334155",
+                    fontWeight: 600,
+                    fontSize:
+                      "13.5px",
+                    cursor:
+                      "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    handleConfirmLogout
+                  }
+                  style={{
+                    flex: 1,
+                    padding:
+                      "10px 16px",
+                    borderRadius:
+                      "8px",
+                    border: "none",
+                    backgroundColor:
+                      "#dc2626",
+                    color:
+                      "#ffffff",
+                    fontWeight: 600,
+                    fontSize:
+                      "13.5px",
+                    cursor:
+                      "pointer",
+                    boxShadow:
+                      "0 2px 4px rgba(220, 38, 38, 0.2)",
+                  }}
+                >
+                  Log Out
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </aside>
   );
 }

@@ -18,73 +18,44 @@ interface RequestTableProps {
   requests: AllocationPlan[];
 }
 
-function formatDate(
-  value?: string | null
-): string {
+function formatDate(value?: string | null): string {
   if (!value) {
     return "-";
   }
 
-  const date =
-    new Date(value);
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return "-";
   }
 
-  return date.toLocaleDateString(
-    "vi-VN"
-  );
+  return date.toLocaleDateString("vi-VN");
 }
 
-function formatFitnessScore(
-  value?: number | null
-): string {
-  if (
-    value === null ||
-    value === undefined ||
-    !Number.isFinite(value)
-  ) {
+function formatFitnessScore(value?: number | null): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
     return "-";
   }
 
-  const percentage =
-    value <= 1
-      ? value * 100
-      : value;
+  const percentage = value <= 1 ? value * 100 : value;
 
-  return `${Math.min(
-    100,
-    Math.max(0, percentage)
-  ).toFixed(
-    percentage % 1 === 0
-      ? 0
-      : 1
+  return `${Math.min(100, Math.max(0, percentage)).toFixed(
+    percentage % 1 === 0 ? 0 : 1
   )}%`;
 }
 
-function getStatusLabel(
-  status: AllocationPlanStatus
-): string {
+function getStatusLabel(status: AllocationPlanStatus): string {
   return status;
 }
 
-function getStatusClassName(
-  status: AllocationPlanStatus
-): string {
+function getStatusClassName(status: AllocationPlanStatus): string {
   return [
     "request-status-badge",
     `request-status-${status.toLowerCase()}`,
   ].join(" ");
 }
 
-function getResourceTotal(
-  plan: AllocationPlan
-): number {
+function getResourceTotal(plan: AllocationPlan): number {
   return (
     (plan.equipmentDetailCount ?? 0) +
     (plan.humanDetailCount ?? 0) +
@@ -92,42 +63,25 @@ function getResourceTotal(
   );
 }
 
-export default function RequestTable({
-  requests,
-}: RequestTableProps) {
-  const navigate =
-    useNavigate();
+export default function RequestTable({ requests }: RequestTableProps) {
+  const navigate = useNavigate();
 
-  const openDetail = (
-    allocationPlanId: number
-  ) => {
-    navigate(
-      `/allocation/${allocationPlanId}`
-    );
+  const openDetail = (allocationPlanId: number) => {
+    navigate(`/allocation/${allocationPlanId}`);
   };
 
   return (
     <section className="request-table-card">
       <div className="request-table-header">
         <div>
-          <h3>
-            Recent Allocation Plans
-          </h3>
-
-          <p>
-            Latest allocation plans and
-            approval status
-          </p>
+          <h3>Recent Allocation Plans</h3>
+          <p>Latest allocation plans and approval status</p>
         </div>
 
         <div className="request-table-summary">
           <ListChecks size={18} />
-
           <span>
-            {requests.length}{" "}
-            {requests.length === 1
-              ? "plan"
-              : "plans"}
+            {requests.length} {requests.length === 1 ? "plan" : "plans"}
           </span>
         </div>
       </div>
@@ -151,163 +105,85 @@ export default function RequestTable({
           <tbody>
             {requests.length === 0 ? (
               <tr>
-                <td
-                  colSpan={9}
-                  className="request-table-empty"
-                >
+                <td colSpan={9} className="request-table-empty">
                   No allocation plans found.
                 </td>
               </tr>
             ) : (
-              requests.map(
-                (plan) => {
-                  const resourceTotal =
-                    getResourceTotal(
-                      plan
-                    );
+              requests.map((plan) => {
+                const resourceTotal = getResourceTotal(plan);
 
-                  return (
-                    <tr
-                      key={
-                        plan.allocationPlanId
-                      }
-                    >
-                      <td>
-                        <button
-                          type="button"
-                          className="request-id-button"
-                          onClick={() =>
-                            openDetail(
-                              plan.allocationPlanId
-                            )
-                          }
-                        >
-                          #
-                          {
-                            plan.allocationPlanId
-                          }
-                        </button>
-                      </td>
+                return (
+                  <tr key={plan.allocationPlanId}>
+                    <td>
+                      <button
+                        type="button"
+                        className="request-id-button"
+                        onClick={() => openDetail(plan.allocationPlanId)}
+                      >
+                        #{plan.allocationPlanId}
+                      </button>
+                    </td>
 
-                      <td>
-                        <div className="request-experiment-cell">
-                          <strong>
-                            {plan.experimentName ||
-                              `Experiment #${plan.experimentId}`}
-                          </strong>
+                    <td>
+                      <div className="request-experiment-cell">
+                        <strong>
+                          {plan.experimentName ||
+                            `Experiment #${plan.experimentId}`}
+                        </strong>
+                        <span>Experiment #{plan.experimentId}</span>
+                      </div>
+                    </td>
 
-                          <span>
-                            Experiment #
-                            {
-                              plan.experimentId
-                            }
-                          </span>
-                        </div>
-                      </td>
+                    <td>
+                      <span className="request-fitness">
+                        {formatFitnessScore(plan.fitnessScore)}
+                      </span>
+                    </td>
 
-                      <td>
-                        <span className="request-fitness">
-                          {formatFitnessScore(
-                            plan.fitnessScore
-                          )}
+                    <td>
+                      <div className="request-user-cell">
+                        <span>
+                          {plan.createdByName ||
+                            `User #${plan.createdBy ?? "-"}`}
                         </span>
-                      </td>
+                      </div>
+                    </td>
 
-                      <td>
-                        <div className="request-created-by">
-                          <div className="request-created-avatar">
-                            {(
-                              plan.createdByName ||
-                              "U"
-                            )
-                              .charAt(0)
-                              .toUpperCase()}
-                          </div>
+                    <td>
+                      <span className={getStatusClassName(plan.approveStatus)}>
+                        {getStatusLabel(plan.approveStatus)}
+                      </span>
+                    </td>
 
-                          <div>
-                            <strong>
-                              {plan.createdByName ||
-                                `User #${plan.createdBy}`}
-                            </strong>
+                    <td>{formatDate(plan.createdAt)}</td>
 
-                            <span>
-                              User #
-                              {
-                                plan.createdBy
-                              }
-                            </span>
-                          </div>
-                        </div>
-                      </td>
+                    <td>
+                      <span className="request-count-badge">
+                        {resourceTotal} items
+                      </span>
+                    </td>
 
-                      <td>
-                        <span
-                          className={getStatusClassName(
-                            plan.approveStatus
-                          )}
-                        >
-                          {getStatusLabel(
-                            plan.approveStatus
-                          )}
-                        </span>
-                      </td>
+                    <td>
+                      <span className="request-count-badge">
+                        {plan.scheduleCount ?? 0} schedules
+                      </span>
+                    </td>
 
-                      <td>
-                        {formatDate(
-                          plan.createdAt
-                        )}
-                      </td>
-
-                      <td>
-                        <div className="request-resource-cell">
-                          <strong>
-                            {resourceTotal} total
-                          </strong>
-
-                          <span>
-                            E:
-                            {plan.equipmentDetailCount ??
-                              0}
-                            {" · "}
-                            H:
-                            {plan.humanDetailCount ??
-                              0}
-                            {" · "}
-                            L:
-                            {plan.landDetailCount ??
-                              0}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="request-schedule-count">
-                          {plan.scheduleCount ??
-                            0}
-                        </span>
-                      </td>
-
-                      <td>
-                        <button
-                          type="button"
-                          className="request-view-button"
-                          title="View allocation detail"
-                          aria-label={`View allocation plan ${plan.allocationPlanId}`}
-                          onClick={() =>
-                            openDetail(
-                              plan.allocationPlanId
-                            )
-                          }
-                        >
-                          <Eye size={16} />
-
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }
-              )
+                    <td>
+                      <button
+                        type="button"
+                        className="request-action-button"
+                        onClick={() => openDetail(plan.allocationPlanId)}
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                        <span>View</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

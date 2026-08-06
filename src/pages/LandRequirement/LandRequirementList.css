@@ -1,7 +1,8 @@
 .land-requirement-list-page {
   min-height: 100%;
   padding: 28px;
-  color: #e2e8f0;
+  color: #1e293b;
+  box-sizing: border-box;
 }
 
 .land-requirement-list-header {
@@ -14,9 +15,9 @@
 
 .land-requirement-list-header h1 {
   margin: 8px 0;
-  color: #f8fafc;
+  color: #111827;
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .land-requirement-list-breadcrumb {
@@ -27,7 +28,7 @@
 
 .land-requirement-list-description {
   margin: 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 14px;
   line-height: 1.6;
 }
@@ -39,22 +40,19 @@
   justify-content: center;
   gap: 8px;
   padding: 0 17px;
-  border: 1px solid #2563eb;
+  border: 1px solid #16a34a;
   border-radius: 10px;
-  background: #2563eb;
+  background: #16a34a;
   color: #ffffff;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .land-requirement-create-button:hover {
-  border-color: #3b82f6;
-  background: #3b82f6;
+  border-color: #15803d;
+  background: #15803d;
   transform: translateY(-1px);
 }
 
@@ -64,9 +62,10 @@
   gap: 12px;
   margin-bottom: 20px;
   padding: 16px;
-  border: 1px solid #253247;
+  border: 1px solid #e5e7eb;
   border-radius: 14px;
-  background: #111827;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .land-requirement-search-wrapper {
@@ -78,7 +77,7 @@
   position: absolute;
   top: 50%;
   left: 14px;
-  color: #64748b;
+  color: #94a3b8;
   transform: translateY(-50%);
   pointer-events: none;
 }
@@ -87,26 +86,23 @@
   width: 100%;
   min-height: 42px;
   padding: 0 14px 0 43px;
-  border: 1px solid #334155;
+  border: 1px solid #cbd5e1;
   border-radius: 10px;
   outline: none;
-  background: #0f172a;
-  color: #f8fafc;
+  background: #ffffff;
+  color: #1e293b;
   font-size: 14px;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: all 0.2s ease;
   box-sizing: border-box;
 }
 
 .land-requirement-search-wrapper input::placeholder {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .land-requirement-search-wrapper input:focus {
-  border-color: #3b82f6;
-  box-shadow:
-    0 0 0 3px rgba(59, 130, 246, 0.14);
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 .land-requirement-search-button,
@@ -115,50 +111,49 @@
   padding: 0 18px;
   border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .land-requirement-search-button {
-  border: 1px solid #2563eb;
-  background: #2563eb;
+  border: 1px solid #16a34a;
+  background: #16a34a;
   color: #ffffff;
 }
 
 .land-requirement-search-button:hover {
-  border-color: #3b82f6;
-  background: #3b82f6;
+  background: #15803d;
 }
 
 .land-requirement-clear-button {
-  border: 1px solid #334155;
-  background: transparent;
-  color: #cbd5e1;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
 }
 
 .land-requirement-clear-button:hover {
-  border-color: #475569;
-  background: #1e293b;
+  border-color: #94a3b8;
+  background: #e2e8f0;
 }
 
 .land-requirement-error {
   margin-bottom: 18px;
   padding: 13px 16px;
-  border: 1px solid rgba(239, 68, 68, 0.45);
+  border: 1px solid rgba(239, 68, 68, 0.35);
   border-radius: 10px;
-  background: rgba(127, 29, 29, 0.24);
-  color: #fecaca;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
   font-size: 14px;
   line-height: 1.5;
 }
 
 .land-requirement-table-card {
   overflow: hidden;
-  border: 1px solid #253247;
+  border: 1px solid #e5e7eb;
   border-radius: 14px;
-  background: #111827;
-  box-shadow:
-    0 14px 35px rgba(0, 0, 0, 0.14);
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .land-requirement-table-header {
@@ -167,12 +162,12 @@
   justify-content: space-between;
   gap: 20px;
   padding: 20px 22px;
-  border-bottom: 1px solid #253247;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .land-requirement-table-header h2 {
   margin: 0 0 5px;
-  color: #f8fafc;
+  color: #111827;
   font-size: 18px;
   font-weight: 700;
 }
@@ -192,7 +187,7 @@
   border: 1px solid rgba(34, 197, 94, 0.3);
   border-radius: 11px;
   background: rgba(34, 197, 94, 0.1);
-  color: #4ade80;
+  color: #15803d;
 }
 
 .land-requirement-table-wrapper {
@@ -209,31 +204,31 @@
 .land-requirement-table th,
 .land-requirement-table td {
   padding: 15px 17px;
-  border-bottom: 1px solid #1f2b3d;
+  border-bottom: 1px solid #f1f5f9;
   text-align: left;
   vertical-align: middle;
 }
 
 .land-requirement-table th {
-  background: #0f172a;
-  color: #94a3b8;
-  font-size: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .land-requirement-table td {
-  color: #cbd5e1;
-  font-size: 14px;
+  color: #334155;
+  font-size: 13px;
 }
 
 .land-requirement-table tbody tr {
-  transition: background 0.2s ease;
+  transition: background-color 0.18s ease;
 }
 
 .land-requirement-table tbody tr:hover {
-  background: rgba(30, 41, 59, 0.55);
+  background: #f8fafc;
 }
 
 .land-requirement-table tbody tr:last-child td {
@@ -241,7 +236,7 @@
 }
 
 .land-requirement-id {
-  color: #93c5fd;
+  color: #2563eb;
   font-weight: 700;
 }
 
@@ -253,7 +248,7 @@
 }
 
 .land-requirement-experiment strong {
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 14px;
   font-weight: 600;
 }
@@ -264,7 +259,7 @@
 }
 
 .land-requirement-area {
-  color: #f8fafc;
+  color: #0f172a;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -272,7 +267,7 @@
 .land-requirement-soil {
   display: inline-block;
   max-width: 190px;
-  color: #cbd5e1;
+  color: #475569;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -286,26 +281,26 @@
   justify-content: center;
   padding: 0 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .land-requirement-status-fixed {
   border: 1px solid rgba(245, 158, 11, 0.35);
   background: rgba(245, 158, 11, 0.12);
-  color: #fcd34d;
+  color: #b45309;
 }
 
 .land-requirement-status-flexible {
   border: 1px solid rgba(34, 197, 94, 0.35);
   background: rgba(34, 197, 94, 0.12);
-  color: #86efac;
+  color: #15803d;
 }
 
 .land-requirement-note {
   display: block;
   max-width: 230px;
-  color: #94a3b8;
+  color: #64748b;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -324,11 +319,10 @@
   align-items: center;
   justify-content: center;
   border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
+  transition: all 0.18s ease;
 }
 
 .land-requirement-action-button:hover {
@@ -336,33 +330,31 @@
 }
 
 .land-requirement-view-button {
-  border: 1px solid rgba(59, 130, 246, 0.4);
-  background: rgba(59, 130, 246, 0.1);
-  color: #93c5fd;
+  color: #2563eb;
 }
 
 .land-requirement-view-button:hover {
-  background: rgba(59, 130, 246, 0.2);
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .land-requirement-edit-button {
-  border: 1px solid rgba(245, 158, 11, 0.4);
-  background: rgba(245, 158, 11, 0.1);
-  color: #fcd34d;
+  color: #d97706;
 }
 
 .land-requirement-edit-button:hover {
-  background: rgba(245, 158, 11, 0.2);
+  border-color: #d97706;
+  background: rgba(245, 158, 11, 0.08);
 }
 
 .land-requirement-delete-button {
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #dc2626;
 }
 
 .land-requirement-delete-button:hover {
-  background: rgba(239, 68, 68, 0.2);
+  border-color: #dc2626;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .land-requirement-action-button:disabled {
@@ -377,7 +369,7 @@
   min-height: 330px;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .land-requirement-empty-state {
@@ -388,12 +380,12 @@
 }
 
 .land-requirement-empty-state svg {
-  color: #4ade80;
+  color: #16a34a;
 }
 
 .land-requirement-empty-state h3 {
   margin: 4px 0 0;
-  color: #f8fafc;
+  color: #1e293b;
   font-size: 18px;
 }
 
@@ -413,17 +405,17 @@
   gap: 8px;
   margin-top: 8px;
   padding: 0 16px;
-  border: 1px solid #2563eb;
+  border: 1px solid #16a34a;
   border-radius: 10px;
-  background: #2563eb;
+  background: #16a34a;
   color: #ffffff;
   font-weight: 600;
   cursor: pointer;
 }
 
 .land-requirement-empty-state button:hover {
-  border-color: #3b82f6;
-  background: #3b82f6;
+  border-color: #15803d;
+  background: #15803d;
 }
 
 @media (max-width: 800px) {
@@ -448,4 +440,4 @@
   .land-requirement-clear-button {
     width: 100%;
   }
-}
+}

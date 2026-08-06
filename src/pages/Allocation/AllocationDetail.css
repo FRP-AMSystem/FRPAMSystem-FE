@@ -1,7 +1,8 @@
 .allocation-detail-page {
   min-height: 100%;
   padding: 28px;
-  color: #f8fafc;
+  color: #1e293b;
+  box-sizing: border-box;
 }
 
 .allocation-detail-header {
@@ -15,12 +16,14 @@
 .allocation-detail-header h1 {
   margin: 8px 0 6px;
   font-size: 32px;
+  font-weight: 750;
   line-height: 1.2;
+  color: #111827;
 }
 
 .allocation-subtitle {
   margin: 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 15px;
 }
 
@@ -34,14 +37,15 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: #86efac;
+  color: #16a34a;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition: color 0.2s ease;
 }
 
 .allocation-back-button:hover {
-  color: #bbf7d0;
+  color: #15803d;
 }
 
 .allocation-status {
@@ -49,35 +53,40 @@
   align-items: center;
   justify-content: center;
   min-width: 100px;
-  padding: 9px 16px;
+  padding: 8px 16px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .allocation-status-draft {
-  background: rgba(234, 179, 8, 0.18);
-  color: #fde047;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .allocation-status-pending {
-  background: rgba(249, 115, 22, 0.18);
-  color: #fb923c;
+  background: rgba(249, 115, 22, 0.12);
+  color: #c2410c;
+  border: 1px solid rgba(249, 115, 22, 0.3);
 }
 
 .allocation-status-approved {
-  background: rgba(34, 197, 94, 0.18);
-  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .allocation-status-rejected {
-  background: rgba(239, 68, 68, 0.18);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .allocation-status-cancelled {
-  background: rgba(148, 163, 184, 0.18);
-  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.15);
+  color: #475569;
+  border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 .allocation-alert {
@@ -90,14 +99,14 @@
 
 .allocation-alert.error {
   border-color: rgba(239, 68, 68, 0.35);
-  background: rgba(127, 29, 29, 0.3);
-  color: #fecaca;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
 }
 
 .allocation-alert.success {
   border-color: rgba(34, 197, 94, 0.35);
-  background: rgba(20, 83, 45, 0.3);
-  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.08);
+  color: #15803d;
 }
 
 .allocation-overview-grid {
@@ -111,10 +120,10 @@
 .allocation-resource-card,
 .allocation-loading-card,
 .allocation-empty-state {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 18px;
-  background: rgba(15, 23, 42, 0.92);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .allocation-info-card {
@@ -134,10 +143,12 @@
 .allocation-resource-header h2 {
   margin: 5px 0 0;
   font-size: 18px;
+  font-weight: 700;
+  color: #111827;
 }
 
 .card-eyebrow {
-  color: #4ade80;
+  color: #16a34a;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -147,10 +158,11 @@
 .resource-total {
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.13);
-  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
   font-size: 12px;
   font-weight: 700;
+  border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .allocation-info-list {
@@ -164,7 +176,7 @@
   justify-content: space-between;
   gap: 20px;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .allocation-info-row:last-child {
@@ -172,13 +184,14 @@
 }
 
 .allocation-info-row span {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 14px;
 }
 
 .allocation-info-row strong {
   max-width: 65%;
-  color: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
   text-align: right;
   overflow-wrap: anywhere;
 }
@@ -191,20 +204,22 @@
 
 .allocation-resource-summary>div {
   padding: 17px;
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
-  background: rgba(30, 41, 59, 0.86);
+  background: #f8fafc;
 }
 
 .allocation-resource-summary span {
   display: block;
   margin-bottom: 8px;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 13px;
 }
 
 .allocation-resource-summary strong {
   font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .allocation-actions-card {
@@ -219,7 +234,7 @@
 .allocation-actions-card p {
   max-width: 620px;
   margin: 8px 0 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 14px;
 }
 
@@ -236,11 +251,9 @@
   border: none;
   border-radius: 10px;
   color: #ffffff;
-  font-weight: 700;
+  font-weight: 650;
   cursor: pointer;
-  transition:
-    transform 0.15s ease,
-    opacity 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .allocation-button:hover:not(:disabled) {
@@ -253,19 +266,38 @@
 }
 
 .allocation-button.secondary {
-  background: #475569;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.allocation-button.secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
 }
 
 .allocation-button.approve {
   background: #16a34a;
 }
 
+.allocation-button.approve:hover:not(:disabled) {
+  background: #15803d;
+}
+
 .allocation-button.reject {
   background: #dc2626;
 }
 
+.allocation-button.reject:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
 .allocation-button.cancel {
   background: #d97706;
+}
+
+.allocation-button.cancel:hover:not(:disabled) {
+  background: #b45309;
 }
 
 .allocation-readonly-note {
@@ -287,7 +319,7 @@
 
 .allocation-resource-header p {
   margin: 8px 0 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 14px;
 }
 
@@ -296,8 +328,8 @@
   padding: 10px 13px;
   border: 1px solid rgba(34, 197, 94, 0.25);
   border-radius: 10px;
-  background: rgba(20, 83, 45, 0.22);
-  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.06);
+  color: #15803d;
   font-size: 13px;
 }
 
@@ -305,7 +337,7 @@
   display: flex;
   gap: 4px;
   padding: 0 22px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .allocation-tabs button {
@@ -316,14 +348,15 @@
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: #94a3b8;
-  font-weight: 700;
+  color: #64748b;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.18s ease;
 }
 
 .allocation-tabs button.active {
-  border-bottom-color: #22c55e;
-  color: #86efac;
+  border-bottom-color: #16a34a;
+  color: #16a34a;
 }
 
 .allocation-tabs button span {
@@ -335,7 +368,13 @@
   padding: 0 6px;
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.15);
+  color: #475569;
   font-size: 11px;
+}
+
+.allocation-tabs button.active span {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
 }
 
 .allocation-table-wrapper {
@@ -352,26 +391,33 @@
 .allocation-resource-table th,
 .allocation-resource-table td {
   padding: 15px 16px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid #f1f5f9;
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
 }
 
 .allocation-resource-table th {
-  background: rgba(30, 41, 59, 0.9);
-  color: #cbd5e1;
-  font-size: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: 0.02em;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .allocation-resource-table td {
-  color: #e2e8f0;
+  color: #334155;
   font-size: 13px;
 }
 
+.allocation-resource-table tbody tr {
+  transition: background-color 0.18s ease;
+}
+
 .allocation-resource-table tbody tr:hover {
-  background: rgba(30, 41, 59, 0.45);
+  background: #f8fafc;
 }
 
 .resource-date-range {
@@ -386,51 +432,63 @@
 
 .resource-status {
   display: inline-flex;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .resource-status-proposed {
-  background: rgba(59, 130, 246, 0.16);
-  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.25);
 }
 
 .resource-status-reserved {
-  background: rgba(168, 85, 247, 0.16);
-  color: #d8b4fe;
+  background: rgba(168, 85, 247, 0.12);
+  color: #7e22ce;
+  border: 1px solid rgba(168, 85, 247, 0.3);
 }
 
 .resource-status-allocated {
-  background: rgba(34, 197, 94, 0.16);
-  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .resource-status-inuse {
-  background: rgba(249, 115, 22, 0.16);
-  color: #fdba74;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .resource-status-completed {
-  background: rgba(20, 184, 166, 0.16);
-  color: #5eead4;
+  background: rgba(13, 148, 136, 0.12);
+  color: #0f766e;
+  border: 1px solid rgba(13, 148, 136, 0.3);
 }
 
 .resource-status-cancelled {
-  background: rgba(148, 163, 184, 0.18);
-  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.15);
+  color: #475569;
+  border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 .resource-delete-button {
-  padding: 8px 12px;
-  border: none;
+  padding: 7px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
   border-radius: 8px;
+  background: rgba(239, 68, 68, 0.06);
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.resource-delete-button:hover {
   background: #dc2626;
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .resource-delete-button:disabled {
@@ -445,20 +503,22 @@
 
 .allocation-resource-empty h3 {
   margin: 0 0 8px;
+  color: #111827;
+  font-weight: 700;
 }
 
 .allocation-resource-empty p {
   margin: 0;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .allocation-locked-note {
   margin-top: 18px;
   padding: 14px 16px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid #cbd5e1;
   border-radius: 12px;
-  background: rgba(30, 41, 59, 0.65);
-  color: #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
 }
 
 .allocation-loading-card,
@@ -472,11 +532,13 @@
 
 .allocation-empty-state h1 {
   margin-top: 0;
+  color: #111827;
 }
 
 .allocation-empty-state p {
-  color: #94a3b8;
+  color: #64748b;
 }
+
 
 .resource-header-actions {
   display: flex;

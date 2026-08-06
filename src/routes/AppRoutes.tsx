@@ -16,6 +16,10 @@ import {
 
 import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
+import UsersPage from "../pages/admin/Users/UsersPage";
+import PersonnelPage from "../pages/admin/Personnel/PersonnelPage";
+import SettingsPage from "../pages/admin/Settings/SettingsPage";
+import ResourcesPage from "../pages/Resources/ResourcesPage";
 
 /* =====================================================
    EXPERIMENT
@@ -91,8 +95,6 @@ import EquipmentInstanceList from "../pages/Equipment/EquipmentInstanceList";
 import EquipmentSubstitutionList from "../pages/EquipmentSubstitution/EquipmentSubstitutionList";
 import EquipmentShortageLogList from "../pages/EquipmentShortageLog/EquipmentShortageLogList";
 
-import ResourceOverview from "../pages/Resource/ResourceOverview";
-
 import AreaList from "../pages/Area/AreaList";
 import LandResourceList from "../pages/LandResource/LandResourceList";
 
@@ -140,10 +142,6 @@ const operationalViewRoles: Role[] = [
 
 const researcherOnly: Role[] = [
   "Researcher",
-];
-
-const managerOnly: Role[] = [
-  "Manager",
 ];
 
 const analyticsRoles: Role[] = [
@@ -720,7 +718,7 @@ export default function AppRoutes() {
           <ProtectedRoute
             allowedRoles={operationalViewRoles}
           >
-            <ResourceOverview />
+            <ResourcesPage />
           </ProtectedRoute>
         }
       />
@@ -847,6 +845,43 @@ export default function AppRoutes() {
             allowedRoles={allRoles}
           >
             <NotificationDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* =========================
+          ADMIN
+      ========================= */}
+
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Admin"]}
+          >
+            <UsersPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/personnel"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Admin", "Manager"]}
+          >
+            <PersonnelPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Admin"]}
+          >
+            <SettingsPage />
           </ProtectedRoute>
         }
       />
