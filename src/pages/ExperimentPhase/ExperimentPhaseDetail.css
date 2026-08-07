@@ -1,105 +1,133 @@
+/* =========================
+   EXPERIMENT PHASE DETAIL PAGE
+========================= */
+
 .experiment-phase-detail-page {
   min-height: 100%;
-  padding: 28px;
+  padding: 28px 32px;
+  color: #1e293b;
+  box-sizing: border-box;
 }
+
+/* =========================
+   HEADER
+========================= */
 
 .experiment-phase-detail-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 
 .experiment-phase-detail-breadcrumb {
-  margin: 0 0 8px;
-  color: #8b95a7;
-  font-size: 14px;
+  margin: 0 0 6px;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 .experiment-phase-detail-header h1 {
   margin: 0;
-  color: #f8fafc;
-  font-size: 30px;
-  font-weight: 700;
+  color: #111827;
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.25;
 }
 
 .experiment-phase-detail-description {
   max-width: 650px;
-  margin: 8px 0 0;
-  color: #9aa4b5;
-  font-size: 15px;
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 14px;
   line-height: 1.6;
 }
 
 .experiment-phase-detail-header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.experiment-phase-detail-back-button,
-.experiment-phase-detail-edit-button {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 17px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease,
-    transform 0.2s ease;
-}
+/* =========================
+   HEADER BUTTONS
+========================= */
 
 .experiment-phase-detail-back-button {
-  border: 1px solid #3a465c;
-  background: #151c2b;
-  color: #d5dce7;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
 }
 
 .experiment-phase-detail-back-button:hover {
-  border-color: #64748b;
-  background: #202a3c;
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #1e293b;
 }
 
 .experiment-phase-detail-edit-button {
-  border: 0;
-  background: #2563eb;
-  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
 }
 
 .experiment-phase-detail-edit-button:hover {
-  background: #1d4ed8;
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
   transform: translateY(-1px);
 }
+
+/* =========================
+   SUMMARY BANNER CARD
+========================= */
 
 .experiment-phase-detail-summary-card {
   display: flex;
   align-items: center;
   gap: 22px;
-  margin-bottom: 22px;
-  padding: 22px;
-  border: 1px solid #283245;
+  margin-bottom: 20px;
+  padding: 20px 24px;
+  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  background: #151c2b;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .experiment-phase-detail-summary-icon {
   display: flex;
-  width: 62px;
-  height: 62px;
+  width: 52px;
+  height: 52px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  background: rgb(37 99 235 / 15%);
-  color: #60a5fa;
+  border-radius: 13px;
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
 }
 
 .experiment-phase-detail-summary-content {
@@ -112,34 +140,43 @@
 .experiment-phase-detail-summary-content > div {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
 .experiment-phase-detail-summary-content span {
-  color: #8591a5;
-  font-size: 12px;
-  font-weight: 600;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .experiment-phase-detail-summary-content strong {
-  color: #f1f5f9;
+  color: #111827;
   font-size: 16px;
+  font-weight: 700;
 }
+
+/* =========================
+   DETAIL GRID
+========================= */
 
 .experiment-phase-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  gap: 18px;
 }
 
+/* =========================
+   CARDS
+========================= */
+
 .experiment-phase-detail-card {
-  padding: 22px;
-  border: 1px solid #283245;
+  padding: 22px 24px;
+  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  background: #151c2b;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 10%);
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .experiment-phase-detail-description-card {
@@ -150,63 +187,82 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 20px;
-  color: #60a5fa;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #16a34a;
 }
 
 .experiment-phase-detail-card-title h2 {
   margin: 0;
-  color: #f1f5f9;
-  font-size: 18px;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 700;
 }
+
+/* =========================
+   INFORMATION GRID (inner cells)
+========================= */
 
 .experiment-phase-detail-information {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .experiment-phase-detail-information > div {
-  min-height: 78px;
-  padding: 14px;
-  border: 1px solid #2a3548;
-  border-radius: 11px;
-  background: #101725;
+  min-height: 70px;
+  padding: 14px 16px;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #f8fafc;
 }
 
 .experiment-phase-detail-information span {
   display: block;
-  margin-bottom: 8px;
-  color: #7f8ca3;
-  font-size: 12px;
+  margin-bottom: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .experiment-phase-detail-information strong {
-  color: #e2e8f0;
+  color: #111827;
   font-size: 14px;
+  font-weight: 650;
   line-height: 1.5;
 }
 
+/* =========================
+   DESCRIPTION CONTENT
+========================= */
+
 .experiment-phase-detail-description-content {
-  min-height: 90px;
+  min-height: 80px;
   margin: 0;
   padding: 16px;
-  border: 1px solid #2a3548;
-  border-radius: 11px;
-  background: #101725;
-  color: #cbd5e1;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
   font-size: 14px;
   line-height: 1.75;
   white-space: pre-wrap;
 }
+
+/* =========================
+   STATUS BADGES
+========================= */
 
 .experiment-phase-detail-status {
   display: inline-flex;
   width: fit-content;
   align-items: center;
   justify-content: center;
-  min-width: 100px;
-  padding: 6px 11px;
+  min-width: 90px;
+  padding: 5px 12px;
   border: 1px solid transparent;
   border-radius: 999px;
   font-size: 12px !important;
@@ -214,51 +270,60 @@
 }
 
 .experiment-phase-detail-status-planned {
-  border-color: rgb(59 130 246 / 35%);
-  background: rgb(37 99 235 / 14%);
-  color: #93c5fd !important;
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #1d4ed8 !important;
 }
 
 .experiment-phase-detail-status-progress {
-  border-color: rgb(245 158 11 / 35%);
-  background: rgb(180 83 9 / 16%);
-  color: #fcd34d !important;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #b45309 !important;
 }
 
 .experiment-phase-detail-status-completed {
-  border-color: rgb(34 197 94 / 35%);
-  background: rgb(21 128 61 / 16%);
-  color: #86efac !important;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #15803d !important;
 }
 
 .experiment-phase-detail-status-cancelled {
-  border-color: rgb(239 68 68 / 35%);
-  background: rgb(185 28 28 / 16%);
-  color: #fca5a5 !important;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #b91c1c !important;
 }
+
+/* =========================
+   LOADING / ERROR STATE
+========================= */
 
 .experiment-phase-detail-state {
   display: flex;
-  min-height: 320px;
+  min-height: 300px;
   align-items: center;
   justify-content: center;
-  color: #8f9bb0;
+  color: #94a3b8;
+  font-size: 14px;
   text-align: center;
 }
 
 .experiment-phase-detail-error {
-  padding: 15px 17px;
-  border: 1px solid rgb(239 68 68 / 45%);
-  border-radius: 11px;
-  background: rgb(127 29 29 / 25%);
-  color: #fecaca;
+  padding: 14px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
   font-size: 14px;
   line-height: 1.6;
 }
 
+/* =========================
+   RESPONSIVE
+========================= */
+
 @media (max-width: 900px) {
   .experiment-phase-detail-page {
-    padding: 20px;
+    padding: 20px 18px;
   }
 
   .experiment-phase-detail-header {
@@ -272,6 +337,7 @@
   .experiment-phase-detail-back-button,
   .experiment-phase-detail-edit-button {
     flex: 1;
+    justify-content: center;
   }
 
   .experiment-phase-detail-summary-content {
@@ -289,11 +355,11 @@
 
 @media (max-width: 600px) {
   .experiment-phase-detail-page {
-    padding: 16px;
+    padding: 15px 12px;
   }
 
   .experiment-phase-detail-header h1 {
-    font-size: 25px;
+    font-size: 22px;
   }
 
   .experiment-phase-detail-header-actions {
@@ -303,6 +369,7 @@
   .experiment-phase-detail-back-button,
   .experiment-phase-detail-edit-button {
     width: 100%;
+    flex: unset;
   }
 
   .experiment-phase-detail-summary-card {

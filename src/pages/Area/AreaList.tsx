@@ -420,7 +420,7 @@ export default function AreaList() {
         </header>
 
         <section className="area-filter">
-          <div>
+          <div className="area-search">
             <Search size={18} />
 
             <input
@@ -555,6 +555,7 @@ export default function AreaList() {
                               <>
                                 <button
                                   type="button"
+                                  className="action-btn-pill edit"
                                   title="Edit"
                                   onClick={() =>
                                     openEdit(
@@ -562,16 +563,13 @@ export default function AreaList() {
                                     )
                                   }
                                 >
-                                  <Pencil
-                                    size={
-                                      16
-                                    }
-                                  />
+                                  <Pencil size={12} />
+                                  <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  className="danger"
+                                  className="action-btn-pill delete"
                                   disabled={
                                     deletingId ===
                                     area.areaId
@@ -583,11 +581,8 @@ export default function AreaList() {
                                     )
                                   }
                                 >
-                                  <Trash2
-                                    size={
-                                      16
-                                    }
-                                  />
+                                  <Trash2 size={12} />
+                                  <span>Delete</span>
                                 </button>
                               </>
                             ) : (

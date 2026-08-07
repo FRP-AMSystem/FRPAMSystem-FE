@@ -173,11 +173,11 @@ export default function RequestTable({ requests }: RequestTableProps) {
                     <td>
                       <button
                         type="button"
-                        className="request-action-button"
+                        className="action-btn-pill view"
                         onClick={() => openDetail(plan.allocationPlanId)}
                         title="View Details"
                       >
-                        <Eye size={16} />
+                        <Eye size={12} />
                         <span>View</span>
                       </button>
                     </td>

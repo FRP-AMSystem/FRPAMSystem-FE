@@ -109,8 +109,9 @@
 
 .allocation-table {
   width: 100%;
-  min-width: 1250px;
+  min-width: 980px;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .allocation-table thead {
@@ -118,13 +119,27 @@
 }
 
 .allocation-table th {
-  padding: 14px 16px;
+  padding: 12px 10px;
   border-bottom: 1px solid #e5e7eb;
   color: #64748b;
   font-size: 11px;
   font-weight: 700;
   text-align: left;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.allocation-table th:first-child,
+.allocation-table td:first-child {
+  padding-left: 14px;
+  width: 1%;
+  white-space: nowrap;
+}
+
+.allocation-table th:last-child,
+.allocation-table td:last-child {
+  padding-right: 14px;
+  width: 1%;
   white-space: nowrap;
 }
 
@@ -142,7 +157,7 @@
 }
 
 .allocation-table td {
-  padding: 16px;
+  padding: 12px 10px;
   color: #334155;
   font-size: 13px;
   line-height: 1.5;
@@ -150,14 +165,22 @@
 }
 
 .allocation-table td:nth-child(2) {
-  min-width: 180px;
+  min-width: 140px;
+  max-width: 240px;
   font-weight: 600;
   color: #0f172a;
 }
 
+.allocation-table td:nth-child(3),
+.allocation-table td:nth-child(4),
+.allocation-table td:nth-child(6) {
+  white-space: nowrap;
+}
+
 .allocation-table td:nth-child(7) {
-  min-width: 280px;
   color: #64748b;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 /* =========================

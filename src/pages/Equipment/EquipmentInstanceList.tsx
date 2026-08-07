@@ -104,6 +104,7 @@ function getCurrentRole(): Role {
         localStorage.getItem("role");
 
     if (
+        storedRole === "Admin" ||
         storedRole === "Manager" ||
         storedRole === "Researcher" ||
         storedRole === "Technician" ||
@@ -262,7 +263,7 @@ export default function EquipmentInstanceList() {
         getCurrentRole();
 
     const canManage =
-        role === "Manager";
+        role === "Admin" || role === "Manager";
 
     const [
         items,
@@ -1055,6 +1056,7 @@ export default function EquipmentInstanceList() {
                                                             <>
                                                                 <button
                                                                     type="button"
+                                                                    className="action-btn-pill edit"
                                                                     title="Edit"
                                                                     onClick={() =>
                                                                         openEdit(
@@ -1062,16 +1064,13 @@ export default function EquipmentInstanceList() {
                                                                         )
                                                                     }
                                                                 >
-                                                                    <Pencil
-                                                                        size={
-                                                                            16
-                                                                        }
-                                                                    />
+                                                                    <Pencil size={12} />
+                                                                    <span>Edit</span>
                                                                 </button>
 
                                                                 <button
                                                                     type="button"
-                                                                    className="danger"
+                                                                    className="action-btn-pill delete"
                                                                     disabled={
                                                                         deletingId ===
                                                                         item.equipmentInstanceId
@@ -1083,11 +1082,8 @@ export default function EquipmentInstanceList() {
                                                                         )
                                                                     }
                                                                 >
-                                                                    <Trash2
-                                                                        size={
-                                                                            16
-                                                                        }
-                                                                    />
+                                                                    <Trash2 size={12} />
+                                                                    <span>Delete</span>
                                                                 </button>
                                                             </>
                                                         ) : (

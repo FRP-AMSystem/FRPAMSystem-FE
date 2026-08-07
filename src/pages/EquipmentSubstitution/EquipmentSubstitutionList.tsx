@@ -70,6 +70,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -199,7 +200,7 @@ export default function EquipmentSubstitutionList() {
     getCurrentRole();
 
   const canManage =
-    role === "Manager";
+    role === "Admin" || role === "Manager";
 
   const [
     items,
@@ -1022,6 +1023,7 @@ export default function EquipmentSubstitutionList() {
                                 <>
                                   <button
                                     type="button"
+                                    className="action-btn-pill edit"
                                     title="Edit"
                                     onClick={() =>
                                       openEdit(
@@ -1029,16 +1031,13 @@ export default function EquipmentSubstitutionList() {
                                       )
                                     }
                                   >
-                                    <Pencil
-                                      size={
-                                        16
-                                      }
-                                    />
+                                    <Pencil size={12} />
+                                    <span>Edit</span>
                                   </button>
 
                                   <button
                                     type="button"
-                                    className="danger"
+                                    className="action-btn-pill delete"
                                     disabled={
                                       deletingId ===
                                       item.equipmentSubstitutionId
@@ -1050,11 +1049,8 @@ export default function EquipmentSubstitutionList() {
                                       )
                                     }
                                   >
-                                    <Trash2
-                                      size={
-                                        16
-                                      }
-                                    />
+                                    <Trash2 size={12} />
+                                    <span>Delete</span>
                                   </button>
                                 </>
                               ) : (

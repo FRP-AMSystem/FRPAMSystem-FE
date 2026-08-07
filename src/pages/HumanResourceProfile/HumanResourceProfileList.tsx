@@ -63,6 +63,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -174,7 +175,7 @@ export default function HumanResourceProfileList() {
     getCurrentRole();
 
   const canManage =
-    role === "Manager";
+    role === "Admin" || role === "Manager";
 
   const [
     items,
@@ -725,12 +726,19 @@ export default function HumanResourceProfileList() {
                         </td>
 
                         <td>
-                          {item.roleName ||
-                            (
-                              item.roleId
-                                ? `Role #${item.roleId}`
-                                : "-"
-                            )}
+                          {item.roleName ? (
+                            <span
+                              className={`role-badge role-${item.roleName.toLowerCase()}`}
+                            >
+                              {item.roleName.toUpperCase()}
+                            </span>
+                          ) : item.roleId ? (
+                            <span className="role-badge">
+                              ROLE #{item.roleId}
+                            </span>
+                          ) : (
+                            "-"
+                          )}
                         </td>
 
                         <td>
@@ -770,6 +778,7 @@ export default function HumanResourceProfileList() {
                               <>
                                 <button
                                   type="button"
+                                  className="action-btn-pill edit"
                                   title="Edit"
                                   onClick={() =>
                                     openEdit(
@@ -777,16 +786,13 @@ export default function HumanResourceProfileList() {
                                     )
                                   }
                                 >
-                                  <Pencil
-                                    size={
-                                      16
-                                    }
-                                  />
+                                  <Pencil size={12} />
+                                  <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  className="danger"
+                                  className="action-btn-pill delete"
                                   disabled={
                                     deletingId ===
                                     item.humanResourceId
@@ -798,11 +804,8 @@ export default function HumanResourceProfileList() {
                                     )
                                   }
                                 >
-                                  <Trash2
-                                    size={
-                                      16
-                                    }
-                                  />
+                                  <Trash2 size={12} />
+                                  <span>Delete</span>
                                 </button>
                               </>
                             ) : (

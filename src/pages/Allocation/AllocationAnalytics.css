@@ -278,22 +278,12 @@
   border-collapse: collapse;
 }
 
-.allocation-analytics-table-wrap th {
-  padding: 13px 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 11px;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
+.allocation-analytics-table-wrap th,
 .allocation-analytics-table-wrap td {
-  padding: 15px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid #f1f5f9;
-  color: #334155;
-  font-size: 13px;
+  text-align: left;
+  vertical-align: middle;
 }
 
 .allocation-analytics-table-wrap tr:last-child td {

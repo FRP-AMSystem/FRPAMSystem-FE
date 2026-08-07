@@ -63,6 +63,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -140,9 +141,17 @@ function formatDateTime(
     return "-";
   }
 
-  return date.toLocaleString(
-    "vi-VN"
-  );
+  const hasTime =
+    date.getHours() !== 0 ||
+    date.getMinutes() !== 0;
+
+  if (!hasTime) {
+    return date.toLocaleDateString(
+      "vi-VN"
+    );
+  }
+
+  return `${date.toLocaleDateString("vi-VN")} ${date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function getRequirementType(
@@ -203,7 +212,7 @@ export default function EquipmentShortageLogList() {
     getCurrentRole();
 
   const canManage =
-    role === "Manager";
+    role === "Admin" || role === "Manager";
 
   const [
     items,
@@ -856,7 +865,7 @@ export default function EquipmentShortageLogList() {
 
                 <tbody>
                   {items.map(
-                    (item) => {
+                    (item, index) => {
                       const requirementType =
                         getRequirementType(
                           item
@@ -875,9 +884,10 @@ export default function EquipmentShortageLogList() {
                         >
                           <td>
                             #
-                            {
-                              item.equipmentShortageLogId
-                            }
+                            {item.equipmentShortageLogId &&
+                            item.equipmentShortageLogId > 0
+                              ? item.equipmentShortageLogId
+                              : index + 1}
                           </td>
 
                           <td>
@@ -969,6 +979,7 @@ export default function EquipmentShortageLogList() {
                                 <>
                                   <button
                                     type="button"
+                                    className="action-btn-pill edit"
                                     title="Edit"
                                     onClick={() =>
                                       openEdit(
@@ -976,16 +987,13 @@ export default function EquipmentShortageLogList() {
                                       )
                                     }
                                   >
-                                    <Pencil
-                                      size={
-                                        16
-                                      }
-                                    />
+                                    <Pencil size={12} />
+                                    <span>Edit</span>
                                   </button>
 
                                   <button
                                     type="button"
-                                    className="danger"
+                                    className="action-btn-pill delete"
                                     title="Delete"
                                     disabled={
                                       deletingId ===
@@ -997,11 +1005,8 @@ export default function EquipmentShortageLogList() {
                                       )
                                     }
                                   >
-                                    <Trash2
-                                      size={
-                                        16
-                                      }
-                                    />
+                                    <Trash2 size={12} />
+                                    <span>Delete</span>
                                   </button>
                                 </>
                               ) : (

@@ -116,7 +116,7 @@ export default function HumanRequirementList() {
     ) as Role | null;
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [
     requirements,
@@ -535,59 +535,49 @@ export default function HumanRequirementList() {
                           <div className="human-requirement-actions">
                             <button
                               type="button"
-                              className="human-requirement-action view"
-                              title="View details"
+                              className="action-btn-pill view"
                               onClick={() =>
                                 navigate(
                                   `/human-requirements/${requirement.expHumanReqId}`
                                 )
                               }
                             >
-                              <Eye
-                                size={
-                                  17
-                                }
-                              />
+                              <Eye size={12} />
+                              <span>View</span>
                             </button>
 
                             {canManage && (
                               <>
                                 <button
                                   type="button"
-                                  className="human-requirement-action edit"
-                                  title="Edit requirement"
+                                  className="action-btn-pill edit"
                                   onClick={() =>
                                     navigate(
                                       `/human-requirements/${requirement.expHumanReqId}/edit`
                                     )
                                   }
                                 >
-                                  <Pencil
-                                    size={
-                                      17
-                                    }
-                                  />
+                                  <Pencil size={12} />
+                                  <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  className="human-requirement-action delete"
-                                  title="Delete requirement"
+                                  className="action-btn-pill delete"
                                   disabled={
                                     deletingId ===
                                     requirement.expHumanReqId
                                   }
                                   onClick={() =>
-                                    void handleDelete(
-                                      requirement
-                                    )
+                                    void handleDelete(requirement)
                                   }
                                 >
-                                  <Trash2
-                                    size={
-                                      17
-                                    }
-                                  />
+                                  <Trash2 size={12} />
+                                  <span>
+                                    {deletingId === requirement.expHumanReqId
+                                      ? "..."
+                                      : "Delete"}
+                                  </span>
                                 </button>
                               </>
                             )}

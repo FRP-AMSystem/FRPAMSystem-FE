@@ -49,6 +49,7 @@ import type {
 import "./HumanResourceSkillList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
@@ -78,6 +79,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    role === "Admin" ||
     role === "Manager" ||
     role === "Researcher" ||
     role === "Technician" ||
@@ -175,7 +177,7 @@ function getSkillName(
 
 export default function HumanResourceSkillList() {
   const role = getCurrentRole();
-  const canManage = role === "Manager";
+  const canManage = role === "Admin" || role === "Manager";
 
   const [
     items,
@@ -813,19 +815,19 @@ export default function HumanResourceSkillList() {
                               <>
                                 <button
                                   type="button"
+                                  className="action-btn-pill edit"
                                   title="Edit"
                                   onClick={() =>
                                     openEdit(item)
                                   }
                                 >
-                                  <Pencil
-                                    size={16}
-                                  />
+                                  <Pencil size={12} />
+                                  <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  className="danger"
+                                  className="action-btn-pill delete"
                                   disabled={
                                     deletingId ===
                                     item.humanResourceSkillId
@@ -837,9 +839,8 @@ export default function HumanResourceSkillList() {
                                     )
                                   }
                                 >
-                                  <Trash2
-                                    size={16}
-                                  />
+                                  <Trash2 size={12} />
+                                  <span>Delete</span>
                                 </button>
                               </>
                             ) : (

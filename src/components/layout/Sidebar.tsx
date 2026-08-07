@@ -143,8 +143,8 @@ const adminMenuGroups: MenuGroup[] = [
         icon: BadgeCheck,
       },
       {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
+        name: "Personnel & Skills",
+        path: "/admin/personnel",
         icon: UserRoundCheck,
       },
     ],
@@ -234,9 +234,9 @@ const adminMenuGroups: MenuGroup[] = [
         icon: UserCheck,
       },
       {
-        name: "Personnel Directory",
-        path: "/admin/personnel",
-        icon: UserRound,
+        name: "Audit Logs",
+        path: "/admin/audit-logs",
+        icon: FileText,
       },
       {
         name: "System Settings",
@@ -311,8 +311,8 @@ const managerMenuGroups: MenuGroup[] = [
         icon: BadgeCheck,
       },
       {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
+        name: "Personnel Directory",
+        path: "/admin/personnel",
         icon: UserRoundCheck,
       },
     ],
@@ -457,8 +457,8 @@ const researcherMenuGroups: MenuGroup[] = [
         icon: BadgeCheck,
       },
       {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
+        name: "Personnel Directory",
+        path: "/admin/personnel",
         icon: UserRoundCheck,
       },
     ],
@@ -598,8 +598,8 @@ const technicianMenuGroups: MenuGroup[] = [
         icon: BadgeCheck,
       },
       {
-        name: "Human Resource Skills",
-        path: "/human-resource-skills",
+        name: "Personnel Directory",
+        path: "/admin/personnel",
         icon: UserRoundCheck,
       },
     ],

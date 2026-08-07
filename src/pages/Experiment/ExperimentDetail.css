@@ -1,79 +1,234 @@
+/* =========================
+   EXPERIMENT DETAIL PAGE
+========================= */
+
 .experiment-detail-page {
-  padding: 28px;
-  color: white;
+  width: 100%;
+  padding: 28px 32px;
+  color: #1e293b;
+  box-sizing: border-box;
 }
 
-.detail-header {
+/* =========================
+   BREADCRUMB + HEADER
+========================= */
+
+.experiment-detail-breadcrumb {
+  margin: 0 0 6px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.experiment-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.experiment-detail-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 750;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.experiment-detail-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.experiment-detail-back-btn:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+/* =========================
+   INFO GRID (top 2-column)
+========================= */
+
+.experiment-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+/* =========================
+   CARDS
+========================= */
+
+.experiment-detail-card {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 16px !important;
+  padding: 22px 24px !important;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05) !important;
+  color: #1e293b !important;
+}
+
+.experiment-detail-card h3 {
+  margin: 0 0 16px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.experiment-detail-description-card {
+  grid-column: 1 / -1;
+}
+
+.experiment-detail-description-card p {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+/* =========================
+   DETAIL ITEMS (key-value rows)
+========================= */
+
+.experiment-detail-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-}
-
-.detail-header h1 {
-  margin: 8px 0;
-}
-
-.breadcrumb {
-  color: rgba(255,255,255,.6);
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.detail-card {
-  background: rgba(15,23,42,.9);
-  border: 1px solid rgba(148,163,184,.18);
-  border-radius: 16px;
-  padding: 20px;
-}
-
-.detail-card h3 {
-  margin-bottom: 16px;
-}
-
-.detail-item {
-  display: flex;
-  justify-content: space-between;
+  gap: 16px;
   padding: 10px 0;
+  border-bottom: 1px solid #f8fafc;
 }
 
-.detail-item span {
-  color: rgba(255,255,255,.65);
+.experiment-detail-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
-.description-card p {
-  line-height: 1.7;
+.experiment-detail-item > .experiment-detail-label {
+  flex-shrink: 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.detail-actions {
+.experiment-detail-item > .experiment-detail-value {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+}
+
+/* =========================
+   ACTION BUTTONS (edit / requirement)
+========================= */
+
+.experiment-detail-actions {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   margin-top: 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
-.edit-btn,
-.requirement-btn,
-.back-btn {
-  border: none;
-  padding: 10px 16px;
+.experiment-detail-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border: 1px solid #bfdbfe;
   border-radius: 10px;
-  color: white;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
+  transition: all 0.18s ease;
 }
 
-.edit-btn {
+.experiment-detail-edit-btn:hover {
   background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
-.requirement-btn {
+.experiment-detail-requirement-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #16a34a;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.experiment-detail-requirement-btn:hover {
   background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
 }
 
-.back-btn {
-  background: #475569;
+/* =========================
+   ERROR STATE
+========================= */
+
+.experiment-detail-error {
+  padding: 20px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 900px) {
+  .experiment-detail-page {
+    padding: 20px 18px;
+  }
+
+  .experiment-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .experiment-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .experiment-detail-page {
+    padding: 15px 12px;
+  }
+
+  .experiment-detail-header h1 {
+    font-size: 22px;
+  }
 }

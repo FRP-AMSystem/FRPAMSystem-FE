@@ -12,6 +12,8 @@ import {
 import axios from "axios";
 
 import {
+  ArrowLeft,
+  ClipboardList,
   Eye,
   Layers3,
   Pencil,
@@ -266,6 +268,7 @@ export default function ExperimentDetail() {
     );
 
   const role: Role =
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -274,7 +277,7 @@ export default function ExperimentDetail() {
       : "Student";
 
   const canManageExperiment =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [
     loading,
@@ -531,9 +534,9 @@ export default function ExperimentDetail() {
     return (
       <DashboardLayout>
         <div className="experiment-detail-page">
-          <div className="detail-header">
+          <div className="experiment-detail-header">
             <div>
-              <p className="breadcrumb">
+              <p className="experiment-detail-breadcrumb">
                 Dashboard / Experiments / Detail
               </p>
 
@@ -544,18 +547,19 @@ export default function ExperimentDetail() {
 
             <button
               type="button"
-              className="back-btn"
+              className="experiment-detail-back-btn"
               onClick={() =>
                 navigate(
                   "/experiments"
                 )
               }
             >
+              <ArrowLeft size={15} />
               Back
             </button>
           </div>
 
-          <p className="error-message">
+          <p className="experiment-detail-error">
             {error ||
               "Experiment not found."}
           </p>
@@ -580,9 +584,9 @@ export default function ExperimentDetail() {
   return (
     <DashboardLayout>
       <div className="experiment-detail-page">
-        <div className="detail-header">
+        <div className="experiment-detail-header">
           <div>
-            <p className="breadcrumb">
+            <p className="experiment-detail-breadcrumb">
               Dashboard / Experiments / #
               {
                 experiment.experimentId
@@ -598,155 +602,109 @@ export default function ExperimentDetail() {
 
           <button
             type="button"
-            className="back-btn"
+            className="experiment-detail-back-btn"
             onClick={() =>
               navigate(
                 "/experiments"
               )
             }
           >
+            <ArrowLeft size={15} />
             Back
           </button>
         </div>
 
-        <div className="detail-grid">
-          <div className="detail-card">
+        <div className="experiment-detail-grid">
+          <div className="experiment-detail-card">
             <h3>
               General Information
             </h3>
 
-            <div className="detail-item">
-              <span>
-                ID
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">ID</span>
+              <span className="experiment-detail-value">
+                #{experiment.experimentId}
               </span>
-
-              <strong>
-                #
-                {
-                  experiment.experimentId
-                }
-              </strong>
             </div>
 
-            <div className="detail-item">
-              <span>
-                Status
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Status</span>
+              <span className="experiment-detail-value">
+                {experiment.status || "-"}
               </span>
-
-              <strong>
-                {experiment.status ||
-                  "-"}
-              </strong>
             </div>
 
-            <div className="detail-item">
-              <span>
-                Priority
-              </span>
-
-              <strong>
-                {priority}
-              </strong>
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Priority</span>
+              <span className="experiment-detail-value">{priority}</span>
             </div>
 
-            <div className="detail-item">
-              <span>
-                Researcher
-              </span>
-
-              <strong>
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Researcher</span>
+              <span className="experiment-detail-value">
                 {experiment.researcherName ||
                   experiment.createdByName ||
                   "-"}
-              </strong>
+              </span>
             </div>
           </div>
 
-          <div className="detail-card">
+          <div className="experiment-detail-card">
             <h3>
               Schedule
             </h3>
 
-            <div className="detail-item">
-              <span>
-                Expected Start Date
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Expected Start Date</span>
+              <span className="experiment-detail-value">
+                {formatDate(experiment.expectStartDate)}
               </span>
-
-              <strong>
-                {formatDate(
-                  experiment.expectStartDate
-                )}
-              </strong>
             </div>
 
-            <div className="detail-item">
-              <span>
-                Expected End Date
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Expected End Date</span>
+              <span className="experiment-detail-value">
+                {formatDate(experiment.expectEndDate)}
               </span>
-
-              <strong>
-                {formatDate(
-                  experiment.expectEndDate
-                )}
-              </strong>
             </div>
 
-            <div className="detail-item">
-              <span>
-                Deadline
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Deadline</span>
+              <span className="experiment-detail-value">
+                {formatDate(experiment.deadline)}
               </span>
-
-              <strong>
-                {formatDate(
-                  experiment.deadline
-                )}
-              </strong>
             </div>
           </div>
 
-          <div className="detail-card">
+          <div className="experiment-detail-card">
             <h3>
               Audit Information
             </h3>
 
-            <div className="detail-item">
-              <span>
-                Created By
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Created By</span>
+              <span className="experiment-detail-value">
+                {experiment.createdByName || "-"}
               </span>
-
-              <strong>
-                {experiment.createdByName ||
-                  "-"}
-              </strong>
             </div>
 
-            <div className="detail-item">
-              <span>
-                Created At
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Created At</span>
+              <span className="experiment-detail-value">
+                {formatDateTime(experiment.createdAt)}
               </span>
-
-              <strong>
-                {formatDateTime(
-                  experiment.createdAt
-                )}
-              </strong>
             </div>
 
-            <div className="detail-item">
-              <span>
-                Updated At
+            <div className="experiment-detail-item">
+              <span className="experiment-detail-label">Updated At</span>
+              <span className="experiment-detail-value">
+                {formatDateTime(experiment.updatedAt)}
               </span>
-
-              <strong>
-                {formatDateTime(
-                  experiment.updatedAt
-                )}
-              </strong>
             </div>
           </div>
         </div>
 
-        <div className="detail-card description-card">
+        <div className="experiment-detail-card experiment-detail-description-card">
           <h3>
             Description
           </h3>
@@ -758,28 +716,30 @@ export default function ExperimentDetail() {
         </div>
 
         {canManageExperiment && (
-          <div className="detail-actions">
+          <div className="experiment-detail-actions">
             <button
               type="button"
-              className="edit-btn"
+              className="experiment-detail-edit-btn"
               onClick={() =>
                 navigate(
                   `/experiments/${experiment.experimentId}/edit`
                 )
               }
             >
+              <Pencil size={14} />
               Edit Experiment
             </button>
 
             <button
               type="button"
-              className="requirement-btn"
+              className="experiment-detail-requirement-btn"
               onClick={() =>
                 navigate(
                   `/equipment-requirements/create?experimentId=${experiment.experimentId}`
                 )
               }
             >
+              <ClipboardList size={14} />
               Create Requirement
             </button>
           </div>
@@ -974,52 +934,42 @@ export default function ExperimentDetail() {
                             <div className="experiment-phase-actions">
                               <button
                                 type="button"
-                                className="experiment-phase-action-button"
-                                title="View phase"
+                                className="action-btn-pill view"
                                 onClick={() =>
                                   navigate(
                                     `/experiment-phases/${phaseId}`
                                   )
                                 }
                               >
-                                <Eye
-                                  size={17}
-                                />
+                                <Eye size={12} />
+                                <span>View</span>
                               </button>
 
                               {canManageExperiment && (
                                 <>
                                   <button
                                     type="button"
-                                    className="experiment-phase-action-button"
-                                    title="Edit phase"
+                                    className="action-btn-pill edit"
                                     onClick={() =>
                                       navigate(
                                         `/experiment-phases/${phaseId}/edit`
                                       )
                                     }
                                   >
-                                    <Pencil
-                                      size={17}
-                                    />
+                                    <Pencil size={12} />
+                                    <span>Edit</span>
                                   </button>
 
                                   <button
                                     type="button"
-                                    className="experiment-phase-action-button experiment-phase-delete-button"
-                                    title="Delete phase"
-                                    disabled={
-                                      isDeleting
-                                    }
+                                    className="action-btn-pill delete"
+                                    disabled={isDeleting}
                                     onClick={() =>
-                                      void handleDeletePhase(
-                                        phase
-                                      )
+                                      void handleDeletePhase(phase)
                                     }
                                   >
-                                    <Trash2
-                                      size={17}
-                                    />
+                                    <Trash2 size={12} />
+                                    <span>{isDeleting ? "..." : "Delete"}</span>
                                   </button>
                                 </>
                               )}

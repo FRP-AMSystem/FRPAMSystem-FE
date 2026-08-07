@@ -14,6 +14,7 @@ import {
   BarChart3,
   CheckCircle2,
   Clock3,
+  Eye,
   RefreshCw,
   XCircle,
 } from "lucide-react";
@@ -1050,14 +1051,16 @@ export default function AllocationAnalytics() {
                         <td>
                           <button
                             type="button"
-                            className="allocation-analytics-view-button"
+                            className="action-btn-pill view"
+                            title="View"
                             onClick={() =>
                               navigate(
                                 `/allocation/${plan.allocationPlanId}`
                               )
                             }
                           >
-                            View
+                            <Eye size={12} />
+                            <span>View</span>
                           </button>
                         </td>
                       </tr>

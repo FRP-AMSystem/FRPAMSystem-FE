@@ -14,6 +14,7 @@ import UsersPage from "../pages/admin/Users/UsersPage";
 import ResourcesPage from "../pages/Resources/ResourcesPage";
 import PersonnelPage from "../pages/admin/Personnel/PersonnelPage";
 import SettingsPage from "../pages/admin/Settings/SettingsPage";
+import AuditLogsPage from "../pages/admin/AuditLogs/AuditLogsPage";
 
 
 
@@ -824,8 +825,16 @@ export default function AppRoutes() {
       <Route
         path="/admin/personnel"
         element={
-          <ProtectedRoute allowedRoles={["Admin", "Manager"]}>
+          <ProtectedRoute allowedRoles={allRoles}>
             <PersonnelPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/audit-logs"
+        element={
+          <ProtectedRoute allowedRoles={["Admin"]}>
+            <AuditLogsPage />
           </ProtectedRoute>
         }
       />

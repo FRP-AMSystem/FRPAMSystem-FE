@@ -542,9 +542,9 @@ export default function PersonnelPage() {
         {/* 1. Modal Add/Edit Profile */}
         {(modalType === "add" || modalType === "edit") && (
           <div className="modal-overlay">
-            <div className="modal-container" style={{ border: "1px solid var(--border)", background: "var(--card-bg)" }}>
-              <div className="modal-header" style={{ borderBottom: "1px solid var(--border)" }}>
-                <h3 style={{ color: "var(--text-h)" }}>
+            <div className="modal-container">
+              <div className="modal-header">
+                <h3>
                   {modalType === "add" ? "Activate Personnel Profile" : "Edit Profile configuration"}
                 </h3>
                 <button type="button" className="modal-close-btn" onClick={closeModal}>
@@ -555,24 +555,12 @@ export default function PersonnelPage() {
               <form onSubmit={handleProfileSubmit} className="modal-form">
                 {modalType === "add" ? (
                   <div className="form-group">
-                    <label style={{ color: "var(--text)" }}>Select Staff Member <span className="required">*</span></label>
-                    
-                    {/* Searchable Select Combobox */}
-                    <div className="searchable-select-container" style={{ position: "relative" }}>
+                    <label>Select Staff Member <span className="required">*</span></label>
+
+                    <div className="searchable-select-container">
                       <div
                         className="searchable-select-input-wrapper"
                         onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "9px 12px",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          backgroundColor: "var(--bg)",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                        }}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, overflow: "hidden" }}>
                           {(() => {
@@ -628,45 +616,17 @@ export default function PersonnelPage() {
 
                       {/* Dropdown Menu Overlay */}
                       {isUserDropdownOpen && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: "calc(100% + 4px)",
-                            left: 0,
-                            right: 0,
-                            zIndex: 100,
-                            backgroundColor: "var(--card-bg)",
-                            border: "1px solid var(--border)",
-                            borderRadius: "10px",
-                            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15)",
-                            padding: "8px",
-                            maxHeight: "240px",
-                            overflowY: "auto",
-                          }}
-                        >
-                          <div style={{ marginBottom: "8px" }}>
-                            <div style={{ position: "relative" }}>
-                              <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text)", opacity: 0.6 }} />
-                              <input
-                                type="text"
-                                placeholder="Search by name, email, or role..."
-                                value={userSearchQuery}
-                                onChange={(e) => setUserSearchQuery(e.target.value)}
-                                autoFocus
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  width: "100%",
-                                  padding: "7px 10px 7px 32px",
-                                  fontSize: "12.5px",
-                                  borderRadius: "6px",
-                                  border: "1px solid var(--border)",
-                                  backgroundColor: "var(--bg)",
-                                  color: "var(--text-h)",
-                                  outline: "none",
-                                  boxSizing: "border-box",
-                                }}
-                              />
-                            </div>
+                        <div className="searchable-select-dropdown">
+                          <div className="searchable-select-search">
+                            <Search size={14} className="searchable-select-search-icon" />
+                            <input
+                              type="text"
+                              placeholder="Search by name, email, or role..."
+                              value={userSearchQuery}
+                              onChange={(e) => setUserSearchQuery(e.target.value)}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
                           </div>
 
                           {availableUsers
@@ -777,22 +737,17 @@ export default function PersonnelPage() {
                   </div>
                 ) : (
                   <div className="form-group">
-                    <label style={{ color: "var(--text)", fontWeight: 600 }}>Staff Member</label>
-                    <div style={{
-                      padding: "10px",
-                      borderRadius: "8px",
-                      backgroundColor: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text-h)",
-                      fontWeight: 500,
-                    }}>
+                    <label>Staff Member</label>
+                    <div className="personnel-staff-readonly">
                       {selectedProfile?.fullName} ({selectedProfile?.roleName})
                     </div>
                   </div>
                 )}
 
                 <div className="form-group">
-                  <label htmlFor="maxHours" style={{ color: "var(--text)" }}>Max Work Hours / Day <span className="required">*</span></label>
+                  <label htmlFor="maxHours">
+                    Max Work Hours / Day <span className="required">*</span>
+                  </label>
                   <input
                     type="number"
                     id="maxHours"
@@ -806,7 +761,7 @@ export default function PersonnelPage() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="hrStatus" style={{ color: "var(--text)" }}>HR Allocation Status</label>
+                  <label htmlFor="hrStatus">HR Allocation Status</label>
                   <select
                     id="hrStatus"
                     value={formStatus}
@@ -818,12 +773,11 @@ export default function PersonnelPage() {
                   </select>
                 </div>
 
-                <div className="modal-footer" style={{ borderTop: "1px solid var(--border)", marginTop: "20px" }}>
+                <div className="modal-footer">
                   <button
                     type="button"
                     className="btn-secondary"
                     onClick={closeModal}
-                    style={{ color: "var(--text-h)", border: "1px solid var(--border)", background: "transparent" }}
                   >
                     Cancel
                   </button>

@@ -214,7 +214,7 @@ export default function ExperimentPhaseDetail() {
     ) as Role | null;
 
   const canEdit =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [
     phase,
