@@ -33,10 +33,6 @@ import type {
   ExperimentResponse,
 } from "../../types/experiment";
 
-import type {
-  ExperimentPhaseStatus,
-} from "../../types/experimentPhase";
-
 import "../ExperimentEquipmentRequirement/RequirementForm.css";
 import "./ExperimentPhaseForm.css";
 
@@ -47,7 +43,6 @@ interface ExperimentPhaseFormState {
   phaseOrder: string;
   expectedStartDate: string;
   expectedEndDate: string;
-  status: ExperimentPhaseStatus;
 }
 
 function getErrorMessage(
@@ -139,14 +134,6 @@ function formatPreviewDate(
   );
 }
 
-function getStatusLabel(
-  status: ExperimentPhaseStatus
-): string {
-  return status === "InProgress"
-    ? "In Progress"
-    : status;
-}
-
 function openDatePicker(
   input: HTMLInputElement | null
 ): void {
@@ -215,7 +202,6 @@ export default function CreateExperimentPhase() {
     phaseOrder: "1",
     expectedStartDate: "",
     expectedEndDate: "",
-    status: "Planned",
   });
 
   const [
@@ -506,8 +492,7 @@ export default function CreateExperimentPhase() {
           expectedEndDate:
             form.expectedEndDate,
 
-          status:
-            form.status,
+          status: "Planned",
         });
 
       if (
@@ -596,8 +581,8 @@ export default function CreateExperimentPhase() {
             </h1>
 
             <p>
-              Define a stage, timeline and
-              status for an experiment.
+              Define a stage and planned
+              timeline for an experiment.
             </p>
           </div>
 
@@ -938,40 +923,6 @@ export default function CreateExperimentPhase() {
               </div>
             </div>
 
-            <div className="experiment-phase-field">
-              <label htmlFor="status">
-                Status
-              </label>
-
-              <select
-                id="status"
-                name="status"
-                value={
-                  form.status
-                }
-                onChange={
-                  handleChange
-                }
-                disabled={saving}
-                required
-              >
-                <option value="Planned">
-                  Planned
-                </option>
-
-                <option value="InProgress">
-                  In Progress
-                </option>
-
-                <option value="Completed">
-                  Completed
-                </option>
-
-                <option value="Cancelled">
-                  Cancelled
-                </option>
-              </select>
-            </div>
           </section>
 
           <section className="requirement-form-card experiment-phase-preview-card">
@@ -1067,18 +1018,6 @@ export default function CreateExperimentPhase() {
 
               <div>
                 <span>
-                  Status
-                </span>
-
-                <strong className="experiment-phase-preview-status">
-                  {getStatusLabel(
-                    form.status
-                  )}
-                </strong>
-              </div>
-
-              <div>
-                <span>
                   Description
                 </span>
 
@@ -1092,7 +1031,7 @@ export default function CreateExperimentPhase() {
             <div className="requirement-form-actions experiment-phase-form-actions">
               <button
                 type="button"
-                className="requirement-cancel-button"
+                className="requirement-cancel-button phase-cancel-button"
                 disabled={saving}
                 onClick={
                   handleBack
@@ -1103,7 +1042,7 @@ export default function CreateExperimentPhase() {
 
               <button
                 type="submit"
-                className="requirement-save-button"
+                className="requirement-save-button phase-submit-button"
                 disabled={
                   saving ||
                   !canSubmit

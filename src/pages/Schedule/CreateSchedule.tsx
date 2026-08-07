@@ -13,7 +13,6 @@ import {
 
 import {
   ArrowLeft,
-  CalendarDays,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
@@ -30,10 +29,6 @@ import {
   getHumanResourceProfiles,
 } from "../../services/humanResourceProfileService";
 
-import type {
-  HumanResourceProfile,
-} from "../../types/humanResourceProfile";
-
 import {
   createSchedule,
 } from "../../services/scheduleService";
@@ -47,30 +42,22 @@ import type {
 } from "../../types/experimentPhase";
 
 import type {
-  ScheduleStatus,
-} from "../../types/schedule";
+  HumanResourceProfile,
+} from "../../types/humanResourceProfile";
 
 import "../ExperimentEquipmentRequirement/RequirementForm.css";
 
 interface ScheduleFormState {
   allocationPlanId: string;
   phaseId: string;
-
   title: string;
   description: string;
-
   startDate: string;
   startTime: string;
-
   endDate: string;
   endTime: string;
-
-  status: ScheduleStatus;
-
   assignedHumanResourceId: string;
-
   notes: string;
-
   priority: string;
 }
 
@@ -95,13 +82,10 @@ function getErrorMessage(
     const response = (
       error as {
         response?: {
-          status?: number;
-
           data?: {
             message?: string;
             title?: string;
             error?: string;
-
             errors?: Record<
               string,
               string[]
@@ -111,21 +95,15 @@ function getErrorMessage(
       }
     ).response;
 
-    if (
-      response?.data?.message
-    ) {
+    if (response?.data?.message) {
       return response.data.message;
     }
 
-    if (
-      response?.data?.error
-    ) {
+    if (response?.data?.error) {
       return response.data.error;
     }
 
-    if (
-      response?.data?.errors
-    ) {
+    if (response?.data?.errors) {
       return Object.values(
         response.data.errors
       )
@@ -133,51 +111,43 @@ function getErrorMessage(
         .join(" ");
     }
 
-    if (
-      response?.data?.title
-    ) {
+    if (response?.data?.title) {
       return response.data.title;
     }
   }
 
-  if (
-    error instanceof Error
-  ) {
+  if (error instanceof Error) {
     return error.message;
   }
 
   return "Cannot create schedule.";
 }
 
-function getAllocationId(
-  plan: AllocationPlan
-): number {
-  return Number(
-    plan.allocationPlanId ?? 0
+function isPositiveInteger(
+  value: number
+): boolean {
+  return (
+    Number.isInteger(value) &&
+    value > 0
   );
 }
 
 function getAllocationLabel(
   plan: AllocationPlan
 ): string {
-  const allocationId =
-    getAllocationId(plan);
-
-  const experimentName =
+  return (
     plan.experimentName ||
-    `Experiment #${plan.experimentId}`;
-
-  return `Allocation #${allocationId} - ${experimentName}`;
+    `Experiment #${plan.experimentId}`
+  );
 }
 
 function getPhaseLabel(
   phase: ExperimentPhase
 ): string {
-  const phaseName =
+  return (
     phase.phaseName ||
-    `Phase #${phase.experimentPhaseId}`;
-
-  return `#${phase.experimentPhaseId} - Order ${phase.phaseOrder} - ${phaseName}`;
+    `Phase ${phase.phaseOrder}`
+  );
 }
 
 function getHumanResourceLabel(
@@ -189,21 +159,16 @@ function getHumanResourceLabel(
     resource.email ||
     `Human Resource #${resource.humanResourceId}`;
 
-  const role = resource.roleName
-    ? ` - ${resource.roleName}`
-    : "";
-
-  return `#${resource.humanResourceId} - ${name}${role}`;
+  return resource.roleName
+    ? `${name} - ${resource.roleName}`
+    : name;
 }
 
 function combineDateAndTime(
   date: string,
   time: string
 ): string {
-  if (
-    !date ||
-    !time
-  ) {
+  if (!date || !time) {
     return "";
   }
 
@@ -226,49 +191,29 @@ function combineDateAndTime(
 function getCurrentUserId():
   | number
   | null {
-  const storedUserId =
-    localStorage.getItem(
-      "userId"
+  const value =
+    Number(
+      localStorage.getItem(
+        "userId"
+      )
     );
 
-  if (!storedUserId) {
-    return null;
-  }
-
-  const userId =
-    Number(storedUserId);
-
-  if (
-    !Number.isInteger(
-      userId
-    ) ||
-    userId <= 0
-  ) {
-    return null;
-  }
-
-  return userId;
-}
-
-function getStatusLabel(
-  status: ScheduleStatus
-): string {
-  if (
-    status === "InProgress"
-  ) {
-    return "In Progress";
-  }
-
-  return status;
+  return isPositiveInteger(
+    value
+  )
+    ? value
+    : null;
 }
 
 export default function CreateSchedule() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
+  const [searchParams] =
+    useSearchParams();
 
-  const [
-    searchParams,
-  ] = useSearchParams();
+  const experimentIdFromUrl =
+    searchParams.get(
+      "experimentId"
+    ) ?? "";
 
   const allocationPlanIdFromUrl =
     searchParams.get(
@@ -307,51 +252,33 @@ export default function CreateSchedule() {
   ] = useState<ScheduleFormState>({
     allocationPlanId:
       allocationPlanIdFromUrl,
-
     phaseId:
       phaseIdFromUrl,
-
     title: "",
     description: "",
-
     startDate: "",
     startTime: "08:00",
-
     endDate: "",
     endTime: "17:00",
-
-    status: "Planned",
-
-    assignedHumanResourceId:
-      "",
-
+    assignedHumanResourceId: "",
     notes: "",
-
     priority: "1",
   });
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+  const [saving, setSaving] =
+    useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const [error, setError] =
+    useState("");
 
   const selectedAllocation =
     useMemo(() => {
       return allocationPlans.find(
         (plan) =>
-          getAllocationId(
-            plan
-          ) ===
+          plan.allocationPlanId ===
           Number(
             form.allocationPlanId
           )
@@ -361,17 +288,64 @@ export default function CreateSchedule() {
       form.allocationPlanId,
     ]);
 
-  const selectedPhase =
+  const selectedExperimentId =
     useMemo(() => {
-      return phases.find(
+      const contextId =
+        Number(
+          experimentIdFromUrl
+        );
+
+      if (
+        isPositiveInteger(
+          contextId
+        )
+      ) {
+        return contextId;
+      }
+
+      const allocationExperimentId =
+        Number(
+          selectedAllocation?.experimentId
+        );
+
+      return isPositiveInteger(
+        allocationExperimentId
+      )
+        ? allocationExperimentId
+        : undefined;
+    }, [
+      experimentIdFromUrl,
+      selectedAllocation,
+    ]);
+
+  const availablePhases =
+    useMemo(() => {
+      if (
+        selectedExperimentId ===
+        undefined
+      ) {
+        return phases;
+      }
+
+      return phases.filter(
         (phase) =>
-          phase.experimentPhaseId ===
-          Number(
-            form.phaseId
-          )
+          phase.experimentId ===
+          selectedExperimentId
       );
     }, [
       phases,
+      selectedExperimentId,
+    ]);
+
+  const selectedPhase =
+    useMemo(() => {
+      return availablePhases.find(
+        (phase) =>
+          phase.experimentPhaseId ===
+          Number(form.phaseId)
+      );
+    }, [
+      availablePhases,
       form.phaseId,
     ]);
 
@@ -389,56 +363,55 @@ export default function CreateSchedule() {
       form.assignedHumanResourceId,
     ]);
 
-  const availablePhases =
-    useMemo(() => {
-      if (
-        !selectedAllocation
-      ) {
-        return phases;
-      }
-
-      const experimentId =
-        Number(
-          selectedAllocation.experimentId
-        );
-
-      if (
-        !Number.isInteger(
-          experimentId
-        ) ||
-        experimentId <= 0
-      ) {
-        return phases;
-      }
-
-      return phases.filter(
-        (phase) =>
-          phase.experimentId ===
-          experimentId
-      );
-    }, [
-      phases,
-      selectedAllocation,
-    ]);
-
   useEffect(() => {
+    let active = true;
+
     async function loadFormData() {
       try {
         setLoading(true);
         setError("");
+
+        const experimentId =
+          Number(
+            experimentIdFromUrl
+          );
+
+        const allocationQuery =
+          isPositiveInteger(
+            experimentId
+          )
+            ? {
+                experimentId,
+                approveStatus:
+                  "Approved" as const,
+                page: 1,
+                size: 100,
+              }
+            : {
+                approveStatus:
+                  "Approved" as const,
+                page: 1,
+                size: 100,
+              };
 
         const [
           allocationData,
           phaseData,
           humanData,
         ] = await Promise.all([
-          getAllocationPlans(),
-
+          getAllocationPlans(
+            allocationQuery
+          ),
           getExperimentPhases({
+            experimentId:
+              isPositiveInteger(
+                experimentId
+              )
+                ? experimentId
+                : undefined,
             page: 1,
             size: 100,
           }),
-
           getHumanResourceProfiles({
             status: "Available",
             page: 1,
@@ -446,32 +419,21 @@ export default function CreateSchedule() {
           }),
         ]);
 
-        const normalizedAllocations =
-          Array.isArray(
-            allocationData
-          )
-            ? allocationData
-            : [];
+        if (!active) {
+          return;
+        }
 
         const approvedAllocations =
-          normalizedAllocations.filter(
-            (plan) => {
-              const status =
-                String(
-                  plan.approveStatus ??
-                  ""
-                ).toLowerCase();
-
-              return (
-                status ===
-                  "approved" ||
-                status ===
-                  "pending" ||
-                status ===
-                  "draft" ||
-                status === ""
-              );
-            }
+          (
+            Array.isArray(
+              allocationData
+            )
+              ? allocationData
+              : []
+          ).filter(
+            (plan) =>
+              plan.approveStatus ===
+              "Approved"
           );
 
         setAllocationPlans(
@@ -479,19 +441,48 @@ export default function CreateSchedule() {
         );
 
         setPhases(
-          Array.isArray(
-            phaseData
-          )
+          Array.isArray(phaseData)
             ? phaseData
             : []
         );
 
         setHumanResources(
-          Array.isArray(
-            humanData
-          )
+          Array.isArray(humanData)
             ? humanData
             : []
+        );
+
+        setForm(
+          (current) => {
+            let nextAllocationId =
+              current.allocationPlanId;
+
+            if (
+              allocationPlanIdFromUrl
+            ) {
+              nextAllocationId =
+                allocationPlanIdFromUrl;
+            } else if (
+              !nextAllocationId &&
+              approvedAllocations.length ===
+                1
+            ) {
+              nextAllocationId =
+                String(
+                  approvedAllocations[0]
+                    .allocationPlanId
+                );
+            }
+
+            return {
+              ...current,
+              allocationPlanId:
+                nextAllocationId,
+              phaseId:
+                phaseIdFromUrl ||
+                current.phaseId,
+            };
+          }
         );
       } catch (loadError) {
         console.error(
@@ -499,27 +490,36 @@ export default function CreateSchedule() {
           loadError
         );
 
-        setError(
-          getErrorMessage(
-            loadError
-          )
-        );
-
-        setAllocationPlans([]);
-        setPhases([]);
-        setHumanResources([]);
+        if (active) {
+          setError(
+            getErrorMessage(
+              loadError
+            )
+          );
+          setAllocationPlans([]);
+          setPhases([]);
+          setHumanResources([]);
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
     void loadFormData();
-  }, []);
+
+    return () => {
+      active = false;
+    };
+  }, [
+    experimentIdFromUrl,
+    allocationPlanIdFromUrl,
+    phaseIdFromUrl,
+  ]);
 
   useEffect(() => {
-    if (
-      !form.phaseId
-    ) {
+    if (!form.phaseId) {
       return;
     }
 
@@ -532,9 +532,7 @@ export default function CreateSchedule() {
           )
       );
 
-    if (
-      !phaseStillAvailable
-    ) {
+    if (!phaseStillAvailable) {
       setForm(
         (current) => ({
           ...current,
@@ -573,7 +571,23 @@ export default function CreateSchedule() {
           phaseId: "",
         })
       );
+      return;
+    }
 
+    if (
+      name === "startDate"
+    ) {
+      setForm(
+        (current) => ({
+          ...current,
+          startDate: value,
+          endDate:
+            current.endDate &&
+            current.endDate < value
+              ? ""
+              : current.endDate,
+        })
+      );
       return;
     }
 
@@ -583,6 +597,20 @@ export default function CreateSchedule() {
         [name]: value,
       })
     );
+  };
+
+  const goBack = () => {
+    if (
+      selectedExperimentId !==
+      undefined
+    ) {
+      navigate(
+        `/schedules?experimentId=${selectedExperimentId}`
+      );
+      return;
+    }
+
+    navigate("/schedules");
   };
 
   const handleSubmit = async (
@@ -598,9 +626,7 @@ export default function CreateSchedule() {
 
     const phaseId =
       form.phaseId
-        ? Number(
-            form.phaseId
-          )
+        ? Number(form.phaseId)
         : null;
 
     const assignedHumanResourceId =
@@ -611,9 +637,7 @@ export default function CreateSchedule() {
         : null;
 
     const priority =
-      Number(
-        form.priority
-      );
+      Number(form.priority);
 
     const title =
       form.title.trim();
@@ -625,48 +649,49 @@ export default function CreateSchedule() {
       form.notes.trim();
 
     if (
-      !Number.isInteger(
+      !isPositiveInteger(
         allocationPlanId
-      ) ||
-      allocationPlanId <= 0
+      )
     ) {
       setError(
-        "Please select a valid allocation plan."
+        "Please select an approved allocation plan."
       );
+      return;
+    }
 
+    if (
+      !selectedAllocation ||
+      selectedAllocation.approveStatus !==
+        "Approved"
+    ) {
+      setError(
+        "A schedule can only be created from an approved allocation plan."
+      );
       return;
     }
 
     if (
       phaseId !== null &&
-      (
-        !Number.isInteger(
-          phaseId
-        ) ||
-        phaseId <= 0
+      !isPositiveInteger(
+        phaseId
       )
     ) {
       setError(
         "Please select a valid experiment phase."
       );
-
       return;
     }
 
     if (
       assignedHumanResourceId !==
         null &&
-      (
-        !Number.isInteger(
-          assignedHumanResourceId
-        ) ||
-        assignedHumanResourceId <= 0
+      !isPositiveInteger(
+        assignedHumanResourceId
       )
     ) {
       setError(
         "Please select a valid human resource."
       );
-
       return;
     }
 
@@ -674,7 +699,6 @@ export default function CreateSchedule() {
       setError(
         "Please enter the schedule title."
       );
-
       return;
     }
 
@@ -685,7 +709,6 @@ export default function CreateSchedule() {
       setError(
         "Please select the schedule start date and time."
       );
-
       return;
     }
 
@@ -696,7 +719,6 @@ export default function CreateSchedule() {
       setError(
         "Please select the schedule end date and time."
       );
-
       return;
     }
 
@@ -719,51 +741,38 @@ export default function CreateSchedule() {
       setError(
         "The schedule date or time is invalid."
       );
-
       return;
     }
 
     if (
-      new Date(
-        endDate
-      ).getTime() <=
-      new Date(
-        startDate
-      ).getTime()
+      new Date(endDate).getTime() <=
+      new Date(startDate).getTime()
     ) {
       setError(
         "The schedule end time must be after the start time."
       );
-
       return;
     }
 
     if (
-      !Number.isInteger(
-        priority
-      ) ||
+      !Number.isInteger(priority) ||
       priority < 0 ||
       priority > 3
     ) {
       setError(
         "Please select a valid priority."
       );
-
       return;
     }
 
     if (
       selectedPhase &&
-      selectedAllocation &&
       selectedPhase.experimentId !==
-        Number(
-          selectedAllocation.experimentId
-        )
+        selectedAllocation.experimentId
     ) {
       setError(
         "The selected phase does not belong to the allocation experiment."
       );
-
       return;
     }
 
@@ -773,31 +782,24 @@ export default function CreateSchedule() {
       const createdSchedule =
         await createSchedule({
           allocationPlanId,
-
           phaseId,
-
           title,
-
           description:
             description ||
             null,
-
           startDate,
-
           endDate,
 
-          status:
-            form.status,
+          // Initial status is controlled by the system.
+          status: "Planned",
 
           createdBy:
             getCurrentUserId(),
 
           assignedHumanResourceId,
-
           notes:
             notes ||
             null,
-
           priority,
         });
 
@@ -810,16 +812,10 @@ export default function CreateSchedule() {
             replace: true,
           }
         );
-
         return;
       }
 
-      navigate(
-        "/schedules",
-        {
-          replace: true,
-        }
-      );
+      goBack();
     } catch (submitError) {
       console.error(
         "Create schedule failed:",
@@ -854,7 +850,9 @@ export default function CreateSchedule() {
         <div className="requirement-form-header">
           <div>
             <p className="requirement-breadcrumb">
-              Dashboard / Schedules / Create
+              {selectedExperimentId
+                ? `Dashboard / Experiments / #${selectedExperimentId} / Schedules / Create`
+                : "Dashboard / Schedules / Create"}
             </p>
 
             <h1>
@@ -862,25 +860,16 @@ export default function CreateSchedule() {
             </h1>
 
             <p>
-              Create a work schedule for
-              an allocation plan, phase
-              and assigned human resource.
+              Create a work schedule from an approved allocation plan.
             </p>
           </div>
 
           <button
             type="button"
             className="requirement-back-button"
-            onClick={() =>
-              navigate(
-                "/schedules"
-              )
-            }
+            onClick={goBack}
           >
-            <ArrowLeft
-              size={18}
-            />
-
+            <ArrowLeft size={18} />
             Back
           </button>
         </div>
@@ -893,29 +882,15 @@ export default function CreateSchedule() {
 
         <form
           className="requirement-form-layout"
-          onSubmit={
-            handleSubmit
-          }
+          onSubmit={handleSubmit}
         >
           <section className="requirement-form-card">
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-              }}
-            >
-              <CalendarDays
-                size={21}
-              />
-
-              <h2>
-                Schedule Information
-              </h2>
-            </div>
+            <h2>
+              Schedule Information
+            </h2>
 
             <label htmlFor="allocationPlanId">
-              Allocation Plan
+              Approved Allocation Plan
             </label>
 
             <select
@@ -936,40 +911,32 @@ export default function CreateSchedule() {
               required
             >
               <option value="">
-                Select allocation plan
+                Select approved allocation
               </option>
 
               {allocationPlans.map(
-                (plan) => {
-                  const planId =
-                    getAllocationId(
+                (plan) => (
+                  <option
+                    key={
+                      plan.allocationPlanId
+                    }
+                    value={
+                      plan.allocationPlanId
+                    }
+                  >
+                    {getAllocationLabel(
                       plan
-                    );
-
-                  return (
-                    <option
-                      key={
-                        planId
-                      }
-                      value={
-                        planId
-                      }
-                    >
-                      {getAllocationLabel(
-                        plan
-                      )}
-                    </option>
-                  );
-                }
+                    )}
+                  </option>
+                )
               )}
             </select>
 
             {allocationPlans.length ===
               0 && (
-              <small>
-                No allocation plans are
-                currently available.
-              </small>
+              <div className="form-note">
+                No approved allocation plan is available. The Manager must approve an allocation before a schedule can be created.
+              </div>
             )}
 
             <label htmlFor="phaseId">
@@ -979,9 +946,7 @@ export default function CreateSchedule() {
             <select
               id="phaseId"
               name="phaseId"
-              value={
-                form.phaseId
-              }
+              value={form.phaseId}
               onChange={
                 handleChange
               }
@@ -1023,16 +988,12 @@ export default function CreateSchedule() {
               id="title"
               type="text"
               name="title"
-              value={
-                form.title
-              }
+              value={form.title}
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
-              placeholder="Example: Prepare equipment for field phase"
+              disabled={saving}
+              placeholder="Example: Field preparation"
               required
             />
 
@@ -1050,10 +1011,8 @@ export default function CreateSchedule() {
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
-              placeholder="Describe the work that must be completed..."
+              disabled={saving}
+              placeholder="Describe the scheduled work..."
             />
 
             <label htmlFor="assignedHumanResourceId">
@@ -1069,9 +1028,7 @@ export default function CreateSchedule() {
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
+              disabled={saving}
             >
               <option value="">
                 Not assigned
@@ -1102,66 +1059,24 @@ export default function CreateSchedule() {
             <select
               id="priority"
               name="priority"
-              value={
-                form.priority
-              }
+              value={form.priority}
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
+              disabled={saving}
               required
             >
               <option value="0">
                 Low
               </option>
-
               <option value="1">
                 Medium
               </option>
-
               <option value="2">
                 High
               </option>
-
               <option value="3">
                 Urgent
-              </option>
-            </select>
-
-            <label htmlFor="status">
-              Status
-            </label>
-
-            <select
-              id="status"
-              name="status"
-              value={
-                form.status
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            >
-              <option value="Planned">
-                Planned
-              </option>
-
-              <option value="InProgress">
-                In Progress
-              </option>
-
-              <option value="Completed">
-                Completed
-              </option>
-
-              <option value="Cancelled">
-                Cancelled
               </option>
             </select>
           </section>
@@ -1185,9 +1100,7 @@ export default function CreateSchedule() {
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
+              disabled={saving}
               required
             />
 
@@ -1205,9 +1118,7 @@ export default function CreateSchedule() {
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
+              disabled={saving}
               required
             />
 
@@ -1229,9 +1140,7 @@ export default function CreateSchedule() {
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
+              disabled={saving}
               required
             />
 
@@ -1249,9 +1158,7 @@ export default function CreateSchedule() {
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
+              disabled={saving}
               required
             />
 
@@ -1263,24 +1170,17 @@ export default function CreateSchedule() {
               id="notes"
               name="notes"
               rows={4}
-              value={
-                form.notes
-              }
+              value={form.notes}
               onChange={
                 handleChange
               }
-              disabled={
-                saving
-              }
+              disabled={saving}
               placeholder="Enter additional instructions or notes..."
             />
 
             <div className="requirement-preview">
               <div>
-                <span>
-                  Allocation
-                </span>
-
+                <span>Allocation</span>
                 <strong>
                   {selectedAllocation
                     ? getAllocationLabel(
@@ -1291,25 +1191,12 @@ export default function CreateSchedule() {
               </div>
 
               <div>
-                <span>
-                  Allocation ID
-                </span>
-
-                <strong>
-                  {form.allocationPlanId
-                    ? `#${form.allocationPlanId}`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Phase
-                </span>
-
+                <span>Phase</span>
                 <strong>
                   {selectedPhase
-                    ? selectedPhase.phaseName
+                    ? getPhaseLabel(
+                        selectedPhase
+                      )
                     : "No specific phase"}
                 </strong>
               </div>
@@ -1318,21 +1205,17 @@ export default function CreateSchedule() {
                 <span>
                   Assigned Human
                 </span>
-
                 <strong>
                   {selectedHumanResource
-                    ? selectedHumanResource.fullName ||
-                      selectedHumanResource.username ||
-                      `#${selectedHumanResource.humanResourceId}`
+                    ? getHumanResourceLabel(
+                        selectedHumanResource
+                      )
                     : "Not assigned"}
                 </strong>
               </div>
 
               <div>
-                <span>
-                  Start
-                </span>
-
+                <span>Start</span>
                 <strong>
                   {form.startDate &&
                   form.startTime
@@ -1342,10 +1225,7 @@ export default function CreateSchedule() {
               </div>
 
               <div>
-                <span>
-                  End
-                </span>
-
+                <span>End</span>
                 <strong>
                   {form.endDate &&
                   form.endTime
@@ -1355,10 +1235,7 @@ export default function CreateSchedule() {
               </div>
 
               <div>
-                <span>
-                  Priority
-                </span>
-
+                <span>Priority</span>
                 <strong>
                   {priorityLabels[
                     Number(
@@ -1367,32 +1244,14 @@ export default function CreateSchedule() {
                   ] || "-"}
                 </strong>
               </div>
-
-              <div>
-                <span>
-                  Status
-                </span>
-
-                <strong>
-                  {getStatusLabel(
-                    form.status
-                  )}
-                </strong>
-              </div>
             </div>
 
             <div className="requirement-form-actions">
               <button
                 type="button"
                 className="requirement-cancel-button"
-                disabled={
-                  saving
-                }
-                onClick={() =>
-                  navigate(
-                    "/schedules"
-                  )
-                }
+                onClick={goBack}
+                disabled={saving}
               >
                 Cancel
               </button>

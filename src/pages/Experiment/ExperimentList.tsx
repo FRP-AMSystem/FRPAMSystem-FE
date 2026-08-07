@@ -8,9 +8,12 @@ import {
 } from "../../services/experimentService";
 import type { ExperimentResponse } from "../../types/experiment";
 
-import "./ExperimentList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+import "./ExperimentList.css";
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -85,8 +88,8 @@ function getErrorMessage(error: unknown): string {
 export default function ExperimentList() {
   const navigate = useNavigate();
 
-  const role = (localStorage.getItem("role") || "Student") as Role;
-  const isResearcher = role === "Researcher";
+  const role = getStoredRole();
+  const permission = getPermissions(role);
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -124,7 +127,16 @@ export default function ExperimentList() {
   };
 
   const handleDelete = async (experiment: ExperimentResponse) => {
-    if (!isResearcher || deletingId !== null) return;
+    if (
+      !permission.canDeleteExperiment ||
+      deletingId !== null ||
+      !(
+        experiment.status === "Draft" ||
+        experiment.status === "Created"
+      )
+    ) {
+      return;
+    }
 
     const confirmed = window.confirm(
       `Are you sure you want to delete "${experiment.experimentName}"?`
@@ -158,7 +170,7 @@ export default function ExperimentList() {
             </p>
           </div>
 
-          {isResearcher && (
+          {permission.canCreateExperiment && (
             <button
               type="button"
               className="experiment-create-btn"
@@ -240,30 +252,34 @@ export default function ExperimentList() {
                             View
                           </button>
 
-                          {isResearcher && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(
-                                  `/experiments/${item.experimentId}/edit`
-                                )
-                              }
-                              disabled={deletingId !== null}
-                            >
-                              Edit
-                            </button>
-                          )}
+                          {permission.canEditExperiment &&
+                            (item.status === "Draft" ||
+                              item.status === "Created") && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(
+                                    `/experiments/${item.experimentId}/edit`
+                                  )
+                                }
+                                disabled={deletingId !== null}
+                              >
+                                Edit
+                              </button>
+                            )}
 
-                          {isResearcher && (
-                            <button
-                              type="button"
-                              className="danger-btn"
-                              onClick={() => void handleDelete(item)}
-                              disabled={deletingId !== null}
-                            >
-                              {isDeleting ? "Deleting..." : "Delete"}
-                            </button>
-                          )}
+                          {permission.canDeleteExperiment &&
+                            (item.status === "Draft" ||
+                              item.status === "Created") && (
+                              <button
+                                type="button"
+                                className="danger-btn"
+                                onClick={() => void handleDelete(item)}
+                                disabled={deletingId !== null}
+                              >
+                                {isDeleting ? "Deleting..." : "Delete"}
+                              </button>
+                            )}
                         </div>
                       </td>
                     </tr>

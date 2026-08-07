@@ -29,18 +29,17 @@ import type {
   EquipmentInstance,
 } from "../../types/equipmentInstance";
 
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
+
 import "./EquipmentList.css";
 
 type TabType =
   | "instances"
   | "types"
   | "categories";
-
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
 
 function getErrorMessage(
   error: unknown
@@ -159,16 +158,11 @@ function getInstanceCategoryName(
 }
 
 export default function EquipmentList() {
-  const savedRole =
-    localStorage.getItem("role");
+  const role =
+    getStoredRole();
 
-  const role: Role =
-    savedRole === "Manager" ||
-    savedRole === "Researcher" ||
-    savedRole === "Technician" ||
-    savedRole === "Student"
-      ? savedRole
-      : "Student";
+  const permission =
+    getPermissions(role);
 
   const [
     activeTab,
@@ -226,7 +220,7 @@ export default function EquipmentList() {
   ] = useState("");
 
   const canManage =
-    role === "Researcher";
+    permission.canManageResources;
 
   const loadEquipmentData =
     useCallback(async () => {

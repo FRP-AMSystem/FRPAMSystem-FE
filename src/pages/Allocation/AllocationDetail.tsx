@@ -49,60 +49,17 @@ import {
   getAllocationLandDetails,
 } from "../../services/allocationDetailService";
 
-import "./AllocationDetail.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./AllocationDetail.css";
 
 type ResourceTab =
   | "equipment"
   | "human"
   | "land";
-
-interface RolePermission {
-  canEditPlan: boolean;
-  canManageResources: boolean;
-  canApprove: boolean;
-  canReject: boolean;
-  canCancel: boolean;
-}
-
-const permissions: Record<Role, RolePermission> = {
-  Manager: {
-    canEditPlan: false,
-    canManageResources: false,
-    canApprove: true,
-    canReject: true,
-    canCancel: true,
-  },
-
-  Researcher: {
-    canEditPlan: true,
-    canManageResources: true,
-    canApprove: false,
-    canReject: false,
-    canCancel: false,
-  },
-
-  Technician: {
-    canEditPlan: false,
-    canManageResources: false,
-    canApprove: false,
-    canReject: false,
-    canCancel: false,
-  },
-
-  Student: {
-    canEditPlan: false,
-    canManageResources: false,
-    canApprove: false,
-    canReject: false,
-    canCancel: false,
-  },
-};
 
 function getErrorMessage(
   error: unknown
@@ -238,18 +195,11 @@ export default function AllocationDetail() {
 
   const allocationPlanId = Number(id);
 
-  const savedRole =
-    localStorage.getItem("role");
+  const role =
+    getStoredRole();
 
-  const role: Role =
-    savedRole === "Manager" ||
-    savedRole === "Researcher" ||
-    savedRole === "Technician" ||
-    savedRole === "Student"
-      ? savedRole
-      : "Student";
-
-  const permission = permissions[role];
+  const permission =
+    getPermissions(role);
 
   const [plan, setPlan] =
     useState<AllocationPlan | null>(null);
@@ -443,32 +393,31 @@ export default function AllocationDetail() {
   );
 
   const canEditPlan =
-    permission.canEditPlan &&
+    permission.canEditAllocation &&
     Boolean(isDraft);
 
   const canManageResources =
-    permission.canManageResources &&
+    permission.canEditAllocation &&
     Boolean(isDraft);
 
   const canSubmit =
-    role === "Researcher" &&
+    permission.canSubmitAllocation &&
     Boolean(isDraft) &&
     totalResources > 0;
 
   const canApprove =
-    permission.canApprove &&
+    permission.canApproveAllocation &&
     Boolean(isPending);
 
   const canReject =
-    permission.canReject &&
+    permission.canRejectAllocation &&
     Boolean(isPending);
 
   const canCancel =
-    permission.canCancel &&
+    permission.canCancelAllocation &&
     Boolean(
       isDraft ||
-      isPending ||
-      isApproved
+      isPending
     );
 
   const clearMessages = () => {

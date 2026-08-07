@@ -51,6 +51,11 @@ import type {
   ScheduleStatus,
 } from "../../types/schedule";
 
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
+
 import "../ExperimentEquipmentRequirement/RequirementForm.css";
 
 interface ScheduleFormState {
@@ -317,6 +322,12 @@ export default function EditSchedule() {
   const navigate =
     useNavigate();
 
+  const role =
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
+
   const { id } =
     useParams<{
       id: string;
@@ -548,6 +559,15 @@ export default function EditSchedule() {
           null
         );
 
+        if (
+          !permission.canEditSchedule ||
+          scheduleData.status !== "Planned"
+        ) {
+          setError(
+            "This schedule cannot be edited. Only a Researcher can edit a schedule while it is still Planned."
+          );
+        }
+
         setForm({
           allocationPlanId:
             String(
@@ -726,6 +746,16 @@ export default function EditSchedule() {
         "Invalid schedule ID."
       );
 
+      return;
+    }
+
+    if (
+      !permission.canEditSchedule ||
+      form.status !== "Planned"
+    ) {
+      setError(
+        "Only a Researcher can edit a schedule while it is still Planned."
+      );
       return;
     }
 
@@ -986,9 +1016,7 @@ export default function EditSchedule() {
             </h1>
 
             <p>
-              Update the schedule timeline,
-              allocation, phase and assigned
-              human resource.
+              Update schedule information while it is still Planned. Status changes are handled by the Technician workflow.
             </p>
           </div>
 
@@ -1222,38 +1250,19 @@ export default function EditSchedule() {
               </option>
             </select>
 
-            <label htmlFor="status">
-              Status
-            </label>
+            <div className="schedule-system-status">
+              <span>Current Status</span>
 
-            <select
-              id="status"
-              name="status"
-              value={
-                form.status
-              }
-              onChange={
-                handleChange
-              }
-              disabled={saving}
-              required
-            >
-              <option value="Planned">
-                Planned
-              </option>
+              <strong>
+                {getStatusLabel(
+                  form.status
+                )}
+              </strong>
 
-              <option value="InProgress">
-                In Progress
-              </option>
-
-              <option value="Completed">
-                Completed
-              </option>
-
-              <option value="Cancelled">
-                Cancelled
-              </option>
-            </select>
+              <small>
+                Schedule status is controlled by the workflow. Technician updates progress from the Schedule Detail page.
+              </small>
+            </div>
           </section>
 
           <section className="requirement-form-card">
@@ -1478,6 +1487,8 @@ export default function EditSchedule() {
                 className="requirement-save-button"
                 disabled={
                   saving ||
+                  !permission.canEditSchedule ||
+                  form.status !== "Planned" ||
                   !form.allocationPlanId ||
                   !form.title.trim() ||
                   !form.startDate ||

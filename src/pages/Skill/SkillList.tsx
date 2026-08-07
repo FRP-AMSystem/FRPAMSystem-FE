@@ -28,13 +28,12 @@ import type {
   SkillRequest,
 } from "../../types/skill";
 
-import "./SkillList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./SkillList.css";
 
 interface FormState {
   skillName: string;
@@ -45,22 +44,6 @@ const emptyForm: FormState = {
   skillName: "",
   description: "",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -134,10 +117,13 @@ function formatDate(
 
 export default function SkillList() {
   const role =
-    getCurrentRole();
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Manager";
+    permission.canManageResources;
 
   const [
     items,

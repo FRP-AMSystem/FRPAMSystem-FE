@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
@@ -17,57 +17,15 @@ import type {
 
 import "./AllocationList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
-type StatusFilter = "All" | AllocationPlanStatus;
+import {
+  getPermissions,
+  getStoredRole,
+  type Role,
+} from "../../config/rolePermissions";
 
-type RolePermission = {
-  canCreate: boolean;
-  canView: boolean;
-  canEdit: boolean;
-  canDelete: boolean;
-  canApprove: boolean;
-  canReject: boolean;
-  canCancel: boolean;
-};
-
-const permissions: Record<Role, RolePermission> = {
-  Manager: {
-    canCreate: false,
-    canView: true,
-    canEdit: false,
-    canDelete: false,
-    canApprove: true,
-    canReject: true,
-    canCancel: true,
-  },
-  Researcher: {
-    canCreate: true,
-    canView: true,
-    canEdit: true,
-    canDelete: true,
-    canApprove: false,
-    canReject: false,
-    canCancel: false,
-  },
-  Technician: {
-    canCreate: false,
-    canView: true,
-    canEdit: false,
-    canDelete: false,
-    canApprove: false,
-    canReject: false,
-    canCancel: false,
-  },
-  Student: {
-    canCreate: false,
-    canView: true,
-    canEdit: false,
-    canDelete: false,
-    canApprove: false,
-    canReject: false,
-    canCancel: false,
-  },
-};
+type StatusFilter =
+  | "All"
+  | AllocationPlanStatus;
 
 const statusOptions: StatusFilter[] = [
   "All",
@@ -77,21 +35,6 @@ const statusOptions: StatusFilter[] = [
   "Rejected",
   "Cancelled",
 ];
-
-function getStoredRole(): Role {
-  const storedRole = localStorage.getItem("role");
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function formatDate(date?: string | null): string {
   if (!date) return "-";
@@ -110,21 +53,40 @@ function formatFitnessScore(score: number | null): string {
 function getPageDescription(role: Role): string {
   switch (role) {
     case "Manager":
-      return "Review pending allocation plans and approve, reject, or cancel them.";
+      return "Review pending allocation plans and approve or reject them.";
     case "Researcher":
-      return "Create draft allocation plans, add resources, and track approval status.";
+      return "Create draft allocation plans, add resources, submit them for approval, and cancel pending plans when necessary.";
     case "Technician":
       return "View allocation information related to equipment and schedules.";
-    case "Student":
+    case "Seasonal":
       return "View assigned experiments, schedules, and allocation results.";
+
+    default:
+      return "View allocation plans.";
   }
 }
 
 export default function AllocationList() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const role = getStoredRole();
-  const permission = permissions[role];
+  const permission = getPermissions(role);
+
+  const experimentIdFromUrl =
+    searchParams.get("experimentId");
+
+  const selectedExperimentId = useMemo(() => {
+    if (!experimentIdFromUrl) {
+      return undefined;
+    }
+
+    const parsedId = Number(experimentIdFromUrl);
+
+    return Number.isInteger(parsedId) && parsedId > 0
+      ? parsedId
+      : undefined;
+  }, [experimentIdFromUrl]);
 
   const [plans, setPlans] = useState<AllocationPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,7 +101,12 @@ export default function AllocationList() {
       setLoading(true);
       setError("");
 
-      const data = await getAllocationPlans();
+      const data = await getAllocationPlans({
+        experimentId: selectedExperimentId,
+        page: 1,
+        size: 100,
+      });
+
       setPlans(data);
     } catch (fetchError) {
       console.error("Failed to fetch allocation plans:", fetchError);
@@ -148,7 +115,7 @@ export default function AllocationList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedExperimentId]);
 
   useEffect(() => {
     void fetchPlans();
@@ -189,7 +156,7 @@ export default function AllocationList() {
 
   const handleDelete = async (plan: AllocationPlan) => {
     const canDeletePlan =
-      permission.canDelete && plan.approveStatus === "Draft";
+      permission.canDeleteAllocation && plan.approveStatus === "Draft";
 
     if (!canDeletePlan) return;
 
@@ -207,7 +174,7 @@ export default function AllocationList() {
   };
 
   const handleApprove = async (plan: AllocationPlan) => {
-    if (!permission.canApprove || plan.approveStatus !== "Pending") return;
+    if (!permission.canApproveAllocation || plan.approveStatus !== "Pending") return;
 
     await runPlanAction(
       plan.allocationPlanId,
@@ -217,7 +184,7 @@ export default function AllocationList() {
   };
 
   const handleReject = async (plan: AllocationPlan) => {
-    if (!permission.canReject || plan.approveStatus !== "Pending") return;
+    if (!permission.canRejectAllocation || plan.approveStatus !== "Pending") return;
 
     await runPlanAction(
       plan.allocationPlanId,
@@ -227,7 +194,7 @@ export default function AllocationList() {
   };
 
   const handleCancel = async (plan: AllocationPlan) => {
-    if (!permission.canCancel || plan.approveStatus !== "Pending") return;
+    if (!permission.canCancelAllocation || plan.approveStatus !== "Pending") return;
 
     const confirmed = window.confirm(
       "Are you sure you want to cancel this allocation plan?"
@@ -247,15 +214,30 @@ export default function AllocationList() {
       <div className="allocation-page">
         <div className="allocation-header">
           <div>
-            <h1>Allocation Plans</h1>
-            <p>{getPageDescription(role)}</p>
+            <h1>
+              {selectedExperimentId
+                ? "Experiment Allocation"
+                : "Allocation Plans"}
+            </h1>
+
+            <p>
+              {selectedExperimentId
+                ? `Allocation plans for Experiment #${selectedExperimentId}. ${getPageDescription(role)}`
+                : getPageDescription(role)}
+            </p>
           </div>
 
-          {permission.canCreate && (
+          {permission.canCreateAllocation && (
             <button
               type="button"
               className="primary-btn"
-              onClick={() => navigate("/allocation/create")}
+              onClick={() =>
+                navigate(
+                  selectedExperimentId
+                    ? `/allocation/create?experimentId=${selectedExperimentId}`
+                    : "/allocation/create"
+                )
+              }
             >
               + Create Plan
             </button>
@@ -317,11 +299,11 @@ export default function AllocationList() {
                     const isDraft = plan.approveStatus === "Draft";
                     const isPending = plan.approveStatus === "Pending";
 
-                    const canEditPlan = permission.canEdit && isDraft;
-                    const canDeletePlan = permission.canDelete && isDraft;
-                    const canApprovePlan = permission.canApprove && isPending;
-                    const canRejectPlan = permission.canReject && isPending;
-                    const canCancelPlan = permission.canCancel && isPending;
+                    const canEditPlan = permission.canEditAllocation && isDraft;
+                    const canDeletePlan = permission.canDeleteAllocation && isDraft;
+                    const canApprovePlan = permission.canApproveAllocation && isPending;
+                    const canRejectPlan = permission.canRejectAllocation && isPending;
+                    const canCancelPlan = permission.canCancelAllocation && isPending;
 
                     return (
                       <tr key={plan.allocationPlanId}>
@@ -345,7 +327,7 @@ export default function AllocationList() {
                         </td>
                         <td>
                           <div className="action-group">
-                            {permission.canView && (
+                            {permission.canViewAllocations && (
                               <button
                                 type="button"
                                 disabled={isProcessing}

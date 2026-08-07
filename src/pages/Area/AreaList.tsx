@@ -28,31 +28,12 @@ import type {
   AreaRequest,
 } from "../../types/area";
 
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
+
 import "./AreaList.css";
-
-type Role =
-  | "Admin"
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Admin" ||
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -125,10 +106,13 @@ function formatDate(
 
 export default function AreaList() {
   const role =
-    getCurrentRole();
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Admin" || role === "Manager";
+    permission.canManageResources;
 
   const [
     areas,

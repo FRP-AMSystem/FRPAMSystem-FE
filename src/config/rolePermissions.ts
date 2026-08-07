@@ -3,7 +3,7 @@ export type Role =
   | "Manager"
   | "Researcher"
   | "Technician"
-  | "Student";
+  | "Seasonal";
 
 export interface RolePermission {
   canManageUsers: boolean;
@@ -56,7 +56,7 @@ export const validRoles: Role[] = [
   "Manager",
   "Researcher",
   "Technician",
-  "Student",
+  "Seasonal"
 ];
 
 export function isRole(
@@ -67,7 +67,7 @@ export function isRole(
     value === "Manager" ||
     value === "Researcher" ||
     value === "Technician" ||
-    value === "Student"
+    value === "Seasonal"
   );
 }
 
@@ -78,7 +78,7 @@ export function getStoredRole(): Role {
 
   return isRole(storedRole)
     ? storedRole
-    : "Student";
+    : "Seasonal"
 }
 
 export function getStoredUserId(): number | null {
@@ -286,7 +286,7 @@ export const rolePermissions: Record<
     canViewAnalytics: false,
   },
 
-  Student: {
+  Seasonal: {
     canManageUsers: false,
     canManageRoles: false,
     canManageSystemConfiguration: false,

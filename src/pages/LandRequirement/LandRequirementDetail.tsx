@@ -31,13 +31,12 @@ import type {
   ExperimentLandRequirement,
 } from "../../types/experimentLandRequirement";
 
-import "./LandRequirementDetail.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./LandRequirementDetail.css";
 
 function getErrorMessage(
   error: unknown
@@ -136,12 +135,13 @@ export default function LandRequirementDetail() {
   const { id } = useParams();
 
   const role =
-    localStorage.getItem(
-      "role"
-    ) as Role | null;
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Researcher";
+    permission.canEditRequirement;
 
   const requirementId =
     Number(id);

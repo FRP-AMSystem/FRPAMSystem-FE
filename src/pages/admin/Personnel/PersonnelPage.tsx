@@ -62,7 +62,7 @@ const getRoleBadgeStyles = (role: string) => {
         backgroundColor: "#FEF3C7",
         color: "#92400E",
       };
-    case "student":
+    case "seasonal":
       return {
         backgroundColor: "#CCFBF1",
         color: "#115E59",

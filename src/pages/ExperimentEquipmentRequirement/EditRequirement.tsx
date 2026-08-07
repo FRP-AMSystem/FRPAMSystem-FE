@@ -16,6 +16,16 @@ import type { EquipmentType } from "../../types/equipment";
 
 import "./RequirementForm.css";
 
+
+function isDraftExperimentStatus(
+  status?: string | null
+): boolean {
+  return (
+    status === "Draft" ||
+    status === "Created"
+  );
+}
+
 export default function EditRequirement() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -109,8 +119,15 @@ export default function EditRequirement() {
       return;
     }
 
-    if (selectedExperiment?.status === "Draft") {
-      setError("Experiment must be active before updating requirements.");
+    if (
+      !selectedExperiment ||
+      !isDraftExperimentStatus(
+        selectedExperiment.status
+      )
+    ) {
+      setError(
+        "Requirements can only be edited while the experiment is in Draft status."
+      );
       return;
     }
 
@@ -218,13 +235,17 @@ export default function EditRequirement() {
               name="equipmentTypeId"
               value={form.equipmentTypeId}
               onChange={handleChange}
+              disabled
               required
             >
               <option value="">Select equipment type</option>
 
               {equipmentTypes.map((type) => (
-                <option key={type.equipmentTypeId} value={type.equipmentTypeId}>
-                  #{type.equipmentTypeId} - {type.typeName}
+                <option
+                  key={type.equipmentTypeId}
+                  value={type.equipmentTypeId}
+                >
+                  {type.equipmentTypeName || type.name}
                 </option>
               ))}
             </select>
@@ -302,7 +323,8 @@ export default function EditRequirement() {
                 <span>Selected Equipment Type</span>
                 <strong>
                   {selectedEquipmentType
-                    ? selectedEquipmentType.typeName
+                    ? selectedEquipmentType.equipmentTypeName ||
+                      selectedEquipmentType.name
                     : "Not selected"}
                 </strong>
               </div>

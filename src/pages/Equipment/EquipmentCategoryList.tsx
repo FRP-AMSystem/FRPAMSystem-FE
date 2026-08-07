@@ -28,13 +28,12 @@ import type {
     EquipmentCategoryRequest,
 } from "../../types/equipmentCategory";
 
-import "./EquipmentCategoryList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-    | "Manager"
-    | "Researcher"
-    | "Technician"
-    | "Student";
+import "./EquipmentCategoryList.css";
 
 function getErrorMessage(
     error: unknown
@@ -105,28 +104,15 @@ function formatDate(
     );
 }
 
-function getCurrentRole(): Role {
-    const storedRole =
-        localStorage.getItem("role");
-
-    if (
-        storedRole === "Manager" ||
-        storedRole === "Researcher" ||
-        storedRole === "Technician" ||
-        storedRole === "Student"
-    ) {
-        return storedRole;
-    }
-
-    return "Student";
-}
-
 export default function EquipmentCategoryList() {
     const role =
-        getCurrentRole();
+        getStoredRole();
+
+    const permission =
+        getPermissions(role);
 
     const canManage =
-        role === "Manager";
+        permission.canManageResources;
 
     const [
         items,

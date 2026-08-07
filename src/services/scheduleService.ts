@@ -358,3 +358,60 @@ export async function deleteSchedule(
     `/Schedules/${id}`
   );
 }
+
+export async function updateScheduleStatus(
+  id: number,
+  status: ScheduleStatus
+): Promise<Schedule> {
+  validateId(
+    id,
+    "Schedule ID"
+  );
+
+  const current =
+    await getScheduleById(id);
+
+  return updateSchedule(
+    id,
+    {
+      allocationPlanId:
+        current.allocationPlanId,
+
+      phaseId:
+        current.phaseId ??
+        null,
+
+      title:
+        current.title ??
+        null,
+
+      description:
+        current.description ??
+        null,
+
+      startDate:
+        current.startDate,
+
+      endDate:
+        current.endDate,
+
+      status,
+
+      createdBy:
+        current.createdBy ??
+        null,
+
+      assignedHumanResourceId:
+        current.assignedHumanResourceId ??
+        null,
+
+      notes:
+        current.notes ??
+        null,
+
+      priority:
+        current.priority,
+    }
+  );
+}
+

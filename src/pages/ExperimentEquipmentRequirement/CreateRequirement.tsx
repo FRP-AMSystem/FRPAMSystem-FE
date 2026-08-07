@@ -12,6 +12,16 @@ import type { EquipmentType } from "../../types/equipment";
 
 import "./RequirementForm.css";
 
+
+function isDraftExperimentStatus(
+  status?: string | null
+): boolean {
+  return (
+    status === "Draft" ||
+    status === "Created"
+  );
+}
+
 export default function CreateRequirement() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -39,6 +49,13 @@ export default function CreateRequirement() {
       (item) => item.experimentId === Number(form.experimentId)
     );
   }, [experiments, form.experimentId]);
+
+  const selectedExperimentIsEditable =
+    selectedExperiment
+      ? isDraftExperimentStatus(
+          selectedExperiment.status
+        )
+      : false;
 
   const selectedEquipmentType = useMemo(() => {
     return equipmentTypes.find(
@@ -86,6 +103,16 @@ export default function CreateRequirement() {
 
     if (!form.experimentId) {
       setError("Please select an experiment.");
+      return;
+    }
+
+    if (
+      !selectedExperiment ||
+      !selectedExperimentIsEditable
+    ) {
+      setError(
+        "Requirements can only be created while the experiment is in Draft status."
+      );
       return;
     }
 
@@ -217,8 +244,11 @@ export default function CreateRequirement() {
               <option value="">Select equipment type</option>
 
               {equipmentTypes.map((type) => (
-                <option key={type.equipmentTypeId} value={type.equipmentTypeId}>
-                  #{type.equipmentTypeId} - {type.typeName}
+                <option
+                  key={type.equipmentTypeId}
+                  value={type.equipmentTypeId}
+                >
+                  {type.equipmentTypeName || type.name}
                 </option>
               ))}
             </select>
@@ -296,7 +326,8 @@ export default function CreateRequirement() {
                 <span>Selected Equipment Type</span>
                 <strong>
                   {selectedEquipmentType
-                    ? selectedEquipmentType.typeName
+                    ? selectedEquipmentType.equipmentTypeName ||
+                      selectedEquipmentType.name
                     : "Not selected"}
                 </strong>
               </div>
@@ -330,7 +361,14 @@ export default function CreateRequirement() {
                 Cancel
               </button>
 
-              <button type="submit" className="save-btn" disabled={saving}>
+              <button
+                type="submit"
+                className="save-btn"
+                disabled={
+                  saving ||
+                  !selectedExperimentIsEditable
+                }
+              >
                 {saving ? "Saving..." : "Create Requirement"}
               </button>
             </div>

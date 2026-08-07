@@ -29,13 +29,12 @@ import type {
   HumanResourceStatus,
 } from "../../types/humanResourceProfile";
 
-import "./HumanResourceProfileList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./HumanResourceProfileList.css";
 
 interface FormState {
   userId: string;
@@ -57,22 +56,6 @@ const emptyForm: FormState = {
   currentWorkload: "0",
   status: "Available",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -171,10 +154,13 @@ function getStatusClassName(
 
 export default function HumanResourceProfileList() {
   const role =
-    getCurrentRole();
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Manager";
+    permission.canManageResources;
 
   const [
     items,

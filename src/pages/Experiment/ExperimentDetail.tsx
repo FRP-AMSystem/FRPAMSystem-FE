@@ -12,13 +12,17 @@ import {
 import axios from "axios";
 
 import {
+  CalendarDays,
   CheckCircle2,
+  ClipboardList,
   Eye,
+  LandPlot,
   Layers3,
   Pencil,
   Plus,
   Send,
   Trash2,
+  Users,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
@@ -33,6 +37,27 @@ import {
   getExperimentPhases,
 } from "../../services/experimentPhaseService";
 
+import {
+  getExperimentEquipmentRequirements,
+} from "../../services/experimentEquipmentRequirementService";
+
+import {
+  getExperimentHumanRequirements,
+} from "../../services/experimentHumanRequirementService";
+
+import {
+  getExperimentLandRequirements,
+} from "../../services/experimentLandRequirementService";
+
+import {
+  getAllocationPlans,
+} from "../../services/allocationPlanService";
+
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
+
 import type {
   ExperimentResponse,
   ExperimentStatus,
@@ -46,13 +71,6 @@ import type {
 import "./ExperimentDetail.css";
 import "./ExperimentPhaseSection.css";
 
-type Role =
-  | "Admin"
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
-
 const priorityLabels: Record<
   number,
   string
@@ -62,25 +80,6 @@ const priorityLabels: Record<
   2: "High",
   3: "Urgent",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem(
-      "role"
-    );
-
-  if (
-    storedRole === "Admin" ||
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function formatDate(
   value?: string | null
@@ -375,10 +374,13 @@ export default function ExperimentDetail() {
     Number(id);
 
   const role =
-    getCurrentRole();
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManageExperiment =
-    role === "Researcher";
+    permission.canEditExperiment;
 
   const [
     loading,
@@ -430,6 +432,46 @@ export default function ExperimentDetail() {
   ] = useState<
     number | null
   >(null);
+
+  const [
+    equipmentRequirementCount,
+    setEquipmentRequirementCount,
+  ] = useState(0);
+
+  const [
+    humanRequirementCount,
+    setHumanRequirementCount,
+  ] = useState(0);
+
+  const [
+    landRequirementCount,
+    setLandRequirementCount,
+  ] = useState(0);
+
+  const [
+    allocationCount,
+    setAllocationCount,
+  ] = useState(0);
+
+  const [
+    approvedAllocationCount,
+    setApprovedAllocationCount,
+  ] = useState(0);
+
+  const [
+    scheduleCount,
+    setScheduleCount,
+  ] = useState(0);
+
+  const [
+    loadingWorkflow,
+    setLoadingWorkflow,
+  ] = useState(true);
+
+  const [
+    workflowError,
+    setWorkflowError,
+  ] = useState("");
 
   const loadExperiment =
     useCallback(async () => {
@@ -549,12 +591,109 @@ export default function ExperimentDetail() {
       }
     }, [experimentId]);
 
+  const loadWorkflowSummary =
+    useCallback(async () => {
+      if (
+        !Number.isInteger(
+          experimentId
+        ) ||
+        experimentId <= 0
+      ) {
+        setLoadingWorkflow(false);
+        return;
+      }
+
+      try {
+        setLoadingWorkflow(true);
+        setWorkflowError("");
+
+        const [
+          equipmentRequirements,
+          humanRequirements,
+          landRequirements,
+          allocations,
+        ] = await Promise.all([
+          getExperimentEquipmentRequirements({
+            experimentId,
+            page: 1,
+            size: 100,
+          }),
+          getExperimentHumanRequirements({
+            experimentId,
+            page: 1,
+            size: 100,
+          }),
+          getExperimentLandRequirements({
+            experimentId,
+            page: 1,
+            size: 100,
+          }),
+          getAllocationPlans({
+            experimentId,
+            page: 1,
+            size: 100,
+          }),
+        ]);
+
+        setEquipmentRequirementCount(
+          equipmentRequirements.length
+        );
+
+        setHumanRequirementCount(
+          humanRequirements.length
+        );
+
+        setLandRequirementCount(
+          landRequirements.length
+        );
+
+        setAllocationCount(
+          allocations.length
+        );
+
+        setApprovedAllocationCount(
+          allocations.filter(
+            (allocation) =>
+              allocation.approveStatus ===
+              "Approved"
+          ).length
+        );
+
+        setScheduleCount(
+          allocations.reduce(
+            (total, allocation) =>
+              total +
+              Number(
+                allocation.scheduleCount ??
+                0
+              ),
+            0
+          )
+        );
+      } catch (loadError) {
+        console.error(
+          "Load experiment workflow summary failed:",
+          loadError
+        );
+
+        setWorkflowError(
+          getErrorMessage(
+            loadError
+          )
+        );
+      } finally {
+        setLoadingWorkflow(false);
+      }
+    }, [experimentId]);
+
   useEffect(() => {
     void loadExperiment();
     void loadExperimentPhases();
+    void loadWorkflowSummary();
   }, [
     loadExperiment,
     loadExperimentPhases,
+    loadWorkflowSummary,
   ]);
 
   const handleSubmitExperiment =
@@ -584,6 +723,21 @@ export default function ExperimentDetail() {
       ) {
         setError(
           "Please create at least one experiment phase before submitting the experiment."
+        );
+
+        return;
+      }
+
+      const totalRequirements =
+        equipmentRequirementCount +
+        humanRequirementCount +
+        landRequirementCount;
+
+      if (
+        totalRequirements === 0
+      ) {
+        setError(
+          "Please create at least one requirement before submitting the experiment."
         );
 
         return;
@@ -638,7 +792,7 @@ export default function ExperimentDetail() {
       phase: ExperimentPhase
     ) => {
       if (
-        !canManageExperiment
+        !permission.canDeleteExperimentPhase
       ) {
         return;
       }
@@ -789,8 +943,27 @@ export default function ExperimentDetail() {
       experiment.status
     );
 
+  const totalRequirements =
+    equipmentRequirementCount +
+    humanRequirementCount +
+    landRequirementCount;
+
+  const hasPhase =
+    phases.length > 0;
+
+  const hasRequirement =
+    totalRequirements > 0;
+
+  const submitReady =
+    hasPhase &&
+    hasRequirement &&
+    !loadingWorkflow;
+
+  const allocationUnlocked =
+    !experimentIsEditable;
+
   const canSubmit =
-    canManageExperiment &&
+    permission.canSubmitExperiment &&
     experimentIsEditable;
 
   return (
@@ -998,7 +1171,260 @@ export default function ExperimentDetail() {
           </p>
         </div>
 
-        {canManageExperiment && (
+        <section className="experiment-workspace-section">
+          <div className="experiment-workspace-heading">
+            <div>
+              <h2>Experiment Workflow</h2>
+
+              <p>
+                Complete the planning steps in order. All items below stay linked to
+                experiment #{experiment.experimentId}.
+              </p>
+            </div>
+
+            <span
+              className={`experiment-workflow-readiness ${
+                submitReady
+                  ? "experiment-workflow-ready"
+                  : ""
+              }`}
+            >
+              {experimentIsEditable
+                ? submitReady
+                  ? "Ready to Submit"
+                  : "Planning Incomplete"
+                : getExperimentStatusLabel(
+                    experiment.status
+                  )}
+            </span>
+          </div>
+
+          {workflowError && (
+            <div className="experiment-workflow-error">
+              {workflowError}
+            </div>
+          )}
+
+          <div className="experiment-workflow-progress">
+            <div className={hasPhase ? "is-complete" : ""}>
+              <span>1</span>
+              <strong>Phases</strong>
+              <small>
+                {hasPhase
+                  ? `${phases.length} created`
+                  : "Required before submit"}
+              </small>
+            </div>
+
+            <div className={hasRequirement ? "is-complete" : ""}>
+              <span>2</span>
+              <strong>Requirements</strong>
+              <small>
+                {hasRequirement
+                  ? `${totalRequirements} created`
+                  : "Add at least one"}
+              </small>
+            </div>
+
+            <div className={!experimentIsEditable ? "is-complete" : ""}>
+              <span>3</span>
+              <strong>Submit</strong>
+              <small>
+                {experimentIsEditable
+                  ? "Submit when planning is ready"
+                  : getExperimentStatusLabel(
+                      experiment.status
+                    )}
+              </small>
+            </div>
+
+            <div className={approvedAllocationCount > 0 ? "is-complete" : ""}>
+              <span>4</span>
+              <strong>Allocation</strong>
+              <small>
+                {allocationCount > 0
+                  ? `${allocationCount} plan${allocationCount === 1 ? "" : "s"}`
+                  : "After experiment submit"}
+              </small>
+            </div>
+
+            <div className={scheduleCount > 0 ? "is-complete" : ""}>
+              <span>5</span>
+              <strong>Schedule</strong>
+              <small>
+                {scheduleCount > 0
+                  ? `${scheduleCount} schedule${scheduleCount === 1 ? "" : "s"}`
+                  : "After allocation approval"}
+              </small>
+            </div>
+          </div>
+
+          <div className="experiment-workspace-grid">
+            <button
+              type="button"
+              className="experiment-workspace-card"
+              onClick={() =>
+                document
+                  .getElementById("experiment-phases")
+                  ?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  })
+              }
+            >
+              <span className="experiment-workspace-icon">
+                <Layers3 size={21} />
+              </span>
+
+              <span>
+                <strong>Experiment Phases</strong>
+                <small>{phases.length} phase(s)</small>
+              </span>
+
+              <em className={hasPhase ? "is-complete" : ""}>
+                {hasPhase ? "Complete" : "Required"}
+              </em>
+            </button>
+
+            <button
+              type="button"
+              className="experiment-workspace-card"
+              onClick={() =>
+                navigate(
+                  `/equipment-requirements?experimentId=${experiment.experimentId}`
+                )
+              }
+            >
+              <span className="experiment-workspace-icon">
+                <ClipboardList size={21} />
+              </span>
+
+              <span>
+                <strong>Equipment Requirements</strong>
+                <small>{equipmentRequirementCount} requirement(s)</small>
+              </span>
+
+              <em className={equipmentRequirementCount > 0 ? "is-complete" : ""}>
+                {equipmentRequirementCount > 0 ? "Added" : "Not started"}
+              </em>
+            </button>
+
+            <button
+              type="button"
+              className="experiment-workspace-card"
+              onClick={() =>
+                navigate(
+                  `/human-requirements?experimentId=${experiment.experimentId}`
+                )
+              }
+            >
+              <span className="experiment-workspace-icon">
+                <Users size={21} />
+              </span>
+
+              <span>
+                <strong>Human Requirements</strong>
+                <small>{humanRequirementCount} requirement(s)</small>
+              </span>
+
+              <em className={humanRequirementCount > 0 ? "is-complete" : ""}>
+                {humanRequirementCount > 0 ? "Added" : "Not started"}
+              </em>
+            </button>
+
+            <button
+              type="button"
+              className="experiment-workspace-card"
+              onClick={() =>
+                navigate(
+                  `/land-requirements?experimentId=${experiment.experimentId}`
+                )
+              }
+            >
+              <span className="experiment-workspace-icon">
+                <LandPlot size={21} />
+              </span>
+
+              <span>
+                <strong>Land Requirements</strong>
+                <small>{landRequirementCount} requirement(s)</small>
+              </span>
+
+              <em className={landRequirementCount > 0 ? "is-complete" : ""}>
+                {landRequirementCount > 0 ? "Added" : "Not started"}
+              </em>
+            </button>
+
+            <button
+              type="button"
+              className={`experiment-workspace-card ${
+                allocationUnlocked
+                  ? ""
+                  : "experiment-workspace-card-locked"
+              }`}
+              onClick={() => {
+                if (!allocationUnlocked) {
+                  setError(
+                    "Submit the experiment before creating an allocation plan."
+                  );
+                  return;
+                }
+
+                navigate(
+                  `/allocation?experimentId=${experiment.experimentId}`
+                );
+              }}
+            >
+              <span className="experiment-workspace-icon">
+                <CalendarDays size={21} />
+              </span>
+
+              <span>
+                <strong>Allocation Plans</strong>
+                <small>{allocationCount} plan(s)</small>
+              </span>
+
+              <em className={approvedAllocationCount > 0 ? "is-complete" : ""}>
+                {!allocationUnlocked
+                  ? "Locked"
+                  : approvedAllocationCount > 0
+                    ? "Approved"
+                    : allocationCount > 0
+                      ? "In progress"
+                      : "Not started"}
+              </em>
+            </button>
+
+            <button
+              type="button"
+              className="experiment-workspace-card"
+              onClick={() =>
+                navigate(
+                  `/schedules?experimentId=${experiment.experimentId}`
+                )
+              }
+            >
+              <span className="experiment-workspace-icon">
+                <CalendarDays size={21} />
+              </span>
+
+              <span>
+                <strong>Schedules</strong>
+                <small>{scheduleCount} schedule(s)</small>
+              </span>
+
+              <em className={scheduleCount > 0 ? "is-complete" : ""}>
+                {scheduleCount > 0
+                  ? "Scheduled"
+                  : approvedAllocationCount > 0
+                    ? "Ready"
+                    : "Waiting for approval"}
+              </em>
+            </button>
+          </div>
+        </section>
+
+        {permission.canEditExperiment && (
           <div className="detail-actions">
             {experimentIsEditable && (
               <>
@@ -1014,17 +1440,6 @@ export default function ExperimentDetail() {
                   Edit Experiment
                 </button>
 
-                <button
-                  type="button"
-                  className="requirement-btn"
-                  onClick={() =>
-                    navigate(
-                      `/equipment-requirements/create?experimentId=${experiment.experimentId}`
-                    )
-                  }
-                >
-                  Create Requirement
-                </button>
               </>
             )}
 
@@ -1034,8 +1449,7 @@ export default function ExperimentDetail() {
                 className="experiment-submit-button"
                 disabled={
                   submitting ||
-                  phases.length ===
-                    0
+                  !submitReady
                 }
                 onClick={() =>
                   void handleSubmitExperiment()
@@ -1054,13 +1468,17 @@ export default function ExperimentDetail() {
         )}
 
         {canSubmit &&
-          phases.length === 0 && (
+          !submitReady && (
           <div className="experiment-submit-hint">
-            Create at least one phase before submitting this experiment.
+            {!hasPhase &&
+              "Create at least one phase. "}
+            {!hasRequirement &&
+              "Create at least one equipment, human, or land requirement. "}
+            Complete planning before submitting this experiment.
           </div>
         )}
 
-        <section className="experiment-phase-section">
+        <section id="experiment-phases" className="experiment-phase-section">
           <div className="experiment-phase-section-header">
             <div className="experiment-phase-section-title">
               <div className="experiment-phase-section-icon">
@@ -1080,7 +1498,7 @@ export default function ExperimentDetail() {
               </div>
             </div>
 
-            {canManageExperiment &&
+            {permission.canCreateExperimentPhase &&
               experimentIsEditable && (
               <button
                 type="button"
@@ -1124,7 +1542,7 @@ export default function ExperimentDetail() {
                 This experiment does not have any phases yet.
               </p>
 
-              {canManageExperiment &&
+              {permission.canCreateExperimentPhase &&
                 experimentIsEditable && (
                 <button
                   type="button"
@@ -1261,42 +1679,43 @@ export default function ExperimentDetail() {
                                 />
                               </button>
 
-                              {canManageExperiment &&
+                              {permission.canEditExperimentPhase &&
                                 experimentIsEditable && (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="experiment-phase-action-button"
-                                    title="Edit phase"
-                                    onClick={() =>
-                                      navigate(
-                                        `/experiment-phases/${phaseId}/edit`
-                                      )
-                                    }
-                                  >
-                                    <Pencil
-                                      size={17}
-                                    />
-                                  </button>
+                                <button
+                                  type="button"
+                                  className="experiment-phase-action-button"
+                                  title="Edit phase"
+                                  onClick={() =>
+                                    navigate(
+                                      `/experiment-phases/${phaseId}/edit`
+                                    )
+                                  }
+                                >
+                                  <Pencil
+                                    size={17}
+                                  />
+                                </button>
+                              )}
 
-                                  <button
-                                    type="button"
-                                    className="experiment-phase-action-button experiment-phase-delete-button"
-                                    title="Delete phase"
-                                    disabled={
-                                      isDeleting
-                                    }
-                                    onClick={() =>
-                                      void handleDeletePhase(
-                                        phase
-                                      )
-                                    }
-                                  >
-                                    <Trash2
-                                      size={17}
-                                    />
-                                  </button>
-                                </>
+                              {permission.canDeleteExperimentPhase &&
+                                experimentIsEditable && (
+                                <button
+                                  type="button"
+                                  className="experiment-phase-action-button experiment-phase-delete-button"
+                                  title="Delete phase"
+                                  disabled={
+                                    isDeleting
+                                  }
+                                  onClick={() =>
+                                    void handleDeletePhase(
+                                      phase
+                                    )
+                                  }
+                                >
+                                  <Trash2
+                                    size={17}
+                                  />
+                                </button>
                               )}
                             </div>
                           </td>

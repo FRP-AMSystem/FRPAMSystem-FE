@@ -44,6 +44,33 @@ function toDateInputValue(
   );
 }
 
+
+function openDatePicker(
+  input: HTMLInputElement
+): void {
+  if (input.disabled) {
+    return;
+  }
+
+  try {
+    input.focus();
+
+    if (
+      typeof input.showPicker ===
+      "function"
+    ) {
+      input.showPicker();
+    }
+  } catch (error) {
+    console.warn(
+      "Unable to open date picker:",
+      error
+    );
+
+    input.focus();
+  }
+}
+
 function getErrorMessage(
   error: unknown
 ): string {
@@ -516,6 +543,11 @@ export default function EditExperiment() {
               onChange={
                 handleChange
               }
+              onClick={(event) =>
+                openDatePicker(
+                  event.currentTarget
+                )
+              }
               disabled={
                 saving
               }
@@ -538,6 +570,11 @@ export default function EditExperiment() {
               }
               onChange={
                 handleChange
+              }
+              onClick={(event) =>
+                openDatePicker(
+                  event.currentTarget
+                )
               }
               disabled={
                 saving
@@ -562,48 +599,27 @@ export default function EditExperiment() {
               onChange={
                 handleChange
               }
+              onClick={(event) =>
+                openDatePicker(
+                  event.currentTarget
+                )
+              }
               disabled={
                 saving
               }
             />
 
-            <label htmlFor="status">
-              Status
-            </label>
+            <div className="experiment-system-status">
+              <span>Current Status</span>
 
-            <select
-              id="status"
-              name="status"
-              value={
-                form.status
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-            >
-              <option value="Draft">
-                Draft
-              </option>
+              <strong>
+                {form.status}
+              </strong>
 
-              <option value="Pending">
-                Pending
-              </option>
-
-              <option value="InProgress">
-                In Progress
-              </option>
-
-              <option value="Completed">
-                Completed
-              </option>
-
-              <option value="Cancelled">
-                Cancelled
-              </option>
-            </select>
+              <small>
+                Status is controlled by the experiment workflow and cannot be changed from this form.
+              </small>
+            </div>
 
             <label htmlFor="priority">
               Priority

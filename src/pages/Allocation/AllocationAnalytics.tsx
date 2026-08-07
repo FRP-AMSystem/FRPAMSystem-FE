@@ -35,20 +35,19 @@ import {
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
-  getAllocationPlans,
-} from "../../services/allocationPlanService";
+  getPlanningDashboardContext,
+} from "../../services/dashboardService";
+
+import {
+  getStoredRole,
+  getStoredUserId,
+} from "../../config/rolePermissions";
 
 import type {
   AllocationPlan,
 } from "../../types/allocationPlan";
 
 import "./AllocationAnalytics.css";
-
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
 
 interface StatusChartItem {
   name: string;
@@ -70,22 +69,6 @@ const STATUS_COLORS: Record<string, string> = {
   Rejected: "#ef4444",
   Cancelled: "#94a3b8",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -192,12 +175,10 @@ export default function AllocationAnalytics() {
     useNavigate();
 
   const role =
-    getCurrentRole();
+    getStoredRole();
 
   const currentUserId =
-    Number(
-      localStorage.getItem("userId")
-    );
+    getStoredUserId();
 
   const [
     plans,
@@ -233,16 +214,15 @@ export default function AllocationAnalytics() {
 
           setError("");
 
-          const data =
-            await getAllocationPlans({
-              page: 1,
-              size: 500,
+          const context =
+            await getPlanningDashboardContext({
+              role,
+              userId:
+                currentUserId,
             });
 
           setPlans(
-            Array.isArray(data)
-              ? data
-              : []
+            context.allocationPlans
           );
         } catch (loadError) {
           console.error(
@@ -261,7 +241,10 @@ export default function AllocationAnalytics() {
           setRefreshing(false);
         }
       },
-      []
+      [
+        role,
+        currentUserId,
+      ]
     );
 
   useEffect(() => {
@@ -269,27 +252,7 @@ export default function AllocationAnalytics() {
   }, [loadData]);
 
   const visiblePlans =
-    useMemo(() => {
-      if (
-        role !== "Researcher" ||
-        !Number.isInteger(
-          currentUserId
-        ) ||
-        currentUserId <= 0
-      ) {
-        return plans;
-      }
-
-      return plans.filter(
-        (plan) =>
-          plan.createdBy ===
-          currentUserId
-      );
-    }, [
-      plans,
-      role,
-      currentUserId,
-    ]);
+    plans;
 
   const analytics =
     useMemo(() => {
@@ -583,9 +546,9 @@ export default function AllocationAnalytics() {
             </h1>
 
             <span>
-              Review allocation status,
-              fitness scores and resource
-              distribution.
+              {role === "Researcher"
+                ? "Review allocation status, fitness scores and resource distribution for experiments assigned to you."
+                : "Review allocation status, fitness scores and resource distribution."}
             </span>
           </div>
 

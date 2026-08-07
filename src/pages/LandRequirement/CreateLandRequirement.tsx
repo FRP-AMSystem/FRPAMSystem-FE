@@ -62,15 +62,11 @@ function getErrorMessage(
       }
     ).response;
 
-    if (
-      response?.data?.message
-    ) {
+    if (response?.data?.message) {
       return response.data.message;
     }
 
-    if (
-      response?.data?.errors
-    ) {
+    if (response?.data?.errors) {
       return Object.values(
         response.data.errors
       )
@@ -78,29 +74,41 @@ function getErrorMessage(
         .join(" ");
     }
 
-    if (
-      response?.data?.title
-    ) {
+    if (response?.data?.title) {
       return response.data.title;
     }
   }
 
-  if (
-    error instanceof Error
-  ) {
+  if (error instanceof Error) {
     return error.message;
   }
 
   return "Cannot create land requirement.";
 }
 
-export default function CreateLandRequirement() {
-  const navigate =
-    useNavigate();
+function isPositiveInteger(
+  value: number
+): boolean {
+  return (
+    Number.isInteger(value) &&
+    value > 0
+  );
+}
 
-  const [
-    searchParams,
-  ] = useSearchParams();
+
+function isDraftExperimentStatus(
+  status?: string | null
+): boolean {
+  return (
+    status === "Draft" ||
+    status === "Created"
+  );
+}
+
+export default function CreateLandRequirement() {
+  const navigate = useNavigate();
+  const [searchParams] =
+    useSearchParams();
 
   const experimentIdFromUrl =
     searchParams.get(
@@ -120,26 +128,19 @@ export default function CreateLandRequirement() {
   ] = useState<LandRequirementFormState>({
     experimentId:
       experimentIdFromUrl,
-
     requiredArea: "",
     requiredSoilType: "",
     note: "",
   });
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+  const [saving, setSaving] =
+    useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const [error, setError] =
+    useState("");
 
   const selectedExperiment =
     useMemo(() => {
@@ -155,7 +156,16 @@ export default function CreateLandRequirement() {
       form.experimentId,
     ]);
 
+  const selectedExperimentIsEditable =
+    selectedExperiment
+      ? isDraftExperimentStatus(
+          selectedExperiment.status
+        )
+      : false;
+
   useEffect(() => {
+    let active = true;
+
     async function loadExperiments() {
       try {
         setLoading(true);
@@ -166,6 +176,10 @@ export default function CreateLandRequirement() {
             page: 1,
             size: 100,
           });
+
+        if (!active) {
+          return;
+        }
 
         setExperiments(
           Array.isArray(data)
@@ -178,20 +192,41 @@ export default function CreateLandRequirement() {
           loadError
         );
 
-        setError(
-          getErrorMessage(
-            loadError
-          )
-        );
-
-        setExperiments([]);
+        if (active) {
+          setError(
+            getErrorMessage(
+              loadError
+            )
+          );
+          setExperiments([]);
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
     void loadExperiments();
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!experimentIdFromUrl) {
+      return;
+    }
+
+    setForm(
+      (current) => ({
+        ...current,
+        experimentId:
+          experimentIdFromUrl,
+      })
+    );
+  }, [experimentIdFromUrl]);
 
   const handleChange = (
     event: ChangeEvent<
@@ -205,11 +240,36 @@ export default function CreateLandRequirement() {
       value,
     } = event.target;
 
+    setError("");
+
     setForm(
       (current) => ({
         ...current,
         [name]: value,
       })
+    );
+  };
+
+  const goBack = () => {
+    const experimentId =
+      Number(
+        form.experimentId ||
+        experimentIdFromUrl
+      );
+
+    if (
+      isPositiveInteger(
+        experimentId
+      )
+    ) {
+      navigate(
+        `/land-requirements?experimentId=${experimentId}`
+      );
+      return;
+    }
+
+    navigate(
+      "/land-requirements"
     );
   };
 
@@ -220,31 +280,29 @@ export default function CreateLandRequirement() {
     setError("");
 
     const experimentId =
-      Number(
-        form.experimentId
-      );
+      Number(form.experimentId);
 
     const requiredArea =
-      Number(
-        form.requiredArea
-      );
-
-    const requiredSoilType =
-      form.requiredSoilType.trim();
-
-    const note =
-      form.note.trim();
+      Number(form.requiredArea);
 
     if (
-      !Number.isInteger(
+      !isPositiveInteger(
         experimentId
-      ) ||
-      experimentId <= 0
+      )
     ) {
       setError(
         "Please select a valid experiment."
       );
+      return;
+    }
 
+    if (
+      !selectedExperiment ||
+      !selectedExperimentIsEditable
+    ) {
+      setError(
+        "Land requirements can only be created while the experiment is in Draft status."
+      );
       return;
     }
 
@@ -257,50 +315,25 @@ export default function CreateLandRequirement() {
       setError(
         "Required area must be greater than 0."
       );
-
-      return;
-    }
-
-    if (
-      !requiredSoilType
-    ) {
-      setError(
-        "Please enter the required soil type."
-      );
-
       return;
     }
 
     try {
       setSaving(true);
 
-      const createdRequirement =
-        await createExperimentLandRequirement(
-          {
-            experimentId,
-            requiredArea,
-            requiredSoilType,
-
-            note:
-              note || null,
-          }
-        );
-
-      if (
-        createdRequirement.expLandReqId
-      ) {
-        navigate(
-          `/land-requirements/${createdRequirement.expLandReqId}`,
-          {
-            replace: true,
-          }
-        );
-
-        return;
-      }
+      await createExperimentLandRequirement({
+        experimentId,
+        requiredArea,
+        requiredSoilType:
+          form.requiredSoilType.trim() ||
+          null,
+        note:
+          form.note.trim() ||
+          null,
+      });
 
       navigate(
-        "/land-requirements",
+        `/land-requirements?experimentId=${experimentId}`,
         {
           replace: true,
         }
@@ -339,7 +372,9 @@ export default function CreateLandRequirement() {
         <div className="requirement-form-header">
           <div>
             <p className="requirement-breadcrumb">
-              Dashboard / Land Requirements / Create
+              {experimentIdFromUrl
+                ? `Dashboard / Experiments / #${experimentIdFromUrl} / Land Requirements / Create`
+                : "Dashboard / Land Requirements / Create"}
             </p>
 
             <h1>
@@ -347,25 +382,16 @@ export default function CreateLandRequirement() {
             </h1>
 
             <p>
-              Define the land area and
-              soil conditions required
-              for an experiment.
+              Define land area and soil requirements for the selected experiment.
             </p>
           </div>
 
           <button
             type="button"
             className="requirement-back-button"
-            onClick={() =>
-              navigate(
-                "/land-requirements"
-              )
-            }
+            onClick={goBack}
           >
-            <ArrowLeft
-              size={18}
-            />
-
+            <ArrowLeft size={18} />
             Back
           </button>
         </div>
@@ -378,22 +404,11 @@ export default function CreateLandRequirement() {
 
         <form
           className="requirement-form-layout"
-          onSubmit={
-            handleSubmit
-          }
+          onSubmit={handleSubmit}
         >
           <section className="requirement-form-card">
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-              }}
-            >
-              <LandPlot
-                size={21}
-              />
-
+            <div className="requirement-card-heading">
+              <LandPlot size={20} />
               <h2>
                 Land Requirement Information
               </h2>
@@ -413,6 +428,7 @@ export default function CreateLandRequirement() {
                 handleChange
               }
               disabled={
+                saving ||
                 Boolean(
                   experimentIdFromUrl
                 )
@@ -433,21 +449,23 @@ export default function CreateLandRequirement() {
                       experiment.experimentId
                     }
                   >
-                    #
-                    {
-                      experiment.experimentId
-                    }
-                    {" - "}
-                    {
-                      experiment.experimentName
-                    }
+                    {experiment.experimentName}
                   </option>
                 )
               )}
             </select>
 
+            {selectedExperiment && (
+              <div className="form-note">
+                Linked to:{" "}
+                {
+                  selectedExperiment.experimentName
+                }
+              </div>
+            )}
+
             <label htmlFor="requiredArea">
-              Required Area (m²)
+              Required Area
             </label>
 
             <input
@@ -462,7 +480,8 @@ export default function CreateLandRequirement() {
               onChange={
                 handleChange
               }
-              placeholder="Example: 500"
+              disabled={saving}
+              placeholder="Example: 10"
               required
             />
 
@@ -480,8 +499,8 @@ export default function CreateLandRequirement() {
               onChange={
                 handleChange
               }
+              disabled={saving}
               placeholder="Example: Loamy soil"
-              required
             />
 
             <label htmlFor="note">
@@ -491,28 +510,22 @@ export default function CreateLandRequirement() {
             <textarea
               id="note"
               name="note"
-              rows={5}
-              value={
-                form.note
-              }
+              rows={4}
+              value={form.note}
               onChange={
                 handleChange
               }
-              placeholder="Enter additional land requirements..."
+              disabled={saving}
+              placeholder="Optional note..."
             />
           </section>
 
           <section className="requirement-form-card">
-            <h2>
-              Requirement Preview
-            </h2>
+            <h2>Preview</h2>
 
             <div className="requirement-preview">
               <div>
-                <span>
-                  Experiment
-                </span>
-
+                <span>Experiment</span>
                 <strong>
                   {selectedExperiment
                     ? selectedExperiment.experimentName
@@ -522,44 +535,26 @@ export default function CreateLandRequirement() {
 
               <div>
                 <span>
-                  Experiment ID
-                </span>
-
-                <strong>
-                  {form.experimentId
-                    ? `#${form.experimentId}`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
                   Required Area
                 </span>
-
                 <strong>
-                  {form.requiredArea
-                    ? `${form.requiredArea} m²`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Soil Type
-                </span>
-
-                <strong>
-                  {form.requiredSoilType ||
+                  {form.requiredArea ||
                     "-"}
                 </strong>
               </div>
 
               <div>
                 <span>
-                  Note
+                  Required Soil Type
                 </span>
+                <strong>
+                  {form.requiredSoilType.trim() ||
+                    "Not specified"}
+                </strong>
+              </div>
 
+              <div>
+                <span>Note</span>
                 <strong>
                   {form.note.trim() ||
                     "No note"}
@@ -571,14 +566,8 @@ export default function CreateLandRequirement() {
               <button
                 type="button"
                 className="requirement-cancel-button"
-                disabled={
-                  saving
-                }
-                onClick={() =>
-                  navigate(
-                    "/land-requirements"
-                  )
-                }
+                onClick={goBack}
+                disabled={saving}
               >
                 Cancel
               </button>
@@ -588,14 +577,14 @@ export default function CreateLandRequirement() {
                 className="requirement-save-button"
                 disabled={
                   saving ||
+                  !selectedExperimentIsEditable ||
                   !form.experimentId ||
-                  !form.requiredArea ||
-                  !form.requiredSoilType.trim()
+                  !form.requiredArea
                 }
               >
                 {saving
                   ? "Creating..."
-                  : "Create Land Requirement"}
+                  : "Create Requirement"}
               </button>
             </div>
           </section>

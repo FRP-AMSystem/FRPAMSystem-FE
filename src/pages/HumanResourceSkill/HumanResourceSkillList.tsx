@@ -46,13 +46,12 @@ import type {
   SkillLevel,
 } from "../../types/humanResourceSkill";
 
-import "./HumanResourceSkillList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./HumanResourceSkillList.css";
 
 interface FormState {
   humanResourceId: string;
@@ -72,22 +71,6 @@ const emptyForm: FormState = {
   skillId: "",
   skillLevel: "Beginner",
 };
-
-function getCurrentRole(): Role {
-  const role =
-    localStorage.getItem("role");
-
-  if (
-    role === "Manager" ||
-    role === "Researcher" ||
-    role === "Technician" ||
-    role === "Student"
-  ) {
-    return role;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -174,8 +157,14 @@ function getSkillName(
 }
 
 export default function HumanResourceSkillList() {
-  const role = getCurrentRole();
-  const canManage = role === "Manager";
+  const role =
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
+
+  const canManage =
+    permission.canManageResources;
 
   const [
     items,

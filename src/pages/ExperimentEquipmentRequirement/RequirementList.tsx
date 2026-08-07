@@ -18,9 +18,12 @@ import {
 
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
 
-import "./RequirementList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+import "./RequirementList.css";
 
 function formatMinEfficiency(
   value: number | null | undefined
@@ -38,11 +41,17 @@ export default function RequirementList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const role = (localStorage.getItem("role") || "Student") as Role;
+  const role = getStoredRole();
+  const permission = getPermissions(role);
 
-  const canCreateRequirement = role === "Researcher";
-  const canEditRequirement = role === "Researcher";
-  const canDeleteRequirement = role === "Researcher";
+  const canCreateRequirement =
+    permission.canCreateRequirement;
+
+  const canEditRequirement =
+    permission.canEditRequirement;
+
+  const canDeleteRequirement =
+    permission.canDeleteRequirement;
 
   const experimentIdFromUrl = searchParams.get("experimentId");
 
@@ -185,7 +194,7 @@ export default function RequirementList() {
             ) : (
               <p>
                 Researcher creates and updates requirements.
-                Manager, Technician and Student can view the
+                Manager, Technician and Seasonal can view the
                 requirement information.
               </p>
             )}

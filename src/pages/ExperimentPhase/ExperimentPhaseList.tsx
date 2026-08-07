@@ -32,13 +32,12 @@ import type {
   ExperimentPhaseStatus,
 } from "../../types/experimentPhase";
 
-import "./ExperimentPhaseList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./ExperimentPhaseList.css";
 
 type StatusFilter =
   | ""
@@ -173,11 +172,11 @@ export default function ExperimentPhaseList() {
     useNavigate();
 
   const role =
-    localStorage.getItem(
-      "role"
-    ) as Role | null;
+    getStoredRole();
 
-  const canManage =
+  const permission =
+    getPermissions(role);
+const canManage =
     role === "Researcher";
 
   const [
@@ -336,7 +335,9 @@ export default function ExperimentPhaseList() {
   const handleDelete = async (
     phase: ExperimentPhase
   ) => {
-    if (!canManage) {
+    if (
+      !permission.canDeleteExperimentPhase
+    ) {
       return;
     }
 

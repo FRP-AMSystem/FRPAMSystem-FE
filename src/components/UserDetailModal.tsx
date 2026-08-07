@@ -82,7 +82,7 @@ export default function UserDetailModal({ user, onClose }: UserDetailModalProps)
         return { backgroundColor: "#D1FAE5", color: "#065F46" };
       case "technician":
         return { backgroundColor: "#FEF3C7", color: "#92400E" };
-      case "student":
+      case "seasonal":
         return { backgroundColor: "#CCFBF1", color: "#115E59" };
       default:
         return { backgroundColor: "#F3F4F6", color: "#374151" };

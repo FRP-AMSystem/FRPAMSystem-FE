@@ -20,13 +20,12 @@ import {
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
-import "./ResourceOverview.css";
+import {
+  getStoredRole,
+  type Role,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./ResourceOverview.css";
 
 interface ResourceIconProps {
   size?: number;
@@ -58,7 +57,7 @@ const resourceMenuItems: ResourceMenuItem[] = [
       "Manager",
       "Researcher",
       "Technician",
-      "Student",
+      "Seasonal",
     ],
     category: "equipment",
   },
@@ -72,7 +71,7 @@ const resourceMenuItems: ResourceMenuItem[] = [
       "Manager",
       "Researcher",
       "Technician",
-      "Student",
+      "Seasonal",
     ],
     category: "equipment",
   },
@@ -86,7 +85,7 @@ const resourceMenuItems: ResourceMenuItem[] = [
       "Manager",
       "Researcher",
       "Technician",
-      "Student",
+      "Seasonal",
     ],
     category: "human",
   },
@@ -100,7 +99,7 @@ const resourceMenuItems: ResourceMenuItem[] = [
       "Manager",
       "Researcher",
       "Technician",
-      "Student",
+      "Seasonal",
     ],
     category: "land",
   },
@@ -114,7 +113,7 @@ const resourceMenuItems: ResourceMenuItem[] = [
       "Manager",
       "Researcher",
       "Technician",
-      "Student",
+      "Seasonal",
     ],
     category: "planning",
   },
@@ -128,7 +127,7 @@ const resourceMenuItems: ResourceMenuItem[] = [
       "Manager",
       "Researcher",
       "Technician",
-      "Student",
+      "Seasonal",
     ],
     category: "planning",
   },
@@ -146,22 +145,6 @@ const resourceMenuItems: ResourceMenuItem[] = [
     category: "monitoring",
   },
 ];
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getCategoryLabel(
   category: ResourceMenuItem["category"]
@@ -201,7 +184,7 @@ export default function ResourceOverview() {
     useNavigate();
 
   const role =
-    getCurrentRole();
+    getStoredRole();
 
   const visibleItems =
     resourceMenuItems.filter(

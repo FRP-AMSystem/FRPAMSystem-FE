@@ -770,40 +770,19 @@ export default function EditExperimentPhase() {
               />
             </div>
 
-            <label htmlFor="status">
-              Status
-            </label>
+            <div className="phase-system-status">
+              <span>Current Status</span>
 
-            <select
-              id="status"
-              name="status"
-              value={
-                form.status
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            >
-              <option value="Planned">
-                Planned
-              </option>
+              <strong>
+                {form.status === "InProgress"
+                  ? "In Progress"
+                  : form.status}
+              </strong>
 
-              <option value="InProgress">
-                In Progress
-              </option>
-
-              <option value="Completed">
-                Completed
-              </option>
-
-              <option value="Cancelled">
-                Cancelled
-              </option>
-            </select>
+              <small>
+                Phase status is controlled by the workflow and cannot be changed from this form.
+              </small>
+            </div>
           </section>
 
           <section className="requirement-form-card">

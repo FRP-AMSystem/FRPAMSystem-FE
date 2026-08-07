@@ -39,7 +39,7 @@ import type {
 
 import "./LandResourceList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+type Role = "Manager" | "Researcher" | "Technician" | "Seasonal";
 
 interface LandFormState {
     areaId: string;
@@ -73,7 +73,7 @@ function statusClass(status: LandResourceStatus): string {
 }
 
 export default function LandResourceList() {
-    const role = (localStorage.getItem("role") || "Student") as Role;
+    const role = (localStorage.getItem("role") || "Seasonal") as Role;
     const canManage = role === "Manager";
     const [items, setItems] = useState<LandResource[]>([]);
     const [areas, setAreas] = useState<Area[]>([]);

@@ -28,9 +28,7 @@ import {
   ClipboardList,
   Cpu,
   FlaskConical,
-  GraduationCap,
   LandPlot,
-  Layers3,
   LayoutDashboard,
   LogOut,
   Map,
@@ -79,38 +77,11 @@ interface MenuGroup {
   defaultOpen?: boolean;
 }
 
-const planningItems: MenuItem[] = [
-  {
-    name: "Experiments",
-    path: "/experiments",
-    icon: FlaskConical,
-  },
-  {
-    name: "Experiment Phases",
-    path: "/experiment-phases",
-    icon: Layers3,
-  },
-  {
-    name: "Equipment Requirements",
-    path: "/equipment-requirements",
-    icon: ClipboardList,
-  },
-  {
-    name: "Human Requirements",
-    path: "/human-requirements",
-    icon: Users,
-  },
-  {
-    name: "Land Requirements",
-    path: "/land-requirements",
-    icon: LandPlot,
-  },
-  {
-    name: "Allocations",
-    path: "/allocation",
-    icon: CalendarDays,
-  },
-];
+const experimentPlanningItem: MenuItem = {
+  name: "Experiments",
+  path: "/experiments",
+  icon: FlaskConical,
+};
 
 const humanResourceItems: MenuItem[] = [
   {
@@ -247,7 +218,12 @@ const managerMenuGroups: MenuGroup[] = [
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      ...planningItems,
+      experimentPlanningItem,
+      {
+        name: "Allocation Review",
+        path: "/allocation",
+        icon: CalendarDays,
+      },
       {
         name: "Allocation Analytics",
         path: "/allocation-analytics",
@@ -278,18 +254,11 @@ const managerMenuGroups: MenuGroup[] = [
 const researcherMenuGroups: MenuGroup[] = [
   {
     id: "planning",
-    title: "Planning",
+    title: "Experiment Planning",
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      ...planningItems.map((item) =>
-        item.path === "/allocation"
-          ? {
-              ...item,
-              name: "My Allocations",
-            }
-          : item
-      ),
+      experimentPlanningItem,
       {
         name: "Allocation Analytics",
         path: "/allocation-analytics",
@@ -320,10 +289,10 @@ const researcherMenuGroups: MenuGroup[] = [
 const technicianMenuGroups: MenuGroup[] = [
   {
     id: "planning",
-    title: "Planning Information",
+    title: "Experiment Information",
     icon: FlaskConical,
     defaultOpen: true,
-    items: planningItems,
+    items: [experimentPlanningItem],
   },
   {
     id: "human-resources",
@@ -345,13 +314,13 @@ const technicianMenuGroups: MenuGroup[] = [
   },
 ];
 
-const studentMenuGroups: MenuGroup[] = [
+const seasonalMenuGroups: MenuGroup[] = [
   {
     id: "planning",
-    title: "Learning & Planning",
-    icon: GraduationCap,
+    title: "Experiment Information",
+    icon: FlaskConical,
     defaultOpen: true,
-    items: planningItems,
+    items: [experimentPlanningItem],
   },
   {
     id: "resources",
@@ -385,7 +354,7 @@ const roleMenuGroups: Record<Role, MenuGroup[]> = {
   Manager: managerMenuGroups,
   Researcher: researcherMenuGroups,
   Technician: technicianMenuGroups,
-  Student: studentMenuGroups,
+  Seasonal: seasonalMenuGroups,
 };
 
 function isPathActive(
@@ -453,7 +422,7 @@ export default function Sidebar() {
   const menuGroups = useMemo(
     () =>
       roleMenuGroups[role] ??
-      studentMenuGroups,
+      seasonalMenuGroups,
     [role]
   );
 

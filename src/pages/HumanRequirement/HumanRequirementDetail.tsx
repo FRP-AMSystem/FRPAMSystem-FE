@@ -29,13 +29,12 @@ import type {
   ExperimentHumanRequirement,
 } from "../../types/experimentHumanRequirement";
 
-import "./HumanRequirementDetail.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./HumanRequirementDetail.css";
 
 function getErrorMessage(
   error: unknown
@@ -112,12 +111,13 @@ export default function HumanRequirementDetail() {
     useParams();
 
   const role =
-    localStorage.getItem(
-      "role"
-    ) as Role | null;
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Researcher";
+    permission.canEditRequirement;
 
   const requirementId =
     Number(id);

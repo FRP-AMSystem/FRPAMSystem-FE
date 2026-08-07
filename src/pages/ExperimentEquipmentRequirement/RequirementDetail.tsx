@@ -6,9 +6,12 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import { getExperimentEquipmentRequirementById } from "../../services/experimentEquipmentRequirementService";
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
 
-import "./RequirementDetail.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+import "./RequirementDetail.css";
 
 function formatEfficiency(value: number): string {
   if (!Number.isFinite(value)) {
@@ -74,9 +77,14 @@ export default function RequirementDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  const role = (localStorage.getItem("role") || "Student") as Role;
-  const canEdit = role === "Researcher";
-  const canCreateAllocation = role === "Researcher";
+  const role = getStoredRole();
+  const permission = getPermissions(role);
+
+  const canEdit =
+    permission.canEditRequirement;
+
+  const canCreateAllocation =
+    permission.canCreateAllocation;
 
   const requirementId = useMemo(() => {
     if (!id) {

@@ -29,13 +29,12 @@ import type {
   ExperimentPhaseStatus,
 } from "../../types/experimentPhase";
 
-import "./ExperimentPhaseDetail.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./ExperimentPhaseDetail.css";
 
 function getErrorMessage(
   error: unknown
@@ -209,12 +208,13 @@ export default function ExperimentPhaseDetail() {
     Number(id);
 
   const role =
-    localStorage.getItem(
-      "role"
-    ) as Role | null;
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canEdit =
-    role === "Researcher";
+    permission.canEditExperimentPhase;
 
   const [
     phase,

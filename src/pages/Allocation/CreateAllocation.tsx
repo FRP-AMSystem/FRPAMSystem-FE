@@ -2,6 +2,8 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ChangeEvent,
+  type FormEvent,
 } from "react";
 
 import {
@@ -12,13 +14,12 @@ import {
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
-  getExperimentEquipmentRequirementById,
-  getExperimentEquipmentRequirements,
-} from "../../services/experimentEquipmentRequirementService";
-
-import {
   getExperiments,
 } from "../../services/experimentService";
+
+import {
+  getExperimentEquipmentRequirementById,
+} from "../../services/experimentEquipmentRequirementService";
 
 import {
   createAllocationPlan,
@@ -28,25 +29,14 @@ import type {
   ExperimentResponse,
 } from "../../types/experiment";
 
-import type {
-  ExperimentEquipmentRequirement,
-} from "../../types/experimentEquipmentRequirement";
-
 import "./CreateAllocation.css";
 
 interface AllocationFormState {
-  requirementId: string;
   experimentId: string;
   fitnessScore: string;
 }
 
-function getRequirementId(
-  requirement: ExperimentEquipmentRequirement
-): number {
-  return requirement.expEquipmentReqId;
-}
-
-function isValidPositiveInteger(
+function isPositiveInteger(
   value: number
 ): boolean {
   return (
@@ -102,28 +92,30 @@ function getErrorMessage(
   return "Create allocation failed.";
 }
 
+
+function canCreateAllocationForExperiment(
+  status?: string | null
+): boolean {
+  return (
+    status === "Submitted" ||
+    status === "Planning"
+  );
+}
+
 export default function CreateAllocation() {
   const navigate = useNavigate();
-
   const [searchParams] =
     useSearchParams();
-
-  const requirementIdFromUrl =
-    searchParams.get(
-      "requirementId"
-    ) ?? "";
 
   const experimentIdFromUrl =
     searchParams.get(
       "experimentId"
     ) ?? "";
 
-  const [
-    requirements,
-    setRequirements,
-  ] = useState<
-    ExperimentEquipmentRequirement[]
-  >([]);
+  const requirementIdFromUrl =
+    searchParams.get(
+      "requirementId"
+    ) ?? "";
 
   const [
     experiments,
@@ -136,94 +128,44 @@ export default function CreateAllocation() {
     form,
     setForm,
   ] = useState<AllocationFormState>({
-    requirementId:
-      requirementIdFromUrl,
-
     experimentId:
       experimentIdFromUrl,
-
     fitnessScore: "80",
   });
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+  const [saving, setSaving] =
+    useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const validRequirements =
-    useMemo(() => {
-      return requirements.filter(
-        (requirement) =>
-          isValidPositiveInteger(
-            getRequirementId(
-              requirement
-            )
-          )
-      );
-    }, [requirements]);
-
-  const selectedRequirement =
-    useMemo(() => {
-      const requirementId =
-        Number(
-          form.requirementId
-        );
-
-      if (
-        !isValidPositiveInteger(
-          requirementId
-        )
-      ) {
-        return undefined;
-      }
-
-      return validRequirements.find(
-        (requirement) =>
-          getRequirementId(
-            requirement
-          ) === requirementId
-      );
-    }, [
-      form.requirementId,
-      validRequirements,
-    ]);
+  const [error, setError] =
+    useState("");
 
   const selectedExperiment =
     useMemo(() => {
-      const experimentId =
-        Number(
-          form.experimentId
-        );
-
-      if (
-        !isValidPositiveInteger(
-          experimentId
-        )
-      ) {
-        return undefined;
-      }
-
       return experiments.find(
         (experiment) =>
           experiment.experimentId ===
-          experimentId
+          Number(
+            form.experimentId
+          )
       );
     }, [
       experiments,
       form.experimentId,
     ]);
 
+  const selectedExperimentAllowsAllocation =
+    selectedExperiment
+      ? canCreateAllocationForExperiment(
+          selectedExperiment.status
+        )
+      : false;
+
   useEffect(() => {
+    let active = true;
+
     async function loadFormData() {
       try {
         setLoading(true);
@@ -235,6 +177,10 @@ export default function CreateAllocation() {
             size: 100,
           });
 
+        if (!active) {
+          return;
+        }
+
         setExperiments(
           Array.isArray(
             experimentData
@@ -243,6 +189,20 @@ export default function CreateAllocation() {
             : []
         );
 
+        if (
+          experimentIdFromUrl
+        ) {
+          setForm(
+            (current) => ({
+              ...current,
+              experimentId:
+                experimentIdFromUrl,
+            })
+          );
+
+          return;
+        }
+
         const requirementId =
           Number(
             requirementIdFromUrl
@@ -250,7 +210,7 @@ export default function CreateAllocation() {
 
         if (
           requirementIdFromUrl &&
-          isValidPositiveInteger(
+          isPositiveInteger(
             requirementId
           )
         ) {
@@ -259,57 +219,17 @@ export default function CreateAllocation() {
               requirementId
             );
 
-          setRequirements([
-            requirement,
-          ]);
+          if (!active) {
+            return;
+          }
 
           setForm(
-            (currentForm) => ({
-              ...currentForm,
-
-              requirementId:
-                String(
-                  requirement.expEquipmentReqId
-                ),
-
+            (current) => ({
+              ...current,
               experimentId:
                 String(
                   requirement.experimentId
                 ),
-            })
-          );
-
-          return;
-        }
-
-        const requirementData =
-          await getExperimentEquipmentRequirements();
-
-        setRequirements(
-          Array.isArray(
-            requirementData
-          )
-            ? requirementData
-            : []
-        );
-
-        const experimentId =
-          Number(
-            experimentIdFromUrl
-          );
-
-        if (
-          experimentIdFromUrl &&
-          isValidPositiveInteger(
-            experimentId
-          )
-        ) {
-          setForm(
-            (currentForm) => ({
-              ...currentForm,
-
-              experimentId:
-                experimentIdFromUrl,
             })
           );
         }
@@ -319,62 +239,32 @@ export default function CreateAllocation() {
           loadError
         );
 
-        setError(
-          getErrorMessage(
-            loadError
-          )
-        );
+        if (active) {
+          setError(
+            getErrorMessage(
+              loadError
+            )
+          );
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
     void loadFormData();
+
+    return () => {
+      active = false;
+    };
   }, [
     experimentIdFromUrl,
     requirementIdFromUrl,
   ]);
 
-  const handleRequirementChange = (
-    event: React.ChangeEvent<
-      HTMLSelectElement
-    >
-  ) => {
-    const requirementId =
-      event.target.value;
-
-    const numericRequirementId =
-      Number(requirementId);
-
-    const requirement =
-      validRequirements.find(
-        (item) =>
-          getRequirementId(
-            item
-          ) ===
-          numericRequirementId
-      );
-
-    setError("");
-
-    setForm(
-      (currentForm) => ({
-        ...currentForm,
-
-        requirementId,
-
-        experimentId:
-          requirement
-            ? String(
-                requirement.experimentId
-              )
-            : currentForm.experimentId,
-      })
-    );
-  };
-
   const handleChange = (
-    event: React.ChangeEvent<
+    event: ChangeEvent<
       | HTMLInputElement
       | HTMLSelectElement
     >
@@ -387,20 +277,35 @@ export default function CreateAllocation() {
     setError("");
 
     setForm(
-      (currentForm) => ({
-        ...currentForm,
+      (current) => ({
+        ...current,
         [name]: value,
       })
     );
   };
 
+  const goBack = () => {
+    const experimentId =
+      Number(form.experimentId);
+
+    if (
+      isPositiveInteger(
+        experimentId
+      )
+    ) {
+      navigate(
+        `/allocation?experimentId=${experimentId}`
+      );
+      return;
+    }
+
+    navigate("/allocation");
+  };
+
   const handleSubmit = async (
-    event: React.FormEvent<
-      HTMLFormElement
-    >
+    event: FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
-
     setError("");
 
     const experimentId =
@@ -409,14 +314,23 @@ export default function CreateAllocation() {
       );
 
     if (
-      !isValidPositiveInteger(
+      !isPositiveInteger(
         experimentId
       )
     ) {
       setError(
         "Please select a valid experiment."
       );
+      return;
+    }
 
+    if (
+      !selectedExperiment ||
+      !selectedExperimentAllowsAllocation
+    ) {
+      setError(
+        "Allocation can only be created after the experiment has been submitted for planning."
+      );
       return;
     }
 
@@ -437,7 +351,6 @@ export default function CreateAllocation() {
       setError(
         "Fitness score must be a number between 0 and 100."
       );
-
       return;
     }
 
@@ -452,17 +365,22 @@ export default function CreateAllocation() {
         });
 
       if (
-        createdPlan?.allocationPlanId
+        createdPlan.allocationPlanId
       ) {
         navigate(
-          `/allocation/${createdPlan.allocationPlanId}`
+          `/allocation/${createdPlan.allocationPlanId}`,
+          {
+            replace: true,
+          }
         );
-
         return;
       }
 
       navigate(
-        "/allocation"
+        `/allocation?experimentId=${experimentId}`,
+        {
+          replace: true,
+        }
       );
     } catch (submitError) {
       console.error(
@@ -485,13 +403,18 @@ export default function CreateAllocation() {
       <DashboardLayout>
         <div className="create-allocation-page">
           <p>
-            Loading allocation
-            form...
+            Loading allocation form...
           </p>
         </div>
       </DashboardLayout>
     );
   }
+
+  const experimentLocked =
+    Boolean(
+      experimentIdFromUrl ||
+      requirementIdFromUrl
+    );
 
   return (
     <DashboardLayout>
@@ -499,8 +422,9 @@ export default function CreateAllocation() {
         <div className="create-header">
           <div>
             <p className="breadcrumb">
-              Dashboard / Allocation
-              / Create
+              {form.experimentId
+                ? `Dashboard / Experiments / #${form.experimentId} / Allocation / Create`
+                : "Dashboard / Allocation / Create"}
             </p>
 
             <h1>
@@ -508,20 +432,14 @@ export default function CreateAllocation() {
             </h1>
 
             <span>
-              Create a draft
-              allocation plan for an
-              experiment.
+              Create a Draft allocation plan for an experiment. Resource assignments are added after the plan is created.
             </span>
           </div>
 
           <button
             type="button"
             className="back-btn"
-            onClick={() =>
-              navigate(
-                "/allocation"
-              )
-            }
+            onClick={goBack}
           >
             Back
           </button>
@@ -535,90 +453,12 @@ export default function CreateAllocation() {
 
         <form
           className="allocation-form"
-          onSubmit={
-            handleSubmit
-          }
+          onSubmit={handleSubmit}
         >
           <div className="form-card">
             <h3>
               Allocation Information
             </h3>
-
-            <label htmlFor="requirementId">
-              Equipment Requirement
-            </label>
-
-            <select
-              id="requirementId"
-              name="requirementId"
-              value={
-                form.requirementId
-              }
-              onChange={
-                handleRequirementChange
-              }
-              disabled={Boolean(
-                requirementIdFromUrl
-              )}
-            >
-              <option value="">
-                Select a requirement
-                (optional)
-              </option>
-
-              {validRequirements.map(
-                (requirement) => {
-                  const requirementId =
-                    getRequirementId(
-                      requirement
-                    );
-
-                  return (
-                    <option
-                      key={
-                        requirementId
-                      }
-                      value={
-                        requirementId
-                      }
-                    >
-                      Requirement #
-                      {requirementId}
-                      {" - "}
-                      {requirement.equipmentTypeName ||
-                        `Equipment Type #${requirement.equipmentTypeId}`}
-                      {" - "}
-                      Experiment #
-                      {
-                        requirement.experimentId
-                      }
-                      {" - "}
-                      Quantity:{" "}
-                      {
-                        requirement.quantity
-                      }
-                    </option>
-                  );
-                }
-              )}
-            </select>
-
-            {validRequirements.length ===
-              0 && (
-              <div className="form-note">
-                No valid equipment
-                requirements were found.
-              </div>
-            )}
-
-            <div className="form-note">
-              Selecting an equipment
-              requirement will
-              automatically select its
-              related experiment. The
-              Allocation Plan stores
-              the experiment ID.
-            </div>
 
             <label htmlFor="experimentId">
               Experiment
@@ -633,37 +473,50 @@ export default function CreateAllocation() {
               onChange={
                 handleChange
               }
-              disabled={Boolean(
-                selectedRequirement
-              )}
+              disabled={
+                saving ||
+                experimentLocked
+              }
               required
             >
               <option value="">
-                Select an experiment
+                Select experiment
               </option>
 
-              {experiments.map(
-                (experiment) => (
-                  <option
-                    key={
-                      experiment.experimentId
-                    }
-                    value={
-                      experiment.experimentId
-                    }
-                  >
-                    Experiment #
-                    {
-                      experiment.experimentId
-                    }
-                    {" - "}
-                    {
-                      experiment.experimentName
-                    }
-                  </option>
+              {experiments
+                .filter((experiment) =>
+                  canCreateAllocationForExperiment(
+                    experiment.status
+                  )
                 )
-              )}
+                .map(
+                  (experiment) => (
+                    <option
+                      key={
+                        experiment.experimentId
+                      }
+                      value={
+                        experiment.experimentId
+                      }
+                    >
+                      {experiment.experimentName}
+                    </option>
+                  )
+                )}
             </select>
+
+            {selectedExperiment && (
+              <div className="form-note">
+                Linked to:{" "}
+                {
+                  selectedExperiment.experimentName
+                }
+              </div>
+            )}
+
+            <div className="form-note">
+              An Allocation Plan belongs to the Experiment as a whole. Equipment, human and land resources are added inside the Allocation Detail after this Draft plan is created.
+            </div>
 
             <label htmlFor="fitnessScore">
               Fitness Score (%)
@@ -682,33 +535,17 @@ export default function CreateAllocation() {
               onChange={
                 handleChange
               }
-              placeholder="Example: 80"
+              disabled={saving}
               required
             />
-
-            <div className="form-note">
-              The allocation will
-              initially be created with
-              status{" "}
-              <strong>
-                Draft
-              </strong>
-              . The Manager can approve
-              or reject it later.
-            </div>
           </div>
 
           <div className="form-card">
-            <h3>
-              Allocation Preview
-            </h3>
+            <h3>Preview</h3>
 
-            <div className="experiment-preview">
+            <div className="allocation-preview">
               <div>
-                <span>
-                  Experiment
-                </span>
-
+                <span>Experiment</span>
                 <strong>
                   {selectedExperiment
                     ? selectedExperiment.experimentName
@@ -718,97 +555,8 @@ export default function CreateAllocation() {
 
               <div>
                 <span>
-                  Experiment ID
-                </span>
-
-                <strong>
-                  {selectedExperiment
-                    ? `#${selectedExperiment.experimentId}`
-                    : form.experimentId
-                      ? `#${form.experimentId}`
-                      : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Requirement ID
-                </span>
-
-                <strong>
-                  {selectedRequirement
-                    ? `#${selectedRequirement.expEquipmentReqId}`
-                    : "No requirement selected"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Equipment Type
-                </span>
-
-                <strong>
-                  {selectedRequirement
-                    ? selectedRequirement.equipmentTypeName ||
-                      `Equipment Type #${selectedRequirement.equipmentTypeId}`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Equipment Type ID
-                </span>
-
-                <strong>
-                  {selectedRequirement
-                    ? `#${selectedRequirement.equipmentTypeId}`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Requested Quantity
-                </span>
-
-                <strong>
-                  {selectedRequirement?.quantity ??
-                    "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Allow Substitute
-                </span>
-
-                <strong>
-                  {selectedRequirement
-                    ? selectedRequirement.allowSubstitute
-                      ? "Allowed"
-                      : "Not allowed"
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Minimum Efficiency
-                </span>
-
-                <strong>
-                  {selectedRequirement
-                    ? `${selectedRequirement.minAcceptableEfficiency}%`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
                   Fitness Score
                 </span>
-
                 <strong>
                   {form.fitnessScore
                     ? `${form.fitnessScore}%`
@@ -820,7 +568,6 @@ export default function CreateAllocation() {
                 <span>
                   Initial Status
                 </span>
-
                 <strong>
                   Draft
                 </strong>
@@ -831,12 +578,8 @@ export default function CreateAllocation() {
               <button
                 type="button"
                 className="cancel-btn"
+                onClick={goBack}
                 disabled={saving}
-                onClick={() =>
-                  navigate(
-                    "/allocation"
-                  )
-                }
               >
                 Cancel
               </button>
@@ -846,12 +589,13 @@ export default function CreateAllocation() {
                 className="save-btn"
                 disabled={
                   saving ||
-                  !form.experimentId
+                  !form.experimentId ||
+                  !selectedExperimentAllowsAllocation
                 }
               >
                 {saving
                   ? "Creating..."
-                  : "Create Allocation"}
+                  : "Create Draft Plan"}
               </button>
             </div>
           </div>

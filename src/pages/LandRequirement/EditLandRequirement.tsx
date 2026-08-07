@@ -104,6 +104,16 @@ function getErrorMessage(
   return "Cannot update land requirement.";
 }
 
+
+function isDraftExperimentStatus(
+  status?: string | null
+): boolean {
+  return (
+    status === "Draft" ||
+    status === "Created"
+  );
+}
+
 export default function EditLandRequirement() {
   const navigate =
     useNavigate();
@@ -311,6 +321,18 @@ export default function EditLandRequirement() {
     }
 
     if (
+      !selectedExperiment ||
+      !isDraftExperimentStatus(
+        selectedExperiment.status
+      )
+    ) {
+      setError(
+        "Land requirements can only be edited while the experiment is in Draft status."
+      );
+      return;
+    }
+
+    if (
       !Number.isFinite(
         requiredArea
       ) ||
@@ -457,6 +479,7 @@ export default function EditLandRequirement() {
               onChange={
                 handleChange
               }
+              disabled
               required
             >
               <option value="">

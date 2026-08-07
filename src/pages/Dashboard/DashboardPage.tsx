@@ -16,29 +16,20 @@ import BreakdownCard from "./components/BreakdownCard";
 import RequestTable from "./components/RequestTable";
 
 import {
-  getAllocationPlans,
-} from "../../services/allocationPlanService";
+  getPlanningDashboardContext,
+} from "../../services/dashboardService";
+
+import {
+  getPermissions,
+  getStoredRole,
+  getStoredUserId,
+} from "../../config/rolePermissions";
 
 import type {
   AllocationPlan,
 } from "../../types/allocationPlan";
 
 import "./DashboardPage.css";
-
-type Role =
-  | "Admin"
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
-
-const validRoles: Role[] = [
-  "Admin",
-  "Manager",
-  "Researcher",
-  "Technician",
-  "Student",
-];
 
 type ApprovalStatus =
   AllocationPlan["approveStatus"];
@@ -80,17 +71,6 @@ interface ResourceBreakdownItem {
   name: string;
   value: number;
   color: string;
-}
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  return validRoles.includes(
-    storedRole as Role
-  )
-    ? (storedRole as Role)
-    : "Student";
 }
 
 function getErrorMessage(
@@ -375,7 +355,9 @@ function buildResourceBreakdown(
 }
 
 function getRoleTitle(
-  role: Role
+  role: ReturnType<
+    typeof getStoredRole
+  >
 ): string {
   switch (role) {
     case "Admin":
@@ -390,8 +372,8 @@ function getRoleTitle(
     case "Technician":
       return "Technician Dashboard";
 
-    case "Student":
-      return "Student Dashboard";
+    case "Seasonal":
+      return "Seasonal Dashboard";
 
     default:
       return "Dashboard";
@@ -399,7 +381,9 @@ function getRoleTitle(
 }
 
 function getRoleDescription(
-  role: Role
+  role: ReturnType<
+    typeof getStoredRole
+  >
 ): string {
   switch (role) {
     case "Admin":
@@ -414,7 +398,7 @@ function getRoleDescription(
     case "Technician":
       return "Review equipment assignments, schedules and operational resource information.";
 
-    case "Student":
+    case "Seasonal":
       return "View experiments, schedules and approved allocation information.";
 
     default:
@@ -427,7 +411,10 @@ export default function DashboardPage() {
     useNavigate();
 
   const role =
-    getCurrentRole();
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const fullName =
     localStorage
@@ -436,11 +423,7 @@ export default function DashboardPage() {
     "User";
 
   const userId =
-    Number(
-      localStorage.getItem(
-        "userId"
-      )
-    );
+    getStoredUserId();
 
   const [
     allocationPlans,
@@ -448,6 +431,11 @@ export default function DashboardPage() {
   ] = useState<
     AllocationPlan[]
   >([]);
+
+  const [
+    researcherExperimentCount,
+    setResearcherExperimentCount,
+  ] = useState(0);
 
   const [
     loading,
@@ -468,6 +456,7 @@ export default function DashboardPage() {
       ) {
         if (active) {
           setAllocationPlans([]);
+          setResearcherExperimentCount(0);
           setError("");
           setLoading(false);
         }
@@ -479,19 +468,25 @@ export default function DashboardPage() {
         setLoading(true);
         setError("");
 
-        const data =
-          await getAllocationPlans({
-            page: 1,
-            size: 500,
+        const context =
+          await getPlanningDashboardContext({
+            role,
+            userId,
           });
 
-        if (active) {
-          setAllocationPlans(
-            Array.isArray(data)
-              ? data
-              : []
-          );
+        if (!active) {
+          return;
         }
+
+        setAllocationPlans(
+          context.allocationPlans
+        );
+
+        setResearcherExperimentCount(
+          role === "Researcher"
+            ? context.experiments.length
+            : 0
+        );
       } catch (loadError) {
         console.error(
           "Load dashboard failed:",
@@ -500,6 +495,7 @@ export default function DashboardPage() {
 
         if (active) {
           setAllocationPlans([]);
+          setResearcherExperimentCount(0);
 
           setError(
             getErrorMessage(
@@ -519,28 +515,13 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [role]);
+  }, [
+    role,
+    userId,
+  ]);
 
   const visiblePlans =
-    useMemo(() => {
-      if (
-        role !== "Researcher" ||
-        !Number.isInteger(userId) ||
-        userId <= 0
-      ) {
-        return allocationPlans;
-      }
-
-      return allocationPlans.filter(
-        (plan) =>
-          plan.createdBy ===
-          userId
-      );
-    }, [
-      allocationPlans,
-      role,
-      userId,
-    ]);
+    allocationPlans;
 
   const dashboardData =
     useMemo(() => {
@@ -805,7 +786,7 @@ export default function DashboardPage() {
                 `${dashboardData.averageFitness}%`,
 
               subtext:
-                "Average score of your plans",
+                "Average score of plans for your experiments",
 
               percentage:
                 dashboardData.averageFitness,
@@ -963,11 +944,11 @@ export default function DashboardPage() {
             },
           ];
 
-        case "Student":
+        case "Seasonal":
           return [
             {
               id:
-                "student-plans",
+                "seasonal-plans",
 
               title:
                 "Visible Plans",
@@ -989,7 +970,7 @@ export default function DashboardPage() {
             },
             {
               id:
-                "student-fitness",
+                "seasonal-fitness",
 
               title:
                 "Average Fitness",
@@ -1008,7 +989,7 @@ export default function DashboardPage() {
             },
             {
               id:
-                "student-approved",
+                "seasonal-approved",
 
               title:
                 "Approved Plans",
@@ -1029,7 +1010,7 @@ export default function DashboardPage() {
             },
             {
               id:
-                "student-schedules",
+                "seasonal-schedules",
 
               title:
                 "Schedules",
@@ -1103,11 +1084,10 @@ export default function DashboardPage() {
     );
 
   const canViewAnalytics =
-    role === "Manager" ||
-    role === "Researcher";
+    permission.canViewAnalytics;
 
   const canCreateAllocation =
-    role === "Researcher";
+    permission.canCreateAllocation;
 
   return (
     <DashboardLayout>
@@ -1145,7 +1125,9 @@ export default function DashboardPage() {
                 className="dashboard-create-btn"
                 onClick={() =>
                   navigate(
-                    "/allocation/create"
+                    researcherExperimentCount > 0
+                      ? "/allocation/create"
+                      : "/experiments"
                   )
                 }
               >
@@ -1240,11 +1222,7 @@ export default function DashboardPage() {
                 </h3>
 
                 <p>
-                  Create experiments,
-                  requirements and draft
-                  allocation plans, then
-                  submit them for manager
-                  approval.
+                  You are assigned to {researcherExperimentCount} experiment{researcherExperimentCount === 1 ? "" : "s"}. Create phases and requirements, then manage allocation plans through manager approval.
                 </p>
 
                 <button
@@ -1288,10 +1266,10 @@ export default function DashboardPage() {
             )}
 
             {role ===
-              "Student" && (
+              "Seasonal" && (
               <div className="role-section-card">
                 <h3>
-                  Student Workspace
+                  Seasonal Workspace
                 </h3>
 
                 <p>
@@ -1346,7 +1324,9 @@ export default function DashboardPage() {
                 aria-label="Create allocation"
                 onClick={() =>
                   navigate(
-                    "/allocation/create"
+                    researcherExperimentCount > 0
+                      ? "/allocation/create"
+                      : "/experiments"
                   )
                 }
               >

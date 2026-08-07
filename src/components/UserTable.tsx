@@ -53,7 +53,7 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
           backgroundColor: "#FEF3C7", // Amber light
           color: "#92400E",           // Amber dark
         };
-      case "student":
+      case "seasonal":
         return {
           backgroundColor: "#CCFBF1", // Teal light
           color: "#115E59",           // Teal dark

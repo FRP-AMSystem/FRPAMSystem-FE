@@ -13,6 +13,11 @@ import type {
   AllocationPlanStatus,
 } from "../../types/allocationPlan";
 
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
+
 import "./CreateAllocation.css";
 
 interface EditAllocationFormState {
@@ -22,7 +27,7 @@ interface EditAllocationFormState {
 function isEditableStatus(
   status: AllocationPlanStatus
 ): boolean {
-  return status === "Draft" || status === "Pending";
+  return status === "Draft";
 }
 
 function getErrorMessage(error: unknown): string {
@@ -59,6 +64,9 @@ function getErrorMessage(error: unknown): string {
 export default function EditAllocation() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+
+  const role = getStoredRole();
+  const permission = getPermissions(role);
 
   const allocationPlanId = Number(id);
 
@@ -143,9 +151,12 @@ export default function EditAllocation() {
       return;
     }
 
-    if (!isEditableStatus(plan.approveStatus)) {
+    if (
+      !permission.canEditAllocation ||
+      !isEditableStatus(plan.approveStatus)
+    ) {
       setError(
-        `Allocation plan with status ${plan.approveStatus} cannot be edited.`
+        "Only a Researcher can edit an allocation plan while it is still Draft."
       );
       return;
     }
@@ -243,9 +254,11 @@ export default function EditAllocation() {
     );
   }
 
-  const canEdit = isEditableStatus(
-    plan.approveStatus
-  );
+  const canEdit =
+    permission.canEditAllocation &&
+    isEditableStatus(
+      plan.approveStatus
+    );
 
   return (
     <DashboardLayout>
@@ -340,9 +353,7 @@ export default function EditAllocation() {
             />
 
             <div className="form-note">
-              Approval status is not changed from this
-              form. Manager actions use the separate
-              Approve, Reject and Cancel APIs.
+              Approval status is controlled by the workflow. A Draft plan can be edited and submitted by the Researcher; Pending plans are locked while the Manager reviews them.
             </div>
           </div>
 

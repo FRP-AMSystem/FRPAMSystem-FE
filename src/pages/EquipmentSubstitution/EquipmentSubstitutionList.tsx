@@ -37,13 +37,12 @@ import type {
   EquipmentSubstitutionRequest,
 } from "../../types/equipmentSubstitution";
 
-import "./EquipmentSubstitutionList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./EquipmentSubstitutionList.css";
 
 interface FormState {
   primaryEquipmentTypeId: string;
@@ -64,22 +63,6 @@ const emptyForm: FormState = {
 
   note: "",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -196,10 +179,13 @@ function getEfficiencyClassName(
 
 export default function EquipmentSubstitutionList() {
   const role =
-    getCurrentRole();
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Manager";
+    permission.canManageResources;
 
   const [
     items,

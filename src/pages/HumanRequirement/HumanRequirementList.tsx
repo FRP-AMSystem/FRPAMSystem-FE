@@ -6,6 +6,7 @@ import {
 
 import {
   useNavigate,
+  useSearchParams,
 } from "react-router-dom";
 
 import {
@@ -28,13 +29,12 @@ import type {
   ExperimentHumanRequirement,
 } from "../../types/experimentHumanRequirement";
 
-import "./HumanRequirementList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./HumanRequirementList.css";
 
 function getErrorMessage(
   error: unknown
@@ -110,13 +110,42 @@ export default function HumanRequirementList() {
   const navigate =
     useNavigate();
 
+  const [
+    searchParams,
+  ] = useSearchParams();
+
   const role =
-    localStorage.getItem(
-      "role"
-    ) as Role | null;
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Researcher";
+    permission.canCreateRequirement;
+
+  const experimentIdFromUrl =
+    searchParams.get(
+      "experimentId"
+    );
+
+  const selectedExperimentId =
+    useMemo(() => {
+      if (!experimentIdFromUrl) {
+        return undefined;
+      }
+
+      const parsedId =
+        Number(
+          experimentIdFromUrl
+        );
+
+      return Number.isInteger(
+        parsedId
+      ) &&
+        parsedId > 0
+        ? parsedId
+        : undefined;
+    }, [experimentIdFromUrl]);
 
   const [
     requirements,
@@ -198,6 +227,8 @@ export default function HumanRequirementList() {
 
       const data =
         await getExperimentHumanRequirements({
+          experimentId:
+            selectedExperimentId,
           page: 1,
           size: 100,
         });
@@ -227,7 +258,7 @@ export default function HumanRequirementList() {
 
   useEffect(() => {
     void loadRequirements();
-  }, []);
+  }, [selectedExperimentId]);
 
   const handleDelete = async (
     requirement:
@@ -287,16 +318,21 @@ export default function HumanRequirementList() {
         <div className="human-requirement-header">
           <div>
             <p className="human-requirement-breadcrumb">
-              Dashboard / Human Requirements
+              {selectedExperimentId
+                ? `Dashboard / Experiments / #${selectedExperimentId} / Human Requirements`
+                : "Dashboard / Human Requirements"}
             </p>
 
             <h1>
-              Human Requirements
+              {selectedExperimentId
+                ? "Experiment Human Requirements"
+                : "Human Requirements"}
             </h1>
 
             <p>
-              Manage personnel requirements
-              for experiments.
+              {selectedExperimentId
+                ? `Manage personnel requirements for Experiment #${selectedExperimentId}.`
+                : "Manage personnel requirements for experiments."}
             </p>
           </div>
 
@@ -306,7 +342,9 @@ export default function HumanRequirementList() {
               className="human-requirement-create-button"
               onClick={() =>
                 navigate(
-                  "/human-requirements/create"
+                  selectedExperimentId
+                    ? `/human-requirements/create?experimentId=${selectedExperimentId}`
+                    : "/human-requirements/create"
                 )
               }
             >
@@ -381,7 +419,9 @@ export default function HumanRequirementList() {
                     type="button"
                     onClick={() =>
                       navigate(
-                        "/human-requirements/create"
+                        selectedExperimentId
+                          ? `/human-requirements/create?experimentId=${selectedExperimentId}`
+                          : "/human-requirements/create"
                       )
                     }
                   >

@@ -100,6 +100,16 @@ function getErrorMessage(
   return "Cannot update human requirement.";
 }
 
+
+function isDraftExperimentStatus(
+  status?: string | null
+): boolean {
+  return (
+    status === "Draft" ||
+    status === "Created"
+  );
+}
+
 export default function EditHumanRequirement() {
   const navigate =
     useNavigate();
@@ -393,6 +403,18 @@ export default function EditHumanRequirement() {
     }
 
     if (
+      !selectedExperiment ||
+      !isDraftExperimentStatus(
+        selectedExperiment.status
+      )
+    ) {
+      setError(
+        "Human requirements can only be edited while the experiment is in Draft status."
+      );
+      return;
+    }
+
+    if (
       !Number.isInteger(
         roleId
       ) ||
@@ -564,6 +586,7 @@ export default function EditHumanRequirement() {
               onChange={
                 handleChange
               }
+              disabled
               required
             >
               <option value="">

@@ -1,9 +1,28 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
 import axios from "axios";
 
+import {
+  CalendarCheck2,
+  CalendarDays,
+  Clock3,
+} from "lucide-react";
+
 import DashboardLayout from "../../layouts/DashboardLayout";
-import { createExperiment } from "../../services/experimentService";
+
+import {
+  createExperiment,
+} from "../../services/experimentService";
 
 import "./ExperimentForm.css";
 
@@ -13,7 +32,6 @@ interface ExperimentFormState {
   expectStartDate: string;
   expectEndDate: string;
   deadline: string;
-  status: string;
   priority: string;
 }
 
@@ -24,29 +42,59 @@ const priorityLabels: Record<string, string> = {
   "3": "Urgent",
 };
 
-function convertDateToIso(date: string): string {
-  return new Date(`${date}T00:00:00`).toISOString();
+function convertDateToIso(
+  date: string
+): string {
+  return new Date(
+    `${date}T00:00:00`
+  ).toISOString();
 }
 
-function getApiErrorMessage(error: unknown): string {
+function getTodayDateValue(): string {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(
+    now.getMonth() + 1
+  ).padStart(2, "0");
+  const day = String(
+    now.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getApiErrorMessage(
+  error: unknown
+): string {
   if (!axios.isAxiosError(error)) {
     return "Create experiment failed.";
   }
 
-  const responseData = error.response?.data;
+  const responseData =
+    error.response?.data;
 
   if (responseData?.errors) {
-    const messages = Object.entries(responseData.errors)
-      .flatMap(([field, value]) => {
-        const fieldErrors = Array.isArray(value)
-          ? value
-          : [String(value)];
+    const messages =
+      Object.entries(
+        responseData.errors
+      )
+        .flatMap(
+          ([field, value]) => {
+            const fieldErrors =
+              Array.isArray(value)
+                ? value
+                : [String(value)];
 
-        return fieldErrors.map(
-          (message) => `${field}: ${String(message)}`
-        );
-      })
-      .join(" ");
+            return fieldErrors.map(
+              (message) =>
+                `${field}: ${String(
+                  message
+                )}`
+            );
+          }
+        )
+        .join(" ");
 
     if (messages) {
       return messages;
@@ -64,84 +112,246 @@ function getApiErrorMessage(error: unknown): string {
   );
 }
 
-export default function CreateExperiment() {
-  const navigate = useNavigate();
+function openDatePicker(
+  input: HTMLInputElement | null
+): void {
+  if (!input || input.disabled) {
+    return;
+  }
 
-  const [form, setForm] = useState<ExperimentFormState>({
+  try {
+    input.focus();
+
+    if (
+      typeof input.showPicker ===
+      "function"
+    ) {
+      input.showPicker();
+    }
+  } catch (error) {
+    console.warn(
+      "Unable to open date picker:",
+      error
+    );
+
+    input.focus();
+  }
+}
+
+export default function CreateExperiment() {
+  const navigate =
+    useNavigate();
+
+  const today =
+    getTodayDateValue();
+
+  const startDateInputRef =
+    useRef<HTMLInputElement | null>(
+      null
+    );
+
+  const endDateInputRef =
+    useRef<HTMLInputElement | null>(
+      null
+    );
+
+  const deadlineInputRef =
+    useRef<HTMLInputElement | null>(
+      null
+    );
+
+  const [
+    form,
+    setForm,
+  ] = useState<ExperimentFormState>({
     experimentName: "",
     description: "",
     expectStartDate: "",
     expectEndDate: "",
     deadline: "",
-    status: "Draft",
     priority: "1",
   });
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
 
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement |
-      HTMLSelectElement |
-      HTMLTextAreaElement
+    event: ChangeEvent<
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement
     >
   ) => {
-    const { name, value } = e.target;
+    const {
+      name,
+      value,
+    } = event.target;
 
-    setForm((currentForm) => ({
-      ...currentForm,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
     setError("");
 
-    const experimentName = form.experimentName.trim();
-    const description = form.description.trim();
+    if (
+      name === "expectStartDate"
+    ) {
+      setForm(
+        (currentForm) => ({
+          ...currentForm,
+
+          expectStartDate:
+            value,
+
+          expectEndDate:
+            currentForm.expectEndDate &&
+            currentForm.expectEndDate <
+              value
+              ? ""
+              : currentForm.expectEndDate,
+
+          deadline:
+            currentForm.deadline &&
+            currentForm.deadline <
+              value
+              ? ""
+              : currentForm.deadline,
+        })
+      );
+
+      return;
+    }
+
+    if (
+      name === "expectEndDate"
+    ) {
+      setForm(
+        (currentForm) => ({
+          ...currentForm,
+
+          expectEndDate:
+            value,
+
+          deadline:
+            currentForm.deadline &&
+            currentForm.deadline <
+              value
+              ? ""
+              : currentForm.deadline,
+        })
+      );
+
+      return;
+    }
+
+    setForm(
+      (currentForm) => ({
+        ...currentForm,
+        [name]: value,
+      })
+    );
+  };
+
+  const handleDateWrapperKeyDown = (
+    event: KeyboardEvent<HTMLDivElement>,
+    input: HTMLInputElement | null
+  ) => {
+    if (
+      event.key !== "Enter" &&
+      event.key !== " "
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    openDatePicker(input);
+  };
+
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+    setError("");
+
+    const experimentName =
+      form.experimentName.trim();
+
+    const description =
+      form.description.trim();
 
     if (!experimentName) {
-      setError("Experiment name is required.");
+      setError(
+        "Experiment name is required."
+      );
       return;
     }
 
     if (!form.expectStartDate) {
-      setError("Expected start date is required.");
+      setError(
+        "Expected start date is required."
+      );
       return;
     }
 
     if (!form.expectEndDate) {
-      setError("Expected end date is required.");
+      setError(
+        "Expected end date is required."
+      );
+      return;
+    }
+
+    if (
+      form.expectStartDate <
+      today
+    ) {
+      setError(
+        "Expected start date cannot be earlier than today."
+      );
       return;
     }
 
     if (!form.deadline) {
-      setError("Deadline is required.");
+      setError(
+        "Deadline is required."
+      );
       return;
     }
 
-    if (form.expectStartDate > form.expectEndDate) {
+    if (
+      form.expectStartDate >
+      form.expectEndDate
+    ) {
       setError(
         "Expected end date must be after the expected start date."
       );
       return;
     }
 
-    if (form.deadline < form.expectEndDate) {
+    if (
+      form.deadline <
+      form.expectEndDate
+    ) {
       setError(
         "Deadline must be on or after the expected end date."
       );
       return;
     }
 
-    const researcherId = Number(
-      localStorage.getItem("userId")
-    );
+    const researcherId =
+      Number(
+        localStorage.getItem(
+          "userId"
+        )
+      );
 
     if (
-      !Number.isInteger(researcherId) ||
+      !Number.isInteger(
+        researcherId
+      ) ||
       researcherId <= 0
     ) {
       setError(
@@ -150,10 +360,15 @@ export default function CreateExperiment() {
       return;
     }
 
-    const priority = Number(form.priority);
+    const priority =
+      Number(form.priority);
 
-    if (!Number.isInteger(priority)) {
-      setError("Priority is invalid.");
+    if (
+      !Number.isInteger(priority)
+    ) {
+      setError(
+        "Priority is invalid."
+      );
       return;
     }
 
@@ -164,25 +379,52 @@ export default function CreateExperiment() {
         experimentName,
         description,
         researcherId,
-        expectStartDate: convertDateToIso(
-          form.expectStartDate
-        ),
-        expectEndDate: convertDateToIso(
-          form.expectEndDate
-        ),
-        deadline: convertDateToIso(form.deadline),
+
+        expectStartDate:
+          convertDateToIso(
+            form.expectStartDate
+          ),
+
+        expectEndDate:
+          convertDateToIso(
+            form.expectEndDate
+          ),
+
+        deadline:
+          convertDateToIso(
+            form.deadline
+          ),
+
         priority,
-        status: form.status,
+
+        // The initial status is controlled by the system.
+        status: "Draft",
       });
 
       navigate("/experiments");
-    } catch (err) {
-      console.error("Create experiment error:", err);
-      setError(getApiErrorMessage(err));
+    } catch (submitError) {
+      console.error(
+        "Create experiment error:",
+        submitError
+      );
+
+      setError(
+        getApiErrorMessage(
+          submitError
+        )
+      );
     } finally {
       setSaving(false);
     }
   };
+
+  const endDateDisabled =
+    saving ||
+    !form.expectStartDate;
+
+  const deadlineDisabled =
+    saving ||
+    !form.expectEndDate;
 
   return (
     <DashboardLayout>
@@ -193,35 +435,47 @@ export default function CreateExperiment() {
               Dashboard / Experiments / Create
             </p>
 
-            <h1>Create Experiment</h1>
+            <h1>
+              Create Experiment
+            </h1>
 
             <span>
-              Create an experiment before adding equipment
-              requirements.
+              Create an experiment before adding equipment requirements.
             </span>
           </div>
 
           <button
             type="button"
             className="back-btn"
-            onClick={() => navigate("/experiments")}
+            onClick={() =>
+              navigate(
+                "/experiments"
+              )
+            }
           >
             Back
           </button>
         </div>
 
         {error && (
-          <div className="form-error">
+          <div
+            className="form-error"
+            role="alert"
+          >
             {error}
           </div>
         )}
 
         <form
           className="experiment-form-grid"
-          onSubmit={handleSubmit}
+          onSubmit={
+            handleSubmit
+          }
         >
-          <div className="experiment-form-card">
-            <h3>Experiment Information</h3>
+          <section className="experiment-form-card">
+            <h3>
+              Experiment Information
+            </h3>
 
             <label htmlFor="experimentName">
               Experiment Name
@@ -230,9 +484,14 @@ export default function CreateExperiment() {
             <input
               id="experimentName"
               name="experimentName"
-              value={form.experimentName}
-              onChange={handleChange}
+              value={
+                form.experimentName
+              }
+              onChange={
+                handleChange
+              }
               placeholder="Example: Plant Growth Monitoring"
+              disabled={saving}
               required
             />
 
@@ -243,79 +502,280 @@ export default function CreateExperiment() {
             <textarea
               id="description"
               name="description"
-              value={form.description}
-              onChange={handleChange}
+              value={
+                form.description
+              }
+              onChange={
+                handleChange
+              }
               placeholder="Describe experiment purpose..."
               rows={5}
+              disabled={saving}
             />
 
-            <label htmlFor="expectStartDate">
-              Expected Start Date
-            </label>
+            <div className="experiment-date-section">
+              <div className="experiment-date-section-heading">
+                <div>
+                  <h4>
+                    Planned Timeline
+                  </h4>
 
-            <input
-              id="expectStartDate"
-              type="date"
-              name="expectStartDate"
-              value={form.expectStartDate}
-              onChange={handleChange}
-              required
-            />
+                  <p>
+                    Select the expected dates for this experiment.
+                  </p>
+                </div>
+              </div>
 
-            <label htmlFor="expectEndDate">
-              Expected End Date
-            </label>
+              <div className="experiment-date-fields">
+                <div className="experiment-date-field">
+                  <label htmlFor="expectStartDate">
+                    Expected Start Date
+                  </label>
 
-            <input
-              id="expectEndDate"
-              type="date"
-              name="expectEndDate"
-              value={form.expectEndDate}
-              min={form.expectStartDate || undefined}
-              onChange={handleChange}
-              required
-            />
+                  <div
+                    className="experiment-date-input-wrap"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() =>
+                      openDatePicker(
+                        startDateInputRef.current
+                      )
+                    }
+                    onKeyDown={(
+                      event
+                    ) =>
+                      handleDateWrapperKeyDown(
+                        event,
+                        startDateInputRef.current
+                      )
+                    }
+                  >
+                    <span className="experiment-date-icon">
+                      <CalendarDays
+                        size={18}
+                      />
+                    </span>
 
-            <label htmlFor="deadline">
-              Deadline
-            </label>
+                    <input
+                      ref={
+                        startDateInputRef
+                      }
+                      id="expectStartDate"
+                      type="date"
+                      name="expectStartDate"
+                      value={
+                        form.expectStartDate
+                      }
+                      min={today}
+                      onChange={
+                        handleChange
+                      }
+                      onClick={(
+                        event
+                      ) => {
+                        event.stopPropagation();
 
-            <input
-              id="deadline"
-              type="date"
-              name="deadline"
-              value={form.deadline}
-              min={
-                form.expectEndDate ||
-                form.expectStartDate ||
-                undefined
-              }
-              onChange={handleChange}
-              required
-            />
+                        openDatePicker(
+                          event.currentTarget
+                        );
+                      }}
+                      disabled={saving}
+                      required
+                    />
+                  </div>
 
-            <label htmlFor="status">
-              Status
-            </label>
+                  <small>
+                    Planned start date of the experiment.
+                  </small>
+                </div>
 
-            <select
-              id="status"
-              name="status"
-              value={form.status}
-              onChange={handleChange}
-            >
-              <option value="Draft">Draft</option>
-              <option value="Pending">Pending</option>
-              <option value="InProgress">
-                In Progress
-              </option>
-              <option value="Completed">
-                Completed
-              </option>
-              <option value="Cancelled">
-                Cancelled
-              </option>
-            </select>
+                <div className="experiment-date-field">
+                  <label htmlFor="expectEndDate">
+                    Expected End Date
+                  </label>
+
+                  <div
+                    className={[
+                      "experiment-date-input-wrap",
+                      endDateDisabled
+                        ? "experiment-date-input-disabled"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    role="button"
+                    tabIndex={
+                      endDateDisabled
+                        ? -1
+                        : 0
+                    }
+                    aria-disabled={
+                      endDateDisabled
+                    }
+                    onClick={() => {
+                      if (
+                        endDateDisabled
+                      ) {
+                        return;
+                      }
+
+                      openDatePicker(
+                        endDateInputRef.current
+                      );
+                    }}
+                    onKeyDown={(
+                      event
+                    ) => {
+                      if (
+                        endDateDisabled
+                      ) {
+                        return;
+                      }
+
+                      handleDateWrapperKeyDown(
+                        event,
+                        endDateInputRef.current
+                      );
+                    }}
+                  >
+                    <span className="experiment-date-icon experiment-date-icon-end">
+                      <CalendarCheck2
+                        size={18}
+                      />
+                    </span>
+
+                    <input
+                      ref={
+                        endDateInputRef
+                      }
+                      id="expectEndDate"
+                      type="date"
+                      name="expectEndDate"
+                      value={
+                        form.expectEndDate
+                      }
+                      min={
+                        form.expectStartDate ||
+                        undefined
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      onClick={(
+                        event
+                      ) => {
+                        event.stopPropagation();
+
+                        openDatePicker(
+                          event.currentTarget
+                        );
+                      }}
+                      disabled={
+                        endDateDisabled
+                      }
+                      required
+                    />
+                  </div>
+
+                  <small>
+                    Must be on or after the expected start date.
+                  </small>
+                </div>
+
+                <div className="experiment-date-field experiment-deadline-field">
+                  <label htmlFor="deadline">
+                    Deadline
+                  </label>
+
+                  <div
+                    className={[
+                      "experiment-date-input-wrap",
+                      deadlineDisabled
+                        ? "experiment-date-input-disabled"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    role="button"
+                    tabIndex={
+                      deadlineDisabled
+                        ? -1
+                        : 0
+                    }
+                    aria-disabled={
+                      deadlineDisabled
+                    }
+                    onClick={() => {
+                      if (
+                        deadlineDisabled
+                      ) {
+                        return;
+                      }
+
+                      openDatePicker(
+                        deadlineInputRef.current
+                      );
+                    }}
+                    onKeyDown={(
+                      event
+                    ) => {
+                      if (
+                        deadlineDisabled
+                      ) {
+                        return;
+                      }
+
+                      handleDateWrapperKeyDown(
+                        event,
+                        deadlineInputRef.current
+                      );
+                    }}
+                  >
+                    <span className="experiment-date-icon experiment-date-icon-deadline">
+                      <Clock3
+                        size={18}
+                      />
+                    </span>
+
+                    <input
+                      ref={
+                        deadlineInputRef
+                      }
+                      id="deadline"
+                      type="date"
+                      name="deadline"
+                      value={
+                        form.deadline
+                      }
+                      min={
+                        form.expectEndDate ||
+                        undefined
+                      }
+                      onChange={
+                        handleChange
+                      }
+                      onClick={(
+                        event
+                      ) => {
+                        event.stopPropagation();
+
+                        openDatePicker(
+                          event.currentTarget
+                        );
+                      }}
+                      disabled={
+                        deadlineDisabled
+                      }
+                      required
+                    />
+                  </div>
+
+                  <small>
+                    Must be on or after the expected end date.
+                  </small>
+                </div>
+              </div>
+            </div>
 
             <label htmlFor="priority">
               Priority
@@ -324,48 +784,68 @@ export default function CreateExperiment() {
             <select
               id="priority"
               name="priority"
-              value={form.priority}
-              onChange={handleChange}
+              value={
+                form.priority
+              }
+              onChange={
+                handleChange
+              }
+              disabled={saving}
             >
-              <option value="0">Low</option>
-              <option value="1">Medium</option>
-              <option value="2">High</option>
-              <option value="3">Urgent</option>
-            </select>
-          </div>
+              <option value="0">
+                Low
+              </option>
 
-          <div className="experiment-form-card">
-            <h3>Preview</h3>
+              <option value="1">
+                Medium
+              </option>
+
+              <option value="2">
+                High
+              </option>
+
+              <option value="3">
+                Urgent
+              </option>
+            </select>
+          </section>
+
+          <section className="experiment-form-card experiment-preview-card">
+            <h3>
+              Preview
+            </h3>
 
             <div className="experiment-preview">
               <div>
                 <span>Name</span>
 
                 <strong>
-                  {form.experimentName || "Not entered"}
+                  {form.experimentName ||
+                    "Not entered"}
                 </strong>
-              </div>
-
-              <div>
-                <span>Status</span>
-                <strong>{form.status}</strong>
               </div>
 
               <div>
                 <span>Priority</span>
 
                 <strong>
-                  {priorityLabels[form.priority] ??
-                    "Unknown"}
+                  {priorityLabels[
+                    form.priority
+                  ] ?? "Unknown"}
                 </strong>
               </div>
 
               <div>
-                <span>Expected Duration</span>
+                <span>
+                  Expected Duration
+                </span>
 
                 <strong>
-                  {form.expectStartDate || "-"} →{" "}
-                  {form.expectEndDate || "-"}
+                  {form.expectStartDate ||
+                    "-"}{" "}
+                  →{" "}
+                  {form.expectEndDate ||
+                    "-"}
                 </strong>
               </div>
 
@@ -373,7 +853,8 @@ export default function CreateExperiment() {
                 <span>Deadline</span>
 
                 <strong>
-                  {form.deadline || "-"}
+                  {form.deadline ||
+                    "-"}
                 </strong>
               </div>
             </div>
@@ -382,8 +863,11 @@ export default function CreateExperiment() {
               <button
                 type="button"
                 className="cancel-btn"
+                disabled={saving}
                 onClick={() =>
-                  navigate("/experiments")
+                  navigate(
+                    "/experiments"
+                  )
                 }
               >
                 Cancel
@@ -399,7 +883,7 @@ export default function CreateExperiment() {
                   : "Create Experiment"}
               </button>
             </div>
-          </div>
+          </section>
         </form>
       </div>
     </DashboardLayout>

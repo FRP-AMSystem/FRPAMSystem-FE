@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type ChangeEvent,
   type KeyboardEvent,
@@ -8,6 +9,7 @@ import {
 
 import {
   useNavigate,
+  useSearchParams,
 } from "react-router-dom";
 
 import {
@@ -30,13 +32,12 @@ import type {
   ExperimentLandRequirement,
 } from "../../types/experimentLandRequirement";
 
-import "./LandRequirementList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./LandRequirementList.css";
 
 function getErrorMessage(
   error: unknown
@@ -114,13 +115,42 @@ export default function LandRequirementList() {
   const navigate =
     useNavigate();
 
+  const [
+    searchParams,
+  ] = useSearchParams();
+
   const role =
-    localStorage.getItem(
-      "role"
-    ) as Role | null;
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
 
   const canManage =
-    role === "Researcher";
+    permission.canCreateRequirement;
+
+  const experimentIdFromUrl =
+    searchParams.get(
+      "experimentId"
+    );
+
+  const selectedExperimentId =
+    useMemo(() => {
+      if (!experimentIdFromUrl) {
+        return undefined;
+      }
+
+      const parsedId =
+        Number(
+          experimentIdFromUrl
+        );
+
+      return Number.isInteger(
+        parsedId
+      ) &&
+        parsedId > 0
+        ? parsedId
+        : undefined;
+    }, [experimentIdFromUrl]);
 
   const [
     requirements,
@@ -170,6 +200,9 @@ export default function LandRequirementList() {
                   searchKeyword ||
                   undefined,
 
+                experimentId:
+                  selectedExperimentId,
+
                 page: 1,
                 size: 100,
               }
@@ -197,7 +230,10 @@ export default function LandRequirementList() {
           setLoading(false);
         }
       },
-      [searchKeyword]
+      [
+        searchKeyword,
+        selectedExperimentId,
+      ]
     );
 
   useEffect(() => {
@@ -290,16 +326,21 @@ export default function LandRequirementList() {
         <div className="land-requirement-list-header">
           <div>
             <p className="land-requirement-list-breadcrumb">
-              Dashboard / Land Requirements
+              {selectedExperimentId
+                ? `Dashboard / Experiments / #${selectedExperimentId} / Land Requirements`
+                : "Dashboard / Land Requirements"}
             </p>
 
             <h1>
-              Land Requirements
+              {selectedExperimentId
+                ? "Experiment Land Requirements"
+                : "Land Requirements"}
             </h1>
 
             <p className="land-requirement-list-description">
-              Manage land area and soil
-              requirements for experiments.
+              {selectedExperimentId
+                ? `Manage land area and soil requirements for Experiment #${selectedExperimentId}.`
+                : "Manage land area and soil requirements for experiments."}
             </p>
           </div>
 
@@ -309,7 +350,9 @@ export default function LandRequirementList() {
               className="land-requirement-create-button"
               onClick={() =>
                 navigate(
-                  "/land-requirements/create"
+                  selectedExperimentId
+                    ? `/land-requirements/create?experimentId=${selectedExperimentId}`
+                    : "/land-requirements/create"
                 )
               }
             >
@@ -419,7 +462,9 @@ export default function LandRequirementList() {
                     type="button"
                     onClick={() =>
                       navigate(
-                        "/land-requirements/create"
+                        selectedExperimentId
+                          ? `/land-requirements/create?experimentId=${selectedExperimentId}`
+                          : "/land-requirements/create"
                       )
                     }
                   >

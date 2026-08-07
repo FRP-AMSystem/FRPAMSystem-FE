@@ -17,15 +17,14 @@ import {
   Hash,
   Layers3,
   Pencil,
-  Trash2,
   UserRound,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
-  deleteSchedule,
   getScheduleById,
+  updateScheduleStatus,
 } from "../../services/scheduleService";
 
 import type {
@@ -33,13 +32,12 @@ import type {
   ScheduleStatus,
 } from "../../types/schedule";
 
-import "./ScheduleDetail.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./ScheduleDetail.css";
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -47,22 +45,6 @@ const priorityLabels: Record<number, string> = {
   2: "High",
   3: "Urgent",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -253,10 +235,11 @@ export default function ScheduleDetail() {
 
   const scheduleId = Number(id);
 
-  const role = getCurrentRole();
+  const role =
+    getStoredRole();
 
-  const canManage =
-    role === "Researcher";
+  const permission =
+    getPermissions(role);
 
   const [
     schedule,
@@ -271,8 +254,8 @@ export default function ScheduleDetail() {
   ] = useState(true);
 
   const [
-    deleting,
-    setDeleting,
+    updatingStatus,
+    setUpdatingStatus,
   ] = useState(false);
 
   const [
@@ -341,53 +324,63 @@ export default function ScheduleDetail() {
     };
   }, [id, scheduleId]);
 
-  const handleDelete = async () => {
+  const handleStatusUpdate = async (
+    nextStatus:
+      | "InProgress"
+      | "Completed"
+  ) => {
     if (
-      !canManage ||
-      !schedule
+      !schedule ||
+      !permission.canUpdateScheduleStatus
     ) {
       return;
     }
 
-    const confirmed =
-      window.confirm(
-        `Delete schedule "${
-          schedule.title ||
-          `#${schedule.scheduleId}`
-        }"?`
+    const transitionAllowed =
+      (
+        schedule.status ===
+          "Planned" &&
+        nextStatus ===
+          "InProgress"
+      ) ||
+      (
+        schedule.status ===
+          "InProgress" &&
+        nextStatus ===
+          "Completed"
       );
 
-    if (!confirmed) {
+    if (!transitionAllowed) {
+      setError(
+        "This status transition is not allowed."
+      );
       return;
     }
 
     try {
-      setDeleting(true);
+      setUpdatingStatus(true);
       setError("");
 
-      await deleteSchedule(
-        schedule.scheduleId
-      );
+      const updated =
+        await updateScheduleStatus(
+          schedule.scheduleId,
+          nextStatus
+        );
 
-      navigate(
-        "/schedules",
-        {
-          replace: true,
-        }
-      );
-    } catch (deleteError) {
+      setSchedule(updated);
+    } catch (statusError) {
       console.error(
-        "Delete schedule failed:",
-        deleteError
+        "Update schedule status failed:",
+        statusError
       );
 
       setError(
         getErrorMessage(
-          deleteError
+          statusError
         )
       );
     } finally {
-      setDeleting(false);
+      setUpdatingStatus(false);
     }
   };
 
@@ -464,9 +457,7 @@ export default function ScheduleDetail() {
             </h1>
 
             <p className="schedule-detail-description">
-              View the schedule timeline,
-              allocation, assigned personnel
-              and current status.
+              View the schedule timeline, assigned personnel and workflow status. Technicians update work progress here.
             </p>
           </div>
 
@@ -485,8 +476,8 @@ export default function ScheduleDetail() {
               Back
             </button>
 
-            {canManage && (
-              <>
+            {permission.canEditSchedule &&
+              schedule.status === "Planned" && (
                 <button
                   type="button"
                   className="schedule-detail-edit-button"
@@ -497,26 +488,45 @@ export default function ScheduleDetail() {
                   }
                 >
                   <Pencil size={18} />
-
                   Edit
                 </button>
+              )}
 
+            {permission.canUpdateScheduleStatus &&
+              schedule.status === "Planned" && (
                 <button
                   type="button"
-                  className="schedule-detail-delete-button"
-                  disabled={deleting}
+                  className="schedule-detail-status-button"
+                  disabled={updatingStatus}
                   onClick={() =>
-                    void handleDelete()
+                    void handleStatusUpdate(
+                      "InProgress"
+                    )
                   }
                 >
-                  <Trash2 size={18} />
-
-                  {deleting
-                    ? "Deleting..."
-                    : "Delete"}
+                  {updatingStatus
+                    ? "Updating..."
+                    : "Start Work"}
                 </button>
-              </>
-            )}
+              )}
+
+            {permission.canUpdateScheduleStatus &&
+              schedule.status === "InProgress" && (
+                <button
+                  type="button"
+                  className="schedule-detail-status-button schedule-detail-complete-button"
+                  disabled={updatingStatus}
+                  onClick={() =>
+                    void handleStatusUpdate(
+                      "Completed"
+                    )
+                  }
+                >
+                  {updatingStatus
+                    ? "Updating..."
+                    : "Mark Completed"}
+                </button>
+              )}
           </div>
         </div>
 

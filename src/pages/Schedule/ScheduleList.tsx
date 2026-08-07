@@ -8,6 +8,7 @@ import {
 
 import {
   useNavigate,
+  useSearchParams,
 } from "react-router-dom";
 
 import {
@@ -17,29 +18,30 @@ import {
   Pencil,
   Plus,
   Search,
-  Trash2,
   UserRound,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
-  deleteSchedule,
   getSchedules,
 } from "../../services/scheduleService";
+
+import {
+  getAllocationPlans,
+} from "../../services/allocationPlanService";
 
 import type {
   Schedule,
   ScheduleStatus,
 } from "../../types/schedule";
 
-import "./ScheduleList.css";
+import {
+  getPermissions,
+  getStoredRole,
+} from "../../config/rolePermissions";
 
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician"
-  | "Student";
+import "./ScheduleList.css";
 
 type StatusFilter =
   | ""
@@ -54,24 +56,6 @@ const priorityLabels: Record<
   2: "High",
   3: "Urgent",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem(
-      "role"
-    );
-
-  if (
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
-  ) {
-    return storedRole;
-  }
-
-  return "Student";
-}
 
 function getErrorMessage(
   error: unknown
@@ -256,11 +240,47 @@ export default function ScheduleList() {
   const navigate =
     useNavigate();
 
-  const role =
-    getCurrentRole();
+  const [
+    searchParams,
+  ] = useSearchParams();
 
-  const canManage =
-    role === "Researcher";
+  const role =
+    getStoredRole();
+
+  const permission =
+    getPermissions(role);
+
+  const experimentIdFromUrl =
+    searchParams.get(
+      "experimentId"
+    );
+
+  const selectedExperimentId = (() => {
+    if (!experimentIdFromUrl) {
+      return undefined;
+    }
+
+    const parsedId =
+      Number(
+        experimentIdFromUrl
+      );
+
+    return Number.isInteger(
+      parsedId
+    ) &&
+      parsedId > 0
+      ? parsedId
+      : undefined;
+  })();
+
+  const canCreate =
+    permission.canCreateSchedule;
+
+  const canEdit =
+    permission.canEditSchedule;
+
+  const canUpdateStatus =
+    permission.canUpdateScheduleStatus;
 
   const [
     schedules,
@@ -296,14 +316,6 @@ export default function ScheduleList() {
     loading,
     setLoading,
   ] = useState(true);
-
-  const [
-    deletingId,
-    setDeletingId,
-  ] = useState<
-    number | null
-  >(null);
-
   const [
     error,
     setError,
@@ -315,27 +327,59 @@ export default function ScheduleList() {
         setLoading(true);
         setError("");
 
-        const data =
-          await getSchedules({
-            keyword:
-              searchKeyword ||
-              undefined,
+        const scheduleQuery = {
+          keyword:
+            searchKeyword ||
+            undefined,
 
-            status:
-              status ||
-              undefined,
+          status:
+            status ||
+            undefined,
 
-            startDateFrom:
-              startDateFrom ||
-              undefined,
+          startDateFrom:
+            startDateFrom ||
+            undefined,
 
-            startDateTo:
-              startDateTo ||
-              undefined,
+          startDateTo:
+            startDateTo ||
+            undefined,
 
-            page: 1,
-            size: 100,
-          });
+          page: 1,
+          size: 100,
+        };
+
+        let data =
+          await getSchedules(
+            scheduleQuery
+          );
+
+        if (
+          selectedExperimentId !==
+          undefined
+        ) {
+          const experimentPlans =
+            await getAllocationPlans({
+              experimentId:
+                selectedExperimentId,
+              page: 1,
+              size: 100,
+            });
+
+          const allocationPlanIds =
+            new Set(
+              experimentPlans.map(
+                (plan) =>
+                  plan.allocationPlanId
+              )
+            );
+
+          data = data.filter(
+            (schedule) =>
+              allocationPlanIds.has(
+                schedule.allocationPlanId
+              )
+          );
+        }
 
         const sortedSchedules =
           [...data].sort(
@@ -396,6 +440,7 @@ export default function ScheduleList() {
       startDateFrom,
       startDateTo,
       status,
+      selectedExperimentId,
     ]);
 
   useEffect(() => {
@@ -474,60 +519,6 @@ export default function ScheduleList() {
     setError("");
   };
 
-  const handleDelete = async (
-    schedule: Schedule
-  ) => {
-    if (!canManage) {
-      return;
-    }
-
-    const confirmed =
-      window.confirm(
-        `Delete schedule "${
-          schedule.title ||
-          `#${schedule.scheduleId}`
-        }"?`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setDeletingId(
-        schedule.scheduleId
-      );
-
-      setError("");
-
-      await deleteSchedule(
-        schedule.scheduleId
-      );
-
-      setSchedules(
-        (currentSchedules) =>
-          currentSchedules.filter(
-            (item) =>
-              item.scheduleId !==
-              schedule.scheduleId
-          )
-      );
-    } catch (deleteError) {
-      console.error(
-        "Delete schedule failed:",
-        deleteError
-      );
-
-      setError(
-        getErrorMessage(
-          deleteError
-        )
-      );
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
   const hasActiveFilters =
     Boolean(
       keyword ||
@@ -543,27 +534,33 @@ export default function ScheduleList() {
         <div className="schedule-list-header">
           <div>
             <p className="schedule-list-breadcrumb">
-              Dashboard / Schedules
+              {selectedExperimentId
+                ? `Dashboard / Experiments / #${selectedExperimentId} / Schedules`
+                : "Dashboard / Schedules"}
             </p>
 
             <h1>
-              Schedules
+              {selectedExperimentId
+                ? "Experiment Schedules"
+                : "Schedules"}
             </h1>
 
             <p className="schedule-list-description">
-              View experiment schedules,
-              allocation timelines and assigned
-              personnel.
+              {selectedExperimentId
+                ? `View schedules linked to allocation plans for Experiment #${selectedExperimentId}.`
+                : "View experiment schedules, allocation timelines and assigned personnel."}
             </p>
           </div>
 
-          {canManage && (
+          {canCreate && (
             <button
               type="button"
               className="schedule-create-button"
               onClick={() =>
                 navigate(
-                  "/schedules/create"
+                  selectedExperimentId
+                    ? `/schedules/create?experimentId=${selectedExperimentId}`
+                    : "/schedules/create"
                 )
               }
             >
@@ -732,13 +729,15 @@ export default function ScheduleList() {
                   : "Create a schedule for an approved allocation plan."}
               </p>
 
-              {canManage &&
+              {canCreate &&
                 !hasActiveFilters && (
                   <button
                     type="button"
                     onClick={() =>
                       navigate(
-                        "/schedules/create"
+                        selectedExperimentId
+                          ? `/schedules/create?experimentId=${selectedExperimentId}`
+                          : "/schedules/create"
                       )
                     }
                   >
@@ -796,10 +795,6 @@ export default function ScheduleList() {
                 <tbody>
                   {schedules.map(
                     (schedule) => {
-                      const isDeleting =
-                        deletingId ===
-                        schedule.scheduleId;
-
                       return (
                         <tr
                           key={
@@ -983,8 +978,8 @@ export default function ScheduleList() {
                                 <Eye size={17} />
                               </button>
 
-                              {canManage && (
-                                <>
+                              {canEdit &&
+                                schedule.status === "Planned" && (
                                   <button
                                     type="button"
                                     className="schedule-action-button schedule-edit-button"
@@ -999,26 +994,24 @@ export default function ScheduleList() {
                                       size={17}
                                     />
                                   </button>
+                                )}
 
+                              {canUpdateStatus &&
+                                (schedule.status === "Planned" ||
+                                  schedule.status === "InProgress") && (
                                   <button
                                     type="button"
-                                    className="schedule-action-button schedule-delete-button"
-                                    title="Delete schedule"
-                                    disabled={
-                                      isDeleting
-                                    }
+                                    className="schedule-action-button schedule-status-button"
+                                    title="Update schedule status"
                                     onClick={() =>
-                                      void handleDelete(
-                                        schedule
+                                      navigate(
+                                        `/schedules/${schedule.scheduleId}`
                                       )
                                     }
                                   >
-                                    <Trash2
-                                      size={17}
-                                    />
+                                    Update Status
                                   </button>
-                                </>
-                              )}
+                                )}
                             </div>
                           </td>
                         </tr>
