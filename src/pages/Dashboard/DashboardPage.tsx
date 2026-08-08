@@ -1086,8 +1086,8 @@ export default function DashboardPage() {
   const canViewAnalytics =
     permission.canViewAnalytics;
 
-  const canCreateAllocation =
-    permission.canCreateAllocation;
+  const canCreateExperiment =
+    permission.canCreateExperiment;
 
   return (
     <DashboardLayout>
@@ -1119,19 +1119,17 @@ export default function DashboardPage() {
               </button>
             )}
 
-            {canCreateAllocation && (
+            {canCreateExperiment && (
               <button
                 type="button"
                 className="dashboard-create-btn"
                 onClick={() =>
                   navigate(
-                    researcherExperimentCount > 0
-                      ? "/allocation/create"
-                      : "/experiments"
+                    "/experiments/create"
                   )
                 }
               >
-                + Create Allocation
+                + Create Experiment
               </button>
             )}
           </div>
@@ -1314,24 +1312,6 @@ export default function DashboardPage() {
                   View Allocation Analytics
                 </button>
               </div>
-            )}
-
-            {canCreateAllocation && (
-              <button
-                type="button"
-                className="dashboard-fab"
-                title="Create Allocation"
-                aria-label="Create allocation"
-                onClick={() =>
-                  navigate(
-                    researcherExperimentCount > 0
-                      ? "/allocation/create"
-                      : "/experiments"
-                  )
-                }
-              >
-                +
-              </button>
             )}
           </>
         )}

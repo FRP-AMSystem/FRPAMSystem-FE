@@ -360,6 +360,15 @@ function canSubmitExperimentStatus(
   );
 }
 
+function canCreateAllocationForExperimentStatus(
+  status?: string | null
+): boolean {
+  return (
+    status === "Submitted" ||
+    status === "Planning"
+  );
+}
+
 export default function ExperimentDetail() {
   const {
     id,
@@ -960,7 +969,16 @@ export default function ExperimentDetail() {
     !loadingWorkflow;
 
   const allocationUnlocked =
-    !experimentIsEditable;
+    canCreateAllocationForExperimentStatus(
+      experiment.status
+    ) ||
+    allocationCount > 0;
+
+  const canCreateAllocation =
+    permission.canCreateAllocation &&
+    canCreateAllocationForExperimentStatus(
+      experiment.status
+    );
 
   const canSubmit =
     permission.canSubmitExperiment &&
@@ -1365,7 +1383,7 @@ export default function ExperimentDetail() {
               onClick={() => {
                 if (!allocationUnlocked) {
                   setError(
-                    "Submit the experiment before creating an allocation plan."
+                    "Allocation becomes available after the experiment is submitted for planning."
                   );
                   return;
                 }
@@ -1424,10 +1442,11 @@ export default function ExperimentDetail() {
           </div>
         </section>
 
-        {permission.canEditExperiment && (
+        {(permission.canEditExperiment ||
+          canCreateAllocation) && (
           <div className="detail-actions">
-            {experimentIsEditable && (
-              <>
+            {permission.canEditExperiment &&
+              experimentIsEditable && (
                 <button
                   type="button"
                   className="edit-btn"
@@ -1439,9 +1458,7 @@ export default function ExperimentDetail() {
                 >
                   Edit Experiment
                 </button>
-
-              </>
-            )}
+              )}
 
             {canSubmit && (
               <button
@@ -1462,6 +1479,24 @@ export default function ExperimentDetail() {
                 {submitting
                   ? "Submitting..."
                   : "Submit Experiment"}
+              </button>
+            )}
+
+            {canCreateAllocation && (
+              <button
+                type="button"
+                className="experiment-create-allocation-button"
+                onClick={() =>
+                  navigate(
+                    `/allocation/create?experimentId=${experiment.experimentId}`
+                  )
+                }
+              >
+                <Plus
+                  size={18}
+                />
+
+                Create Allocation
               </button>
             )}
           </div>

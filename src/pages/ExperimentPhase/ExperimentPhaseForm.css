@@ -2,10 +2,107 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  padding: 28px !important;
+  background: #f8fafc;
+  color: #0f172a !important;
 }
 
-.experiment-phase-form-layout {
+
+
+.experiment-phase-form-page .requirement-form-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.experiment-phase-form-page .requirement-breadcrumb {
+  margin: 0;
+  color: #64748b !important;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.experiment-phase-form-page .requirement-form-header h1 {
+  margin: 8px 0 4px;
+  color: #0f172a !important;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.experiment-phase-form-page .requirement-form-header > div > p:last-child {
+  margin: 0;
+  color: #64748b !important;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.experiment-phase-form-page .requirement-back-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.experiment-phase-form-page .requirement-back-button:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.07);
+  transform: translateY(-1px);
+}
+
+.experiment-phase-form-page .requirement-form-error {
+  margin-bottom: 18px;
+  padding: 13px 15px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+
+.experiment-phase-form-page .experiment-phase-form-layout {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1.2fr)
+    minmax(340px, 0.8fr);
   align-items: start;
+  gap: 20px;
+}
+
+.experiment-phase-form-page .requirement-form-card {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 24px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 10px 30px rgba(15, 23, 42, 0.045);
 }
 
 .experiment-phase-main-card,
@@ -13,38 +110,57 @@
   min-width: 0;
 }
 
+.experiment-phase-preview-card {
+  position: sticky;
+  top: 20px;
+}
+
+
 .experiment-phase-card-heading {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.experiment-phase-heading-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #bbf7d0;
+  border-radius: 13px;
+  background: #f0fdf4;
+  color: #15803d;
 }
 
 .experiment-phase-card-heading h2,
 .experiment-phase-preview-heading h2 {
   margin: 0;
+  color: #0f172a !important;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .experiment-phase-card-heading p,
 .experiment-phase-preview-heading p {
   margin: 5px 0 0;
-  color: #94a3b8;
+  color: #64748b !important;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
-.experiment-phase-heading-icon {
-  display: flex;
-  width: 42px;
-  height: 42px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(96, 165, 250, 0.28);
-  border-radius: 12px;
-  background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
+.experiment-phase-preview-heading {
+  margin-bottom: 18px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid #eef2f7;
 }
+
 
 .experiment-phase-field {
   display: flex;
@@ -54,9 +170,12 @@
   margin-bottom: 18px;
 }
 
-.experiment-phase-field label {
-  color: #f1f5f9;
-  font-size: 14px;
+.experiment-phase-field label,
+.experiment-phase-form-page .requirement-form-card label {
+  display: block;
+  margin: 0 !important;
+  color: #334155 !important;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -64,23 +183,67 @@
 .experiment-phase-field select,
 .experiment-phase-field textarea {
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 11px !important;
+  outline: none;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font: inherit;
+  font-size: 13px;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.experiment-phase-field input,
+.experiment-phase-field select {
+  min-height: 46px;
+  padding: 0 14px !important;
 }
 
 .experiment-phase-field textarea {
+  min-height: 112px;
+  padding: 12px 14px !important;
   resize: vertical;
+  line-height: 1.6;
 }
 
+.experiment-phase-field input::placeholder,
+.experiment-phase-field textarea::placeholder {
+  color: #94a3b8;
+}
+
+.experiment-phase-field input:focus,
+.experiment-phase-field select:focus,
+.experiment-phase-field textarea:focus {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12) !important;
+}
+
+.experiment-phase-field select:disabled,
+.experiment-phase-field input:disabled,
+.experiment-phase-field textarea:disabled {
+  cursor: not-allowed;
+  background: #f8fafc !important;
+  color: #64748b !important;
+  opacity: 1;
+}
+
+
+
 .phase-date-section {
-  margin: 4px 0 20px;
+  margin: 4px 0 0;
   padding: 18px;
-  border: 1px solid #34445c;
-  border-radius: 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 15px;
   background:
     linear-gradient(
-      145deg,
-      rgba(30, 41, 59, 0.96),
-      rgba(24, 34, 50, 0.96)
+      180deg,
+      #fbfefc 0%,
+      #f8fafc 100%
     );
 }
 
@@ -94,36 +257,38 @@
 
 .phase-date-section-header h3 {
   margin: 0;
-  color: #f8fafc;
-  font-size: 15px;
-  font-weight: 750;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .phase-date-section-header p {
   margin: 5px 0 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
   line-height: 1.5;
 }
 
 .phase-date-valid-badge {
   display: inline-flex;
-  min-height: 29px;
+  min-height: 28px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  padding: 0 11px;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  padding: 0 10px;
+  border: 1px solid #bbf7d0;
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.1);
-  color: #86efac;
+  background: #f0fdf4;
+  color: #15803d;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .phase-date-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -135,14 +300,14 @@
 }
 
 .phase-date-field label {
-  color: #e2e8f0;
-  font-size: 13px;
+  color: #334155 !important;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .phase-date-field small {
-  color: #8391a6;
-  font-size: 10.5px;
+  color: #64748b;
+  font-size: 10px;
   line-height: 1.5;
 }
 
@@ -150,92 +315,81 @@
   position: relative;
   display: flex;
   width: 100%;
-  min-height: 50px;
+  min-height: 48px;
   align-items: stretch;
   overflow: hidden;
   box-sizing: border-box;
-  border: 1px solid #3c4b63;
-  border-radius: 12px;
-  background: #1d293d;
+  border: 1px solid #cbd5e1;
+  border-radius: 11px;
+  background: #ffffff;
   cursor: pointer;
   transition:
     border-color 0.18s ease,
-    background-color 0.18s ease,
     box-shadow 0.18s ease,
     transform 0.18s ease;
 }
 
 .phase-date-input-wrap:hover {
-  border-color: #64748b;
-  background: #223047;
+  border-color: #94a3b8;
 }
 
 .phase-date-input-wrap:focus-within {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
   transform: translateY(-1px);
-}
-
-.phase-date-input-wrap:focus-visible {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
 }
 
 .phase-date-icon {
   display: flex;
-  width: 49px;
-  min-height: 50px;
+  width: 48px;
+  min-height: 48px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid #334155;
-  background: rgba(59, 130, 246, 0.08);
-  color: #60a5fa;
+  border-right: 1px solid #e2e8f0;
+  background: #eff6ff;
+  color: #2563eb;
   pointer-events: none;
 }
 
 .phase-date-icon-end {
-  background: rgba(34, 197, 94, 0.08);
-  color: #4ade80;
+  background: #f0fdf4;
+  color: #16a34a;
 }
 
 .phase-date-input-wrap input {
   width: 100%;
   min-width: 0;
-  min-height: 50px;
+  min-height: 48px;
   box-sizing: border-box;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 0;
+  padding: 0 13px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
   outline: none;
-  background: transparent;
-  color: #f8fafc;
+  background: transparent !important;
+  color: #0f172a !important;
   font: inherit;
   font-size: 13px;
   font-weight: 650;
   cursor: pointer;
-  color-scheme: dark;
+  color-scheme: light;
+  box-shadow: none !important;
 }
 
 .phase-date-input-wrap input:focus {
-  border: 0;
+  border: 0 !important;
   outline: none;
-  box-shadow: none;
-}
-
-.phase-date-input-wrap input:disabled {
-  cursor: not-allowed;
+  box-shadow: none !important;
 }
 
 .phase-date-input-disabled {
   cursor: not-allowed;
-  opacity: 0.48;
+  background: #f8fafc;
+  opacity: 0.58;
 }
 
 .phase-date-input-disabled:hover {
-  border-color: #3c4b63;
-  background: #1d293d;
+  border-color: #cbd5e1;
   transform: none;
 }
 
@@ -246,152 +400,238 @@
 .phase-date-input-wrap input::-webkit-calendar-picker-indicator {
   width: 18px;
   height: 18px;
-  padding: 7px;
+  padding: 6px;
   border-radius: 7px;
   cursor: pointer;
-  filter: invert(1);
-  opacity: 0.78;
-  transition:
-    background-color 0.18s ease,
-    opacity 0.18s ease;
+  filter: none;
+  opacity: 0.7;
 }
 
 .phase-date-input-wrap input::-webkit-calendar-picker-indicator:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: #f1f5f9;
   opacity: 1;
 }
 
-.experiment-phase-preview-heading {
-  margin-bottom: 18px;
+
+.experiment-phase-preview-card {
+  overflow: hidden;
 }
 
 .experiment-phase-preview {
-  display: grid;
-  gap: 13px;
+  display: grid !important;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 11px !important;
+}
+
+.experiment-phase-form-page
+  .requirement-preview
+  > div {
+  min-width: 0;
+  padding: 13px 14px !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+}
+
+.experiment-phase-form-page
+  .requirement-preview
+  > div:first-child,
+.experiment-phase-form-page
+  .requirement-preview
+  > div:last-child {
+  grid-column: 1 / -1;
+}
+
+.experiment-phase-form-page
+  .requirement-preview
+  span {
+  display: block;
+  margin-bottom: 5px;
+  color: #64748b !important;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.experiment-phase-form-page
+  .requirement-preview
+  strong {
+  display: block;
+  min-width: 0;
+  color: #0f172a !important;
+  font-size: 12.5px;
+  font-weight: 750;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .experiment-phase-preview-date strong {
-  display: inline-flex;
+  display: flex !important;
   align-items: center;
   gap: 7px;
 }
 
 .experiment-phase-preview-date svg {
-  color: #60a5fa;
+  flex-shrink: 0;
+  color: #16a34a;
 }
+
+
 
 .experiment-phase-form-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #eef2f7;
 }
 
 .experiment-phase-form-actions button {
-  min-width: 138px;
-  min-height: 44px;
-  padding: 0 20px;
+  min-width: 128px;
+  min-height: 42px;
+  padding: 0 18px;
   border-radius: 10px;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 750;
   cursor: pointer;
   transition:
-    transform 0.18s ease,
     border-color 0.18s ease,
     background-color 0.18s ease,
     box-shadow 0.18s ease,
+    transform 0.18s ease,
     opacity 0.18s ease;
 }
 
 .phase-cancel-button {
-  border: 1px solid #475569 !important;
-  background: transparent !important;
-  color: #cbd5e1 !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
 }
 
 .phase-cancel-button:hover:not(:disabled) {
-  border-color: #64748b !important;
-  background: rgba(148, 163, 184, 0.08) !important;
-  color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
   transform: translateY(-1px);
 }
 
 .phase-submit-button {
-  border: 1px solid #2563eb !important;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  border: 1px solid #16a34a !important;
+  background: #16a34a !important;
   color: #ffffff !important;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+  box-shadow: 0 7px 16px rgba(22, 163, 74, 0.16);
 }
 
 .phase-submit-button:hover:not(:disabled) {
+  border-color: #15803d !important;
+  background: #15803d !important;
   transform: translateY(-1px);
-  box-shadow: 0 11px 24px rgba(37, 99, 235, 0.34);
+  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.22);
 }
 
 .experiment-phase-form-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-  transform: none;
   box-shadow: none;
+  transform: none;
 }
 
+/* Kept for EditExperimentPhase compatibility */
 .phase-system-status {
   display: flex;
   flex-direction: column;
   gap: 6px;
-
   margin-top: 18px;
-  padding: 16px;
-
+  padding: 14px;
+  border: 1px solid #bfdbfe;
   border-radius: 12px;
-  border: 1px solid rgba(96, 165, 250, 0.25);
-
-  background: rgba(59, 130, 246, 0.08);
+  background: #eff6ff;
 }
 
 .phase-system-status span {
-  color: #94a3b8;
-  font-size: 11px;
+  color: #64748b;
+  font-size: 10px;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
 .phase-system-status strong {
   display: inline-flex;
-  align-items: center;
-
   width: fit-content;
-
-  padding: 6px 12px;
-
+  align-items: center;
+  padding: 5px 10px;
   border-radius: 999px;
-
-  background: rgba(59, 130, 246, 0.16);
-
-  color: #bfdbfe;
-
-  font-size: 12px;
-  font-weight: 700;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .phase-system-status small {
-  color: #94a3b8;
-  line-height: 1.6;
-  font-size: 11px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.55;
 }
 
-@media (max-width: 900px) {
-  .phase-date-grid {
+
+
+.experiment-phase-form-page .requirement-form-loading {
+  padding: 28px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #64748b;
+  text-align: center;
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 1100px) {
+  .experiment-phase-form-page
+    .experiment-phase-form-layout {
     grid-template-columns: 1fr;
+  }
+
+  .experiment-phase-preview-card {
+    position: static;
   }
 }
 
-@media (max-width: 600px) {
-  .phase-date-section {
-    padding: 14px;
+@media (max-width: 700px) {
+  .experiment-phase-form-page {
+    padding: 18px !important;
+  }
+
+  .experiment-phase-form-page
+    .requirement-form-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .experiment-phase-form-page
+    .requirement-back-button {
+    align-self: flex-start;
+  }
+
+  .phase-date-grid,
+  .experiment-phase-preview {
+    grid-template-columns: 1fr !important;
+  }
+
+  .experiment-phase-form-page
+    .requirement-preview
+    > div:first-child,
+  .experiment-phase-form-page
+    .requirement-preview
+    > div:last-child {
+    grid-column: auto;
   }
 
   .phase-date-section-header {
@@ -400,16 +640,6 @@
 
   .phase-date-valid-badge {
     align-self: flex-start;
-  }
-
-  .phase-date-input-wrap,
-  .phase-date-input-wrap input,
-  .phase-date-icon {
-    min-height: 48px;
-  }
-
-  .phase-date-icon {
-    width: 45px;
   }
 
   .experiment-phase-form-actions {
