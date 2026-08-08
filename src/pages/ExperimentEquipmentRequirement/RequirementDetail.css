@@ -1,124 +1,270 @@
+/* =========================
+   REQUIREMENT DETAIL PAGE
+========================= */
+
 .requirement-detail-page {
-  padding: 28px;
-  color: #ffffff;
+  width: 100%;
+  padding: 28px 32px;
+  color: #1e293b;
+  box-sizing: border-box;
 }
 
-.requirement-detail-header {
+/* =========================
+   HEADER
+========================= */
+
+.req-detail-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
-.requirement-detail-header h1 {
-  margin: 10px 0 8px;
-  font-size: 30px;
-  font-weight: 700;
+.req-detail-header h1 {
+  margin: 8px 0 6px;
+  font-size: 28px;
+  font-weight: 750;
+  color: #111827;
+  line-height: 1.25;
 }
 
-.requirement-detail-header p {
+.req-detail-header p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.back-btn {
-  border: none;
-  background: transparent;
-  color: #9ee7c5;
-  cursor: pointer;
+  color: #64748b;
   font-size: 14px;
-  padding: 0;
+  line-height: 1.6;
 }
 
-.edit-btn {
-  border: none;
-  border-radius: 12px;
-  padding: 12px 18px;
-  background: #16a34a;
-  color: white;
-  font-weight: 700;
+.req-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* =========================
+   HEADER BUTTONS
+========================= */
+
+.req-detail-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.18s ease;
+  margin-bottom: 8px;
 }
 
-.requirement-detail-grid {
+.req-detail-back-btn:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.req-detail-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #16a34a;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.req-detail-edit-btn:hover {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+}
+
+.req-detail-allocation-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.req-detail-allocation-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.req-detail-allocation-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* =========================
+   ERROR
+========================= */
+
+.req-detail-error {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 14px;
+}
+
+/* =========================
+   DETAIL GRID
+========================= */
+
+.req-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  gap: 18px;
 }
 
-.detail-card {
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 18px;
-  padding: 22px;
+/* =========================
+   CARDS
+========================= */
+
+.req-detail-card {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 16px !important;
+  padding: 22px 24px !important;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05) !important;
+  color: #1e293b !important;
 }
 
-.detail-card h3 {
-  margin: 0 0 18px;
-  font-size: 18px;
+.req-detail-card h3 {
+  margin: 0 0 16px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
 }
 
-.detail-row {
+/* =========================
+   DETAIL ROWS
+========================= */
+
+.req-detail-row {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f8fafc;
 }
 
-.detail-row:last-child {
+.req-detail-row:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
-.detail-row span {
-  color: rgba(255, 255, 255, 0.6);
+.req-detail-row > span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
-.detail-row strong {
+.req-detail-row > strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 650;
   text-align: right;
 }
 
-.note-text {
+.req-detail-row-note {
+  align-items: flex-start;
+}
+
+.req-detail-note {
   margin: 0;
-  color: rgba(255, 255, 255, 0.78);
+  color: #475569;
+  font-size: 13px;
   line-height: 1.6;
-}
-.detail-actions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 24px;
+  text-align: right;
 }
 
-.allocation-btn {
-  padding: 11px 18px;
-  border: none;
-  border-radius: 10px;
-  background: #2563eb;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    transform 0.2s ease;
+/* =========================
+   NOT FOUND STATE
+========================= */
+
+.req-detail-not-found {
+  padding: 40px 20px;
+  text-align: center;
 }
 
-.allocation-btn:hover {
-  background: #1d4ed8;
-  transform: translateY(-1px);
+.req-detail-not-found h1 {
+  color: #111827;
+  font-size: 24px;
+  margin-bottom: 12px;
 }
 
-.allocation-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.req-detail-not-found p {
+  color: #64748b;
+  margin-bottom: 20px;
 }
+
+/* =========================
+   RESPONSIVE
+========================= */
+
 @media (max-width: 900px) {
-  .requirement-detail-header,
-  .requirement-detail-grid {
-    grid-template-columns: 1fr;
+  .requirement-detail-page {
+    padding: 20px 18px;
+  }
+
+  .req-detail-header {
     flex-direction: column;
+  }
+
+  .req-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .requirement-detail-page {
+    padding: 15px 12px;
+  }
+
+  .req-detail-header h1 {
+    font-size: 22px;
+  }
+
+  .req-detail-header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .req-detail-edit-btn,
+  .req-detail-allocation-btn {
+    width: 100%;
+    justify-content: center;
   }
 }

@@ -74,7 +74,7 @@ function statusClass(status: LandResourceStatus): string {
 
 export default function LandResourceList() {
     const role = (localStorage.getItem("role") || "Student") as Role;
-    const canManage = role === "Manager";
+    const canManage = role === "Admin" || role === "Manager";
     const [items, setItems] = useState<LandResource[]>([]);
     const [areas, setAreas] = useState<Area[]>([]);
     const [keyword, setKeyword] = useState("");
@@ -214,7 +214,7 @@ export default function LandResourceList() {
                     <div className="land-resource-card-title"><div><h2>Land Resource List</h2><p>{items.length} land resources</p></div><LandPlot size={22} /></div>
                     {loading ? <div className="land-resource-state">Loading land resources...</div> : items.length === 0 ? <div className="land-resource-state">No land resources found.</div> : (
                         <div className="land-resource-table-wrap"><table><thead><tr><th>ID</th><th>Land code</th><th>Area</th><th>Size</th><th>Location</th><th>Soil type</th><th>Status</th><th>Actions</th></tr></thead><tbody>
-                            {items.map((item) => <tr key={item.landId}><td>#{item.landId}</td><td><strong>{item.landCode}</strong></td><td>{item.areaName || `Area #${item.areaId}`}</td><td>{item.areaSize.toLocaleString("vi-VN")} ha</td><td>{item.location || "-"}</td><td>{item.soilType}</td><td><span className={statusClass(item.status)}>{item.status === "InUse" ? "In Use" : item.status}</span></td><td><div className="land-resource-actions">{canManage ? <><button title="Edit" onClick={() => openEdit(item)}><Pencil size={16} /></button><button className="danger" disabled={deletingId === item.landId} title="Delete" onClick={() => void handleDelete(item)}><Trash2 size={16} /></button></> : <span>View only</span>}</div></td></tr>)}
+                            {items.map((item) => <tr key={item.landId}><td>#{item.landId}</td><td><strong>{item.landCode}</strong></td><td>{item.areaName || `Area #${item.areaId}`}</td><td>{item.areaSize.toLocaleString("vi-VN")} ha</td><td>{item.location || "-"}</td><td>{item.soilType}</td><td><span className={statusClass(item.status)}>{item.status === "InUse" ? "In Use" : item.status}</span></td><td><div className="land-resource-actions">{canManage ? <><button type="button" className="action-btn-pill edit" title="Edit" onClick={() => openEdit(item)}><Pencil size={12} /><span>Edit</span></button><button type="button" className="action-btn-pill delete" disabled={deletingId === item.landId} title="Delete" onClick={() => void handleDelete(item)}><Trash2 size={12} /><span>Delete</span></button></> : <span>View only</span>}</div></td></tr>)}
                         </tbody></table></div>
                     )}
                 </section>

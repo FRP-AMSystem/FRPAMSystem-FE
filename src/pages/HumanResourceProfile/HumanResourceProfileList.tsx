@@ -8,6 +8,7 @@ import {
 import {
   Pencil,
   Plus,
+  RotateCw,
   Search,
   Trash2,
   UserRound,
@@ -63,6 +64,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -174,7 +176,7 @@ export default function HumanResourceProfileList() {
     getCurrentRole();
 
   const canManage =
-    role === "Manager";
+    role === "Admin" || role === "Manager";
 
   const [
     items,
@@ -725,12 +727,19 @@ export default function HumanResourceProfileList() {
                         </td>
 
                         <td>
-                          {item.roleName ||
-                            (
-                              item.roleId
-                                ? `Role #${item.roleId}`
-                                : "-"
-                            )}
+                          {item.roleName ? (
+                            <span
+                              className={`role-badge role-${item.roleName.toLowerCase()}`}
+                            >
+                              {item.roleName.toUpperCase()}
+                            </span>
+                          ) : item.roleId ? (
+                            <span className="role-badge">
+                              ROLE #{item.roleId}
+                            </span>
+                          ) : (
+                            "-"
+                          )}
                         </td>
 
                         <td>
@@ -770,6 +779,7 @@ export default function HumanResourceProfileList() {
                               <>
                                 <button
                                   type="button"
+                                  className="action-btn-pill edit"
                                   title="Edit"
                                   onClick={() =>
                                     openEdit(
@@ -777,16 +787,13 @@ export default function HumanResourceProfileList() {
                                     )
                                   }
                                 >
-                                  <Pencil
-                                    size={
-                                      16
-                                    }
-                                  />
+                                  <Pencil size={12} />
+                                  <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  className="danger"
+                                  className="action-btn-pill delete"
                                   disabled={
                                     deletingId ===
                                     item.humanResourceId
@@ -798,11 +805,8 @@ export default function HumanResourceProfileList() {
                                     )
                                   }
                                 >
-                                  <Trash2
-                                    size={
-                                      16
-                                    }
-                                  />
+                                  <Trash2 size={12} />
+                                  <span>Delete</span>
                                 </button>
                               </>
                             ) : (
@@ -871,150 +875,111 @@ export default function HumanResourceProfileList() {
               </div>
 
               <div className="human-profile-form-grid">
-                <label htmlFor="humanProfileUserId">
-                  User ID
-
+                <div className="profile-form-group">
+                  <label htmlFor="humanProfileUserId">
+                    User ID <span className="required">*</span>
+                  </label>
                   <input
                     id="humanProfileUserId"
                     type="number"
                     min="1"
                     step="1"
-                    value={
-                      form.userId
-                    }
+                    placeholder="e.g. 5"
+                    value={form.userId}
                     onChange={(event) =>
-                      updateForm(
-                        "userId",
-                        event.target
-                          .value
-                      )
+                      updateForm("userId", event.target.value)
                     }
-                    disabled={
-                      saving ||
-                      Boolean(
-                        editing
-                      )
-                    }
+                    disabled={saving || Boolean(editing)}
                     required
                   />
-                </label>
+                </div>
 
-                <label htmlFor="humanProfileStatus">
-                  Status
-
+                <div className="profile-form-group">
+                  <label htmlFor="humanProfileStatus">Status</label>
                   <select
                     id="humanProfileStatus"
-                    value={
-                      form.status
-                    }
+                    value={form.status}
                     onChange={(event) =>
                       updateForm(
                         "status",
-                        event.target
-                          .value as HumanResourceStatus
+                        event.target.value as HumanResourceStatus
                       )
                     }
-                    disabled={
-                      saving
-                    }
+                    disabled={saving}
                   >
-                    {humanResourceStatuses.map(
-                      (status) => (
-                        <option
-                          key={
-                            status
-                          }
-                          value={
-                            status
-                          }
-                        >
-                          {getStatusLabel(
-                            status
-                          )}
-                        </option>
-                      )
-                    )}
+                    {humanResourceStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {getStatusLabel(status)}
+                      </option>
+                    ))}
                   </select>
-                </label>
+                </div>
 
-                <label htmlFor="humanProfileMaxHours">
-                  Maximum Working Hours/Day
-
+                <div className="profile-form-group">
+                  <label htmlFor="humanProfileMaxHours">
+                    Maximum Working Hours/Day <span className="required">*</span>
+                  </label>
                   <input
                     id="humanProfileMaxHours"
                     type="number"
                     min="0.5"
                     max="24"
                     step="0.5"
-                    value={
-                      form.maxWorkingHoursPerDay
-                    }
+                    placeholder="e.g. 8"
+                    value={form.maxWorkingHoursPerDay}
                     onChange={(event) =>
-                      updateForm(
-                        "maxWorkingHoursPerDay",
-                        event.target
-                          .value
-                      )
+                      updateForm("maxWorkingHoursPerDay", event.target.value)
                     }
-                    disabled={
-                      saving
-                    }
+                    disabled={saving}
                     required
                   />
-                </label>
+                </div>
 
-                <label htmlFor="humanProfileWorkload">
-                  Current Workload
-
+                <div className="profile-form-group">
+                  <label htmlFor="humanProfileWorkload">
+                    Current Workload <span className="required">*</span>
+                  </label>
                   <input
                     id="humanProfileWorkload"
                     type="number"
                     min="0"
                     step="0.5"
-                    value={
-                      form.currentWorkload
-                    }
+                    placeholder="e.g. 0"
+                    value={form.currentWorkload}
                     onChange={(event) =>
-                      updateForm(
-                        "currentWorkload",
-                        event.target
-                          .value
-                      )
+                      updateForm("currentWorkload", event.target.value)
                     }
-                    disabled={
-                      saving
-                    }
+                    disabled={saving}
                     required
                   />
-                </label>
+                </div>
               </div>
 
               <div className="human-profile-dialog-actions">
                 <button
                   type="button"
                   className="secondary"
-                  onClick={
-                    closeDialog
-                  }
-                  disabled={
-                    saving
-                  }
+                  onClick={closeDialog}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  disabled={
-                    saving ||
-                    !form.userId
-                  }
+                  className="primary"
+                  disabled={saving || !form.userId}
                 >
-                  {saving
-                    ? "Saving..."
-                    : editing
-                      ? "Save Changes"
-                      : "Create Profile"}
+                  {saving ? (
+                    <>
+                      <RotateCw size={14} className="spin-icon" />
+                      <span>Saving...</span>
+                    </>
+                  ) : editing ? (
+                    "Save Changes"
+                  ) : (
+                    "Create Profile"
+                  )}
                 </button>
               </div>
             </form>

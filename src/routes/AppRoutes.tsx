@@ -134,6 +134,7 @@ const allRoles: Role[] = [
 ];
 
 const operationalViewRoles: Role[] = [
+  "Admin",
   "Manager",
   "Researcher",
   "Technician",
@@ -141,15 +142,19 @@ const operationalViewRoles: Role[] = [
 ];
 
 const researcherOnly: Role[] = [
+  "Admin",
+  "Manager",
   "Researcher",
 ];
 
 const analyticsRoles: Role[] = [
+  "Admin",
   "Manager",
   "Researcher",
 ];
 
 const conflictRoles: Role[] = [
+  "Admin",
   "Manager",
   "Researcher",
   "Technician",

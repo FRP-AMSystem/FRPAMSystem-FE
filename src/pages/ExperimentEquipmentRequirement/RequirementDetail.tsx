@@ -75,8 +75,8 @@ export default function RequirementDetail() {
   const { id } = useParams<{ id: string }>();
 
   const role = (localStorage.getItem("role") || "Student") as Role;
-  const canEdit = role === "Researcher";
-  const canCreateAllocation = role === "Researcher";
+  const canEdit = role === "Admin" || role === "Manager" || role === "Researcher";
+  const canCreateAllocation = role === "Admin" || role === "Manager" || role === "Researcher";
 
   const requirementId = useMemo(() => {
     if (!id) {
@@ -169,17 +169,15 @@ export default function RequirementDetail() {
     return (
       <DashboardLayout>
         <div className="requirement-detail-page">
-          <div className="requirement-not-found">
+          <div className="req-detail-not-found">
             <h1>Requirement Not Found</h1>
-
             <p>
               {error ||
                 "The equipment requirement does not exist or could not be loaded."}
             </p>
-
             <button
               type="button"
-              className="back-btn"
+              className="req-detail-back-btn"
               onClick={handleBack}
             >
               ← Back
@@ -193,11 +191,11 @@ export default function RequirementDetail() {
   return (
     <DashboardLayout>
       <div className="requirement-detail-page">
-        <div className="requirement-detail-header">
+        <div className="req-detail-header">
           <div>
             <button
               type="button"
-              className="back-btn"
+              className="req-detail-back-btn"
               onClick={handleBack}
             >
               ← Back
@@ -214,11 +212,11 @@ export default function RequirementDetail() {
           </div>
 
           {(canEdit || canCreateAllocation) && (
-            <div className="requirement-header-actions">
+            <div className="req-detail-header-actions">
               {canEdit && (
                 <button
                   type="button"
-                  className="edit-btn"
+                  className="req-detail-edit-btn"
                   onClick={handleEditRequirement}
                 >
                   Edit Requirement
@@ -228,7 +226,7 @@ export default function RequirementDetail() {
               {canCreateAllocation && (
                 <button
                   type="button"
-                  className="allocation-btn"
+                  className="req-detail-allocation-btn"
                   onClick={handleCreateAllocation}
                 >
                   Create Allocation
@@ -238,18 +236,18 @@ export default function RequirementDetail() {
           )}
         </div>
 
-        {error && <div className="detail-error">{error}</div>}
+        {error && <div className="req-detail-error">{error}</div>}
 
-        <div className="requirement-detail-grid">
-          <div className="detail-card">
+        <div className="req-detail-grid">
+          <div className="req-detail-card">
             <h3>Experiment Information</h3>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Experiment ID</span>
               <strong>{requirement.experimentId}</strong>
             </div>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Experiment Name</span>
               <strong>
                 {requirement.experimentName ||
@@ -258,15 +256,15 @@ export default function RequirementDetail() {
             </div>
           </div>
 
-          <div className="detail-card">
+          <div className="req-detail-card">
             <h3>Equipment Information</h3>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Equipment Type ID</span>
               <strong>{requirement.equipmentTypeId}</strong>
             </div>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Equipment Type</span>
               <strong>
                 {requirement.equipmentTypeName ||
@@ -274,23 +272,23 @@ export default function RequirementDetail() {
               </strong>
             </div>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Quantity</span>
               <strong>{requirement.quantity}</strong>
             </div>
           </div>
 
-          <div className="detail-card">
+          <div className="req-detail-card">
             <h3>Requirement Rules</h3>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Allow Substitute</span>
               <strong>
                 {requirement.allowSubstitute ? "Allowed" : "Not allowed"}
               </strong>
             </div>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Minimum Acceptable Efficiency</span>
               <strong>
                 {formatEfficiency(requirement.minAcceptableEfficiency)}
@@ -298,22 +296,22 @@ export default function RequirementDetail() {
             </div>
           </div>
 
-          <div className="detail-card">
+          <div className="req-detail-card">
             <h3>Additional Information</h3>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Created At</span>
               <strong>{formatDateTime(requirement.createdAt)}</strong>
             </div>
 
-            <div className="detail-row">
+            <div className="req-detail-row">
               <span>Updated At</span>
               <strong>{formatDateTime(requirement.updatedAt)}</strong>
             </div>
 
-            <div className="detail-row detail-row-note">
+            <div className="req-detail-row req-detail-row-note">
               <span>Note</span>
-              <p className="note-text">
+              <p className="req-detail-note">
                 {requirement.note?.trim() || "No note"}
               </p>
             </div>

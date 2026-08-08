@@ -31,7 +31,6 @@ export default function UserModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
   useEffect(() => {
     if (isOpen) {
       if (editUser) {
@@ -40,7 +39,6 @@ export default function UserModal({
         setEmail(editUser.email);
         setPassword("");
         setStatus(editUser.status || "Active");
-
 
         const matchedRole = roles.find(
           (r) => r.name.toLowerCase() === editUser.role.toLowerCase()
@@ -102,14 +100,12 @@ export default function UserModal({
       setIsSubmitting(true);
 
       if (editUser) {
-
         await updateUser(editUser.id, {
           fullName,
           username: username || editUser.username || "",
           roleId: Number(role),
           email: editUser.email,
         });
-
 
         localStorage.setItem(`status_${editUser.email}`, status);
 
@@ -121,7 +117,6 @@ export default function UserModal({
 
         onSuccess("User updated successfully!");
       } else {
-
         await createUser({
           fullName,
           username,
@@ -130,7 +125,10 @@ export default function UserModal({
           roleId: Number(role),
         });
 
-        localStorage.setItem(`createdDate_${email.trim()}`, new Date().toISOString());
+        localStorage.setItem(
+          `createdDate_${email.trim()}`,
+          new Date().toISOString()
+        );
 
         const roleObj = roles.find((r) => String(r.id) === String(role));
         logSystemActivity(
@@ -145,7 +143,9 @@ export default function UserModal({
       onClose();
     } catch (err: any) {
       console.error(err);
-      const serverMsg = err.response?.data?.message || (editUser ? "Failed to update user." : "Failed to create user.");
+      const serverMsg =
+        err.response?.data?.message ||
+        (editUser ? "Failed to update user." : "Failed to create user.");
       onError(serverMsg);
     } finally {
       setIsSubmitting(false);
@@ -154,9 +154,9 @@ export default function UserModal({
 
   return (
     <div className="modal-overlay">
-      <div className="modal-container" style={{ border: "1px solid var(--border)", background: "var(--card-bg)" }}>
-        <div className="modal-header" style={{ borderBottom: "1px solid var(--border)" }}>
-          <h3 style={{ color: "var(--text-h)" }}>{editUser ? "Edit User Profile" : "Add New User"}</h3>
+      <div className="modal-container">
+        <div className="modal-header">
+          <h3>{editUser ? "Edit User Profile" : "Add New User"}</h3>
           <button type="button" className="modal-close-btn" onClick={onClose}>
             &times;
           </button>
@@ -164,7 +164,9 @@ export default function UserModal({
 
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
-            <label htmlFor="fullName" style={{ color: "var(--text)" }}>Full Name <span className="required">*</span></label>
+            <label htmlFor="fullName">
+              Full Name <span className="required">*</span>
+            </label>
             <input
               type="text"
               id="fullName"
@@ -173,11 +175,19 @@ export default function UserModal({
               onChange={(e) => setFullName(e.target.value)}
               className={errors.fullName ? "input-error" : ""}
             />
-            {errors.fullName && <span className="error-text">{errors.fullName}</span>}
+            {errors.fullName && (
+              <span className="error-text">{errors.fullName}</span>
+            )}
           </div>
 
           <div className="form-group">
-            <label htmlFor="username" style={{ color: "var(--text)" }}>Username {editUser && <span style={{ fontSize: "11px", fontWeight: "normal", opacity: 0.7 }}>(Read-only)</span>} <span className="required">*</span></label>
+            <label htmlFor="username">
+              Username{" "}
+              {editUser && (
+                <span className="label-hint">(Read-only)</span>
+              )}{" "}
+              <span className="required">*</span>
+            </label>
             <input
               type="text"
               id="username"
@@ -185,14 +195,21 @@ export default function UserModal({
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={!!editUser}
-              style={editUser ? { backgroundColor: "var(--border)", cursor: "not-allowed", opacity: 0.8 } : {}}
-              className={errors.username ? "input-error" : ""}
+              className={`${errors.username ? "input-error" : ""} ${editUser ? "input-readonly" : ""}`}
             />
-            {errors.username && <span className="error-text">{errors.username}</span>}
+            {errors.username && (
+              <span className="error-text">{errors.username}</span>
+            )}
           </div>
 
           <div className="form-group">
-            <label htmlFor="email" style={{ color: "var(--text)" }}>Email Address {editUser && <span style={{ fontSize: "11px", fontWeight: "normal", opacity: 0.7 }}>(Read-only)</span>} <span className="required">*</span></label>
+            <label htmlFor="email">
+              Email Address{" "}
+              {editUser && (
+                <span className="label-hint">(Read-only)</span>
+              )}{" "}
+              <span className="required">*</span>
+            </label>
             <input
               type="email"
               id="email"
@@ -200,15 +217,18 @@ export default function UserModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={!!editUser}
-              style={editUser ? { backgroundColor: "var(--border)", cursor: "not-allowed", opacity: 0.8 } : {}}
-              className={errors.email ? "input-error" : ""}
+              className={`${errors.email ? "input-error" : ""} ${editUser ? "input-readonly" : ""}`}
             />
-            {errors.email && <span className="error-text">{errors.email}</span>}
+            {errors.email && (
+              <span className="error-text">{errors.email}</span>
+            )}
           </div>
 
           {!editUser && (
             <div className="form-group">
-              <label htmlFor="password" style={{ color: "var(--text)" }}>Password <span className="required">*</span></label>
+              <label htmlFor="password">
+                Password <span className="required">*</span>
+              </label>
               <input
                 type="password"
                 id="password"
@@ -217,13 +237,17 @@ export default function UserModal({
                 onChange={(e) => setPassword(e.target.value)}
                 className={errors.password ? "input-error" : ""}
               />
-              {errors.password && <span className="error-text">{errors.password}</span>}
+              {errors.password && (
+                <span className="error-text">{errors.password}</span>
+              )}
             </div>
           )}
 
           <div className="form-row">
             <div className="form-group flex-1">
-              <label htmlFor="role" style={{ color: "var(--text)" }}>Role <span className="required">*</span></label>
+              <label htmlFor="role">
+                Role <span className="required">*</span>
+              </label>
               <select
                 id="role"
                 value={role}
@@ -237,11 +261,15 @@ export default function UserModal({
                   </option>
                 ))}
               </select>
-              {errors.role && <span className="error-text">{errors.role}</span>}
+              {errors.role && (
+                <span className="error-text">{errors.role}</span>
+              )}
             </div>
 
             <div className="form-group flex-1">
-              <label htmlFor="status" style={{ color: "var(--text)" }}>Status <span className="required">*</span></label>
+              <label htmlFor="status">
+                Status <span className="required">*</span>
+              </label>
               <select
                 id="status"
                 value={status}
@@ -251,17 +279,18 @@ export default function UserModal({
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
               </select>
-              {errors.status && <span className="error-text">{errors.status}</span>}
+              {errors.status && (
+                <span className="error-text">{errors.status}</span>
+              )}
             </div>
           </div>
 
-          <div className="modal-footer" style={{ borderTop: "1px solid var(--border)", marginTop: "20px" }}>
+          <div className="modal-footer">
             <button
               type="button"
               className="btn-secondary"
               onClick={onClose}
               disabled={isSubmitting}
-              style={{ color: "var(--text-h)", border: "1px solid var(--border)", background: "transparent" }}
             >
               Cancel
             </button>
@@ -270,7 +299,13 @@ export default function UserModal({
               className="btn-primary"
               disabled={isSubmitting}
             >
-              {isSubmitting ? (editUser ? "Updating..." : "Creating...") : (editUser ? "Update User" : "Save User")}
+              {isSubmitting
+                ? editUser
+                  ? "Updating..."
+                  : "Creating..."
+                : editUser
+                  ? "Update User"
+                  : "Save User"}
             </button>
           </div>
         </form>

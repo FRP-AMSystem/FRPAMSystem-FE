@@ -15,6 +15,8 @@ import type {
   AllocationPlanStatus,
 } from "../../types/allocationPlan";
 
+import { Eye, Pencil, Trash2, CheckCircle2, XCircle, Ban, Plus } from "lucide-react";
+
 import "./AllocationList.css";
 
 type Role = "Manager" | "Researcher" | "Technician" | "Student";
@@ -348,18 +350,21 @@ export default function AllocationList() {
                             {permission.canView && (
                               <button
                                 type="button"
+                                className="action-btn-pill view"
                                 disabled={isProcessing}
                                 onClick={() =>
                                   navigate(`/allocation/${plan.allocationPlanId}`)
                                 }
                               >
-                                View
+                                <Eye size={12} />
+                                <span>View</span>
                               </button>
                             )}
 
                             {canEditPlan && (
                               <button
                                 type="button"
+                                className="action-btn-pill edit"
                                 disabled={isProcessing}
                                 onClick={() =>
                                   navigate(
@@ -367,51 +372,56 @@ export default function AllocationList() {
                                   )
                                 }
                               >
-                                Edit
+                                <Pencil size={12} />
+                                <span>Edit</span>
                               </button>
                             )}
 
                             {canApprovePlan && (
                               <button
                                 type="button"
-                                className="success-btn"
+                                className="action-btn-pill edit"
                                 disabled={isProcessing}
                                 onClick={() => void handleApprove(plan)}
                               >
-                                {isProcessing ? "Processing..." : "Approve"}
+                                <CheckCircle2 size={12} />
+                                <span>{isProcessing ? "Processing..." : "Approve"}</span>
                               </button>
                             )}
 
                             {canRejectPlan && (
                               <button
                                 type="button"
-                                className="warning-btn"
+                                className="action-btn-pill delete"
                                 disabled={isProcessing}
                                 onClick={() => void handleReject(plan)}
                               >
-                                {isProcessing ? "Processing..." : "Reject"}
+                                <XCircle size={12} />
+                                <span>{isProcessing ? "Processing..." : "Reject"}</span>
                               </button>
                             )}
 
                             {canCancelPlan && (
                               <button
                                 type="button"
-                                className="secondary-btn"
+                                className="action-btn-pill edit"
                                 disabled={isProcessing}
                                 onClick={() => void handleCancel(plan)}
                               >
-                                {isProcessing ? "Processing..." : "Cancel"}
+                                <Ban size={12} />
+                                <span>{isProcessing ? "Processing..." : "Cancel"}</span>
                               </button>
                             )}
 
                             {canDeletePlan && (
                               <button
                                 type="button"
-                                className="danger-btn"
+                                className="action-btn-pill delete"
                                 disabled={isProcessing}
                                 onClick={() => void handleDelete(plan)}
                               >
-                                {isProcessing ? "Deleting..." : "Delete"}
+                                <Trash2 size={12} />
+                                <span>{isProcessing ? "Deleting..." : "Delete"}</span>
                               </button>
                             )}
                           </div>

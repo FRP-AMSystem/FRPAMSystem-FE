@@ -44,16 +44,6 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiErrorResponse>) => {
-    const status = error.response?.status;
-
-    if (status === 401) {
-      console.error("Unauthorized request:", error.config?.url);
-    }
-
-    if (status === 403) {
-      console.error("Forbidden request:", error.config?.url);
-    }
-
     return Promise.reject(error);
   }
 );

@@ -5,6 +5,8 @@ import {
   useState,
 } from "react";
 
+import { Eye, Pencil, Trash2, Plus, Search, Truck, Cpu, ClipboardList } from "lucide-react";
+
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
@@ -226,7 +228,7 @@ export default function EquipmentList() {
   ] = useState("");
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const loadEquipmentData =
     useCallback(async () => {
@@ -690,31 +692,35 @@ export default function EquipmentList() {
                               <div className="equipment-actions">
                                 <button
                                   type="button"
+                                  className="action-btn-pill view"
                                   onClick={() => {
                                     window.alert(
                                       `Equipment instance #${item.equipmentInstanceId}`
                                     );
                                   }}
                                 >
-                                  View
+                                  <Eye size={12} />
+                                  <span>View</span>
                                 </button>
 
                                 {canManage && (
                                   <>
                                     <button
                                       type="button"
+                                      className="action-btn-pill edit"
                                       onClick={() => {
                                         window.alert(
                                           `Edit equipment instance #${item.equipmentInstanceId}`
                                         );
                                       }}
                                     >
-                                      Edit
+                                      <Pencil size={12} />
+                                      <span>Edit</span>
                                     </button>
 
                                     <button
                                       type="button"
-                                      className="danger-btn"
+                                      className="action-btn-pill delete"
                                       disabled={
                                         deletingId ===
                                         item.equipmentInstanceId
@@ -725,10 +731,13 @@ export default function EquipmentList() {
                                         )
                                       }
                                     >
-                                      {deletingId ===
-                                      item.equipmentInstanceId
-                                        ? "Deleting..."
-                                        : "Delete"}
+                                      <Trash2 size={12} />
+                                      <span>
+                                        {deletingId ===
+                                        item.equipmentInstanceId
+                                          ? "Deleting..."
+                                          : "Delete"}
+                                      </span>
                                     </button>
                                   </>
                                 )}
@@ -835,38 +844,43 @@ export default function EquipmentList() {
                               <div className="equipment-actions">
                                 <button
                                   type="button"
+                                  className="action-btn-pill view"
                                   onClick={() => {
                                     window.alert(
                                       `Equipment type #${item.equipmentTypeId}`
                                     );
                                   }}
                                 >
-                                  View
+                                  <Eye size={12} />
+                                  <span>View</span>
                                 </button>
 
                                 {canManage && (
                                   <>
                                     <button
                                       type="button"
+                                      className="action-btn-pill edit"
                                       onClick={() => {
                                         window.alert(
                                           `Edit equipment type #${item.equipmentTypeId}`
                                         );
                                       }}
                                     >
-                                      Edit
+                                      <Pencil size={12} />
+                                      <span>Edit</span>
                                     </button>
 
                                     <button
                                       type="button"
-                                      className="danger-btn"
+                                      className="action-btn-pill delete"
                                       onClick={() => {
                                         window.alert(
                                           "Delete equipment type will be implemented with its own form."
                                         );
                                       }}
                                     >
-                                      Delete
+                                      <Trash2 size={12} />
+                                      <span>Delete</span>
                                     </button>
                                   </>
                                 )}
@@ -948,38 +962,43 @@ export default function EquipmentList() {
                               <div className="equipment-actions">
                                 <button
                                   type="button"
+                                  className="action-btn-pill view"
                                   onClick={() => {
                                     window.alert(
                                       `Equipment category #${item.equipmentCategoryId}`
                                     );
                                   }}
                                 >
-                                  View
+                                  <Eye size={12} />
+                                  <span>View</span>
                                 </button>
 
                                 {canManage && (
                                   <>
                                     <button
                                       type="button"
+                                      className="action-btn-pill edit"
                                       onClick={() => {
                                         window.alert(
                                           `Edit equipment category #${item.equipmentCategoryId}`
                                         );
                                       }}
                                     >
-                                      Edit
+                                      <Pencil size={12} />
+                                      <span>Edit</span>
                                     </button>
 
                                     <button
                                       type="button"
-                                      className="danger-btn"
+                                      className="action-btn-pill delete"
                                       onClick={() => {
                                         window.alert(
                                           "Delete category will be implemented with its own form."
                                         );
                                       }}
                                     >
-                                      Delete
+                                      <Trash2 size={12} />
+                                      <span>Delete</span>
                                     </button>
                                   </>
                                 )}

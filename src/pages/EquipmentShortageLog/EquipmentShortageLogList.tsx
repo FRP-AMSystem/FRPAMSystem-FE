@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Pencil,
   Plus,
+  RotateCw,
   Search,
   Trash2,
   X,
@@ -63,6 +64,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -140,9 +142,17 @@ function formatDateTime(
     return "-";
   }
 
-  return date.toLocaleString(
-    "vi-VN"
-  );
+  const hasTime =
+    date.getHours() !== 0 ||
+    date.getMinutes() !== 0;
+
+  if (!hasTime) {
+    return date.toLocaleDateString(
+      "vi-VN"
+    );
+  }
+
+  return `${date.toLocaleDateString("vi-VN")} ${date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function getRequirementType(
@@ -203,7 +213,7 @@ export default function EquipmentShortageLogList() {
     getCurrentRole();
 
   const canManage =
-    role === "Manager";
+    role === "Admin" || role === "Manager";
 
   const [
     items,
@@ -856,7 +866,7 @@ export default function EquipmentShortageLogList() {
 
                 <tbody>
                   {items.map(
-                    (item) => {
+                    (item, index) => {
                       const requirementType =
                         getRequirementType(
                           item
@@ -875,9 +885,10 @@ export default function EquipmentShortageLogList() {
                         >
                           <td>
                             #
-                            {
-                              item.equipmentShortageLogId
-                            }
+                            {item.equipmentShortageLogId &&
+                            item.equipmentShortageLogId > 0
+                              ? item.equipmentShortageLogId
+                              : index + 1}
                           </td>
 
                           <td>
@@ -969,6 +980,7 @@ export default function EquipmentShortageLogList() {
                                 <>
                                   <button
                                     type="button"
+                                    className="action-btn-pill edit"
                                     title="Edit"
                                     onClick={() =>
                                       openEdit(
@@ -976,16 +988,13 @@ export default function EquipmentShortageLogList() {
                                       )
                                     }
                                   >
-                                    <Pencil
-                                      size={
-                                        16
-                                      }
-                                    />
+                                    <Pencil size={12} />
+                                    <span>Edit</span>
                                   </button>
 
                                   <button
                                     type="button"
-                                    className="danger"
+                                    className="action-btn-pill delete"
                                     title="Delete"
                                     disabled={
                                       deletingId ===
@@ -997,11 +1006,8 @@ export default function EquipmentShortageLogList() {
                                       )
                                     }
                                   >
-                                    <Trash2
-                                      size={
-                                        16
-                                      }
-                                    />
+                                    <Trash2 size={12} />
+                                    <span>Delete</span>
                                   </button>
                                 </>
                               ) : (
@@ -1063,156 +1069,83 @@ export default function EquipmentShortageLogList() {
               </div>
 
               <div className="equipment-shortage-form-grid">
-                <label htmlFor="shortageAllocationPlanId">
-                  Allocation Plan ID
-
+                <div className="shortage-form-group">
+                  <label htmlFor="shortageAllocationPlanId">
+                    Allocation Plan ID <span className="required">*</span>
+                  </label>
                   <input
                     id="shortageAllocationPlanId"
                     type="number"
                     min="1"
                     step="1"
-                    value={
-                      form.allocationPlanId
-                    }
+                    placeholder="e.g. 101"
+                    value={form.allocationPlanId}
                     onChange={(event) =>
-                      updateForm(
-                        "allocationPlanId",
-                        event.target.value
-                      )
+                      updateForm("allocationPlanId", event.target.value)
                     }
                     disabled={saving}
                     required
                   />
-                </label>
+                </div>
 
-                <label htmlFor="shortageRequirementType">
-                  Requirement Type
-
+                <div className="shortage-form-group">
+                  <label htmlFor="shortageRequirementType">Requirement Type</label>
                   <select
                     id="shortageRequirementType"
-                    value={
-                      form.requirementType
-                    }
+                    value={form.requirementType}
                     onChange={(event) =>
-                      setForm(
-                        (current) => ({
-                          ...current,
-
-                          requirementType:
-                            event.target
-                              .value as RequirementType,
-
-                          requirementId:
-                            "",
-                        })
-                      )
+                      setForm((current) => ({
+                        ...current,
+                        requirementType: event.target.value as RequirementType,
+                        requirementId: "",
+                      }))
                     }
                     disabled={saving}
                   >
-                    <option value="Experiment">
-                      Experiment Requirement
-                    </option>
-
-                    <option value="Phase">
-                      Phase Requirement
-                    </option>
+                    <option value="Experiment">Experiment Requirement</option>
+                    <option value="Phase">Phase Requirement</option>
                   </select>
-                </label>
+                </div>
 
-                <label htmlFor="shortageRequirementId">
-                  {form.requirementType ===
-                  "Experiment"
-                    ? "Experiment Equipment Requirement ID"
-                    : "Phase Equipment Requirement ID"}
-
+                <div className="shortage-form-group">
+                  <label htmlFor="shortageRequirementId">
+                    {form.requirementType === "Experiment"
+                      ? "Experiment Requirement ID"
+                      : "Phase Requirement ID"}{" "}
+                    <span className="required">*</span>
+                  </label>
                   <input
                     id="shortageRequirementId"
                     type="number"
                     min="1"
                     step="1"
-                    value={
-                      form.requirementId
-                    }
+                    placeholder="e.g. 5"
+                    value={form.requirementId}
                     onChange={(event) =>
-                      updateForm(
-                        "requirementId",
-                        event.target.value
-                      )
+                      updateForm("requirementId", event.target.value)
                     }
                     disabled={saving}
                     required
                   />
-                </label>
+                </div>
 
-                <label htmlFor="shortageQuantity">
-                  Shortage Quantity
-
+                <div className="shortage-form-group">
+                  <label htmlFor="shortageQuantity">
+                    Shortage Quantity <span className="required">*</span>
+                  </label>
                   <input
                     id="shortageQuantity"
                     type="number"
                     min="1"
                     step="1"
-                    value={
-                      form.shortageQuantity
-                    }
+                    placeholder="e.g. 2"
+                    value={form.shortageQuantity}
                     onChange={(event) =>
-                      updateForm(
-                        "shortageQuantity",
-                        event.target.value
-                      )
+                      updateForm("shortageQuantity", event.target.value)
                     }
                     disabled={saving}
                     required
                   />
-                </label>
-              </div>
-
-              <div className="equipment-shortage-preview">
-                <div>
-                  <span>
-                    Allocation Plan
-                  </span>
-
-                  <strong>
-                    {form.allocationPlanId
-                      ? `#${form.allocationPlanId}`
-                      : "-"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Requirement Type
-                  </span>
-
-                  <strong>
-                    {
-                      form.requirementType
-                    }
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Requirement ID
-                  </span>
-
-                  <strong>
-                    {form.requirementId
-                      ? `#${form.requirementId}`
-                      : "-"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Shortage Quantity
-                  </span>
-
-                  <strong>
-                    {form.shortageQuantity ||
-                      "0"}
-                  </strong>
                 </div>
               </div>
 
@@ -1228,6 +1161,7 @@ export default function EquipmentShortageLogList() {
 
                 <button
                   type="submit"
+                  className="primary"
                   disabled={
                     saving ||
                     !form.allocationPlanId ||
@@ -1235,11 +1169,16 @@ export default function EquipmentShortageLogList() {
                     !form.shortageQuantity
                   }
                 >
-                  {saving
-                    ? "Saving..."
-                    : editing
-                      ? "Save Changes"
-                      : "Create Log"}
+                  {saving ? (
+                    <>
+                      <RotateCw size={14} className="spin-icon" />
+                      <span>Saving...</span>
+                    </>
+                  ) : editing ? (
+                    "Save Changes"
+                  ) : (
+                    "Create Log"
+                  )}
                 </button>
               </div>
             </form>

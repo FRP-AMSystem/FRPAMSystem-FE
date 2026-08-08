@@ -306,61 +306,11 @@
   white-space: nowrap;
 }
 
+/* Actions Cell using Global Standard .action-btn-pill */
 .land-requirement-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.land-requirement-action-button {
-  display: inline-flex;
-  width: 35px;
-  height: 35px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.land-requirement-action-button:hover {
-  transform: translateY(-1px);
-}
-
-.land-requirement-view-button {
-  color: #2563eb;
-}
-
-.land-requirement-view-button:hover {
-  border-color: #2563eb;
-  background: rgba(37, 99, 235, 0.08);
-}
-
-.land-requirement-edit-button {
-  color: #d97706;
-}
-
-.land-requirement-edit-button:hover {
-  border-color: #d97706;
-  background: rgba(245, 158, 11, 0.08);
-}
-
-.land-requirement-delete-button {
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #dc2626;
-}
-
-.land-requirement-delete-button:hover {
-  border-color: #dc2626;
-  background: rgba(239, 68, 68, 0.08);
-}
-
-.land-requirement-action-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-  transform: none;
 }
 
 .land-requirement-state,

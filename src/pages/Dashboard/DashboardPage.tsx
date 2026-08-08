@@ -463,18 +463,6 @@ export default function DashboardPage() {
     let active = true;
 
     async function loadDashboard() {
-      if (
-        role === "Admin"
-      ) {
-        if (active) {
-          setAllocationPlans([]);
-          setError("");
-          setLoading(false);
-        }
-
-        return;
-      }
-
       try {
         setLoading(true);
         setError("");
@@ -679,8 +667,6 @@ export default function DashboardPage() {
     >(() => {
       switch (role) {
         case "Admin":
-          return [];
-
         case "Manager":
           return [
             {
@@ -1161,76 +1147,56 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {role === "Admin" ? (
-          <div className="role-section-card">
-            <h3>
-              Admin Workspace
-            </h3>
-
-            <p>
-              Admin manages users, roles,
-              system configuration, audit
-              information, reports, and
-              notifications. Operational
-              planning actions belong to
-              Researcher and Manager.
-            </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate(
-                  "/reports"
-                )
-              }
-            >
-              View System Reports
-            </button>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="dashboard-loading">
             Loading dashboard data...
           </div>
         ) : (
           <>
             <div className="stats-grid">
-              {stats.map(
-                (stat) => {
-                  const actionPath =
-                    stat.actionPath;
+              {stats.map((stat) => {
+                const actionPath = stat.actionPath;
 
-                  return (
-                    <StatisticCard
-                      key={stat.id}
-                      stat={stat}
-                      onAction={
-                        actionPath
-                          ? () => {
-                              navigate(
-                                actionPath
-                              );
-                            }
-                          : undefined
-                      }
-                    />
-                  );
-                }
-              )}
+                return (
+                  <StatisticCard
+                    key={stat.id}
+                    stat={stat}
+                    onAction={
+                      actionPath
+                        ? () => {
+                            navigate(actionPath);
+                          }
+                        : undefined
+                    }
+                  />
+                );
+              })}
             </div>
 
             <div className="charts-grid">
-              <LineChartCard
-                data={
-                  allocationTrend
-                }
-              />
-
-              <BreakdownCard
-                data={
-                  resourceBreakdown
-                }
-              />
+              <LineChartCard data={allocationTrend} />
+              <BreakdownCard data={resourceBreakdown} />
             </div>
+
+            {role === "Admin" && (
+              <div className="role-section-card">
+                <h3>Admin Workspace</h3>
+                <p>
+                  Manage users, roles, personnel profiles, system settings, audit logs, and reports.
+                </p>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <button type="button" onClick={() => navigate("/admin/personnel")}>
+                    Personnel & Skills
+                  </button>
+                  <button type="button" onClick={() => navigate("/admin/users")}>
+                    User Management
+                  </button>
+                  <button type="button" onClick={() => navigate("/reports")}>
+                    System Reports
+                  </button>
+                </div>
+              </div>
+            )}
 
             {role ===
               "Researcher" && (

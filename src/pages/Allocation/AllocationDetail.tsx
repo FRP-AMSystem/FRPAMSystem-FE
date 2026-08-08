@@ -451,7 +451,7 @@ export default function AllocationDetail() {
     Boolean(isDraft);
 
   const canSubmit =
-    role === "Researcher" &&
+    (role === "Admin" || role === "Manager" || role === "Researcher") &&
     Boolean(isDraft) &&
     totalResources > 0;
 
