@@ -9,6 +9,7 @@ import {
   BadgeCheck,
   Pencil,
   Plus,
+  RotateCw,
   Search,
   Trash2,
   X,
@@ -620,126 +621,97 @@ export default function SkillList() {
           <div
             className="skill-overlay"
             onMouseDown={(event) => {
-              if (
-                event.target ===
-                event.currentTarget
-              ) {
+              if (event.target === event.currentTarget) {
                 closeDialog();
               }
             }}
           >
-            <form
-              className="skill-dialog"
-              onSubmit={
-                handleSubmit
-              }
-            >
+            <form className="skill-dialog" onSubmit={handleSubmit}>
               <div className="skill-dialog-head">
                 <div>
-                  <h2>
-                    {editing
-                      ? "Edit Skill"
-                      : "Create Skill"}
-                  </h2>
-
+                  <h2>{editing ? "Edit Skill" : "Create Skill"}</h2>
                   <p>
-                    Add a reusable skill for
-                    human resource profiles.
+                    {editing
+                      ? "Update expertise skill details for personnel."
+                      : "Add a new reusable skill for personnel profiles."}
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={
-                    closeDialog
-                  }
-                  disabled={
-                    saving
-                  }
+                  onClick={closeDialog}
+                  disabled={saving}
                   aria-label="Close skill form"
                 >
-                  <X size={19} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <label htmlFor="skillName">
-                Skill Name
-
-                <input
-                  id="skillName"
-                  type="text"
-                  value={
-                    form.skillName
-                  }
-                  onChange={(event) =>
-                    setForm(
-                      (current) => ({
+              <div className="skill-dialog-body">
+                <div className="skill-form-group">
+                  <label htmlFor="skillName">
+                    Skill Name <span className="required">*</span>
+                  </label>
+                  <input
+                    id="skillName"
+                    type="text"
+                    placeholder="e.g. Forestry Drone Pilot"
+                    value={form.skillName}
+                    onChange={(event) =>
+                      setForm((current) => ({
                         ...current,
-                        skillName:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  disabled={
-                    saving
-                  }
-                  maxLength={150}
-                  required
-                />
-              </label>
+                        skillName: event.target.value,
+                      }))
+                    }
+                    disabled={saving}
+                    maxLength={150}
+                    required
+                  />
+                </div>
 
-              <label htmlFor="skillDescription">
-                Description
-
-                <textarea
-                  id="skillDescription"
-                  value={
-                    form.description
-                  }
-                  onChange={(event) =>
-                    setForm(
-                      (current) => ({
+                <div className="skill-form-group">
+                  <label htmlFor="skillDescription">Description</label>
+                  <textarea
+                    id="skillDescription"
+                    placeholder="Describe the required competencies for this skill..."
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm((current) => ({
                         ...current,
-                        description:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  disabled={
-                    saving
-                  }
-                  rows={5}
-                />
-              </label>
+                        description: event.target.value,
+                      }))
+                    }
+                    disabled={saving}
+                    rows={4}
+                  />
+                </div>
+              </div>
 
               <div className="skill-dialog-actions">
                 <button
                   type="button"
                   className="secondary"
-                  onClick={
-                    closeDialog
-                  }
-                  disabled={
-                    saving
-                  }
+                  onClick={closeDialog}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  disabled={
-                    saving ||
-                    !form.skillName.trim()
-                  }
+                  className="primary"
+                  disabled={saving || !form.skillName.trim()}
                 >
-                  {saving
-                    ? "Saving..."
-                    : editing
-                      ? "Save Changes"
-                      : "Create Skill"}
+                  {saving ? (
+                    <>
+                      <RotateCw size={14} className="spin-icon" />
+                      <span>Saving...</span>
+                    </>
+                  ) : editing ? (
+                    "Save Changes"
+                  ) : (
+                    "Create Skill"
+                  )}
                 </button>
               </div>
             </form>

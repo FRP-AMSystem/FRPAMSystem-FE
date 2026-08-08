@@ -138,7 +138,10 @@ export default function PersonnelPage() {
         getHumanResourceProfiles(),
         getSkills(),
         getHumanResourceSkills(),
-        getUsers(),
+        getUsers().catch((err) => {
+          console.warn("Could not fetch users list (admin access required):", err);
+          return [] as User[];
+        }),
       ]);
 
       setProfiles(profilesData);

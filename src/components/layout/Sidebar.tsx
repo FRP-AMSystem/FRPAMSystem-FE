@@ -311,7 +311,7 @@ const managerMenuGroups: MenuGroup[] = [
         icon: BadgeCheck,
       },
       {
-        name: "Personnel Directory",
+        name: "Personnel & Skills",
         path: "/admin/personnel",
         icon: UserRoundCheck,
       },
@@ -457,7 +457,7 @@ const researcherMenuGroups: MenuGroup[] = [
         icon: BadgeCheck,
       },
       {
-        name: "Personnel Directory",
+        name: "Personnel & Skills",
         path: "/admin/personnel",
         icon: UserRoundCheck,
       },
@@ -598,7 +598,7 @@ const technicianMenuGroups: MenuGroup[] = [
         icon: BadgeCheck,
       },
       {
-        name: "Personnel Directory",
+        name: "Personnel & Skills",
         path: "/admin/personnel",
         icon: UserRoundCheck,
       },

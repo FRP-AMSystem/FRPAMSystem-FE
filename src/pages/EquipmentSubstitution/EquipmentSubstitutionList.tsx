@@ -10,6 +10,7 @@ import {
   ArrowRightLeft,
   Pencil,
   Plus,
+  RotateCw,
   Search,
   Trash2,
   X,
@@ -1117,235 +1118,117 @@ export default function EquipmentSubstitutionList() {
               </div>
 
               <div className="equipment-substitution-form-grid">
-                <label htmlFor="primaryEquipmentTypeId">
-                  Primary Equipment Type
-
+                <div className="substitution-form-group">
+                  <label htmlFor="primaryEquipmentTypeId">
+                    Primary Equipment Type <span className="required">*</span>
+                  </label>
                   <select
                     id="primaryEquipmentTypeId"
-                    value={
-                      form.primaryEquipmentTypeId
-                    }
+                    value={form.primaryEquipmentTypeId}
                     onChange={(event) =>
-                      updateForm(
-                        "primaryEquipmentTypeId",
-                        event.target
-                          .value
-                      )
+                      updateForm("primaryEquipmentTypeId", event.target.value)
                     }
                     disabled={saving}
                     required
                   >
-                    <option value="">
-                      Select primary type
-                    </option>
-
-                    {equipmentTypes.map(
-                      (
-                        equipmentType
-                      ) => (
-                        <option
-                          key={
-                            equipmentType.equipmentTypeId
-                          }
-                          value={
-                            equipmentType.equipmentTypeId
-                          }
-                          disabled={
-                            String(
-                              equipmentType.equipmentTypeId
-                            ) ===
-                            form.subEquipmentTypeId
-                          }
-                        >
-                          {getEquipmentTypeName(
-                            equipmentType
-                          )}
-                        </option>
-                      )
-                    )}
+                    <option value="">Select primary type</option>
+                    {equipmentTypes.map((equipmentType) => (
+                      <option
+                        key={equipmentType.equipmentTypeId}
+                        value={equipmentType.equipmentTypeId}
+                        disabled={
+                          String(equipmentType.equipmentTypeId) ===
+                          form.subEquipmentTypeId
+                        }
+                      >
+                        {getEquipmentTypeName(equipmentType)}
+                      </option>
+                    ))}
                   </select>
-                </label>
+                </div>
 
-                <label htmlFor="subEquipmentTypeId">
-                  Substitute Equipment Type
-
+                <div className="substitution-form-group">
+                  <label htmlFor="subEquipmentTypeId">
+                    Substitute Equipment Type <span className="required">*</span>
+                  </label>
                   <select
                     id="subEquipmentTypeId"
-                    value={
-                      form.subEquipmentTypeId
-                    }
+                    value={form.subEquipmentTypeId}
                     onChange={(event) =>
-                      updateForm(
-                        "subEquipmentTypeId",
-                        event.target
-                          .value
-                      )
+                      updateForm("subEquipmentTypeId", event.target.value)
                     }
                     disabled={saving}
                     required
                   >
-                    <option value="">
-                      Select substitute type
-                    </option>
-
-                    {equipmentTypes.map(
-                      (
-                        equipmentType
-                      ) => (
-                        <option
-                          key={
-                            equipmentType.equipmentTypeId
-                          }
-                          value={
-                            equipmentType.equipmentTypeId
-                          }
-                          disabled={
-                            String(
-                              equipmentType.equipmentTypeId
-                            ) ===
-                            form.primaryEquipmentTypeId
-                          }
-                        >
-                          {getEquipmentTypeName(
-                            equipmentType
-                          )}
-                        </option>
-                      )
-                    )}
+                    <option value="">Select substitute type</option>
+                    {equipmentTypes.map((equipmentType) => (
+                      <option
+                        key={equipmentType.equipmentTypeId}
+                        value={equipmentType.equipmentTypeId}
+                        disabled={
+                          String(equipmentType.equipmentTypeId) ===
+                          form.primaryEquipmentTypeId
+                        }
+                      >
+                        {getEquipmentTypeName(equipmentType)}
+                      </option>
+                    ))}
                   </select>
-                </label>
+                </div>
 
-                <label htmlFor="efficiencyPercent">
-                  Efficiency (%)
-
+                <div className="substitution-form-group">
+                  <label htmlFor="efficiencyPercent">
+                    Efficiency (%) <span className="required">*</span>
+                  </label>
                   <input
                     id="efficiencyPercent"
                     type="number"
                     min="1"
                     max="100"
                     step="0.01"
-                    value={
-                      form.efficiencyPercent
-                    }
+                    placeholder="e.g. 80"
+                    value={form.efficiencyPercent}
                     onChange={(event) =>
-                      updateForm(
-                        "efficiencyPercent",
-                        event.target
-                          .value
-                      )
+                      updateForm("efficiencyPercent", event.target.value)
                     }
                     disabled={saving}
                     required
                   />
+                  <small>Example: 80 means substitute operates at 80% capacity.</small>
+                </div>
 
-                  <small>
-                    Example: 80 means the
-                    substitute performs at
-                    80% efficiency.
-                  </small>
-                </label>
-
-                <label htmlFor="timeMultiplier">
-                  Time Multiplier
-
+                <div className="substitution-form-group">
+                  <label htmlFor="timeMultiplier">
+                    Time Multiplier <span className="required">*</span>
+                  </label>
                   <input
                     id="timeMultiplier"
                     type="number"
                     min="0.01"
                     step="0.01"
-                    value={
-                      form.timeMultiplier
-                    }
+                    placeholder="e.g. 1.25"
+                    value={form.timeMultiplier}
                     onChange={(event) =>
-                      updateForm(
-                        "timeMultiplier",
-                        event.target
-                          .value
-                      )
+                      updateForm("timeMultiplier", event.target.value)
                     }
                     disabled={saving}
                     required
                   />
+                  <small>Example: 1.25 means execution takes 25% longer.</small>
+                </div>
 
-                  <small>
-                    Example: 1.25 means the
-                    task takes 25% longer.
-                  </small>
-                </label>
-
-                <label
-                  htmlFor="substitutionNote"
-                  className="wide"
-                >
-                  Note
-
+                <div className="substitution-form-group wide">
+                  <label htmlFor="substitutionNote">Note / Context</label>
                   <textarea
                     id="substitutionNote"
-                    rows={4}
+                    rows={3}
+                    placeholder="Enter any additional conditions or notes for this substitution rule..."
                     value={form.note}
                     onChange={(event) =>
-                      updateForm(
-                        "note",
-                        event.target
-                          .value
-                      )
+                      updateForm("note", event.target.value)
                     }
                     disabled={saving}
                   />
-                </label>
-              </div>
-
-              <div className="equipment-substitution-preview">
-                <div>
-                  <span>
-                    Primary Type
-                  </span>
-
-                  <strong>
-                    {selectedPrimaryType
-                      ? getEquipmentTypeName(
-                          selectedPrimaryType
-                        )
-                      : "-"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Substitute Type
-                  </span>
-
-                  <strong>
-                    {selectedSubstituteType
-                      ? getEquipmentTypeName(
-                          selectedSubstituteType
-                        )
-                      : "-"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Efficiency
-                  </span>
-
-                  <strong>
-                    {form.efficiencyPercent ||
-                      "0"}
-                    %
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Estimated Time
-                  </span>
-
-                  <strong>
-                    ×
-                    {form.timeMultiplier ||
-                      "0"}
-                  </strong>
                 </div>
               </div>
 
@@ -1361,17 +1244,23 @@ export default function EquipmentSubstitutionList() {
 
                 <button
                   type="submit"
+                  className="primary"
                   disabled={
                     saving ||
                     !form.primaryEquipmentTypeId ||
                     !form.subEquipmentTypeId
                   }
                 >
-                  {saving
-                    ? "Saving..."
-                    : editing
-                      ? "Save Changes"
-                      : "Create Substitution"}
+                  {saving ? (
+                    <>
+                      <RotateCw size={14} className="spin-icon" />
+                      <span>Saving...</span>
+                    </>
+                  ) : editing ? (
+                    "Save Changes"
+                  ) : (
+                    "Create Substitution"
+                  )}
                 </button>
               </div>
             </form>

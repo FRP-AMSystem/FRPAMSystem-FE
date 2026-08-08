@@ -9,6 +9,7 @@ import {
   Map,
   Pencil,
   Plus,
+  RotateCw,
   Search,
   Trash2,
   X,
@@ -605,109 +606,89 @@ export default function AreaList() {
           <div
             className="area-overlay"
             onMouseDown={(event) => {
-              if (
-                event.target ===
-                event.currentTarget
-              ) {
+              if (event.target === event.currentTarget) {
                 closeDialog();
               }
             }}
           >
-            <form
-              className="area-dialog"
-              onSubmit={
-                handleSubmit
-              }
-            >
+            <form className="area-dialog" onSubmit={handleSubmit}>
               <div className="area-dialog-head">
-                <h2>
-                  {editing
-                    ? "Edit Area"
-                    : "Create Area"}
-                </h2>
+                <div>
+                  <h2>{editing ? "Edit Area" : "Create Area"}</h2>
+                  <p>
+                    {editing
+                      ? "Update geographical area information and descriptions."
+                      : "Add a new geographical area to group land resources."}
+                  </p>
+                </div>
 
                 <button
                   type="button"
-                  onClick={
-                    closeDialog
-                  }
-                  disabled={
-                    saving
-                  }
+                  onClick={closeDialog}
+                  disabled={saving}
                   aria-label="Close area form"
                 >
-                  <X size={19} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <label htmlFor="areaName">
-                Area name
+              <div className="area-dialog-body">
+                <div className="area-form-group">
+                  <label htmlFor="areaName">
+                    Area Name <span className="required">*</span>
+                  </label>
 
-                <input
-                  id="areaName"
-                  type="text"
-                  value={
-                    areaName
-                  }
-                  onChange={(event) =>
-                    setAreaName(
-                      event.target.value
-                    )
-                  }
-                  disabled={
-                    saving
-                  }
-                  maxLength={150}
-                  required
-                />
-              </label>
+                  <input
+                    id="areaName"
+                    type="text"
+                    placeholder="e.g. Zone A - Northern Forestry"
+                    value={areaName}
+                    onChange={(event) => setAreaName(event.target.value)}
+                    disabled={saving}
+                    maxLength={150}
+                    required
+                  />
+                </div>
 
-              <label htmlFor="areaDescription">
-                Description
+                <div className="area-form-group">
+                  <label htmlFor="areaDescription">Description</label>
 
-                <textarea
-                  id="areaDescription"
-                  value={
-                    description
-                  }
-                  onChange={(event) =>
-                    setDescription(
-                      event.target.value
-                    )
-                  }
-                  disabled={
-                    saving
-                  }
-                  rows={5}
-                />
-              </label>
+                  <textarea
+                    id="areaDescription"
+                    placeholder="Enter details about this geographical area..."
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    disabled={saving}
+                    rows={4}
+                  />
+                </div>
+              </div>
 
               <div className="area-dialog-actions">
                 <button
                   type="button"
                   className="secondary"
-                  onClick={
-                    closeDialog
-                  }
-                  disabled={
-                    saving
-                  }
+                  onClick={closeDialog}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  disabled={
-                    saving ||
-                    !areaName.trim()
-                  }
+                  className="primary"
+                  disabled={saving || !areaName.trim()}
                 >
-                  {saving
-                    ? "Saving..."
-                    : editing
-                      ? "Save Changes"
-                      : "Create Area"}
+                  {saving ? (
+                    <>
+                      <RotateCw size={14} className="spin-icon" />
+                      <span>Saving...</span>
+                    </>
+                  ) : editing ? (
+                    "Save Changes"
+                  ) : (
+                    "Create Area"
+                  )}
                 </button>
               </div>
             </form>

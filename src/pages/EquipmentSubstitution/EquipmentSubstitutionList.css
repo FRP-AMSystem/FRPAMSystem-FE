@@ -289,26 +289,6 @@
 }
 
 /* Modal Dialog */
-.equipment-substitution-dialog-head button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.equipment-substitution-dialog-head button:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
 .equipment-substitution-overlay {
   position: fixed;
   inset: 0;
@@ -317,15 +297,260 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(6px);
+  animation: dialogFadeIn 0.2s ease-out;
+}
+
+@keyframes dialogFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialogSlideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .equipment-substitution-dialog {
   width: min(640px, 100%);
-  padding: 24px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 18px;
+  background: var(--card-bg, #ffffff);
+  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  animation: dialogSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.equipment-substitution-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.equipment-substitution-dialog-head h2 {
+  margin: 0;
+  color: var(--text-h, #0f172a);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.equipment-substitution-dialog-head p {
+  margin: 4px 0 0;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.equipment-substitution-dialog-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
   background: #ffffff;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.equipment-substitution-dialog-head button:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #0f172a;
+  transform: rotate(90deg);
+}
+
+.equipment-substitution-form-grid {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 600px) {
+  .equipment-substitution-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.substitution-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.substitution-form-group.wide {
+  grid-column: 1 / -1;
+}
+
+.substitution-form-group label {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.substitution-form-group label .required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.substitution-form-group small {
+  color: #64748b;
+  font-size: 11.5px;
+  margin-top: 2px;
+}
+
+.equipment-substitution-dialog input,
+.equipment-substitution-dialog select,
+.equipment-substitution-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.equipment-substitution-dialog textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.equipment-substitution-dialog input:focus,
+.equipment-substitution-dialog select:focus,
+.equipment-substitution-dialog textarea:focus {
+  border-color: var(--primary, #16a34a);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+}
+
+.equipment-substitution-dialog input:disabled,
+.equipment-substitution-dialog select:disabled,
+.equipment-substitution-dialog textarea:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.equipment-substitution-preview {
+  margin: 0 24px 20px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .equipment-substitution-preview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.equipment-substitution-preview div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.equipment-substitution-preview span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.equipment-substitution-preview strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.equipment-substitution-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.equipment-substitution-dialog-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.equipment-substitution-dialog-actions button.secondary {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.equipment-substitution-dialog-actions button.secondary:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.equipment-substitution-dialog-actions button.primary,
+.equipment-substitution-dialog-actions button[type="submit"] {
+  border: 1px solid var(--primary, #16a34a);
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
+}
+
+.equipment-substitution-dialog-actions button.primary:hover:not(:disabled),
+.equipment-substitution-dialog-actions button[type="submit"]:hover:not(:disabled) {
+  background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+  transform: translateY(-1px);
+}
+
+.equipment-substitution-dialog-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
