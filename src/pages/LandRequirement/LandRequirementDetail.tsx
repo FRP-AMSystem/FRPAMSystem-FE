@@ -141,7 +141,7 @@ export default function LandRequirementDetail() {
     ) as Role | null;
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const requirementId =
     Number(id);
@@ -353,7 +353,7 @@ export default function LandRequirementDetail() {
                 )
               }
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft size={16} />
               Back
             </button>
 
@@ -361,30 +361,31 @@ export default function LandRequirementDetail() {
               <>
                 <button
                   type="button"
-                  className="land-detail-edit-button"
+                  className="action-btn-pill edit"
                   onClick={() =>
                     navigate(
                       `/land-requirements/${requirement.expLandReqId}/edit`
                     )
                   }
                 >
-                  <Edit3 size={18} />
-                  Edit
+                  <Edit3 size={14} />
+                  <span>Edit</span>
                 </button>
 
                 <button
                   type="button"
-                  className="land-detail-delete-button"
+                  className="action-btn-pill delete"
                   disabled={deleting}
                   onClick={() =>
                     void handleDelete()
                   }
                 >
-                  <Trash2 size={18} />
-
-                  {deleting
-                    ? "Deleting..."
-                    : "Delete"}
+                  <Trash2 size={14} />
+                  <span>
+                    {deleting
+                      ? "Deleting..."
+                      : "Delete"}
+                  </span>
                 </button>
               </>
             )}

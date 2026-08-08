@@ -8,6 +8,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
@@ -40,9 +41,9 @@ export default function RequirementList() {
 
   const role = (localStorage.getItem("role") || "Student") as Role;
 
-  const canCreateRequirement = role === "Researcher";
-  const canEditRequirement = role === "Researcher";
-  const canDeleteRequirement = role === "Researcher";
+  const canCreateRequirement = role === "Admin" || role === "Manager" || role === "Researcher";
+  const canEditRequirement = role === "Admin" || role === "Manager" || role === "Researcher";
+  const canDeleteRequirement = role === "Admin" || role === "Manager" || role === "Researcher";
 
   const experimentIdFromUrl = searchParams.get("experimentId");
 
@@ -320,6 +321,7 @@ export default function RequirementList() {
                           <div className="requirement-actions">
                             <button
                               type="button"
+                              className="action-btn-pill view"
                               disabled={actionDisabled}
                               onClick={() =>
                                 navigate(
@@ -327,12 +329,14 @@ export default function RequirementList() {
                                 )
                               }
                             >
-                              View
+                              <Eye size={12} />
+                              <span>View</span>
                             </button>
 
                             {canEditRequirement && (
                               <button
                                 type="button"
+                                className="action-btn-pill edit"
                                 disabled={actionDisabled}
                                 onClick={() =>
                                   navigate(
@@ -340,20 +344,20 @@ export default function RequirementList() {
                                   )
                                 }
                               >
-                                Edit
+                                <Pencil size={12} />
+                                <span>Edit</span>
                               </button>
                             )}
 
                             {canDeleteRequirement && (
                               <button
                                 type="button"
-                                className="danger-btn"
+                                className="action-btn-pill delete"
                                 disabled={actionDisabled}
                                 onClick={() => void handleDelete(id)}
                               >
-                                {isDeleting
-                                  ? "Deleting..."
-                                  : "Delete"}
+                                <Trash2 size={12} />
+                                <span>{isDeleting ? "..." : "Delete"}</span>
                               </button>
                             )}
                           </div>

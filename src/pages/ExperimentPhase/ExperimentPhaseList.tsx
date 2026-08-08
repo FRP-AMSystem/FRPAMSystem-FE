@@ -178,7 +178,7 @@ export default function ExperimentPhaseList() {
     ) as Role | null;
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [
     phases,
@@ -698,53 +698,49 @@ export default function ExperimentPhaseList() {
                           <div className="experiment-phase-actions">
                             <button
                               type="button"
-                              className="experiment-phase-action-button experiment-phase-view-button"
-                              title="View phase detail"
+                              className="action-btn-pill view"
                               onClick={() =>
                                 navigate(
                                   `/experiment-phases/${phase.experimentPhaseId}`
                                 )
                               }
                             >
-                              <Eye
-                                size={17}
-                              />
+                              <Eye size={12} />
+                              <span>View</span>
                             </button>
 
                             {canManage && (
                               <>
                                 <button
                                   type="button"
-                                  className="experiment-phase-action-button experiment-phase-edit-button"
-                                  title="Edit phase"
+                                  className="action-btn-pill edit"
                                   onClick={() =>
                                     navigate(
                                       `/experiment-phases/${phase.experimentPhaseId}/edit`
                                     )
                                   }
                                 >
-                                  <Pencil
-                                    size={17}
-                                  />
+                                  <Pencil size={12} />
+                                  <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  className="experiment-phase-action-button experiment-phase-delete-button"
-                                  title="Delete phase"
+                                  className="action-btn-pill delete"
                                   disabled={
                                     deletingId ===
                                     phase.experimentPhaseId
                                   }
                                   onClick={() =>
-                                    void handleDelete(
-                                      phase
-                                    )
+                                    void handleDelete(phase)
                                   }
                                 >
-                                  <Trash2
-                                    size={17}
-                                  />
+                                  <Trash2 size={12} />
+                                  <span>
+                                    {deletingId === phase.experimentPhaseId
+                                      ? "..."
+                                      : "Delete"}
+                                  </span>
                                 </button>
                               </>
                             )}

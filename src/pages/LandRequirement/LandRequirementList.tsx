@@ -120,7 +120,7 @@ export default function LandRequirementList() {
     ) as Role | null;
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [
     requirements,
@@ -520,40 +520,35 @@ export default function LandRequirementList() {
                           <div className="land-requirement-actions">
                             <button
                               type="button"
-                              className="land-requirement-action-button land-requirement-view-button"
-                              title="View detail"
+                              className="action-btn-pill view"
                               onClick={() =>
                                 navigate(
                                   `/land-requirements/${requirement.expLandReqId}`
                                 )
                               }
                             >
-                              <Eye
-                                size={17}
-                              />
+                              <Eye size={12} />
+                              <span>View</span>
                             </button>
 
                             {canManage && (
                               <>
                                 <button
                                   type="button"
-                                  className="land-requirement-action-button land-requirement-edit-button"
-                                  title="Edit requirement"
+                                  className="action-btn-pill edit"
                                   onClick={() =>
                                     navigate(
                                       `/land-requirements/${requirement.expLandReqId}/edit`
                                     )
                                   }
                                 >
-                                  <Pencil
-                                    size={17}
-                                  />
+                                  <Pencil size={12} />
+                                  <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  className="land-requirement-action-button land-requirement-delete-button"
-                                  title="Delete requirement"
+                                  className="action-btn-pill delete"
                                   disabled={
                                     deletingId ===
                                     requirement.expLandReqId
@@ -564,9 +559,13 @@ export default function LandRequirementList() {
                                     )
                                   }
                                 >
-                                  <Trash2
-                                    size={17}
-                                  />
+                                  <Trash2 size={12} />
+                                  <span>
+                                    {deletingId ===
+                                    requirement.expLandReqId
+                                      ? "..."
+                                      : "Delete"}
+                                  </span>
                                 </button>
                               </>
                             )}

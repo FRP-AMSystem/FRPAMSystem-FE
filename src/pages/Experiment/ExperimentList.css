@@ -239,44 +239,13 @@
   border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
-/* =========================
-   ACTION BUTTONS
-========================= */
+/* Actions Cell — uses Global Standard .action-btn-pill (view / edit / delete) */
 
 .experiment-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.experiment-actions button {
-  min-width: 58px;
-  padding: 7px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.experiment-actions button:hover {
-  border-color: #2563eb;
-  background: rgba(37, 99, 235, 0.06);
-  color: #2563eb;
-}
-
-.experiment-actions .danger-btn {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.06);
-  color: #dc2626;
-}
-
-.experiment-actions .danger-btn:hover {
-  background: #dc2626;
-  color: #ffffff;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 /* =========================
@@ -329,4 +298,4 @@
   .experiment-table-card h3 {
     padding: 16px;
   }
-}
+}

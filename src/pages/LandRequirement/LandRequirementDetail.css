@@ -1,7 +1,8 @@
 .land-detail-page {
   min-height: 100%;
-  padding: 28px;
-  color: #e2e8f0;
+  padding: 28px 32px;
+  color: #1e293b;
+  box-sizing: border-box;
 }
 
 .land-detail-header {
@@ -9,25 +10,26 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 
 .land-detail-header h1 {
-  margin: 8px 0;
-  color: #f8fafc;
-  font-size: 30px;
-  font-weight: 700;
+  margin: 6px 0;
+  color: #111827;
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.25;
 }
 
 .land-detail-breadcrumb {
-  margin: 0;
-  color: #64748b;
+  margin: 0 0 6px;
+  color: #94a3b8;
   font-size: 13px;
 }
 
 .land-detail-description {
   margin: 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 14px;
   line-height: 1.6;
 }
@@ -35,95 +37,69 @@
 .land-detail-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.land-detail-header-actions button {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 0 16px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
-}
-
-.land-detail-header-actions button:hover {
-  transform: translateY(-1px);
+  flex-shrink: 0;
 }
 
 .land-detail-back-button {
-  border: 1px solid #334155;
-  background: #111827;
-  color: #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
 }
 
 .land-detail-back-button:hover {
-  border-color: #475569;
-  background: #1e293b;
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
 }
 
-.land-detail-edit-button {
-  border: 1px solid #d97706;
-  background: #d97706;
-  color: #ffffff;
+.land-detail-header-actions .action-btn-pill {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
-.land-detail-edit-button:hover {
-  border-color: #f59e0b;
-  background: #f59e0b;
-}
-
-.land-detail-delete-button {
-  border: 1px solid #dc2626;
-  background: #dc2626;
-  color: #ffffff;
-}
-
-.land-detail-delete-button:hover {
-  border-color: #ef4444;
-  background: #ef4444;
-}
-
-.land-detail-delete-button:disabled {
+.land-detail-header-actions .action-btn-pill:disabled {
   cursor: not-allowed;
   opacity: 0.55;
-  transform: none;
 }
 
 .land-detail-error {
   margin-bottom: 18px;
   padding: 13px 16px;
-  border: 1px solid rgba(239, 68, 68, 0.45);
+  border: 1px solid #fecaca;
   border-radius: 10px;
-  background: rgba(127, 29, 29, 0.24);
-  color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
   font-size: 14px;
 }
 
 .land-detail-layout {
   display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    330px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
   align-items: start;
 }
 
 .land-detail-main-card,
 .land-detail-side-card {
-  border: 1px solid #253247;
-  border-radius: 14px;
-  background: #111827;
-  box-shadow:
-    0 14px 35px rgba(0, 0, 0, 0.14);
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
 .land-detail-main-card {
@@ -134,8 +110,8 @@
   display: flex;
   align-items: center;
   gap: 13px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #253247;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .land-detail-card-icon {
@@ -148,13 +124,14 @@
   border: 1px solid rgba(34, 197, 94, 0.3);
   border-radius: 11px;
   background: rgba(34, 197, 94, 0.1);
-  color: #4ade80;
+  color: #15803d;
 }
 
 .land-detail-card-heading h2 {
   margin: 0 0 4px;
-  color: #f8fafc;
-  font-size: 19px;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .land-detail-card-heading p {
@@ -165,10 +142,9 @@
 
 .land-detail-grid {
   display: grid;
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding: 22px 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 20px 0;
 }
 
 .land-detail-item {
@@ -177,9 +153,9 @@
   align-items: flex-start;
   gap: 13px;
   padding: 17px;
-  border: 1px solid #253247;
-  border-radius: 12px;
-  background: #0f172a;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #f8fafc;
 }
 
 .land-detail-item-icon {
@@ -190,8 +166,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 9px;
-  background: rgba(59, 130, 246, 0.1);
-  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
 }
 
 .land-detail-item div:last-child {
@@ -203,15 +179,15 @@
 
 .land-detail-item span,
 .land-detail-record span {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .land-detail-item strong {
-  color: #f8fafc;
+  color: #111827;
   font-size: 15px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -224,9 +200,9 @@
 
 .land-detail-note-section {
   padding: 19px;
-  border: 1px solid #253247;
-  border-radius: 12px;
-  background: #0f172a;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #f8fafc;
 }
 
 .land-detail-note-heading {
@@ -234,40 +210,41 @@
   align-items: center;
   gap: 9px;
   margin-bottom: 12px;
-  color: #93c5fd;
+  color: #16a34a;
 }
 
 .land-detail-note-heading h3 {
   margin: 0;
-  color: #f8fafc;
+  color: #111827;
   font-size: 15px;
 }
 
 .land-detail-note-section p {
   margin: 0;
-  color: #cbd5e1;
+  color: #475569;
   font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
 }
 
 .land-detail-side-card {
-  padding: 21px;
+  padding: 22px 24px;
 }
 
 .land-detail-side-heading {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-bottom: 17px;
-  border-bottom: 1px solid #253247;
-  color: #93c5fd;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #16a34a;
 }
 
 .land-detail-side-heading h2 {
   margin: 0;
-  color: #f8fafc;
-  font-size: 17px;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .land-detail-record {
@@ -275,11 +252,11 @@
   flex-direction: column;
   gap: 7px;
   padding: 16px 0;
-  border-bottom: 1px solid #1f2b3d;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .land-detail-record strong {
-  color: #e2e8f0;
+  color: #111827;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -295,26 +272,33 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid #334155;
+  border: 1px solid #bfdbfe;
   border-radius: 10px;
-  background: #0f172a;
-  color: #cbd5e1;
+  background: #eff6ff;
+  color: #2563eb;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.18s ease;
 }
 
 .land-detail-side-actions button:hover {
-  border-color: #3b82f6;
-  color: #93c5fd;
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .land-detail-state {
   display: flex;
-  min-height: 400px;
+  min-height: 280px;
   align-items: center;
   justify-content: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
   color: #94a3b8;
+  font-size: 14px;
 }
 
 .land-detail-error-card {
@@ -325,24 +309,25 @@
   flex-direction: column;
   gap: 12px;
   padding: 30px;
-  border: 1px solid #253247;
+  border: 1px solid #e5e7eb;
   border-radius: 14px;
-  background: #111827;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
   text-align: center;
 }
 
 .land-detail-error-card svg {
-  color: #f87171;
+  color: #dc2626;
 }
 
 .land-detail-error-card h2 {
   margin: 0;
-  color: #f8fafc;
+  color: #111827;
 }
 
 .land-detail-error-card p {
   margin: 0;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 .land-detail-error-actions {
@@ -358,15 +343,18 @@
   justify-content: center;
   gap: 7px;
   padding: 0 15px;
-  border: 1px solid #334155;
+  border: 1px solid #e2e8f0;
   border-radius: 9px;
-  background: #0f172a;
-  color: #cbd5e1;
+  background: #ffffff;
+  color: #475569;
   cursor: pointer;
+  transition: all 0.18s ease;
 }
 
 .land-detail-error-actions button:hover {
-  border-color: #3b82f6;
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #1e293b;
 }
 
 @media (max-width: 1000px) {
@@ -377,7 +365,7 @@
 
 @media (max-width: 750px) {
   .land-detail-page {
-    padding: 18px;
+    padding: 18px 15px;
   }
 
   .land-detail-header {
@@ -389,8 +377,10 @@
     flex-wrap: wrap;
   }
 
-  .land-detail-header-actions button {
+  .land-detail-back-button,
+  .land-detail-header-actions .action-btn-pill {
     flex: 1;
+    justify-content: center;
   }
 
   .land-detail-grid {

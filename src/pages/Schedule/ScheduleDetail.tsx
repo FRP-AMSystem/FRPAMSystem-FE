@@ -53,6 +53,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -256,7 +257,7 @@ export default function ScheduleDetail() {
   const role = getCurrentRole();
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [
     schedule,

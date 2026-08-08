@@ -187,66 +187,67 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 3px 8px;
-  height: 24px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
+  gap: 5px;
+  padding: 4px 10px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
   border: 1px solid transparent;
   outline: none;
   line-height: 1;
   background-color: transparent;
   box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .action-btn-pill.edit,
 .action-btn-pill.primary {
-  background-color: var(--accent-bg, rgba(22, 163, 74, 0.08));
-  color: var(--accent, #16a34a);
-  border-color: var(--accent-border, rgba(22, 163, 74, 0.25));
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
 }
 
 .action-btn-pill.edit:hover,
 .action-btn-pill.primary:hover {
-  background-color: var(--accent, #16a34a);
+  background-color: #16a34a;
   color: #ffffff;
-  border-color: var(--accent, #16a34a);
-  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
+  border-color: #16a34a;
+  box-shadow: 0 2px 5px rgba(22, 163, 74, 0.25);
 }
 
 .action-btn-pill.skills,
 .action-btn-pill.info,
 .action-btn-pill.view {
-  background-color: rgba(37, 99, 235, 0.08);
-  color: #2563EB;
-  border-color: rgba(37, 99, 235, 0.25);
+  background-color: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
 }
 
 .action-btn-pill.skills:hover,
 .action-btn-pill.info:hover,
 .action-btn-pill.view:hover {
-  background-color: #2563EB;
+  background-color: #2563eb;
   color: #ffffff;
-  border-color: #2563EB;
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  border-color: #2563eb;
+  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.25);
 }
 
 .action-btn-pill.delete,
 .action-btn-pill.danger {
-  background-color: rgba(220, 38, 38, 0.08);
-  color: #DC2626;
-  border-color: rgba(220, 38, 38, 0.25);
+  background-color: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
 }
 
 .action-btn-pill.delete:hover,
 .action-btn-pill.danger:hover {
-  background-color: #DC2626;
+  background-color: #dc2626;
   color: #ffffff;
-  border-color: #DC2626;
-  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+  border-color: #dc2626;
+  box-shadow: 0 2px 5px rgba(220, 38, 38, 0.25);
 }
 
 :root.dark .action-btn-pill.skills,

@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ClipboardList,
   Cpu,
+  FileText,
   FlaskConical,
   GraduationCap,
   LandPlot,
@@ -124,8 +125,8 @@ const humanResourceItems: MenuItem[] = [
     icon: BadgeCheck,
   },
   {
-    name: "Human Resource Skills",
-    path: "/human-resource-skills",
+    name: "Personnel & Skills",
+    path: "/admin/personnel",
     icon: UserRoundCheck,
   },
 ];
@@ -198,22 +199,29 @@ const standardOperations: MenuItem[] = [
 
 const adminMenuGroups: MenuGroup[] = [
   {
-    id: "administration",
-    title: "Administration",
-    icon: ShieldCheck,
+    id: "planning",
+    title: "Planning",
+    icon: FlaskConical,
     defaultOpen: true,
-    items: [
-      {
-        name: "Reports",
-        path: "/reports",
-        icon: BarChart3,
-      },
-      {
-        name: "Notifications",
-        path: "/notifications",
-        icon: Bell,
-      },
-    ],
+    items: planningItems,
+  },
+  {
+    id: "human-resources",
+    title: "Human Resources",
+    icon: Users,
+    items: humanResourceItems,
+  },
+  {
+    id: "resources",
+    title: "Equipment & Resources",
+    icon: Truck,
+    items: resourceItems,
+  },
+  {
+    id: "operations",
+    title: "Operations",
+    icon: Calendar,
+    items: standardOperations,
   },
   {
     id: "system-admin",
@@ -227,9 +235,9 @@ const adminMenuGroups: MenuGroup[] = [
         icon: UserCheck,
       },
       {
-        name: "Personnel Directory",
-        path: "/admin/personnel",
-        icon: UserRound,
+        name: "Audit Logs",
+        path: "/admin/audit-logs",
+        icon: FileText,
       },
       {
         name: "System Settings",

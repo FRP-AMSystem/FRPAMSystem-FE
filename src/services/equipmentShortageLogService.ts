@@ -120,94 +120,117 @@ function normalizeNullableNumber(
 }
 
 function normalizeEquipmentShortageLog(
-  value: unknown
+  value: unknown,
+  fallbackIndex: number = 0
 ): EquipmentShortageLog {
   const item =
     isRecord(value)
       ? value
       : {};
 
+  const id =
+    item.equipmentShortageLogId ??
+    item.EquipmentShortageLogId ??
+    item.equipmentShortageLogID ??
+    item.EquipmentShortageLogID ??
+    item.shortageLogId ??
+    item.ShortageLogId ??
+    item.id ??
+    item.Id ??
+    item.ID ??
+    (fallbackIndex + 1);
+
   return {
-    equipmentShortageLogId: Number(
-      item.equipmentShortageLogId ??
-        item.shortageLogId ??
-        item.id ??
-        0
-    ),
+    equipmentShortageLogId: Number(id),
 
     allocationPlanId: Number(
       item.allocationPlanId ??
+        item.AllocationPlanId ??
         0
     ),
 
     allocationPlanName:
       normalizeNullableString(
-        item.allocationPlanName
+        item.allocationPlanName ??
+          item.AllocationPlanName
       ),
 
     experimentId:
       normalizeNullableNumber(
-        item.experimentId
+        item.experimentId ??
+          item.ExperimentId
       ),
 
     experimentName:
       normalizeNullableString(
-        item.experimentName
+        item.experimentName ??
+          item.ExperimentName
       ),
 
     expEquipmentReqId:
       normalizeNullableNumber(
-        item.expEquipmentReqId
+        item.expEquipmentReqId ??
+          item.ExpEquipmentReqId ??
+          item.experimentRequirementId ??
+          item.ExperimentRequirementId
       ),
 
     phaseEquipmentReqId:
       normalizeNullableNumber(
-        item.phaseEquipmentReqId
+        item.phaseEquipmentReqId ??
+          item.PhaseEquipmentReqId ??
+          item.phaseRequirementId ??
+          item.PhaseRequirementId
       ),
 
     phaseId:
       normalizeNullableNumber(
-        item.phaseId
+        item.phaseId ?? item.PhaseId
       ),
 
     phaseName:
       normalizeNullableString(
-        item.phaseName
+        item.phaseName ?? item.PhaseName
       ),
 
     equipmentTypeId:
       normalizeNullableNumber(
-        item.equipmentTypeId
+        item.equipmentTypeId ??
+          item.EquipmentTypeId
       ),
 
     equipmentTypeName:
       normalizeNullableString(
-        item.equipmentTypeName
+        item.equipmentTypeName ??
+          item.EquipmentTypeName
       ),
 
     requiredQuantity:
       normalizeNullableNumber(
-        item.requiredQuantity
+        item.requiredQuantity ??
+          item.RequiredQuantity
       ),
 
     allocatedQuantity:
       normalizeNullableNumber(
-        item.allocatedQuantity
+        item.allocatedQuantity ??
+          item.AllocatedQuantity
       ),
 
     shortageQuantity: Number(
       item.shortageQuantity ??
+        item.ShortageQuantity ??
         0
     ),
 
     createdAt:
       normalizeNullableString(
-        item.createdAt
+        item.createdAt ?? item.CreatedAt
       ),
 
     updatedAt:
       normalizeNullableString(
-        item.updatedAt
+        item.updatedAt ?? item.UpdatedAt
       ),
   };
 }
@@ -319,8 +342,8 @@ export async function getEquipmentShortageLogs(
 
   return normalizeList(
     response.data
-  ).map(
-    normalizeEquipmentShortageLog
+  ).map((item, index) =>
+    normalizeEquipmentShortageLog(item, index)
   );
 }
 

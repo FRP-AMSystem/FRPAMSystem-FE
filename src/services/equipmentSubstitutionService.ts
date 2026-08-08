@@ -99,69 +99,86 @@ function normalizeNullableString(
 }
 
 function normalizeEquipmentSubstitution(
-  value: unknown
+  value: unknown,
+  fallbackIndex: number = 0
 ): EquipmentSubstitution {
   const item =
     isRecord(value)
       ? value
       : {};
 
-  return {
-    equipmentSubstitutionId:
-      Number(
-        item.equipmentSubstitutionId ??
-          item.substitutionId ??
-          item.id ??
-          0
-      ),
+  const id =
+    item.equipmentSubstitutionId ??
+    item.EquipmentSubstitutionId ??
+    item.equipmentSubstitutionID ??
+    item.EquipmentSubstitutionID ??
+    item.substitutionId ??
+    item.SubstitutionId ??
+    item.id ??
+    item.Id ??
+    item.ID ??
+    (fallbackIndex + 1);
 
-    primaryEquipmentTypeId:
-      Number(
-        item.primaryEquipmentTypeId ??
-          0
-      ),
+  const primaryTypeId =
+    item.primaryEquipmentTypeId ??
+    item.PrimaryEquipmentTypeId ??
+    item.primaryEquipmentID ??
+    item.PrimaryEquipmentID ??
+    0;
+
+  const subTypeId =
+    item.subEquipmentTypeId ??
+    item.SubEquipmentTypeId ??
+    item.subEquipmentID ??
+    item.SubEquipmentID ??
+    0;
+
+  return {
+    equipmentSubstitutionId: Number(id),
+
+    primaryEquipmentTypeId: Number(primaryTypeId),
 
     primaryEquipmentTypeName:
       normalizeNullableString(
-        item.primaryEquipmentTypeName
+        item.primaryEquipmentTypeName ??
+          item.PrimaryEquipmentTypeName
       ),
 
-    subEquipmentTypeId:
-      Number(
-        item.subEquipmentTypeId ??
-          0
-      ),
+    subEquipmentTypeId: Number(subTypeId),
 
     subEquipmentTypeName:
       normalizeNullableString(
-        item.subEquipmentTypeName
+        item.subEquipmentTypeName ??
+          item.SubEquipmentTypeName
       ),
 
     efficiencyRate:
       Number(
         item.efficiencyRate ??
+          item.EfficiencyRate ??
           0
       ),
 
     timeMultiplier:
       Number(
         item.timeMultiplier ??
+          item.TimeMultiplier ??
           1
       ),
 
     note:
       normalizeNullableString(
-        item.note
+        item.note ?? item.Note
       ),
 
     createdAt:
       normalizeNullableString(
-        item.createdAt
+        item.createdAt ?? item.CreatedAt
       ),
 
     updatedAt:
       normalizeNullableString(
-        item.updatedAt
+        item.updatedAt ?? item.UpdatedAt
       ),
   };
 }

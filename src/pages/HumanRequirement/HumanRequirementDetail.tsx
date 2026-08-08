@@ -117,7 +117,7 @@ export default function HumanRequirementDetail() {
     ) as Role | null;
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const requirementId =
     Number(id);

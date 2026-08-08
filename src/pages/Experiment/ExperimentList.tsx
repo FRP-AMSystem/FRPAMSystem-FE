@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import {
@@ -86,7 +87,7 @@ export default function ExperimentList() {
   const navigate = useNavigate();
 
   const role = (localStorage.getItem("role") || "Student") as Role;
-  const isResearcher = role === "Researcher";
+  const isResearcher = role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -232,17 +233,20 @@ export default function ExperimentList() {
                         <div className="experiment-actions">
                           <button
                             type="button"
+                            className="action-btn-pill view"
                             onClick={() =>
                               navigate(`/experiments/${item.experimentId}`)
                             }
                             disabled={deletingId !== null}
                           >
-                            View
+                            <Eye size={12} />
+                            <span>View</span>
                           </button>
 
                           {isResearcher && (
                             <button
                               type="button"
+                              className="action-btn-pill edit"
                               onClick={() =>
                                 navigate(
                                   `/experiments/${item.experimentId}/edit`
@@ -250,18 +254,20 @@ export default function ExperimentList() {
                               }
                               disabled={deletingId !== null}
                             >
-                              Edit
+                              <Pencil size={12} />
+                              <span>Edit</span>
                             </button>
                           )}
 
                           {isResearcher && (
                             <button
                               type="button"
-                              className="danger-btn"
+                              className="action-btn-pill delete"
                               onClick={() => void handleDelete(item)}
                               disabled={deletingId !== null}
                             >
-                              {isDeleting ? "Deleting..." : "Delete"}
+                              <Trash2 size={12} />
+                              <span>{isDeleting ? "Deleting..." : "Delete"}</span>
                             </button>
                           )}
                         </div>

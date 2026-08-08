@@ -9,12 +9,17 @@ import {
 import {
   AlertTriangle,
   ArrowRight,
+  ArrowRightLeft,
   CalendarDays,
   ClipboardList,
+  Cpu,
   LandPlot,
   Layers3,
+  Map,
   Trees,
   Truck,
+  UserRound,
+  UserRoundCheck,
   Users,
 } from "lucide-react";
 
@@ -23,6 +28,7 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import "./ResourceOverview.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
@@ -47,47 +53,112 @@ interface ResourceMenuItem {
     | "monitoring";
 }
 
+const allRoles: Role[] = [
+  "Admin",
+  "Manager",
+  "Researcher",
+  "Technician",
+  "Student",
+];
+
 const resourceMenuItems: ResourceMenuItem[] = [
   {
-    title: "Equipment",
+    title: "Equipment Types",
     description:
-      "View equipment types, categories, tracking information and available quantities.",
+      "View equipment types, tracking types, total quantities and available stock.",
     path: "/equipment",
     icon: Truck,
-    allowedRoles: [
-      "Manager",
-      "Researcher",
-      "Technician",
-      "Student",
-    ],
+    allowedRoles: allRoles,
     category: "equipment",
+  },
+  {
+    title: "Equipment Categories",
+    description:
+      "Manage categories for sorting and grouping technical equipment.",
+    path: "/equipment-categories",
+    icon: ClipboardList,
+    allowedRoles: allRoles,
+    category: "equipment",
+  },
+  {
+    title: "Equipment Instances",
+    description:
+      "Track individual equipment assets by code, serial number and condition.",
+    path: "/equipment-instances",
+    icon: Cpu,
+    allowedRoles: allRoles,
+    category: "equipment",
+  },
+  {
+    title: "Equipment Substitutions",
+    description:
+      "Configure alternative equipment types and efficiency multiplier rates.",
+    path: "/equipment-substitutions",
+    icon: ArrowRightLeft,
+    allowedRoles: allRoles,
+    category: "equipment",
+  },
+  {
+    title: "Equipment Shortage Logs",
+    description:
+      "Review log records of equipment shortages during experiment allocations.",
+    path: "/equipment-shortage-logs",
+    icon: AlertTriangle,
+    allowedRoles: allRoles,
+    category: "equipment",
+  },
+  {
+    title: "Personnel Directory",
+    description:
+      "View personnel profiles, roles, assigned skills and workload status.",
+    path: "/admin/personnel",
+    icon: UserRoundCheck,
+    allowedRoles: allRoles,
+    category: "human",
+  },
+  {
+    title: "Human Resources",
+    description:
+      "Manage human resource profiles, maximum working hours and availability.",
+    path: "/human-resource-profiles",
+    icon: UserRound,
+    allowedRoles: allRoles,
+    category: "human",
+  },
+  {
+    title: "Land Resources",
+    description:
+      "View forestry land plots, soil conditions, locations and area sizes.",
+    path: "/land-resources",
+    icon: LandPlot,
+    allowedRoles: allRoles,
+    category: "land",
+  },
+  {
+    title: "Forestry Areas",
+    description:
+      "Manage geographic forestry zones, sectors and land plot groupings.",
+    path: "/areas",
+    icon: Map,
+    allowedRoles: allRoles,
+    category: "land",
   },
   {
     title: "Equipment Requirements",
     description:
-      "View the equipment quantities and minimum efficiency required for experiments.",
+      "View required equipment quantities and minimum efficiency for experiments.",
     path: "/equipment-requirements",
     icon: ClipboardList,
-    allowedRoles: [
-      "Manager",
-      "Researcher",
-      "Technician",
-      "Student",
-    ],
+    allowedRoles: allRoles,
     category: "equipment",
   },
   {
     title: "Human Requirements",
     description:
-      "Review required roles, skills, personnel quantities and working-hour requirements.",
+      "Review required roles, skills, personnel quantities and working hours.",
     path: "/human-requirements",
     icon: Users,
-    allowedRoles: [
-      "Manager",
-      "Researcher",
-      "Technician",
-      "Student",
-    ],
+    allowedRoles: allRoles,
     category: "human",
   },
   {
@@ -96,53 +167,34 @@ const resourceMenuItems: ResourceMenuItem[] = [
       "Review required land area, soil conditions and notes for each experiment.",
     path: "/land-requirements",
     icon: LandPlot,
-    allowedRoles: [
-      "Manager",
-      "Researcher",
-      "Technician",
-      "Student",
-    ],
+    allowedRoles: allRoles,
     category: "land",
   },
   {
     title: "Allocation Plans",
     description:
-      "View resource allocation plans and the equipment, human and land resources assigned.",
+      "View resource allocation plans and assigned equipment, human and land resources.",
     path: "/allocation",
     icon: Layers3,
-    allowedRoles: [
-      "Manager",
-      "Researcher",
-      "Technician",
-      "Student",
-    ],
+    allowedRoles: allRoles,
     category: "planning",
   },
   {
     title: "Schedules",
     description:
-      "View resource usage periods, assigned personnel and experiment-phase schedules.",
+      "View resource usage periods, assigned personnel and experiment timeline schedules.",
     path: "/schedules",
     icon: CalendarDays,
-    allowedRoles: [
-      "Manager",
-      "Researcher",
-      "Technician",
-      "Student",
-    ],
+    allowedRoles: allRoles,
     category: "planning",
   },
   {
     title: "Schedule Conflicts",
     description:
-      "Detect overlapping schedules, duplicate human assignments and allocation conflicts.",
+      "Detect overlapping schedules, duplicate human assignments and resource conflicts.",
     path: "/conflicts",
     icon: AlertTriangle,
-    allowedRoles: [
-      "Manager",
-      "Researcher",
-      "Technician",
-    ],
+    allowedRoles: allRoles,
     category: "monitoring",
   },
 ];
@@ -152,6 +204,7 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||

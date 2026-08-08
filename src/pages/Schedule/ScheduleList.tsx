@@ -62,6 +62,7 @@ function getCurrentRole(): Role {
     );
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -260,7 +261,7 @@ export default function ScheduleList() {
     getCurrentRole();
 
   const canManage =
-    role === "Researcher";
+    role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [
     schedules,
@@ -972,7 +973,7 @@ export default function ScheduleList() {
                             <div className="schedule-actions">
                               <button
                                 type="button"
-                                className="schedule-action-button schedule-view-button"
+                                className="action-btn-pill view"
                                 title="View schedule"
                                 onClick={() =>
                                   navigate(
@@ -980,14 +981,15 @@ export default function ScheduleList() {
                                   )
                                 }
                               >
-                                <Eye size={17} />
+                                <Eye size={12} />
+                                <span>View</span>
                               </button>
 
                               {canManage && (
                                 <>
                                   <button
                                     type="button"
-                                    className="schedule-action-button schedule-edit-button"
+                                    className="action-btn-pill edit"
                                     title="Edit schedule"
                                     onClick={() =>
                                       navigate(
@@ -995,27 +997,23 @@ export default function ScheduleList() {
                                       )
                                     }
                                   >
-                                    <Pencil
-                                      size={17}
-                                    />
+                                    <Pencil size={12} />
+                                    <span>Edit</span>
                                   </button>
 
                                   <button
                                     type="button"
-                                    className="schedule-action-button schedule-delete-button"
+                                    className="action-btn-pill delete"
                                     title="Delete schedule"
-                                    disabled={
-                                      isDeleting
-                                    }
+                                    disabled={isDeleting}
                                     onClick={() =>
                                       void handleDelete(
                                         schedule
                                       )
                                     }
                                   >
-                                    <Trash2
-                                      size={17}
-                                    />
+                                    <Trash2 size={12} />
+                                    <span>Delete</span>
                                   </button>
                                 </>
                               )}

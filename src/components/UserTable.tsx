@@ -1,5 +1,5 @@
 import type { User } from "../types/user";
-import { Eye, Edit2 } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 
 interface UserTableProps {
   users: User[];
@@ -15,54 +15,33 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
   };
 
   // Format date utility
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr?: string | null) => {
+    if (!dateStr) return "-";
     try {
       const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return dateStr;
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
+      if (isNaN(date.getTime()) || date.getFullYear() <= 1970) return "-";
+      return date.toLocaleDateString("vi-VN");
     } catch {
-      return dateStr;
+      return "-";
     }
   };
 
   // Dynamic colors for each role badge
-  const getRoleBadgeStyles = (role: string) => {
+  const getRoleBadgeClass = (role: string) => {
     const normRole = (role || "").toLowerCase().trim();
     switch (normRole) {
       case "admin":
-        return {
-          backgroundColor: "#FCE7F3", // Pink light
-          color: "#9D174D",           // Pink dark
-        };
+        return "role-badge role-admin";
       case "manager":
-        return {
-          backgroundColor: "#DBEAFE", // Blue light
-          color: "#1E40AF",           // Blue dark
-        };
+        return "role-badge role-manager";
       case "researcher":
-        return {
-          backgroundColor: "#D1FAE5", // Green light
-          color: "#065F46",           // Green dark
-        };
+        return "role-badge role-researcher";
       case "technician":
-        return {
-          backgroundColor: "#FEF3C7", // Amber light
-          color: "#92400E",           // Amber dark
-        };
+        return "role-badge role-technician";
       case "student":
-        return {
-          backgroundColor: "#CCFBF1", // Teal light
-          color: "#115E59",           // Teal dark
-        };
+        return "role-badge role-student";
       default:
-        return {
-          backgroundColor: "#F3F4F6",
-          color: "#374151",
-        };
+        return "role-badge";
     }
   };
 
@@ -71,13 +50,13 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
       <table className="custom-table">
         <thead>
           <tr>
-            <th style={{ width: "60px" }}>AVATAR</th>
+            <th style={{ width: "50px" }}>AVATAR</th>
             <th>FULL NAME</th>
             <th>EMAIL</th>
             <th>ROLE</th>
             <th>STATUS</th>
             <th>CREATED DATE</th>
-            <th style={{ textAlign: "right" }}>ACTIONS</th>
+            <th>ACTIONS</th>
           </tr>
         </thead>
         <tbody>
@@ -86,16 +65,16 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
               <td>
                 <div
                   style={{
-                    width: "36px",
-                    height: "36px",
+                    width: "34px",
+                    height: "34px",
                     borderRadius: "50%",
-                    backgroundColor: "#E8F5E9",
-                    color: "#1B5E20",
+                    backgroundColor: "rgba(22, 163, 74, 0.12)",
+                    color: "#16a34a",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontWeight: 700,
-                    fontSize: "14px",
+                    fontSize: "13px",
                     overflow: "hidden",
                   }}
                 >
@@ -110,25 +89,15 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
                   )}
                 </div>
               </td>
-              <td style={{ fontWeight: 600, color: "var(--text-h)" }}>
-                {user.fullName}
+              <td style={{ fontWeight: 650, color: "#0f172a" }}>
+                {user.fullName || "User"}
               </td>
-              <td style={{ color: "var(--text)" }}>
-                {user.email}
+              <td style={{ color: "#475569" }}>
+                {user.email || "-"}
               </td>
               <td>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    padding: "2px 8px",
-                    borderRadius: "12px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    ...getRoleBadgeStyles(user.role),
-                  }}
-                >
-                  {user.role}
+                <span className={getRoleBadgeClass(user.role)}>
+                  {(user.role || "User").toUpperCase()}
                 </span>
               </td>
               <td>
@@ -137,9 +106,9 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "6px",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    color: user.status === "Active" ? "#0F9D58" : "var(--text)",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: user.status === "Active" ? "#16a34a" : "#64748b",
                   }}
                 >
                   <span
@@ -147,18 +116,18 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
                       width: "7px",
                       height: "7px",
                       borderRadius: "50%",
-                      backgroundColor: user.status === "Active" ? "#0F9D58" : "#9CA3AF",
+                      backgroundColor: user.status === "Active" ? "#16a34a" : "#94a3b8",
                       display: "inline-block",
                     }}
                   />
-                  {user.status}
+                  {user.status || "Active"}
                 </span>
               </td>
-              <td style={{ color: "var(--text)" }}>
+              <td style={{ color: "#475569" }}>
                 {formatDate(user.createdDate)}
               </td>
-              <td style={{ textAlign: "right" }}>
-                <div className="table-actions-cell">
+              <td>
+                <div className="table-actions-cell" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <button
                     type="button"
                     className="action-btn-pill view"
@@ -172,7 +141,7 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
                     className="action-btn-pill edit"
                     onClick={() => onEditUser(user)}
                   >
-                    <Edit2 size={12} />
+                    <Pencil size={12} />
                     <span>Edit</span>
                   </button>
                 </div>

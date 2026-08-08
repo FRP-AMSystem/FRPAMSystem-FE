@@ -581,134 +581,96 @@ export default function ConflictList() {
         </section>
 
         <section className="conflict-filter-card">
-          <div className="conflict-search-wrapper">
-            <Search
-              size={18}
-              className="conflict-search-icon"
-            />
-
-            <input
-              type="text"
-              value={keyword}
-              onChange={
-                handleKeywordChange
-              }
-              onKeyDown={
-                handleKeyDown
-              }
-              placeholder="Search schedules, resources or allocations..."
-            />
+          <div className="conflict-filter-field search-field">
+            <label htmlFor="conflictSearchInput">Search</label>
+            <div className="conflict-search-wrapper">
+              <Search
+                size={16}
+                className="conflict-search-icon"
+              />
+              <input
+                id="conflictSearchInput"
+                type="text"
+                value={keyword}
+                onChange={handleKeywordChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Search schedules, resources or allocations..."
+              />
+            </div>
           </div>
 
-          <select
-            className="conflict-filter-select"
-            value={conflictType}
-            onChange={
-              handleConflictTypeChange
-            }
-          >
-            <option value="">
-              All conflict types
-            </option>
+          <div className="conflict-filter-field">
+            <label htmlFor="conflictTypeSelect">Conflict Type</label>
+            <select
+              id="conflictTypeSelect"
+              className="conflict-filter-select"
+              value={conflictType}
+              onChange={handleConflictTypeChange}
+            >
+              <option value="">All conflict types</option>
+              <option value="HumanResourceOverlap">Human Resource</option>
+              <option value="AllocationOverlap">Allocation</option>
+              <option value="PhaseOverlap">Experiment Phase</option>
+            </select>
+          </div>
 
-            <option value="HumanResourceOverlap">
-              Human Resource
-            </option>
+          <div className="conflict-filter-field">
+            <label htmlFor="conflictSeveritySelect">Severity</label>
+            <select
+              id="conflictSeveritySelect"
+              className="conflict-filter-select"
+              value={severity}
+              onChange={handleSeverityChange}
+            >
+              <option value="">All severities</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
 
-            <option value="AllocationOverlap">
-              Allocation
-            </option>
-
-            <option value="PhaseOverlap">
-              Experiment Phase
-            </option>
-          </select>
-
-          <select
-            className="conflict-filter-select"
-            value={severity}
-            onChange={
-              handleSeverityChange
-            }
-          >
-            <option value="">
-              All severities
-            </option>
-
-            <option value="High">
-              High
-            </option>
-
-            <option value="Medium">
-              Medium
-            </option>
-
-            <option value="Low">
-              Low
-            </option>
-          </select>
-
-          <div className="conflict-date-filter">
-            <label htmlFor="conflictStartDateFrom">
-              From
-            </label>
-
+          <div className="conflict-filter-field">
+            <label htmlFor="conflictStartDateFrom">From Date</label>
             <input
               id="conflictStartDateFrom"
+              className="conflict-date-input"
               type="date"
-              value={
-                startDateFrom
-              }
-              onChange={(event) =>
-                setStartDateFrom(
-                  event.target.value
-                )
-              }
+              value={startDateFrom}
+              onChange={(event) => setStartDateFrom(event.target.value)}
             />
           </div>
 
-          <div className="conflict-date-filter">
-            <label htmlFor="conflictStartDateTo">
-              To
-            </label>
-
+          <div className="conflict-filter-field">
+            <label htmlFor="conflictStartDateTo">To Date</label>
             <input
               id="conflictStartDateTo"
+              className="conflict-date-input"
               type="date"
-              min={
-                startDateFrom ||
-                undefined
-              }
-              value={
-                startDateTo
-              }
-              onChange={(event) =>
-                setStartDateTo(
-                  event.target.value
-                )
-              }
+              min={startDateFrom || undefined}
+              value={startDateTo}
+              onChange={(event) => setStartDateTo(event.target.value)}
             />
           </div>
 
-          <button
-            type="button"
-            className="conflict-search-button"
-            onClick={handleSearch}
-          >
-            Search
-          </button>
-
-          {hasActiveFilters && (
+          <div className="conflict-filter-actions">
             <button
               type="button"
-              className="conflict-clear-button"
-              onClick={
-                handleClearFilters
-              }
+              className="conflict-search-button"
+              onClick={handleSearch}
             >
-              Clear
+              Search
             </button>
-          )}
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="conflict-clear-button"
+                onClick={handleClearFilters}
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </section>
 
         {error && (
