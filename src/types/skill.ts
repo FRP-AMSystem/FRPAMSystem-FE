@@ -9,6 +9,8 @@ export interface Skill {
   updatedAt?: string | null;
 }
 
+export type SkillResponse = Skill;
+
 export interface SkillRequest {
   skillName: string;
 

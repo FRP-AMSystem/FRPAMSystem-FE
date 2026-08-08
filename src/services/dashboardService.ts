@@ -2,7 +2,11 @@ import { getUsers } from "./userService";
 import { getHumanResourceProfiles } from "./personnelService";
 import { getLandResources, getEquipmentInstances, getEquipmentTypes } from "./resourceService";
 import { getNotifications, type SystemNotification } from "./systemService";
-import type { StatItem, BreakdownItem, ExperimentRequest } from "../pages/Dashboard/data/mockData";
+import type {
+  StatItem,
+  BreakdownItem,
+  ExperimentRequest,
+} from "../types/dashboard";
 
 export interface DashboardData {
   stats: StatItem[];
@@ -48,7 +52,7 @@ export async function fetchLiveDashboardData(): Promise<{
     const totalLand = Array.isArray(lands) ? lands.length : 0;
     const totalMachinery = Array.isArray(machinery) ? machinery.length : 0;
     const totalToolsTypes = Array.isArray(tools) ? tools.length : 0;
-    
+
     // Total resource categories count from real backend items
     const totalResourceCategories = totalLand + totalMachinery + totalToolsTypes;
 
@@ -57,7 +61,7 @@ export async function fetchLiveDashboardData(): Promise<{
 
     // Calculate real percentages for Resource Breakdown Donut Chart
     const totalBreakdownCount = totalLand + totalMachinery + activePersonnelCount;
-    
+
     let equipPercent = 0;
     let personnelPercent = 0;
     let landPercent = 0;
@@ -157,14 +161,14 @@ export async function fetchLiveDashboardData(): Promise<{
     // Convert real backend notifications to recent requests format
     const recentRequests: ExperimentRequest[] = Array.isArray(notifications)
       ? notifications.slice(0, 5).map((n: SystemNotification, idx: number) => ({
-          id: `NOTIF-${n.notificationId || idx + 1}`,
-          name: n.title || n.message || "System Alert",
-          priority: n.type === "Error" || n.type === "Warning" ? "URGENT" : idx % 2 === 0 ? "MEDIUM" : "LOW",
-          date: n.createdAt
-            ? new Date(n.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-            : "—",
-          status: n.isRead ? "Review Started" : "Pending Review",
-        }))
+        id: `NOTIF-${n.notificationId || idx + 1}`,
+        name: n.title || n.message || "System Alert",
+        priority: n.type === "Error" || n.type === "Warning" ? "URGENT" : idx % 2 === 0 ? "MEDIUM" : "LOW",
+        date: n.createdAt
+          ? new Date(n.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : "—",
+        status: n.isRead ? "Review Started" : "Pending Review",
+      }))
       : [];
 
     return {

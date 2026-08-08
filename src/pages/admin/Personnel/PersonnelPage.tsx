@@ -11,7 +11,6 @@ import {
   Award,
   UserMinus,
   ChevronDown,
-  UserCheck,
 } from "lucide-react";
 import {
   getHumanResourceProfiles,
@@ -138,10 +137,7 @@ export default function PersonnelPage() {
         getHumanResourceProfiles(),
         getSkills(),
         getHumanResourceSkills(),
-        getUsers().catch((err) => {
-          console.warn("Could not fetch users list (admin access required):", err);
-          return [] as User[];
-        }),
+        getUsers().catch(() => [] as User[]),
       ]);
 
       setProfiles(profilesData);

@@ -1,3 +1,12 @@
+export type ExperimentStatus =
+  | "Draft"
+  | "Submitted"
+  | "Planning"
+  | "Ready"
+  | "Running"
+  | "Completed"
+  | "Cancelled";
+
 export interface ExperimentResponse {
   experimentId: number;
   experimentName: string;
@@ -10,7 +19,7 @@ export interface ExperimentResponse {
   expectEndDate?: string | null;
   deadline?: string | null;
 
-  status?: string | null;
+  status?: ExperimentStatus | string | null;
   priority?: number | null;
 
   createdByUserId?: number | null;
@@ -31,7 +40,12 @@ export interface ExperimentCreateRequest {
   deadline: string;
 
   priority: number;
-  status: string;
+
+  /*
+    Khi tạo mới nên để Draft.
+    Backend có thể tự gán Draft nếu không yêu cầu status.
+  */
+  status: ExperimentStatus | string;
 }
 
 export interface ExperimentUpdateRequest {
@@ -45,12 +59,12 @@ export interface ExperimentUpdateRequest {
   deadline?: string;
 
   priority?: number;
-  status?: string;
+  status?: ExperimentStatus | string;
 }
 
 export interface ExperimentQuery {
   keyword?: string;
-  status?: string;
+  status?: ExperimentStatus | string;
   priority?: number;
   page?: number;
   size?: number;

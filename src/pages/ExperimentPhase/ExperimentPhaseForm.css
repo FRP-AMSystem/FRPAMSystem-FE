@@ -1,0 +1,333 @@
+.experiment-phase-form-page {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.experiment-phase-form-layout {
+  align-items: start;
+}
+
+.experiment-phase-main-card,
+.experiment-phase-preview-card {
+  min-width: 0;
+}
+
+.experiment-phase-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.experiment-phase-card-heading h2,
+.experiment-phase-preview-heading h2 {
+  margin: 0;
+}
+
+.experiment-phase-card-heading p,
+.experiment-phase-preview-heading p {
+  margin: 5px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.experiment-phase-heading-icon {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+}
+
+.experiment-phase-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.experiment-phase-field label {
+  color: #f1f5f9;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.experiment-phase-field input,
+.experiment-phase-field select,
+.experiment-phase-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.experiment-phase-field textarea {
+  resize: vertical;
+}
+
+.phase-date-section {
+  margin: 4px 0 20px;
+  padding: 18px;
+  border: 1px solid #34445c;
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(30, 41, 59, 0.96),
+      rgba(24, 34, 50, 0.96)
+    );
+}
+
+.phase-date-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 17px;
+}
+
+.phase-date-section-header h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.phase-date-section-header p {
+  margin: 5px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.phase-date-valid-badge {
+  display: inline-flex;
+  min-height: 29px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.phase-date-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.phase-date-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phase-date-field label {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.phase-date-field small {
+  color: #8391a6;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.phase-date-input-wrap {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 50px;
+  align-items: stretch;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid #3c4b63;
+  border-radius: 12px;
+  background: #1d293d;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.phase-date-input-wrap:hover {
+  border-color: #64748b;
+  background: #223047;
+}
+
+.phase-date-input-wrap:focus-within {
+  border-color: #3b82f6;
+  box-shadow:
+    0 0 0 3px
+    rgba(59, 130, 246, 0.16);
+  transform: translateY(-1px);
+}
+
+.phase-date-input-wrap:focus-visible {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow:
+    0 0 0 3px
+    rgba(59, 130, 246, 0.16);
+}
+
+.phase-date-icon {
+  display: flex;
+  width: 49px;
+  min-height: 50px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #334155;
+  background: rgba(59, 130, 246, 0.08);
+  color: #60a5fa;
+  pointer-events: none;
+}
+
+.phase-date-icon-end {
+  background: rgba(34, 197, 94, 0.08);
+  color: #4ade80;
+}
+
+.phase-date-input-wrap input {
+  width: 100%;
+  min-width: 0;
+  min-height: 50px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: #f8fafc;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+.phase-date-input-wrap input:focus {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+.phase-date-input-wrap input:disabled {
+  cursor: not-allowed;
+}
+
+.phase-date-input-disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.phase-date-input-disabled:hover {
+  border-color: #3c4b63;
+  background: #1d293d;
+  transform: none;
+}
+
+.phase-date-input-disabled input {
+  cursor: not-allowed;
+}
+
+.phase-date-input-wrap input::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  padding: 7px;
+  border-radius: 7px;
+  cursor: pointer;
+  filter: invert(1);
+  opacity: 0.78;
+  transition:
+    background-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.phase-date-input-wrap input::-webkit-calendar-picker-indicator:hover {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.experiment-phase-preview-heading {
+  margin-bottom: 18px;
+}
+
+.experiment-phase-preview {
+  display: grid;
+  gap: 13px;
+}
+
+.experiment-phase-preview-date strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.experiment-phase-preview-date svg {
+  color: #60a5fa;
+}
+
+.experiment-phase-preview-status {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.1);
+  color: #93c5fd !important;
+  font-size: 11px;
+}
+
+.experiment-phase-form-actions {
+  margin-top: 20px;
+}
+
+@media (max-width: 900px) {
+  .phase-date-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .phase-date-section {
+    padding: 14px;
+  }
+
+  .phase-date-section-header {
+    flex-direction: column;
+  }
+
+  .phase-date-valid-badge {
+    align-self: flex-start;
+  }
+
+  .phase-date-input-wrap,
+  .phase-date-input-wrap input,
+  .phase-date-icon {
+    min-height: 48px;
+  }
+
+  .phase-date-icon {
+    width: 45px;
+  }
+}
