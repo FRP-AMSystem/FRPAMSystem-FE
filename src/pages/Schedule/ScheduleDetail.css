@@ -370,3 +370,222 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* =====================================================
+   STATUS UPDATE MODAL
+===================================================== */
+
+.schedule-status-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+  padding: 16px;
+  animation: scheduleModalFadeIn 0.2s ease;
+}
+
+@keyframes scheduleModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scheduleModalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.schedule-status-modal {
+  width: 100%;
+  max-width: 520px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 18px;
+  box-shadow:
+    0 20px 40px -8px rgba(15, 23, 42, 0.12),
+    0 8px 16px -4px rgba(15, 23, 42, 0.06);
+  animation: scheduleModalSlideIn 0.25s ease;
+}
+
+.schedule-status-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.schedule-status-modal-header-icon {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--primary, #16a34a);
+}
+
+.schedule-status-modal-title {
+  margin: 0;
+  color: var(--text-h, #0f172a);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.2px;
+}
+
+.schedule-status-modal-subtitle {
+  margin: 3px 0 0;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.schedule-status-modal-close {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.schedule-status-modal-close:hover {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.schedule-status-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 24px;
+}
+
+.schedule-status-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.schedule-status-modal-label {
+  color: var(--text-h, #374151);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.schedule-status-modal-required {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.schedule-status-modal-select,
+.schedule-status-modal-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: var(--card-bg, #ffffff);
+  color: var(--text, #1e293b);
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.schedule-status-modal-select:focus,
+.schedule-status-modal-textarea:focus {
+  outline: none;
+  border-color: var(--primary, #16a34a);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.schedule-status-modal-select:disabled,
+.schedule-status-modal-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+
+.schedule-status-modal-textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.schedule-status-modal-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.schedule-status-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 24px 22px;
+}
+
+.schedule-status-modal-cancel-btn,
+.schedule-status-modal-submit-btn {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.schedule-status-modal-cancel-btn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.schedule-status-modal-cancel-btn:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.schedule-status-modal-submit-btn {
+  border: 1px solid var(--primary, #16a34a);
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
+}
+
+.schedule-status-modal-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+  transform: translateY(-1px);
+}
+
+.schedule-status-modal-cancel-btn:disabled,
+.schedule-status-modal-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}

@@ -327,58 +327,25 @@ const researcherMenuGroups: MenuGroup[] = [
 
 const technicianMenuGroups: MenuGroup[] = [
   {
-    id: "planning",
-    title: "Planning Information",
-    icon: FlaskConical,
-    defaultOpen: true,
-    items: planningItems,
-  },
-  {
-    id: "human-resources",
-    title: "Human Resources",
-    icon: Users,
-    items: humanResourceItems,
-  },
-  {
-    id: "resources",
-    title: "Equipment & Resources",
-    icon: Truck,
-    items: resourceItems,
-  },
-  {
     id: "operations",
-    title: "Operations",
+    title: "Schedule & Notifications",
     icon: Calendar,
-    items: standardOperations,
+    defaultOpen: true,
+    items: standardOperations.filter((item) =>
+      [
+        "/schedules",
+        "/notifications",
+      ].includes(item.path)
+    ),
   },
 ];
 
 const studentMenuGroups: MenuGroup[] = [
   {
-    id: "planning",
-    title: "Learning & Planning",
-    icon: GraduationCap,
-    defaultOpen: true,
-    items: planningItems,
-  },
-  {
-    id: "resources",
-    title: "Resources",
-    icon: Trees,
-    items: resourceItems.filter((item) =>
-      [
-        "/resources",
-        "/equipment",
-        "/equipment-instances",
-        "/areas",
-        "/land-resources",
-      ].includes(item.path)
-    ),
-  },
-  {
     id: "operations",
     title: "Schedule & Notifications",
     icon: Calendar,
+    defaultOpen: true,
     items: standardOperations.filter((item) =>
       [
         "/schedules",
@@ -685,26 +652,28 @@ export default function Sidebar() {
         className="sidebar-nav"
         onScroll={handleNavScroll}
       >
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            [
-              "sidebar-item",
-              "sidebar-dashboard-item",
-              isActive
-                ? "active"
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" ")
-          }
-        >
-          <LayoutDashboard className="sidebar-item-icon" />
+        {role !== "Student" && role !== "Technician" && (
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) =>
+              [
+                "sidebar-item",
+                "sidebar-dashboard-item",
+                isActive
+                  ? "active"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")
+            }
+          >
+            <LayoutDashboard className="sidebar-item-icon" />
 
-          <span className="sidebar-item-label">
-            Dashboard
-          </span>
-        </NavLink>
+            <span className="sidebar-item-label">
+              Dashboard
+            </span>
+          </NavLink>
+        )}
 
         <div className="sidebar-menu-groups">
           {menuGroups.map(

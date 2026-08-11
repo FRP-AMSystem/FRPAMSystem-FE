@@ -358,3 +358,34 @@ export async function deleteSchedule(
     `/Schedules/${id}`
   );
 }
+
+export async function updateScheduleStatus(
+  id: number,
+  newStatus: ScheduleStatus,
+  notes?: string
+): Promise<Schedule> {
+  validateId(id, "Schedule ID");
+  try {
+    const response = await api.patch(`/Schedules/${id}/status`, {
+      status: newStatus,
+      notes: notes || undefined,
+    });
+    return normalizeSchedule(unwrapResponse<unknown>(response.data));
+  } catch {
+    const current = await getScheduleById(id);
+    const updated = await updateSchedule(id, {
+      allocationPlanId: current.allocationPlanId,
+      phaseId: current.phaseId || null,
+      title: current.title || null,
+      description: current.description || null,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      status: newStatus,
+      createdBy: current.createdBy || null,
+      assignedHumanResourceId: current.assignedHumanResourceId || null,
+      notes: notes ? `${current.notes || ''}\n[Status Update]: ${notes}`.trim() : (current.notes || null),
+      priority: current.priority,
+    });
+    return updated;
+  }
+}
