@@ -1095,6 +1095,10 @@ export default function DashboardPage() {
   const canCreateAllocation =
     role === "Researcher";
 
+  const isLimitedDashboardRole =
+    role === "Student" ||
+    role === "Technician";
+
   return (
     <DashboardLayout>
       <div className="dashboard-page-container">
@@ -1153,30 +1157,34 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
-            <div className="stats-grid">
-              {stats.map((stat) => {
-                const actionPath = stat.actionPath;
+            {!isLimitedDashboardRole && (
+              <div className="stats-grid">
+                {stats.map((stat) => {
+                  const actionPath = stat.actionPath;
 
-                return (
-                  <StatisticCard
-                    key={stat.id}
-                    stat={stat}
-                    onAction={
-                      actionPath
-                        ? () => {
-                            navigate(actionPath);
-                          }
-                        : undefined
-                    }
-                  />
-                );
-              })}
-            </div>
+                  return (
+                    <StatisticCard
+                      key={stat.id}
+                      stat={stat}
+                      onAction={
+                        actionPath
+                          ? () => {
+                              navigate(actionPath);
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
 
-            <div className="charts-grid">
-              <LineChartCard data={allocationTrend} />
-              <BreakdownCard data={resourceBreakdown} />
-            </div>
+            {!isLimitedDashboardRole && (
+              <div className="charts-grid">
+                <LineChartCard data={allocationTrend} />
+                <BreakdownCard data={resourceBreakdown} />
+              </div>
+            )}
 
             {role === "Admin" && (
               <div className="role-section-card">
@@ -1226,67 +1234,63 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {role ===
-              "Technician" && (
+            {role === "Technician" && (
               <div className="role-section-card">
-                <h3>
-                  Technician Workspace
-                </h3>
-
+                <h3>Technician Workspace</h3>
                 <p>
-                  Review assigned equipment,
-                  resource usage and
-                  schedules for allocation
-                  plans.
+                  Review assigned tasks, update execution progress & notes, and confirm receipt of assigned equipment.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/equipment-instances"
-                    )
-                  }
-                >
-                  View Equipment
-                </button>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/schedules")}
+                  >
+                    View & Update Tasks
+                  </button>
+                  <button
+                    type="button"
+                    style={{ background: "#16a34a", borderColor: "#16a34a" }}
+                    onClick={() => navigate("/equipment-instances")}
+                  >
+                    Confirm Equipment Receipt
+                  </button>
+                </div>
               </div>
             )}
 
-            {role ===
-              "Student" && (
+            {role === "Student" && (
               <div className="role-section-card">
-                <h3>
-                  Student Workspace
-                </h3>
-
+                <h3>Student Workspace</h3>
                 <p>
-                  Review experiments,
-                  allocation results and
-                  schedules in read-only
-                  mode.
+                  View assigned tasks, update task execution notes, and confirm receipt of assigned equipment.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/schedules"
-                    )
-                  }
-                >
-                  View Schedules
-                </button>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/schedules")}
+                  >
+                    View My Schedules
+                  </button>
+                  <button
+                    type="button"
+                    style={{ background: "#16a34a", borderColor: "#16a34a" }}
+                    onClick={() => navigate("/equipment-instances")}
+                  >
+                    Confirm Equipment Receipt
+                  </button>
+                </div>
               </div>
             )}
 
-            <div className="table-row-container">
-              <RequestTable
-                requests={
-                  recentPlans
-                }
-              />
-            </div>
+            {!isLimitedDashboardRole && (
+              <div className="table-row-container">
+                <RequestTable
+                  requests={
+                    recentPlans
+                  }
+                />
+              </div>
+            )}
 
             {canViewAnalytics && (
               <div className="dashboard-action-row">
