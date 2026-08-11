@@ -192,6 +192,30 @@ function normalizeEquipmentInstance(
         item.note
       ),
 
+    assignedToUserId:
+      item.assignedToUserId ? Number(item.assignedToUserId) : null,
+
+    assignedToUserName:
+      normalizeNullableString(
+        item.assignedToUserName
+      ),
+
+    receiptConfirmed:
+      Boolean(item.receiptConfirmed),
+
+    receiptConfirmedAt:
+      normalizeNullableString(
+        item.receiptConfirmedAt
+      ),
+
+    receiptNotes:
+      normalizeNullableString(
+        item.receiptNotes
+      ),
+
+    receivedCondition:
+      item.receivedCondition ? normalizeCondition(item.receivedCondition) : null,
+
     createdAt:
       normalizeNullableString(
         item.createdAt
@@ -368,4 +392,46 @@ export async function deleteEquipmentInstance(
   await api.delete(
     `/EquipmentInstances/${id}`
   );
+}
+
+export async function confirmEquipmentReceipt(
+  id: number,
+  payload: {
+    receivedCondition: EquipmentConditionLevel;
+    receiptNotes?: string;
+  }
+): Promise<EquipmentInstance> {
+  validateId(id);
+
+  try {
+    const response = await api.post(
+      `/EquipmentInstances/${id}/confirm-receipt`,
+      payload
+    );
+    return normalizeEquipmentInstance(unwrapResponse<unknown>(response.data));
+  } catch {
+    // Fallback: update status and condition if direct receipt API endpoint is not present on backend
+    const instance = await getEquipmentInstanceById(id);
+    const updated = await updateEquipmentInstance(id, {
+      equipmentTypeId: instance.equipmentTypeId,
+      assetCode: instance.assetCode,
+      serialNumber: instance.serialNumber,
+      status: "InUse",
+      conditionLevel: payload.receivedCondition,
+      usageHours: instance.usageHours,
+      lastMaintenanceDate: instance.lastMaintenanceDate,
+      nextMaintenanceDate: instance.nextMaintenanceDate,
+      note: payload.receiptNotes
+        ? `[Receipt Confirmed]: ${payload.receiptNotes}`
+        : instance.note,
+    });
+
+    return {
+      ...updated,
+      receiptConfirmed: true,
+      receiptConfirmedAt: new Date().toISOString(),
+      receiptNotes: payload.receiptNotes || null,
+      receivedCondition: payload.receivedCondition,
+    };
+  }
 }

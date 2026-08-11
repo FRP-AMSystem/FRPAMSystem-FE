@@ -34,8 +34,21 @@ export interface EquipmentInstance {
 
   note?: string | null;
 
+  assignedToUserId?: number | null;
+  assignedToUserName?: string | null;
+
+  receiptConfirmed?: boolean;
+  receiptConfirmedAt?: string | null;
+  receiptNotes?: string | null;
+  receivedCondition?: EquipmentConditionLevel | null;
+
   createdAt?: string | null;
   updatedAt?: string | null;
+}
+
+export interface ConfirmReceiptRequest {
+  receivedCondition: EquipmentConditionLevel;
+  receiptNotes?: string;
 }
 
 export interface EquipmentInstanceRequest {

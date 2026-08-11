@@ -103,6 +103,7 @@ import LandResourceList from "../pages/LandResource/LandResourceList";
 ===================================================== */
 
 import ScheduleList from "../pages/Schedule/ScheduleList";
+import ScheduleCalendar from "../pages/Schedule/ScheduleCalendar";
 import CreateSchedule from "../pages/Schedule/CreateSchedule";
 import EditSchedule from "../pages/Schedule/EditSchedule";
 import ScheduleDetail from "../pages/Schedule/ScheduleDetail";
@@ -276,6 +277,59 @@ function PlaceholderPage({
 }
 
 /* =====================================================
+   SCHEDULE PAGE ROUTER (Calendar vs List by Role)
+===================================================== */
+
+function SchedulePageRouter() {
+  const role = getStoredRole();
+
+  if (role === "Student" || role === "Technician") {
+    return <ScheduleCalendar />;
+  }
+
+  return <ScheduleList />;
+}
+
+/* =====================================================
+   DASHBOARD REDIRECT FOR LIMITED ROLES
+===================================================== */
+
+function DashboardRedirectOrPage() {
+  const role = getStoredRole();
+
+  if (role === "Student" || role === "Technician") {
+    return (
+      <Navigate
+        to="/schedules"
+        replace
+      />
+    );
+  }
+
+  return <DashboardPage />;
+}
+
+function FallbackRedirect() {
+  const role = getStoredRole();
+
+  if (role === "Student" || role === "Technician") {
+    return (
+      <Navigate
+        to="/schedules"
+        replace
+      />
+    );
+  }
+
+  return (
+    <Navigate
+      to="/dashboard"
+      replace
+    />
+  );
+}
+
+/* =====================================================
    APP ROUTES
 ===================================================== */
 
@@ -313,7 +367,7 @@ export default function AppRoutes() {
           <ProtectedRoute
             allowedRoles={allRoles}
           >
-            <DashboardPage />
+            <DashboardRedirectOrPage />
           </ProtectedRoute>
         }
       />
@@ -760,7 +814,7 @@ export default function AppRoutes() {
           <ProtectedRoute
             allowedRoles={operationalViewRoles}
           >
-            <ScheduleList />
+            <SchedulePageRouter />
           </ProtectedRoute>
         }
       />
@@ -911,10 +965,7 @@ export default function AppRoutes() {
       <Route
         path="*"
         element={
-          <Navigate
-            to="/dashboard"
-            replace
-          />
+          <FallbackRedirect />
         }
       />
     </Routes>

@@ -42,8 +42,8 @@ export interface ExperimentCreateRequest {
   priority: number;
 
   /*
-    Khi tạo mới nên để Draft.
-    Backend có thể tự gán Draft nếu không yêu cầu status.
+    Default to Draft when creating a new experiment.
+    The backend may auto-assign Draft if no status is provided.
   */
   status: ExperimentStatus | string;
 }

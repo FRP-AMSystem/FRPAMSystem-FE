@@ -11,14 +11,18 @@ import {
 import {
   ArrowLeft,
   CalendarDays,
+  CheckCircle,
   ClipboardList,
   Clock3,
   FileText,
   Hash,
   Layers3,
   Pencil,
+  Play,
+  RefreshCw,
   Trash2,
   UserRound,
+  X,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
@@ -26,6 +30,7 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import {
   deleteSchedule,
   getScheduleById,
+  updateScheduleStatus,
 } from "../../services/scheduleService";
 
 import type {
@@ -281,6 +286,42 @@ export default function ScheduleDetail() {
     setError,
   ] = useState("");
 
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<ScheduleStatus>("InProgress");
+  const [updateNotes, setUpdateNotes] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const handleQuickStatusChange = async (newStatus: ScheduleStatus) => {
+    if (!schedule) return;
+    try {
+      setUpdatingStatus(true);
+      setError("");
+      const updated = await updateScheduleStatus(schedule.scheduleId, newStatus);
+      setSchedule(updated);
+    } catch (err: any) {
+      setError(getErrorMessage(err));
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleStatusModalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!schedule) return;
+    try {
+      setUpdatingStatus(true);
+      setError("");
+      const updated = await updateScheduleStatus(schedule.scheduleId, selectedStatus, updateNotes.trim());
+      setSchedule(updated);
+      setStatusModalOpen(false);
+      setUpdateNotes("");
+    } catch (err: any) {
+      setError(getErrorMessage(err));
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -485,6 +526,50 @@ export default function ScheduleDetail() {
 
               Back
             </button>
+
+            {schedule.status !== "Completed" && schedule.status !== "Cancelled" && (
+              <>
+                {schedule.status === "Planned" && (
+                  <button
+                    type="button"
+                    className="schedule-detail-action-btn start"
+                    disabled={updatingStatus}
+                    onClick={() => void handleQuickStatusChange("InProgress")}
+                    style={{ background: "#16a34a", color: "#fff", padding: "8px 14px", borderRadius: "8px", border: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                  >
+                    <Play size={16} />
+                    <span>Start Task</span>
+                  </button>
+                )}
+
+                {schedule.status === "InProgress" && (
+                  <button
+                    type="button"
+                    className="schedule-detail-action-btn complete"
+                    disabled={updatingStatus}
+                    onClick={() => void handleQuickStatusChange("Completed")}
+                    style={{ background: "#2563eb", color: "#fff", padding: "8px 14px", borderRadius: "8px", border: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                  >
+                    <CheckCircle size={16} />
+                    <span>Complete Task</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="schedule-detail-action-btn update"
+                  disabled={updatingStatus}
+                  onClick={() => {
+                    setSelectedStatus(schedule.status);
+                    setStatusModalOpen(true);
+                  }}
+                  style={{ background: "#f8fafc", color: "#334155", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                >
+                  <FileText size={16} />
+                  <span>Update Status & Notes</span>
+                </button>
+              </>
+            )}
 
             {canManage && (
               <>
@@ -828,6 +913,95 @@ export default function ScheduleDetail() {
             </p>
           </section>
         </div>
+
+        {statusModalOpen && (
+          <div
+            className="schedule-status-modal-backdrop"
+            onClick={() => !updatingStatus && setStatusModalOpen(false)}
+          >
+            <div
+              className="schedule-status-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="schedule-status-modal-header">
+                <div className="schedule-status-modal-header-icon">
+                  <RefreshCw size={20} />
+                </div>
+
+                <div>
+                  <h3 className="schedule-status-modal-title">
+                    Update Task Progress
+                  </h3>
+                  <p className="schedule-status-modal-subtitle">
+                    Update status and execution notes for this task
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="schedule-status-modal-close"
+                  onClick={() => !updatingStatus && setStatusModalOpen(false)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleStatusModalSubmit}>
+                <div className="schedule-status-modal-body">
+                  <div className="schedule-status-modal-field">
+                    <label className="schedule-status-modal-label">
+                      Task Status <span className="schedule-status-modal-required">*</span>
+                    </label>
+                    <select
+                      className="schedule-status-modal-select"
+                      value={selectedStatus}
+                      onChange={(e) => setSelectedStatus(e.target.value as ScheduleStatus)}
+                      disabled={updatingStatus}
+                    >
+                      <option value="Planned">Planned</option>
+                      <option value="InProgress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  </div>
+
+                  <div className="schedule-status-modal-field">
+                    <label className="schedule-status-modal-label">
+                      Notes / Execution Log
+                    </label>
+                    <textarea
+                      className="schedule-status-modal-textarea"
+                      rows={4}
+                      value={updateNotes}
+                      onChange={(e) => setUpdateNotes(e.target.value)}
+                      placeholder="Enter progress details, results, or any issues encountered during execution..."
+                      disabled={updatingStatus}
+                    />
+                  </div>
+                </div>
+
+                <div className="schedule-status-modal-actions">
+                  <button
+                    type="button"
+                    className="schedule-status-modal-cancel-btn"
+                    disabled={updatingStatus}
+                    onClick={() => setStatusModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="schedule-status-modal-submit-btn"
+                    disabled={updatingStatus}
+                  >
+                    {updatingStatus ? "Saving..." : "Update Progress"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
