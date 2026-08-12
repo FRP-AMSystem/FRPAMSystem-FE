@@ -29,7 +29,6 @@ import {
   Cpu,
   FileText,
   FlaskConical,
-  GraduationCap,
   LandPlot,
   Layers3,
   LayoutDashboard,
@@ -48,6 +47,12 @@ import {
 import {
   getUnreadNotificationCount,
 } from "../../services/notificationService";
+
+import {
+  startSignalRConnection,
+  stopSignalRConnection,
+  type RealtimeNotificationPayload,
+} from "../../services/signalrService";
 
 import {
   getStoredRole,
@@ -504,8 +509,26 @@ export default function Sidebar() {
       }
     }, []);
 
+  const [
+    realtimeToast,
+    setRealtimeToast,
+  ] = useState<RealtimeNotificationPayload | null>(null);
+
+  useEffect(() => {
+    let timer: number | null = null;
+    if (realtimeToast) {
+      timer = window.setTimeout(() => {
+        setRealtimeToast(null);
+      }, 5000);
+    }
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [realtimeToast]);
+
   useEffect(() => {
     void loadUnreadCount();
+    void startSignalRConnection();
 
     const intervalId =
       window.setInterval(
@@ -517,9 +540,36 @@ export default function Sidebar() {
     const refresh = () =>
       void loadUnreadCount();
 
+    const handleCountUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{ unreadCount?: number }>;
+      if (typeof customEvent.detail?.unreadCount === "number") {
+        setUnreadCount(Math.max(0, customEvent.detail.unreadCount));
+      } else {
+        void loadUnreadCount();
+      }
+    };
+
+    const handleRealtimeNotif = (e: Event) => {
+      const customEvent = e as CustomEvent<RealtimeNotificationPayload>;
+      if (customEvent.detail) {
+        setRealtimeToast(customEvent.detail);
+        void loadUnreadCount();
+      }
+    };
+
     window.addEventListener(
       "notification-updated",
       refresh
+    );
+
+    window.addEventListener(
+      "notification-count-updated",
+      handleCountUpdated
+    );
+
+    window.addEventListener(
+      "signalr-notification-received",
+      handleRealtimeNotif
     );
 
     window.addEventListener(
@@ -535,6 +585,16 @@ export default function Sidebar() {
       window.removeEventListener(
         "notification-updated",
         refresh
+      );
+
+      window.removeEventListener(
+        "notification-count-updated",
+        handleCountUpdated
+      );
+
+      window.removeEventListener(
+        "signalr-notification-received",
+        handleRealtimeNotif
       );
 
       window.removeEventListener(
@@ -616,6 +676,7 @@ export default function Sidebar() {
 
   const handleConfirmLogout =
     useCallback(() => {
+      void stopSignalRConnection();
       clearAuthenticationStorage();
 
       navigate(
@@ -1028,6 +1089,65 @@ export default function Sidebar() {
                   Log Out
                 </button>
               </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {realtimeToast &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: "20px",
+              right: "20px",
+              zIndex: 10000,
+              backgroundColor: "#ffffff",
+              borderRadius: "14px",
+              padding: "16px 20px",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.15), 0 0 0 1px rgba(22, 163, 74, 0.25)",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "14px",
+              maxWidth: "400px",
+              boxSizing: "border-box",
+            }}
+          >
+            <div
+              style={{
+                width: "38px",
+                height: "38px",
+                borderRadius: "10px",
+                backgroundColor: "rgba(22, 163, 74, 0.12)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#16a34a",
+                flexShrink: 0,
+              }}
+            >
+              <Bell size={20} />
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  {realtimeToast.notificationType || "Real-time Alert"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRealtimeToast(null)}
+                  style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "0 4px", fontSize: "14px" }}
+                >
+                  ✕
+                </button>
+              </div>
+              <h4 style={{ margin: "4px 0 2px", fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
+                {realtimeToast.title || "New Notification"}
+              </h4>
+              <p style={{ margin: 0, fontSize: "13px", color: "#64748b", lineHeight: 1.4 }}>
+                {realtimeToast.message || "You have received a new update in FRPAM System."}
+              </p>
             </div>
           </div>,
           document.body

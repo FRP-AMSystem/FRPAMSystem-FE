@@ -584,25 +584,13 @@ export default function EditExperiment() {
                 saving
               }
             >
-              <option value="Draft">
-                Draft
-              </option>
-
-              <option value="Pending">
-                Pending
-              </option>
-
-              <option value="InProgress">
-                In Progress
-              </option>
-
-              <option value="Completed">
-                Completed
-              </option>
-
-              <option value="Cancelled">
-                Cancelled
-              </option>
+              <option value="Draft">Draft</option>
+              <option value="Submitted">Submitted</option>
+              <option value="Planning">Planning</option>
+              <option value="Ready">Ready</option>
+              <option value="Running">Running</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
 
             <label htmlFor="priority">

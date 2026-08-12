@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import { createExperiment } from "../../services/experimentService";
+import { createExperiment, submitExperiment } from "../../services/experimentService";
 
 import "./ExperimentForm.css";
 
@@ -56,10 +56,9 @@ function getApiErrorMessage(error: unknown): string {
   return (
     responseData?.message ||
     responseData?.title ||
-    `Create experiment failed${
-      error.response?.status
-        ? ` (${error.response.status})`
-        : ""
+    `Create experiment failed${error.response?.status
+      ? ` (${error.response.status})`
+      : ""
     }.`
   );
 }
@@ -160,7 +159,7 @@ export default function CreateExperiment() {
     try {
       setSaving(true);
 
-      await createExperiment({
+      const created = await createExperiment({
         experimentName,
         description,
         researcherId,
@@ -172,8 +171,16 @@ export default function CreateExperiment() {
         ),
         deadline: convertDateToIso(form.deadline),
         priority,
-        status: form.status,
+        status: "Draft",
       });
+
+      if (form.status === "Submitted" && created?.experimentId) {
+        try {
+          await submitExperiment(created.experimentId);
+        } catch (submitErr) {
+          console.warn("Auto-submit failed after creation:", submitErr);
+        }
+      }
 
       navigate("/experiments");
     } catch (err) {
@@ -305,16 +312,12 @@ export default function CreateExperiment() {
               onChange={handleChange}
             >
               <option value="Draft">Draft</option>
-              <option value="Pending">Pending</option>
-              <option value="InProgress">
-                In Progress
-              </option>
-              <option value="Completed">
-                Completed
-              </option>
-              <option value="Cancelled">
-                Cancelled
-              </option>
+              <option value="Submitted">Submitted</option>
+              <option value="Planning">Planning</option>
+              <option value="Ready">Ready</option>
+              <option value="Running">Running</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
 
             <label htmlFor="priority">

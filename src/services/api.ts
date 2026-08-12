@@ -12,7 +12,11 @@ interface ApiErrorResponse {
 }
 
 const API_BASE_URL =
-  "http://forestryresourceplanning.runasp.net/api";
+  (import.meta.env.VITE_API_BASE_URL as string)
+    ? (import.meta.env.VITE_API_BASE_URL as string) + "/api"
+    : (typeof window !== "undefined" && window.location.hostname === "localhost"
+        ? "/api"
+        : "http://forestryresourceplanning.runasp.net/api");
 
 const api = axios.create({
   baseURL: API_BASE_URL,
