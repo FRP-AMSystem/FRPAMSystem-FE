@@ -1,52 +1,63 @@
-import {
-  useEffect,
-  useState,
-  type ChangeEvent,
-  type FormEvent,
-} from "react";
-
-import {
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import axios from "axios";
+import { ArrowLeft, ArrowRight, Save } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-
 import {
   getExperimentById,
   updateExperiment,
 } from "../../services/experimentService";
 
-import "./ExperimentForm.css";
+import {
+  createExperimentPhase,
+  deleteExperimentPhase,
+  getExperimentPhases,
+  updateExperimentPhase,
+} from "../../services/experimentPhaseService";
 
-interface ExperimentFormState {
-  experimentName: string;
-  description: string;
+import {
+  createExperimentEquipmentRequirement,
+  deleteExperimentEquipmentRequirement,
+  getExperimentEquipmentRequirements,
+  updateExperimentEquipmentRequirement,
+} from "../../services/experimentEquipmentRequirementService";
 
-  startDate: string;
-  endDate: string;
-  deadline: string;
+import {
+  createExperimentHumanRequirement,
+  deleteExperimentHumanRequirement,
+  getExperimentHumanRequirements,
+  updateExperimentHumanRequirement,
+} from "../../services/experimentHumanRequirementService";
 
-  status: string;
-  priority: string;
+import {
+  createExperimentLandRequirement,
+  deleteExperimentLandRequirement,
+  getExperimentLandRequirements,
+  updateExperimentLandRequirement,
+} from "../../services/experimentLandRequirementService";
+
+import { PlanningStepper } from "./components/PlanningStepper";
+import { ExperimentStep, type ExperimentStepData } from "./components/ExperimentStep";
+import { PhasesStep, type PhaseFormItem } from "./components/PhasesStep";
+import { EquipmentReqStep, type EquipmentReqFormItem } from "./components/EquipmentReqStep";
+import { HumanReqStep, type HumanReqFormItem } from "./components/HumanReqStep";
+import { LandReqStep, type LandReqFormItem } from "./components/LandReqStep";
+
+import "./PlanningWizard.css";
+
+function formatToUtcIso(dateStr: string): string {
+  if (!dateStr) return new Date().toISOString();
+  if (dateStr.includes("T")) return dateStr;
+  return `${dateStr}T00:00:00.000Z`;
 }
 
-function toDateInputValue(
-  value?: string | null
-): string {
-  if (!value) {
-    return "";
-  }
-
-  return value.slice(
-    0,
-    10
-  );
+function toDateInputValue(value?: string | null): string {
+  if (!value) return "";
+  return value.slice(0, 10);
 }
 
-function getErrorMessage(
-  error: unknown
-): string {
+function getApiErrorMessage(error: unknown): string {
   if (
     typeof error === "object" &&
     error !== null &&
@@ -59,120 +70,82 @@ function getErrorMessage(
             message?: string;
             error?: string;
             title?: string;
-
-            errors?: Record<
-              string,
-              string[]
-            >;
+            errors?: Record<string, string[]>;
           };
         };
       }
     ).response;
 
-    if (
-      response?.data?.message
-    ) {
+    if (response?.data?.message) {
       return response.data.message;
     }
-
-    if (
-      response?.data?.error
-    ) {
+    if (response?.data?.error) {
       return response.data.error;
     }
-
-    if (
-      response?.data?.errors
-    ) {
-      return Object.values(
-        response.data.errors
-      )
-        .flat()
-        .join(" ");
+    if (response?.data?.errors) {
+      return Object.values(response.data.errors).flat().join(" ");
     }
-
-    if (
-      response?.data?.title
-    ) {
+    if (response?.data?.title) {
       return response.data.title;
     }
   }
 
-  if (
-    error instanceof Error
-  ) {
+  if (error instanceof Error) {
     return error.message;
   }
 
-  return (
-    "Update experiment failed. " +
-    "Please try again."
-  );
+  return "Update experiment failed. Please try again.";
 }
 
 export default function EditExperiment() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const experimentId = Number(id);
 
-  const {
-    id,
-  } = useParams<{
-    id: string;
-  }>();
+  // Wizard Step state (1 to 5)
+  const [currentStep, setCurrentStep] = useState(1);
 
-  const experimentId =
-    Number(id);
-
-  const [
-    form,
-    setForm,
-  ] = useState<ExperimentFormState>({
+  // Step 1 State
+  const [expData, setExpData] = useState<ExperimentStepData>({
     experimentName: "",
     description: "",
-
-    startDate: "",
-    endDate: "",
+    expectStartDate: "",
+    expectEndDate: "",
     deadline: "",
-
-    status: "Draft",
-
     priority: "1",
+    status: "Draft",
   });
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  // Step 2 State
+  const [phases, setPhases] = useState<PhaseFormItem[]>([]);
+  const [initialPhaseIds, setInitialPhaseIds] = useState<number[]>([]);
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+  // Step 3 State
+  const [equipmentReqs, setEquipmentReqs] = useState<EquipmentReqFormItem[]>([]);
+  const [initialEquipmentReqIds, setInitialEquipmentReqIds] = useState<number[]>([]);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  // Step 4 State
+  const [humanReqs, setHumanReqs] = useState<HumanReqFormItem[]>([]);
+  const [initialHumanReqIds, setInitialHumanReqIds] = useState<number[]>([]);
 
+  // Step 5 State
+  const [landReqs, setLandReqs] = useState<LandReqFormItem[]>([]);
+  const [initialLandReqIds, setInitialLandReqIds] = useState<number[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Load existing experiment details and all sub-resources
   useEffect(() => {
     let active = true;
 
-    async function loadExperiment() {
-      if (
-        !id ||
-        !Number.isInteger(
-          experimentId
-        ) ||
-        experimentId <= 0
-      ) {
+    async function loadData() {
+      if (!id || !Number.isInteger(experimentId) || experimentId <= 0) {
         if (active) {
-          setError(
-            "Invalid experiment ID."
-          );
-
+          setError("Invalid experiment ID.");
           setLoading(false);
         }
-
         return;
       }
 
@@ -180,61 +153,80 @@ export default function EditExperiment() {
         setLoading(true);
         setError("");
 
-        const data =
-          await getExperimentById(
-            experimentId
-          );
+        const [exp, phasesData, equipData, humanData, landData] = await Promise.all([
+          getExperimentById(experimentId),
+          getExperimentPhases({ experimentId, size: 100 }).catch(() => []),
+          getExperimentEquipmentRequirements({ experimentId, size: 100 }).catch(() => []),
+          getExperimentHumanRequirements({ experimentId, size: 100 }).catch(() => []),
+          getExperimentLandRequirements({ experimentId, size: 100 }).catch(() => []),
+        ]);
 
-        if (!active) {
-          return;
-        }
+        if (!active) return;
 
-        setForm({
-          experimentName:
-            data.experimentName ||
-            "",
-
-          description:
-            data.description ||
-            "",
-
-          startDate:
-            toDateInputValue(
-              data.expectStartDate
-            ),
-
-          endDate:
-            toDateInputValue(
-              data.expectEndDate
-            ),
-
-          deadline:
-            toDateInputValue(
-              data.deadline
-            ),
-
-          status:
-            data.status ||
-            "Draft",
-
-          priority:
-            String(
-              data.priority ??
-              1
-            ),
+        // Step 1
+        setExpData({
+          experimentName: exp.experimentName || "",
+          description: exp.description || "",
+          expectStartDate: toDateInputValue(exp.expectStartDate),
+          expectEndDate: toDateInputValue(exp.expectEndDate),
+          deadline: toDateInputValue(exp.deadline),
+          priority: String(exp.priority ?? 1),
+          status: exp.status || "Draft",
         });
-      } catch (loadError) {
-        console.error(
-          "Load experiment failed:",
-          loadError
-        );
 
+        // Step 2: Phases
+        const loadedPhases: PhaseFormItem[] = phasesData.map((p) => ({
+          id: String(p.experimentPhaseId),
+          phaseName: p.phaseName || "",
+          phaseDescription: p.phaseDescription || "",
+          phaseOrder: p.phaseOrder || 1,
+          expectedStartDate: toDateInputValue(p.expectedStartDate),
+          expectedEndDate: toDateInputValue(p.expectedEndDate),
+          status: "Planned",
+        }));
+        setPhases(loadedPhases);
+        setInitialPhaseIds(phasesData.map((p) => p.experimentPhaseId));
+
+        // Step 3: Equipment Reqs
+        const loadedEquip: EquipmentReqFormItem[] = equipData.map((e) => ({
+          id: String(e.expEquipmentReqId),
+          equipmentTypeId: e.equipmentTypeId,
+          equipmentTypeName: e.equipmentTypeName,
+          quantity: e.quantity,
+          allowSubstitute: e.allowSubstitute,
+          minAcceptableEfficiency: e.minAcceptableEfficiency,
+          note: e.note || "",
+        }));
+        setEquipmentReqs(loadedEquip);
+        setInitialEquipmentReqIds(equipData.map((e) => e.expEquipmentReqId));
+
+        // Step 4: Human Reqs
+        const loadedHuman: HumanReqFormItem[] = humanData.map((h) => ({
+          id: String(h.expHumanReqId),
+          roleId: h.roleId,
+          roleName: h.roleName,
+          quantity: h.quantity,
+          requiredSkillId: h.requiredSkillId,
+          requiredSkillName: h.requiredSkillName,
+          workingHoursPerDay: h.workingHoursPerDay,
+          note: h.note || "",
+        }));
+        setHumanReqs(loadedHuman);
+        setInitialHumanReqIds(humanData.map((h) => h.expHumanReqId));
+
+        // Step 5: Land Reqs
+        const loadedLand: LandReqFormItem[] = landData.map((l) => ({
+          id: String(l.expLandReqId),
+          requiredArea: l.requiredArea,
+          requiredSoilType: l.requiredSoilType || "",
+          note: l.note || "",
+        }));
+        setLandReqs(loadedLand);
+        setInitialLandReqIds(landData.map((l) => l.expLandReqId));
+      } catch (loadErr) {
+        console.error("Load experiment data failed:", loadErr);
         if (active) {
-          setError(
-            getErrorMessage(
-              loadError
-            )
-          );
+          setError(getApiErrorMessage(loadErr));
         }
       } finally {
         if (active) {
@@ -243,162 +235,220 @@ export default function EditExperiment() {
       }
     }
 
-    void loadExperiment();
+    void loadData();
 
     return () => {
       active = false;
     };
-  }, [
-    id,
-    experimentId,
-  ]);
+  }, [id, experimentId]);
 
-  const handleChange = (
-    event: ChangeEvent<
-      | HTMLInputElement
-      | HTMLTextAreaElement
-      | HTMLSelectElement
-    >
-  ) => {
-    const {
-      name,
-      value,
-    } = event.target;
-
+  const handleNextStep = () => {
     setError("");
 
-    setForm(
-      (current) => ({
-        ...current,
-        [name]: value,
-      })
-    );
+    if (currentStep === 1) {
+      if (!expData.experimentName.trim()) {
+        setError("Experiment name is required.");
+        return;
+      }
+      if (expData.expectStartDate && expData.expectEndDate && expData.expectStartDate > expData.expectEndDate) {
+        setError("Expected end date must be after expected start date.");
+        return;
+      }
+      if (expData.deadline && expData.expectStartDate && expData.deadline < expData.expectStartDate) {
+        setError("Deadline cannot be earlier than start date.");
+        return;
+      }
+    }
+
+    if (currentStep < 5) {
+      setCurrentStep((prev) => prev + 1);
+    }
   };
 
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
+  const handlePrevStep = () => {
+    setError("");
+    if (currentStep > 1) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  };
 
+  const handleSaveChanges = async () => {
     setError("");
 
-    if (
-      !Number.isInteger(
-        experimentId
-      ) ||
-      experimentId <= 0
-    ) {
-      setError(
-        "Invalid experiment ID."
-      );
-
-      return;
-    }
-
-    if (
-      !form.experimentName.trim()
-    ) {
-      setError(
-        "Experiment name is required."
-      );
-
-      return;
-    }
-
-    if (
-      form.startDate &&
-      form.endDate &&
-      form.startDate >
-      form.endDate
-    ) {
-      setError(
-        "End date must be after start date."
-      );
-
-      return;
-    }
-
-    if (
-      form.deadline &&
-      form.startDate &&
-      form.deadline <
-      form.startDate
-    ) {
-      setError(
-        "Deadline cannot be earlier than the start date."
-      );
-
-      return;
-    }
-
-    const priority =
-      Number(
-        form.priority
-      );
-
-    if (
-      !Number.isInteger(
-        priority
-      ) ||
-      priority < 0 ||
-      priority > 3
-    ) {
-      setError(
-        "Priority is invalid."
-      );
-
+    if (!expData.experimentName.trim()) {
+      setError("Experiment name is required.");
+      setCurrentStep(1);
       return;
     }
 
     try {
       setSaving(true);
 
-      await updateExperiment(
-        experimentId,
-        {
-          experimentName:
-            form.experimentName.trim(),
+      // 1. Update main Experiment
+      await updateExperiment(experimentId, {
+        experimentName: expData.experimentName.trim(),
+        description: expData.description.trim() || undefined,
+        expectStartDate: expData.expectStartDate ? formatToUtcIso(expData.expectStartDate) : undefined,
+        expectEndDate: expData.expectEndDate ? formatToUtcIso(expData.expectEndDate) : undefined,
+        deadline: expData.deadline ? formatToUtcIso(expData.deadline) : undefined,
+        priority: Number(expData.priority) || 1,
+        status: expData.status || "Draft",
+      });
 
-          description:
-            form.description.trim() ||
-            undefined,
+      // 2. Sync Phases
+      const currentPhaseNumIds = phases
+        .map((p) => Number(p.id))
+        .filter((num) => Number.isInteger(num) && num > 0);
 
-          expectStartDate:
-            form.startDate ||
-            undefined,
-
-          expectEndDate:
-            form.endDate ||
-            undefined,
-
-          deadline:
-            form.deadline ||
-            undefined,
-
-          status:
-            form.status,
-
-          priority,
-        }
+      const phasesToDelete = initialPhaseIds.filter(
+        (pid) => !currentPhaseNumIds.includes(pid)
       );
 
-      navigate(
-        `/experiments/${experimentId}`,
-        {
-          replace: true,
+      for (const deleteId of phasesToDelete) {
+        try {
+          await deleteExperimentPhase(deleteId);
+        } catch (phaseDelErr) {
+          console.warn("Delete phase notice:", phaseDelErr);
         }
+      }
+
+      for (const p of phases) {
+        if (!p.phaseName.trim()) continue;
+        const numId = Number(p.id);
+        const isExisting = Number.isInteger(numId) && numId > 0 && initialPhaseIds.includes(numId);
+
+        const payload = {
+          experimentId,
+          phaseName: p.phaseName.trim(),
+          phaseDescription: p.phaseDescription.trim() || null,
+          phaseOrder: p.phaseOrder,
+          expectedStartDate: formatToUtcIso(p.expectedStartDate),
+          expectedEndDate: formatToUtcIso(p.expectedEndDate),
+          status: "Planned" as const,
+        };
+
+        if (isExisting) {
+          await updateExperimentPhase(numId, payload);
+        } else {
+          await createExperimentPhase(payload);
+        }
+      }
+
+      // 3. Sync Equipment Requirements
+      const currentEquipNumIds = equipmentReqs
+        .map((e) => Number(e.id))
+        .filter((num) => Number.isInteger(num) && num > 0);
+
+      const equipToDelete = initialEquipmentReqIds.filter(
+        (eid) => !currentEquipNumIds.includes(eid)
       );
+
+      for (const deleteId of equipToDelete) {
+        try {
+          await deleteExperimentEquipmentRequirement(deleteId);
+        } catch (equipDelErr) {
+          console.warn("Delete equipment req notice:", equipDelErr);
+        }
+      }
+
+      for (const e of equipmentReqs) {
+        const numId = Number(e.id);
+        const isExisting = Number.isInteger(numId) && numId > 0 && initialEquipmentReqIds.includes(numId);
+
+        const payload = {
+          experimentId,
+          equipmentTypeId: e.equipmentTypeId,
+          quantity: e.quantity,
+          allowSubstitute: e.allowSubstitute,
+          minAcceptableEfficiency: e.minAcceptableEfficiency,
+          note: e.note || undefined,
+        };
+
+        if (isExisting) {
+          await updateExperimentEquipmentRequirement(numId, payload);
+        } else {
+          await createExperimentEquipmentRequirement(payload);
+        }
+      }
+
+      // 4. Sync Human Requirements
+      const currentHumanNumIds = humanReqs
+        .map((h) => Number(h.id))
+        .filter((num) => Number.isInteger(num) && num > 0);
+
+      const humanToDelete = initialHumanReqIds.filter(
+        (hid) => !currentHumanNumIds.includes(hid)
+      );
+
+      for (const deleteId of humanToDelete) {
+        try {
+          await deleteExperimentHumanRequirement(deleteId);
+        } catch (humanDelErr) {
+          console.warn("Delete human req notice:", humanDelErr);
+        }
+      }
+
+      for (const h of humanReqs) {
+        const numId = Number(h.id);
+        const isExisting = Number.isInteger(numId) && numId > 0 && initialHumanReqIds.includes(numId);
+
+        const payload = {
+          experimentId,
+          roleId: h.roleId,
+          quantity: h.quantity,
+          requiredSkillId: h.requiredSkillId,
+          workingHoursPerDay: h.workingHoursPerDay,
+          note: h.note || null,
+        };
+
+        if (isExisting) {
+          await updateExperimentHumanRequirement(numId, payload);
+        } else {
+          await createExperimentHumanRequirement(payload);
+        }
+      }
+
+      // 5. Sync Land Requirements
+      const currentLandNumIds = landReqs
+        .map((l) => Number(l.id))
+        .filter((num) => Number.isInteger(num) && num > 0);
+
+      const landToDelete = initialLandReqIds.filter(
+        (lid) => !currentLandNumIds.includes(lid)
+      );
+
+      for (const deleteId of landToDelete) {
+        try {
+          await deleteExperimentLandRequirement(deleteId);
+        } catch (landDelErr) {
+          console.warn("Delete land req notice:", landDelErr);
+        }
+      }
+
+      for (const l of landReqs) {
+        const numId = Number(l.id);
+        const isExisting = Number.isInteger(numId) && numId > 0 && initialLandReqIds.includes(numId);
+
+        const payload = {
+          experimentId,
+          requiredArea: l.requiredArea,
+          requiredSoilType: l.requiredSoilType || null,
+          note: l.note || null,
+        };
+
+        if (isExisting) {
+          await updateExperimentLandRequirement(numId, payload);
+        } else {
+          await createExperimentLandRequirement(payload);
+        }
+      }
+
+      navigate(`/experiments/${experimentId}`, {
+        state: { message: "Experiment plan updated successfully!" },
+      });
     } catch (submitError) {
-      console.error(
-        "Update experiment failed:",
-        submitError
-      );
-
-      setError(
-        getErrorMessage(
-          submitError
-        )
-      );
+      console.error("Update Experiment plan failed:", submitError);
+      setError(getApiErrorMessage(submitError));
     } finally {
       setSaving(false);
     }
@@ -407,10 +457,8 @@ export default function EditExperiment() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="experiment-form-page">
-          <p>
-            Loading experiment...
-          </p>
+        <div className="planning-wizard-page">
+          <p>Loading experiment plan details...</p>
         </div>
       </DashboardLayout>
     );
@@ -418,327 +466,116 @@ export default function EditExperiment() {
 
   return (
     <DashboardLayout>
-      <div className="experiment-form-page">
-        <div className="experiment-form-header">
+      <div className="planning-wizard-page">
+        {/* Header */}
+        <div className="planning-wizard-header">
           <div>
-            <p className="breadcrumb">
-              Dashboard / Experiments / Edit
-            </p>
-
-            <h1>
-              Edit Experiment
-            </h1>
-
-            <span>
-              Update experiment information.
-            </span>
+            <p className="breadcrumb">Dashboard / Experiments / Edit</p>
+            <h1>Edit Experiment Plan #{experimentId}</h1>
+            <p>Update metadata, phases, and resource requirements</p>
           </div>
-
-          <button
-            type="button"
-            className="back-btn"
-            onClick={() =>
-              navigate(
-                `/experiments/${experimentId}`
-              )
-            }
-          >
-            Back
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span className="planning-draft-badge">
+              Status: {expData.status || "Draft"}
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate(`/experiments/${experimentId}`)}
+              className="planning-back-btn"
+            >
+              <ArrowLeft size={16} /> Back to Details
+            </button>
+          </div>
         </div>
 
-        {error && (
-          <div className="form-error">
-            {error}
-          </div>
+        {/* Stepper Header */}
+        <PlanningStepper
+          currentStep={currentStep}
+          onStepClick={(step) => setCurrentStep(step)}
+        />
+
+        {/* Error Alert */}
+        {error && <div className="planning-alert-error">{error}</div>}
+
+        {/* Wizard Steps */}
+        {currentStep === 1 && (
+          <ExperimentStep
+            data={expData}
+            onChange={(updated) =>
+              setExpData((prev) => ({ ...prev, ...updated }))
+            }
+          />
         )}
 
-        <form
-          className="experiment-form-grid"
-          onSubmit={
-            handleSubmit
-          }
-        >
-          <div className="experiment-form-card">
-            <h3>
-              Experiment Information
-            </h3>
+        {currentStep === 2 && (
+          <PhasesStep
+            phases={phases}
+            onChange={setPhases}
+            baseStartDate={expData.expectStartDate}
+            baseEndDate={expData.expectEndDate}
+          />
+        )}
 
-            <label htmlFor="experimentName">
-              Experiment Name
-            </label>
+        {currentStep === 3 && (
+          <EquipmentReqStep
+            requirements={equipmentReqs}
+            onChange={setEquipmentReqs}
+          />
+        )}
 
-            <input
-              id="experimentName"
-              name="experimentName"
-              value={
-                form.experimentName
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            />
+        {currentStep === 4 && (
+          <HumanReqStep
+            requirements={humanReqs}
+            onChange={setHumanReqs}
+          />
+        )}
 
-            <label htmlFor="description">
-              Description
-            </label>
+        {currentStep === 5 && (
+          <LandReqStep
+            requirements={landReqs}
+            onChange={setLandReqs}
+          />
+        )}
 
-            <textarea
-              id="description"
-              name="description"
-              value={
-                form.description
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              rows={5}
-            />
+        {/* Wizard Navigation Actions */}
+        <div className="planning-actions-bar">
+          <button
+            type="button"
+            onClick={handlePrevStep}
+            disabled={currentStep === 1 || saving}
+            className="btn-secondary-white"
+          >
+            <ArrowLeft size={16} /> Back
+          </button>
 
-            <label htmlFor="startDate">
-              Expected Start Date
-            </label>
-
-            <input
-              id="startDate"
-              type="date"
-              name="startDate"
-              value={
-                form.startDate
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-            />
-
-            <label htmlFor="endDate">
-              Expected End Date
-            </label>
-
-            <input
-              id="endDate"
-              type="date"
-              name="endDate"
-              min={
-                form.startDate ||
-                undefined
-              }
-              value={
-                form.endDate
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-            />
-
-            <label htmlFor="deadline">
-              Deadline
-            </label>
-
-            <input
-              id="deadline"
-              type="date"
-              name="deadline"
-              min={
-                form.startDate ||
-                undefined
-              }
-              value={
-                form.deadline
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-            />
-
-            <label htmlFor="status">
-              Status
-            </label>
-
-            <select
-              id="status"
-              name="status"
-              value={
-                form.status
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-            >
-              <option value="Draft">
-                Draft
-              </option>
-
-              <option value="Pending">
-                Pending
-              </option>
-
-              <option value="InProgress">
-                In Progress
-              </option>
-
-              <option value="Completed">
-                Completed
-              </option>
-
-              <option value="Cancelled">
-                Cancelled
-              </option>
-            </select>
-
-            <label htmlFor="priority">
-              Priority
-            </label>
-
-            <select
-              id="priority"
-              name="priority"
-              value={
-                form.priority
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-            >
-              <option value="0">
-                Low
-              </option>
-
-              <option value="1">
-                Medium
-              </option>
-
-              <option value="2">
-                High
-              </option>
-
-              <option value="3">
-                Urgent
-              </option>
-            </select>
-          </div>
-
-          <div className="experiment-form-card">
-            <h3>
-              Preview
-            </h3>
-
-            <div className="experiment-preview">
-              <div>
-                <span>
-                  Name
-                </span>
-
-                <strong>
-                  {form.experimentName ||
-                    "Not entered"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Status
-                </span>
-
-                <strong>
-                  {form.status}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Priority
-                </span>
-
-                <strong>
-                  {form.priority === "0"
-                    ? "Low"
-                    : form.priority === "1"
-                      ? "Medium"
-                      : form.priority === "2"
-                        ? "High"
-                        : "Urgent"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Expected Duration
-                </span>
-
-                <strong>
-                  {form.startDate ||
-                    "-"}{" "}
-                  →{" "}
-                  {form.endDate ||
-                    "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Deadline
-                </span>
-
-                <strong>
-                  {form.deadline ||
-                    "-"}
-                </strong>
-              </div>
-            </div>
-
-            <div className="form-actions">
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            {currentStep < 5 && (
               <button
                 type="button"
-                className="cancel-btn"
-                disabled={
-                  saving
-                }
-                onClick={() =>
-                  navigate(
-                    `/experiments/${experimentId}`
-                  )
-                }
+                onClick={handleNextStep}
+                className="btn-secondary-white"
               >
-                Cancel
+                Next <ArrowRight size={16} />
               </button>
+            )}
 
-              <button
-                type="submit"
-                className="save-btn"
-                disabled={
-                  saving
-                }
-              >
-                {saving
-                  ? "Saving..."
-                  : "Save Changes"}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => void handleSaveChanges()}
+              disabled={saving}
+              className="btn-primary-green"
+              style={{ padding: "12px 28px", fontSize: "15px" }}
+            >
+              {saving ? (
+                <>Saving Changes...</>
+              ) : (
+                <>
+                  <Save size={18} /> Save Changes
+                </>
+              )}
+            </button>
           </div>
-        </form>
+        </div>
       </div>
     </DashboardLayout>
   );

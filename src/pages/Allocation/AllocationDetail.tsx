@@ -243,9 +243,9 @@ export default function AllocationDetail() {
 
   const role: Role =
     savedRole === "Manager" ||
-    savedRole === "Researcher" ||
-    savedRole === "Technician" ||
-    savedRole === "Student"
+      savedRole === "Researcher" ||
+      savedRole === "Technician" ||
+      savedRole === "Student"
       ? savedRole
       : "Student";
 
@@ -410,7 +410,7 @@ export default function AllocationDetail() {
     plan?.approveStatus === "Draft";
 
   const isPending =
-    plan?.approveStatus === "Pending";
+    plan?.approveStatus === "Pending" || plan?.approveStatus === "Submitted";
 
   const isApproved =
     plan?.approveStatus === "Approved";
@@ -1425,7 +1425,7 @@ export default function AllocationDetail() {
 
               <div className="allocation-table-wrapper">
                 {equipmentDetails.length ===
-                0 ? (
+                  0 ? (
                   <div className="allocation-resource-empty">
                     <h3>
                       No equipment allocated

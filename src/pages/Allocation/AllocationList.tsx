@@ -317,7 +317,9 @@ export default function AllocationList() {
                   filteredPlans.map((plan) => {
                     const isProcessing = processingId === plan.allocationPlanId;
                     const isDraft = plan.approveStatus === "Draft";
-                    const isPending = plan.approveStatus === "Pending";
+                    const isPending =
+                      plan.approveStatus === "Pending" ||
+                      plan.approveStatus === "Submitted";
 
                     const canEditPlan = permission.canEdit && isDraft;
                     const canDeletePlan = permission.canDelete && isDraft;

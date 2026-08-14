@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Eye, Pencil, Sparkles, Trash2 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import {
@@ -11,7 +11,7 @@ import type { ExperimentResponse } from "../../types/experiment";
 
 import "./ExperimentList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student";
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -85,15 +85,20 @@ function getErrorMessage(error: unknown): string {
 
 export default function ExperimentList() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const role = (localStorage.getItem("role") || "Student") as Role;
   const isResearcher = role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
   const [keyword, setKeyword] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(
+    (location.state as { message?: string } | null)?.message || null
+  );
 
   const loadExperiments = useCallback(async (searchKeyword = "") => {
     try {
@@ -170,6 +175,18 @@ export default function ExperimentList() {
           )}
         </div>
 
+        {toastMessage && (
+          <div className="p-4 mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-semibold flex justify-between items-center">
+            <span>{toastMessage}</span>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="text-xs text-emerald-600 hover:text-emerald-900 font-bold ml-4"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <div className="experiment-toolbar">
           <input
             value={keyword}
@@ -186,6 +203,22 @@ export default function ExperimentList() {
           <button type="button" onClick={handleSearch} disabled={loading}>
             {loading ? "Searching..." : "Search"}
           </button>
+        </div>
+
+        {/* Status Filter Tabs */}
+        <div className="experiment-tabs-bar">
+          {["All", "Submitted", "Running", "Completed"].map((st) => (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setSelectedStatus(st)}
+              className={`experiment-tab-btn ${
+                selectedStatus === st ? "active" : ""
+              }`}
+            >
+              {st === "All" ? "All Experiments" : st}
+            </button>
+          ))}
         </div>
 
         {error && <div className="experiment-error">{error}</div>}
@@ -212,77 +245,107 @@ export default function ExperimentList() {
               </thead>
 
               <tbody>
-                {experiments.map((item) => {
-                  const isDeleting = deletingId === item.experimentId;
+                {(() => {
+                  const filtered = experiments.filter((item) => {
+                    if ((item.status || "").toLowerCase() === "draft") {
+                      return false;
+                    }
+                    if (selectedStatus === "All") return true;
+                    return (
+                      (item.status || "").toLowerCase() ===
+                      selectedStatus.toLowerCase()
+                    );
+                  });
 
-                  return (
-                    <tr key={item.experimentId}>
-                      <td>#{item.experimentId}</td>
-                      <td>{item.experimentName || "-"}</td>
-                      <td>{getPriorityLabel(item.priority)}</td>
-                      <td>
-                        <span className={getStatusClass(item.status)}>
-                          {item.status || "Unknown"}
-                        </span>
-                      </td>
-                      <td>{formatDate(item.expectStartDate)}</td>
-                      <td>{formatDate(item.expectEndDate)}</td>
-                      <td>{formatDate(item.deadline)}</td>
-                      <td>{item.researcherName || item.createdByName || "-"}</td>
-                      <td>
-                        <div className="experiment-actions">
-                          <button
-                            type="button"
-                            className="action-btn-pill view"
-                            onClick={() =>
-                              navigate(`/experiments/${item.experimentId}`)
-                            }
-                            disabled={deletingId !== null}
-                          >
-                            <Eye size={12} />
-                            <span>View</span>
-                          </button>
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={9} className="empty-cell">
+                          No experiments found.
+                        </td>
+                      </tr>
+                    );
+                  }
 
-                          {isResearcher && (
-                            <button
-                              type="button"
-                              className="action-btn-pill edit"
-                              onClick={() =>
-                                navigate(
-                                  `/experiments/${item.experimentId}/edit`
-                                )
-                              }
-                              disabled={deletingId !== null}
-                            >
-                              <Pencil size={12} />
-                              <span>Edit</span>
-                            </button>
-                          )}
+                  return filtered.map((item) => {
+                    const isDeleting = deletingId === item.experimentId;
+                    const isDraft = (item.status || "").toLowerCase() === "draft";
 
-                          {isResearcher && (
-                            <button
-                              type="button"
-                              className="action-btn-pill delete"
-                              onClick={() => void handleDelete(item)}
-                              disabled={deletingId !== null}
-                            >
-                              <Trash2 size={12} />
-                              <span>{isDeleting ? "Deleting..." : "Delete"}</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr key={item.experimentId}>
+                        <td>#{item.experimentId}</td>
+                        <td>{item.experimentName || "-"}</td>
+                        <td>{getPriorityLabel(item.priority)}</td>
+                        <td>
+                          <span className={getStatusClass(item.status)}>
+                            {item.status || "Unknown"}
+                          </span>
+                        </td>
+                        <td>{formatDate(item.expectStartDate)}</td>
+                        <td>{formatDate(item.expectEndDate)}</td>
+                        <td>{formatDate(item.deadline)}</td>
+                        <td>{item.researcherName || item.createdByName || "-"}</td>
+                        <td>
+                          <div className="experiment-actions">
+                            {isDraft && isResearcher ? (
+                              <button
+                                type="button"
+                                className="action-btn-pill edit !bg-emerald-600 !text-white hover:!bg-emerald-700"
+                                onClick={() =>
+                                  navigate(`/experiments/${item.experimentId}`)
+                                }
+                                title="Open Draft & Select Planning Method (Manual or AI)"
+                              >
+                                <Sparkles size={12} />
+                                <span>Open Draft</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="action-btn-pill view"
+                                onClick={() =>
+                                  navigate(`/experiments/${item.experimentId}`)
+                                }
+                                disabled={deletingId !== null}
+                              >
+                                <Eye size={12} />
+                                <span>View</span>
+                              </button>
+                            )}
 
-                {experiments.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="empty-cell">
-                      No experiments found.
-                    </td>
-                  </tr>
-                )}
+                            {isResearcher && (
+                              <button
+                                type="button"
+                                className="action-btn-pill edit"
+                                onClick={() =>
+                                  navigate(
+                                    `/experiments/${item.experimentId}/edit`
+                                  )
+                                }
+                                disabled={deletingId !== null}
+                              >
+                                <Pencil size={12} />
+                                <span>Edit</span>
+                              </button>
+                            )}
+
+                            {isResearcher && (
+                              <button
+                                type="button"
+                                className="action-btn-pill delete"
+                                onClick={() => void handleDelete(item)}
+                                disabled={deletingId !== null}
+                              >
+                                <Trash2 size={12} />
+                                <span>{isDeleting ? "Deleting..." : "Delete"}</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           )}

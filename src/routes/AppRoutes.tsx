@@ -18,6 +18,7 @@ import LoginPage from "../pages/Login/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
 import UsersPage from "../pages/admin/Users/UsersPage";
 import PersonnelPage from "../pages/admin/Personnel/PersonnelPage";
+import AuditLogsPage from "../pages/admin/AuditLogs/AuditLogsPage";
 import SettingsPage from "../pages/admin/Settings/SettingsPage";
 import ResourcesPage from "../pages/Resources/ResourcesPage";
 
@@ -26,6 +27,7 @@ import ResourcesPage from "../pages/Resources/ResourcesPage";
 ===================================================== */
 
 import ExperimentList from "../pages/Experiment/ExperimentList";
+import MyExperimentList from "../pages/Experiment/MyExperimentList";
 import CreateExperiment from "../pages/Experiment/CreateExperiment";
 import EditExperiment from "../pages/Experiment/EditExperiment";
 import ExperimentDetail from "../pages/Experiment/ExperimentDetail";
@@ -383,6 +385,17 @@ export default function AppRoutes() {
             allowedRoles={operationalViewRoles}
           >
             <ExperimentList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/my-experiments"
+        element={
+          <ProtectedRoute
+            allowedRoles={operationalViewRoles}
+          >
+            <MyExperimentList />
           </ProtectedRoute>
         }
       />
@@ -941,6 +954,17 @@ export default function AppRoutes() {
             allowedRoles={["Admin"]}
           >
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/audit-logs"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Admin"]}
+          >
+            <AuditLogsPage />
           </ProtectedRoute>
         }
       />

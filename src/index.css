@@ -36,6 +36,16 @@
   }
 }
 
+/* Global High-Visibility Calendar Icon for Date Inputs */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.9;
+  filter: none !important;
+  padding: 2px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
 :root.dark {
   --text: #cbd5e1;
   --text-h: #ffffff;

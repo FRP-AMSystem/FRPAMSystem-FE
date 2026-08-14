@@ -98,9 +98,23 @@ export async function getExperimentEquipmentRequirementById(
 export async function createExperimentEquipmentRequirement(
   payload: ExperimentEquipmentRequirementPayload
 ): Promise<ExperimentEquipmentRequirement> {
+  const cleanBody: Record<string, unknown> = {
+    experimentId: payload.experimentId,
+    equipmentTypeId: payload.equipmentTypeId,
+    quantity: payload.quantity,
+  };
+
+  if (typeof payload.allowSubstitute === "boolean") {
+    cleanBody.allowSubstitute = payload.allowSubstitute;
+  }
+
+  if (payload.note && payload.note.trim()) {
+    cleanBody.note = payload.note.trim();
+  }
+
   const response = await api.post(
     "/ExperimentEquipmentRequirements",
-    payload
+    cleanBody
   );
 
   return unwrapResponse<ExperimentEquipmentRequirement>(
@@ -112,9 +126,23 @@ export async function updateExperimentEquipmentRequirement(
   id: number,
   payload: ExperimentEquipmentRequirementPayload
 ): Promise<ExperimentEquipmentRequirement> {
+  const cleanBody: Record<string, unknown> = {
+    experimentId: payload.experimentId,
+    equipmentTypeId: payload.equipmentTypeId,
+    quantity: payload.quantity,
+  };
+
+  if (typeof payload.allowSubstitute === "boolean") {
+    cleanBody.allowSubstitute = payload.allowSubstitute;
+  }
+
+  if (payload.note && payload.note.trim()) {
+    cleanBody.note = payload.note.trim();
+  }
+
   const response = await api.put(
     `/ExperimentEquipmentRequirements/${id}`,
-    payload
+    cleanBody
   );
 
   return unwrapResponse<ExperimentEquipmentRequirement>(

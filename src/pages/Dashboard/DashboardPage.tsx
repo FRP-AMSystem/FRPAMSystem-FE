@@ -19,6 +19,10 @@ import {
   getAllocationPlans,
 } from "../../services/allocationPlanService";
 
+import {
+  getExperiments,
+} from "../../services/experimentService";
+
 import type {
   AllocationPlan,
 } from "../../types/allocationPlan";
@@ -455,6 +459,11 @@ export default function DashboardPage() {
   ] = useState(true);
 
   const [
+    myExperimentIds,
+    setMyExperimentIds,
+  ] = useState<number[]>([]);
+
+  const [
     error,
     setError,
   ] = useState("");
@@ -473,12 +482,25 @@ export default function DashboardPage() {
             size: 500,
           });
 
+        let expIds: number[] = [];
+        if (role === "Researcher" && Number.isInteger(userId) && userId > 0) {
+          const expData = await getExperiments({
+            researcherId: userId,
+            page: 1,
+            size: 500,
+          });
+          if (expData && Array.isArray(expData.items)) {
+            expIds = expData.items.map((e) => e.experimentId);
+          }
+        }
+
         if (active) {
           setAllocationPlans(
             Array.isArray(data)
               ? data
               : []
           );
+          setMyExperimentIds(expIds);
         }
       } catch (loadError) {
         console.error(
@@ -488,6 +510,7 @@ export default function DashboardPage() {
 
         if (active) {
           setAllocationPlans([]);
+          setMyExperimentIds([]);
 
           setError(
             getErrorMessage(
@@ -507,7 +530,7 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [role]);
+  }, [role, userId]);
 
   const visiblePlans =
     useMemo(() => {
@@ -521,13 +544,14 @@ export default function DashboardPage() {
 
       return allocationPlans.filter(
         (plan) =>
-          plan.createdBy ===
-          userId
+          plan.createdBy === userId ||
+          myExperimentIds.includes(plan.experimentId)
       );
     }, [
       allocationPlans,
       role,
       userId,
+      myExperimentIds,
     ]);
 
   const dashboardData =
@@ -698,7 +722,7 @@ export default function DashboardPage() {
                 "Average Fitness",
 
               value:
-                `${dashboardData.averageFitness}%`,
+                String(dashboardData.averageFitness),
 
               subtext:
                 "Average allocation fitness score",
@@ -779,25 +803,6 @@ export default function DashboardPage() {
 
               type:
                 "total-resources",
-            },
-            {
-              id:
-                "researcher-fitness",
-
-              title:
-                "Average Fitness",
-
-              value:
-                `${dashboardData.averageFitness}%`,
-
-              subtext:
-                "Average score of your plans",
-
-              percentage:
-                dashboardData.averageFitness,
-
-              type:
-                "utilization",
             },
             {
               id:
@@ -981,7 +986,7 @@ export default function DashboardPage() {
                 "Average Fitness",
 
               value:
-                `${dashboardData.averageFitness}%`,
+                String(dashboardData.averageFitness),
 
               subtext:
                 "Average allocation result",
