@@ -726,7 +726,7 @@ export default function AllocationAnalytics() {
               </span>
 
               <strong>
-                {analytics.averageFitness}%
+                {analytics.averageFitness}
               </strong>
 
               <small>

@@ -15,7 +15,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { login } from "../../services/authService";
-import { startSignalRConnection } from "../../services/signalrService";
 import { saveRole, saveToken, saveUserData } from "../../utils/storage";
 
 export default function LoginPage() {
@@ -66,8 +65,6 @@ export default function LoginPage() {
         email: response.email || email.trim(),
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.fullName || response.username || "User")}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
       });
-
-      void startSignalRConnection();
 
       console.log("Remember me:", rememberMe);
       navigate("/dashboard");

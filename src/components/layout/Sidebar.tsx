@@ -48,11 +48,6 @@ import {
   getUnreadNotificationCount,
 } from "../../services/notificationService";
 
-import {
-  startSignalRConnection,
-  stopSignalRConnection,
-  type RealtimeNotificationPayload,
-} from "../../services/signalrService";
 
 import {
   getStoredRole,
@@ -89,6 +84,11 @@ const planningItems: MenuItem[] = [
   {
     name: "Experiments",
     path: "/experiments",
+    icon: FlaskConical,
+  },
+  {
+    name: "My Experiments",
+    path: "/my-experiments",
     icon: FlaskConical,
   },
   {
@@ -295,14 +295,24 @@ const researcherMenuGroups: MenuGroup[] = [
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      ...planningItems.map((item) =>
-        item.path === "/allocation"
-          ? {
-              ...item,
-              name: "My Allocations",
-            }
-          : item
-      ),
+      ...planningItems
+        .filter(
+          (item) =>
+            ![
+              "/experiment-phases",
+              "/equipment-requirements",
+              "/human-requirements",
+              "/land-requirements",
+            ].includes(item.path)
+        )
+        .map((item) =>
+          item.path === "/allocation"
+            ? {
+                ...item,
+                name: "My Allocations",
+              }
+            : item
+        ),
       {
         name: "Allocation Analytics",
         path: "/allocation-analytics",
@@ -528,7 +538,6 @@ export default function Sidebar() {
 
   useEffect(() => {
     void loadUnreadCount();
-    void startSignalRConnection();
 
     const intervalId =
       window.setInterval(
@@ -549,14 +558,6 @@ export default function Sidebar() {
       }
     };
 
-    const handleRealtimeNotif = (e: Event) => {
-      const customEvent = e as CustomEvent<RealtimeNotificationPayload>;
-      if (customEvent.detail) {
-        setRealtimeToast(customEvent.detail);
-        void loadUnreadCount();
-      }
-    };
-
     window.addEventListener(
       "notification-updated",
       refresh
@@ -565,11 +566,6 @@ export default function Sidebar() {
     window.addEventListener(
       "notification-count-updated",
       handleCountUpdated
-    );
-
-    window.addEventListener(
-      "signalr-notification-received",
-      handleRealtimeNotif
     );
 
     window.addEventListener(
@@ -590,11 +586,6 @@ export default function Sidebar() {
       window.removeEventListener(
         "notification-count-updated",
         handleCountUpdated
-      );
-
-      window.removeEventListener(
-        "signalr-notification-received",
-        handleRealtimeNotif
       );
 
       window.removeEventListener(
@@ -676,7 +667,6 @@ export default function Sidebar() {
 
   const handleConfirmLogout =
     useCallback(() => {
-      void stopSignalRConnection();
       clearAuthenticationStorage();
 
       navigate(

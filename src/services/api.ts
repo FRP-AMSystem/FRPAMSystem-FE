@@ -11,12 +11,16 @@ interface ApiErrorResponse {
   errors?: Record<string, string[]>;
 }
 
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string)
-    ? (import.meta.env.VITE_API_BASE_URL as string) + "/api"
-    : (typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "/api"
-        : "http://forestryresourceplanning.runasp.net/api");
+const isLocalhost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1");
+
+const API_BASE_URL = isLocalhost
+  ? "/api"
+  : (import.meta.env.VITE_API_BASE_URL as string)
+  ? (import.meta.env.VITE_API_BASE_URL as string) + "/api"
+  : "http://forestryresourceplanning.runasp.net/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
