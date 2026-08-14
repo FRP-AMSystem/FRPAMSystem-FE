@@ -204,7 +204,8 @@
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
-.status-pending {
+.status-pending,
+.status-submitted {
   background: rgba(245, 158, 11, 0.12);
   color: #b45309;
   border: 1px solid rgba(245, 158, 11, 0.3);
