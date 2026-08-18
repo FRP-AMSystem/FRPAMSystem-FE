@@ -3,7 +3,7 @@ import forestBg from "../../assets/forest.jpg";
 
 import {
   FaTree,
-  FaEnvelope,
+  FaUser,
   FaLock,
   FaEye,
   FaEyeSlash,
@@ -22,7 +22,7 @@ export default function LoginPage() {
 
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
@@ -34,8 +34,8 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setError("");
 
-    if (!email.trim()) {
-      setError("Please enter your email or username.");
+    if (!username.trim()) {
+      setError("Please enter your username.");
       return;
     }
 
@@ -48,7 +48,7 @@ export default function LoginPage() {
       setLoading(true);
 
       const response = await login({
-        usernameOrEmail: email.trim(),
+        usernameOrEmail: username.trim(),
         password,
       });
 
@@ -58,19 +58,19 @@ export default function LoginPage() {
       localStorage.setItem("userId", String(response.userId));
       localStorage.setItem("fullName", response.fullName);
       localStorage.setItem("username", response.username);
-      localStorage.setItem("email", response.email);
+      localStorage.setItem("email", response.email || `${username.trim()}@frpam.edu.vn`);
 
       saveUserData({
-        userName: response.fullName || response.username || email.split("@")[0],
-        email: response.email || email.trim(),
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.fullName || response.username || "User")}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
+        userName: response.fullName || response.username || username.trim(),
+        email: response.email || `${username.trim()}@frpam.edu.vn`,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.fullName || response.username || username.trim())}&background=E8F5E9&color=16A34A&font-size=0.45&bold=true`,
       });
 
       console.log("Remember me:", rememberMe);
       navigate("/dashboard");
     } catch (err) {
       console.error(err);
-      setError("Login failed. Please check your credentials.");
+      setError("Login failed. Please check your username and password.");
     } finally {
       setLoading(false);
     }
@@ -134,7 +134,7 @@ export default function LoginPage() {
               </div>
               <span className="welcome-subtitle">Welcome Back</span>
               <h2>Sign In</h2>
-              <p className="modal-desc">Enter your credentials to access the management portal.</p>
+              <p className="modal-desc">Enter your username to access the internal management portal.</p>
             </div>
 
             <form
@@ -146,14 +146,14 @@ export default function LoginPage() {
               {error && <div className="error-alert">{error}</div>}
 
               <div className="form-group">
-                <label>Email Address / Username</label>
+                <label>Username</label>
                 <div className="input-box">
-                  <FaEnvelope className="input-icon" />
+                  <FaUser className="input-icon" />
                   <input
                     type="text"
-                    placeholder="name@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your username (e.g. admin, researcher01)"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     autoFocus
                   />
                 </div>

@@ -14,28 +14,19 @@ interface LandReqStepProps {
   onChange: (requirements: LandReqFormItem[]) => void;
 }
 
-const COMMON_SOIL_TYPES = [
-  "Sandy Loam",
-  "Clay Loam",
-  "Acrisol (Ferreous Soil)",
-  "Ferralsol (Red Basalt Soil)",
-  "Podzol (Forest Sandy Soil)",
-  "Peat Soil",
-  "Alluvial Soil",
-];
-
 export const LandReqStep: React.FC<LandReqStepProps> = ({
   requirements,
   onChange,
 }) => {
   const handleAddRequirement = () => {
+    if (requirements.length >= 1) return;
     const newReq: LandReqFormItem = {
       id: `land-temp-${Date.now()}-${Math.random()}`,
       requiredArea: 100,
-      requiredSoilType: COMMON_SOIL_TYPES[0],
+      requiredSoilType: "",
       note: "",
     };
-    onChange([...requirements, newReq]);
+    onChange([newReq]);
   };
 
   const handleRemoveRequirement = (id: string) => {
@@ -53,35 +44,55 @@ export const LandReqStep: React.FC<LandReqStepProps> = ({
     onChange(updated);
   };
 
+  const hasLand = requirements.length >= 1;
+
   return (
     <div className="planning-card">
       <div className="planning-card-header">
         <div>
           <h2>
             <MapPin size={20} color="#16a34a" />
-            Step 5: Land & Soil Requirements
+            Step 5: Land & Soil Requirement
           </h2>
-          <p>Specify plot surface area (m²), soil type, and spatial site constraints.</p>
+          <p>Each experiment requires exactly 1 land plot. Specify plot surface area (m²), soil type, and site constraints.</p>
         </div>
-        <button
-          type="button"
-          onClick={handleAddRequirement}
-          className="btn-primary-green"
-        >
-          <Plus size={16} /> Add Land Need
-        </button>
-      </div>
-
-      {requirements.length === 0 ? (
-        <div className="planning-empty-box">
-          <MapPin size={40} />
-          <p>No land requirements added yet</p>
+        {!hasLand ? (
           <button
             type="button"
             onClick={handleAddRequirement}
             className="btn-primary-green"
           >
-            + Add Land Requirement
+            <Plus size={16} /> Configure Land
+          </button>
+        ) : (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 12px",
+              background: "#dcfce7",
+              color: "#166534",
+              borderRadius: "9999px",
+              fontSize: "13px",
+              fontWeight: 600,
+            }}
+          >
+            ✓ 1 Land Resource Configured
+          </span>
+        )}
+      </div>
+
+      {!hasLand ? (
+        <div className="planning-empty-box">
+          <MapPin size={40} />
+          <p>No land requirement configured yet (1 land required per experiment)</p>
+          <button
+            type="button"
+            onClick={handleAddRequirement}
+            className="btn-primary-green"
+          >
+            + Configure Land Requirement
           </button>
         </div>
       ) : (
@@ -127,19 +138,13 @@ export const LandReqStep: React.FC<LandReqStepProps> = ({
                   <label>Required Soil Type</label>
                   <input
                     type="text"
-                    list="soil-type-options"
                     value={req.requiredSoilType || ""}
                     onChange={(e) =>
                       handleUpdateRequirement(req.id, "requiredSoilType", e.target.value)
                     }
-                    placeholder="e.g. Ferralsol (Red Basalt)"
+                    placeholder="e.g. Sandy Loam, Clay Loam, Alluvial..."
                     className="planning-input"
                   />
-                  <datalist id="soil-type-options">
-                    {COMMON_SOIL_TYPES.map((st) => (
-                      <option key={st} value={st} />
-                    ))}
-                  </datalist>
                 </div>
 
                 <div className="planning-form-full planning-field-group">

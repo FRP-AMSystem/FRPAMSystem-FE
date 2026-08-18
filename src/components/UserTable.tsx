@@ -39,7 +39,8 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
       case "technician":
         return "role-badge role-technician";
       case "student":
-        return "role-badge role-student";
+      case "seasonal":
+        return "role-badge role-seasonal";
       default:
         return "role-badge";
     }
@@ -51,8 +52,8 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
         <thead>
           <tr>
             <th style={{ width: "50px" }}>AVATAR</th>
-            <th>FULL NAME</th>
-            <th>EMAIL</th>
+            <th>USER & FULL NAME</th>
+            <th>USERNAME</th>
             <th>ROLE</th>
             <th>STATUS</th>
             <th>CREATED DATE</th>
@@ -89,15 +90,22 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
                   )}
                 </div>
               </td>
-              <td style={{ fontWeight: 650, color: "#0f172a" }}>
-                {user.fullName || "User"}
+              <td>
+                <div style={{ fontWeight: 650, color: "#0f172a" }}>
+                  {user.fullName || "User"}
+                </div>
+                {user.email && (
+                  <div style={{ fontSize: "12px", color: "#64748b" }}>
+                    {user.email}
+                  </div>
+                )}
               </td>
-              <td style={{ color: "#475569" }}>
-                {user.email || "-"}
+              <td style={{ fontWeight: 600, color: "#16a34a" }}>
+                {user.username || "-"}
               </td>
               <td>
                 <span className={getRoleBadgeClass(user.role)}>
-                  {(user.role || "User").toUpperCase()}
+                  {((user.role || "").toLowerCase() === "student" ? "Seasonal" : user.role || "User").toUpperCase()}
                 </span>
               </td>
               <td>

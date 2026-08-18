@@ -308,9 +308,9 @@ const researcherMenuGroups: MenuGroup[] = [
         .map((item) =>
           item.path === "/allocation"
             ? {
-                ...item,
-                name: "My Allocations",
-              }
+              ...item,
+              name: "My Allocations",
+            }
             : item
         ),
       {
@@ -370,12 +370,15 @@ const studentMenuGroups: MenuGroup[] = [
   },
 ];
 
+const seasonalMenuGroups: MenuGroup[] = studentMenuGroups;
+
 const roleMenuGroups: Record<Role, MenuGroup[]> = {
   Admin: adminMenuGroups,
   Manager: managerMenuGroups,
   Researcher: researcherMenuGroups,
   Technician: technicianMenuGroups,
   Student: studentMenuGroups,
+  Seasonal: seasonalMenuGroups,
 };
 
 function isPathActive(
@@ -400,9 +403,9 @@ function buildInitialOpenGroups(
     groups.map((group) => [
       group.id,
       Boolean(group.defaultOpen) ||
-        group.items.some((item) =>
-          isPathActive(currentPath, item.path)
-        ),
+      group.items.some((item) =>
+        isPathActive(currentPath, item.path)
+      ),
     ])
   );
 }
@@ -741,7 +744,7 @@ export default function Sidebar() {
               const isOpen =
                 Boolean(
                   openGroups[
-                    group.id
+                  group.id
                   ]
                 );
 
@@ -849,13 +852,13 @@ export default function Sidebar() {
 
                               {isNotificationItem &&
                                 unreadCount >
-                                  0 && (
+                                0 && (
                                   <span
                                     className="sidebar-notification-badge"
                                     title={`${unreadCount} unread notifications`}
                                   >
                                     {unreadCount >
-                                    99
+                                      99
                                       ? "99+"
                                       : unreadCount}
                                   </span>

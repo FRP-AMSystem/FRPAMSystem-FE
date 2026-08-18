@@ -19,7 +19,7 @@ import { Eye, Pencil, Trash2, CheckCircle2, XCircle, Ban, Plus } from "lucide-re
 
 import "./AllocationList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+type Role = "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 type StatusFilter = "All" | AllocationPlanStatus;
 
 type RolePermission = {
@@ -69,6 +69,15 @@ const permissions: Record<Role, RolePermission> = {
     canReject: false,
     canCancel: false,
   },
+  Seasonal: {
+    canCreate: false,
+    canView: true,
+    canEdit: false,
+    canDelete: false,
+    canApprove: false,
+    canReject: false,
+    canCancel: false,
+  },
 };
 
 const statusOptions: StatusFilter[] = [
@@ -87,12 +96,13 @@ function getStoredRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    storedRole === "Student" ||
+    storedRole === "Seasonal"
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function formatDate(date?: string | null): string {
@@ -118,6 +128,7 @@ function getPageDescription(role: Role): string {
     case "Technician":
       return "View allocation information related to equipment and schedules.";
     case "Student":
+    case "Seasonal":
       return "View assigned experiments, schedules, and allocation results.";
   }
 }
@@ -221,6 +232,9 @@ export default function AllocationList() {
   const handleReject = async (plan: AllocationPlan) => {
     if (!permission.canReject || plan.approveStatus !== "Pending") return;
 
+    const reason = window.prompt("Enter rejection reason for this Allocation Plan:");
+    if (reason === null) return;
+
     await runPlanAction(
       plan.allocationPlanId,
       () => rejectAllocationPlan(plan.allocationPlanId),
@@ -295,7 +309,6 @@ export default function AllocationList() {
             <table className="allocation-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Experiment</th>
                   <th>Fitness</th>
                   <th>Status</th>
@@ -309,7 +322,7 @@ export default function AllocationList() {
               <tbody>
                 {filteredPlans.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="empty-table">
+                    <td colSpan={7} className="empty-table">
                       No allocation plans found.
                     </td>
                   </tr>
@@ -329,8 +342,7 @@ export default function AllocationList() {
 
                     return (
                       <tr key={plan.allocationPlanId}>
-                        <td>#{plan.allocationPlanId}</td>
-                        <td>{plan.experimentName || "-"}</td>
+                        <td style={{ fontWeight: 600 }}>{plan.experimentName || "-"}</td>
                         <td>{formatFitnessScore(plan.fitnessScore)}</td>
                         <td>
                           <span

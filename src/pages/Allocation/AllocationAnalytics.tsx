@@ -48,8 +48,7 @@ import "./AllocationAnalytics.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 interface StatusChartItem {
   name: string;
@@ -80,12 +79,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -347,18 +346,18 @@ export default function AllocationAnalytics() {
       const averageFitness =
         scores.length > 0
           ? Number(
-              (
-                scores.reduce(
-                  (
-                    sum,
-                    score
-                  ) =>
-                    sum + score,
-                  0
-                ) /
-                scores.length
-              ).toFixed(1)
-            )
+            (
+              scores.reduce(
+                (
+                  sum,
+                  score
+                ) =>
+                  sum + score,
+                0
+              ) /
+              scores.length
+            ).toFixed(1)
+          )
           : 0;
 
       const equipment =
@@ -408,12 +407,12 @@ export default function AllocationAnalytics() {
       const approvalRate =
         total > 0
           ? Number(
-              (
-                approved /
-                total *
-                100
-              ).toFixed(1)
-            )
+            (
+              approved /
+              total *
+              100
+            ).toFixed(1)
+          )
           : 0;
 
       return {
@@ -876,7 +875,7 @@ export default function AllocationAnalytics() {
 
           <div className="allocation-analytics-bar-wrap">
             {resourceChartData.length ===
-            0 ? (
+              0 ? (
               <div className="allocation-analytics-empty">
                 No resource allocation
                 information is available.
@@ -962,7 +961,6 @@ export default function AllocationAnalytics() {
             <table>
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Experiment</th>
                   <th>Status</th>
                   <th>Fitness</th>
@@ -976,10 +974,10 @@ export default function AllocationAnalytics() {
 
               <tbody>
                 {recentPlans.length ===
-                0 ? (
+                  0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={8}
                       className="allocation-analytics-empty-cell"
                     >
                       No allocation plans
@@ -994,13 +992,6 @@ export default function AllocationAnalytics() {
                           plan.allocationPlanId
                         }
                       >
-                        <td>
-                          #
-                          {
-                            plan.allocationPlanId
-                          }
-                        </td>
-
                         <td>
                           <strong>
                             {plan.experimentName ||

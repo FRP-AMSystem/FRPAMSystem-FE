@@ -28,10 +28,15 @@ export const roleMenus = {
     { name: "Schedules", path: "/schedules", icon: CalendarDays },
   ],
 
-  Student:[
-  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+  Student: [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Equipment Tracking", path: "/equipment", icon: Truck },
     { name: "Schedules", path: "/schedules", icon: CalendarDays },
- 
+  ],
+
+  Seasonal: [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+    { name: "Equipment Tracking", path: "/equipment", icon: Truck },
+    { name: "Schedules", path: "/schedules", icon: CalendarDays },
   ],
 };

@@ -33,8 +33,7 @@ import "./HumanRequirementList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 function getErrorMessage(
   error: unknown
@@ -101,9 +100,8 @@ function formatHours(
     return "-";
   }
 
-  return `${value} hour${
-    value === 1 ? "" : "s"
-  }`;
+  return `${value} hour${value === 1 ? "" : "s"
+    }`;
 }
 
 export default function HumanRequirementList() {
@@ -348,7 +346,7 @@ export default function HumanRequirementList() {
               }{" "}
               requirement
               {filteredRequirements.length ===
-              1
+                1
                 ? ""
                 : "s"}
             </span>
@@ -398,8 +396,6 @@ export default function HumanRequirementList() {
               <table className="human-requirement-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-
                     <th>
                       Experiment
                     </th>
@@ -440,15 +436,6 @@ export default function HumanRequirementList() {
                           requirement.expHumanReqId
                         }
                       >
-                        <td>
-                          <span className="human-requirement-id">
-                            #
-                            {
-                              requirement.expHumanReqId
-                            }
-                          </span>
-                        </td>
-
                         <td>
                           <div className="human-requirement-main-cell">
                             <strong>

@@ -11,7 +11,7 @@ import type { ExperimentResponse } from "../../types/experiment";
 
 import "./ExperimentList.css";
 
-type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student";
+type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -87,7 +87,7 @@ export default function MyExperimentList() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const role = (localStorage.getItem("role") || "Student") as Role;
+  const role = (localStorage.getItem("role") || "Seasonal") as Role;
   const isResearcher = role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
@@ -220,7 +220,6 @@ export default function MyExperimentList() {
             <table className="experiment-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Experiment Name</th>
                   <th>Priority</th>
                   <th>Status</th>
@@ -238,8 +237,7 @@ export default function MyExperimentList() {
 
                   return (
                     <tr key={item.experimentId}>
-                      <td>#{item.experimentId}</td>
-                      <td>{item.experimentName || "-"}</td>
+                      <td style={{ fontWeight: 600 }}>{item.experimentName || "-"}</td>
                       <td>{getPriorityLabel(item.priority)}</td>
                       <td>
                         <span className={getStatusClass(item.status)}>

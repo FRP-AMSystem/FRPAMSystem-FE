@@ -38,8 +38,7 @@ import "./ScheduleList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 type StatusFilter =
   | ""
@@ -66,12 +65,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -440,7 +439,7 @@ export default function ScheduleList() {
       startDateFrom &&
       startDateTo &&
       startDateTo <
-        startDateFrom
+      startDateFrom
     ) {
       setError(
         "The end filter date cannot be earlier than the start filter date."
@@ -484,9 +483,8 @@ export default function ScheduleList() {
 
     const confirmed =
       window.confirm(
-        `Delete schedule "${
-          schedule.title ||
-          `#${schedule.scheduleId}`
+        `Delete schedule "${schedule.title ||
+        `#${schedule.scheduleId}`
         }"?`
       );
 
@@ -754,8 +752,6 @@ export default function ScheduleList() {
               <table className="schedule-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-
                     <th>
                       Schedule
                     </th>
@@ -807,15 +803,6 @@ export default function ScheduleList() {
                             schedule.scheduleId
                           }
                         >
-                          <td>
-                            <span className="schedule-id">
-                              #
-                              {
-                                schedule.scheduleId
-                              }
-                            </span>
-                          </td>
-
                           <td>
                             <div className="schedule-title-cell">
                               <strong>

@@ -34,8 +34,7 @@ import "./SkillList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 interface FormState {
   skillName: string;
@@ -56,12 +55,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -459,14 +458,14 @@ export default function SkillList() {
 
           {(keyword ||
             appliedKeyword) && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={handleClear}
-            >
-              Clear
-            </button>
-          )}
+              <button
+                type="button"
+                className="secondary"
+                onClick={handleClear}
+              >
+                Clear
+              </button>
+            )}
         </section>
 
         {error && (
@@ -506,7 +505,6 @@ export default function SkillList() {
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>
                       Skill Name
                     </th>
@@ -533,13 +531,6 @@ export default function SkillList() {
                           item.skillId
                         }
                       >
-                        <td>
-                          #
-                          {
-                            item.skillId
-                          }
-                        </td>
-
                         <td>
                           <strong>
                             {

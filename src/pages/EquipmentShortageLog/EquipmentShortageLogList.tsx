@@ -34,8 +34,7 @@ import "./EquipmentShortageLogList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 type RequirementType =
   | "Experiment"
@@ -68,12 +67,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -304,22 +303,22 @@ export default function EquipmentShortageLogList() {
             allocationPlanId:
               appliedAllocationFilter
                 ? Number(
-                    appliedAllocationFilter
-                  )
+                  appliedAllocationFilter
+                )
                 : undefined,
 
             expEquipmentReqId:
               appliedExperimentRequirementFilter
                 ? Number(
-                    appliedExperimentRequirementFilter
-                  )
+                  appliedExperimentRequirementFilter
+                )
                 : undefined,
 
             phaseEquipmentReqId:
               appliedPhaseRequirementFilter
                 ? Number(
-                    appliedPhaseRequirementFilter
-                  )
+                  appliedPhaseRequirementFilter
+                )
                 : undefined,
 
             page: 1,
@@ -580,13 +579,13 @@ export default function EquipmentShortageLogList() {
 
       expEquipmentReqId:
         form.requirementType ===
-        "Experiment"
+          "Experiment"
           ? requirementId
           : null,
 
       phaseEquipmentReqId:
         form.requirementType ===
-        "Phase"
+          "Phase"
           ? requirementId
           : null,
 
@@ -833,7 +832,6 @@ export default function EquipmentShortageLogList() {
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>
                       Allocation Plan
                     </th>
@@ -866,7 +864,7 @@ export default function EquipmentShortageLogList() {
 
                 <tbody>
                   {items.map(
-                    (item, index) => {
+                    (item) => {
                       const requirementType =
                         getRequirementType(
                           item
@@ -883,14 +881,6 @@ export default function EquipmentShortageLogList() {
                             item.equipmentShortageLogId
                           }
                         >
-                          <td>
-                            #
-                            {item.equipmentShortageLogId &&
-                            item.equipmentShortageLogId > 0
-                              ? item.equipmentShortageLogId
-                              : index + 1}
-                          </td>
-
                           <td>
                             <strong>
                               {item.allocationPlanName ||
@@ -910,7 +900,7 @@ export default function EquipmentShortageLogList() {
                               className={[
                                 "equipment-shortage-requirement-badge",
                                 requirementType ===
-                                "Phase"
+                                  "Phase"
                                   ? "phase"
                                   : "experiment",
                               ].join(

@@ -3,6 +3,15 @@ import type { Role, RoleQuery, RoleResponse } from "../types/role";
 
 export type RoleItem = RoleResponse & Role;
 
+export function normalizeRoleName(name: string): string {
+  if (!name) return "Seasonal";
+  const lower = name.toLowerCase().trim();
+  if (lower === "student" || lower === "seasonal") {
+    return "Seasonal";
+  }
+  return name.trim();
+}
+
 function normalizeRoleList(value: unknown): RoleItem[] {
   let list: any[] = [];
   if (Array.isArray(value)) {
@@ -20,7 +29,8 @@ function normalizeRoleList(value: unknown): RoleItem[] {
 
   return list.map((r: any) => {
     const roleId = Number(r.roleId ?? r.id ?? 0);
-    const roleName = String(r.roleName ?? r.name ?? "");
+    const rawRoleName = String(r.roleName ?? r.name ?? "");
+    const roleName = normalizeRoleName(rawRoleName);
     return {
       roleId,
       roleName,
@@ -43,4 +53,3 @@ export async function getRoles(query: RoleQuery = {}): Promise<RoleItem[]> {
 
   return normalizeRoleList(response.data);
 }
-

@@ -41,7 +41,7 @@
   font-weight: 600;
 }
 
-/* Không áp dụng style input lớn cho checkbox */
+/* Do not apply large text input styling to checkbox */
 .resource-form-card input:not([type="checkbox"]),
 .resource-form-card select,
 .resource-form-card textarea {

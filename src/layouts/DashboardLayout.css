@@ -23,14 +23,14 @@
   box-sizing: border-box;
 }
 
-/* Các page và bảng bên trong không được vượt khỏi vùng content */
-.dashboard-content > * {
+/* Keep child pages and tables within the content container */
+.dashboard-content>* {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }
 
-/* Đồng bộ với Sidebar rộng 230px ở màn hình nhỏ */
+/* Synchronize with 230px sidebar on smaller screens */
 @media (max-width: 900px) {
   .dashboard-main {
     width: calc(100% - 230px);
@@ -38,10 +38,7 @@
   }
 }
 
-/*
-  Trên điện thoại, Sidebar fixed không nên chiếm toàn bộ không gian.
-  Tạm ẩn Sidebar và cho nội dung dùng toàn màn hình.
-*/
+/* Mobile full width view */
 @media (max-width: 640px) {
   .dashboard-main {
     width: 100%;

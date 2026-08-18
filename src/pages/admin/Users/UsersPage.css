@@ -286,7 +286,8 @@
   color: #92400e;
 }
 
-.role-badge.role-student {
+.role-badge.role-student,
+.role-badge.role-seasonal {
   background: #cffafe;
   color: #155e75;
 }

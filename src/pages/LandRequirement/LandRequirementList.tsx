@@ -35,8 +35,7 @@ import "./LandRequirementList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 function getErrorMessage(
   error: unknown
@@ -352,16 +351,16 @@ export default function LandRequirementList() {
 
           {(keyword ||
             searchKeyword) && (
-            <button
-              type="button"
-              className="land-requirement-clear-button"
-              onClick={
-                handleClearSearch
-              }
-            >
-              Clear
-            </button>
-          )}
+              <button
+                type="button"
+                className="land-requirement-clear-button"
+                onClick={
+                  handleClearSearch
+                }
+              >
+                Clear
+              </button>
+            )}
         </section>
 
         {error && (
@@ -383,7 +382,7 @@ export default function LandRequirementList() {
                 }{" "}
                 requirement
                 {requirements.length ===
-                1
+                  1
                   ? ""
                   : "s"}
               </p>
@@ -434,8 +433,6 @@ export default function LandRequirementList() {
               <table className="land-requirement-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-
                     <th>
                       Experiment
                     </th>
@@ -468,15 +465,6 @@ export default function LandRequirementList() {
                           requirement.expLandReqId
                         }
                       >
-                        <td>
-                          <span className="land-requirement-id">
-                            #
-                            {
-                              requirement.expLandReqId
-                            }
-                          </span>
-                        </td>
-
                         <td>
                           <div className="land-requirement-experiment">
                             <strong>
@@ -562,7 +550,7 @@ export default function LandRequirementList() {
                                   <Trash2 size={12} />
                                   <span>
                                     {deletingId ===
-                                    requirement.expLandReqId
+                                      requirement.expLandReqId
                                       ? "..."
                                       : "Delete"}
                                   </span>
