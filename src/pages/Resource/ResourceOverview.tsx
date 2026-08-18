@@ -31,8 +31,7 @@ type Role =
   | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 interface ResourceIconProps {
   size?: number;
@@ -46,11 +45,11 @@ interface ResourceMenuItem {
   icon: ComponentType<ResourceIconProps>;
   allowedRoles: Role[];
   category:
-    | "equipment"
-    | "human"
-    | "land"
-    | "planning"
-    | "monitoring";
+  | "equipment"
+  | "human"
+  | "land"
+  | "planning"
+  | "monitoring";
 }
 
 const allRoles: Role[] = [
@@ -208,12 +207,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getCategoryLabel(
@@ -276,9 +275,9 @@ export default function ResourceOverview() {
     visibleItems.filter(
       (item) =>
         item.category ===
-          "planning" ||
+        "planning" ||
         item.category ===
-          "monitoring"
+        "monitoring"
     ).length;
 
   return (

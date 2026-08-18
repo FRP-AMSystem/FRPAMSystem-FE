@@ -34,8 +34,7 @@ import "./HumanRequirementDetail.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 function getErrorMessage(
   error: unknown
@@ -460,7 +459,7 @@ export default function HumanRequirementDetail() {
                   <strong>
                     {requirement.workingHoursPerDay !==
                       null &&
-                    requirement.workingHoursPerDay !==
+                      requirement.workingHoursPerDay !==
                       undefined
                       ? `${requirement.workingHoursPerDay} hours`
                       : "-"}
@@ -475,7 +474,7 @@ export default function HumanRequirementDetail() {
                   <strong>
                     {requirement.workingHoursPerDay !==
                       null &&
-                    requirement.workingHoursPerDay !==
+                      requirement.workingHoursPerDay !==
                       undefined
                       ? `${requirement.quantity * requirement.workingHoursPerDay} hours`
                       : "-"}

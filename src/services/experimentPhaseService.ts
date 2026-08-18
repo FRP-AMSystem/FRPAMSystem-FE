@@ -300,11 +300,29 @@ export async function getExperimentPhaseById(
 export async function createExperimentPhase(
   payload: ExperimentPhaseRequest
 ): Promise<ExperimentPhase> {
-  const response =
-    await api.post(
-      "/ExperimentPhases",
-      payload
-    );
+  const sanitizeDate = (d?: string | null): string => {
+    if (!d) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}T00:00:00`;
+    }
+    const clean = d.slice(0, 10);
+    return `${clean}T00:00:00`;
+  };
+
+  const sanitizedPayload = {
+    experimentId: Number(payload.experimentId),
+    phaseName: String(payload.phaseName || "").trim(),
+    phaseDescription: payload.phaseDescription ? String(payload.phaseDescription).trim() : "",
+    phaseOrder: Number(payload.phaseOrder) || 1,
+    expectedStartDate: sanitizeDate(payload.expectedStartDate),
+    expectedEndDate: sanitizeDate(payload.expectedEndDate),
+    status: payload.status || "Planned",
+  };
+
+  const response = await api.post("/ExperimentPhases", sanitizedPayload);
 
   return normalizeExperimentPhase(
     extractSingleData(
@@ -317,11 +335,29 @@ export async function updateExperimentPhase(
   id: number,
   payload: ExperimentPhaseRequest
 ): Promise<ExperimentPhase> {
-  const response =
-    await api.put(
-      `/ExperimentPhases/${id}`,
-      payload
-    );
+  const sanitizeDate = (d?: string | null): string => {
+    if (!d) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}T00:00:00`;
+    }
+    const clean = d.slice(0, 10);
+    return `${clean}T00:00:00`;
+  };
+
+  const sanitizedPayload = {
+    experimentId: Number(payload.experimentId),
+    phaseName: String(payload.phaseName || "").trim(),
+    phaseDescription: payload.phaseDescription ? String(payload.phaseDescription).trim() : "",
+    phaseOrder: Number(payload.phaseOrder) || 1,
+    expectedStartDate: sanitizeDate(payload.expectedStartDate),
+    expectedEndDate: sanitizeDate(payload.expectedEndDate),
+    status: payload.status || "Planned",
+  };
+
+  const response = await api.put(`/ExperimentPhases/${id}`, sanitizedPayload);
 
   return normalizeExperimentPhase(
     extractSingleData(

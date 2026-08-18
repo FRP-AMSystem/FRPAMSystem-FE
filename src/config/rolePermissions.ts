@@ -3,7 +3,8 @@ export type Role =
   | "Manager"
   | "Researcher"
   | "Technician"
-  | "Student";
+  | "Student"
+  | "Seasonal";
 
 export interface RolePermission {
   canManageUsers: boolean;
@@ -57,6 +58,7 @@ export const validRoles: Role[] = [
   "Researcher",
   "Technician",
   "Student",
+  "Seasonal",
 ];
 
 export function isRole(
@@ -67,7 +69,8 @@ export function isRole(
     value === "Manager" ||
     value === "Researcher" ||
     value === "Technician" ||
-    value === "Student"
+    value === "Student" ||
+    value === "Seasonal"
   );
 }
 
@@ -76,9 +79,13 @@ export function getStoredRole(): Role {
     localStorage.getItem("role") ||
     localStorage.getItem("roleName");
 
+  if (storedRole === "Seasonal" || storedRole === "Student") {
+    return "Seasonal";
+  }
+
   return isRole(storedRole)
     ? storedRole
-    : "Student";
+    : "Seasonal";
 }
 
 export function getStoredUserId(): number | null {
@@ -287,6 +294,52 @@ export const rolePermissions: Record<
   },
 
   Student: {
+    canManageUsers: false,
+    canManageRoles: false,
+    canManageSystemConfiguration: false,
+    canViewAuditLogs: false,
+
+    canViewExperiments: true,
+    canCreateExperiment: false,
+    canEditExperiment: false,
+    canDeleteExperiment: false,
+    canSubmitExperiment: false,
+
+    canViewExperimentPhases: true,
+    canCreateExperimentPhase: false,
+    canEditExperimentPhase: false,
+    canDeleteExperimentPhase: false,
+
+    canViewRequirements: true,
+    canCreateRequirement: false,
+    canEditRequirement: false,
+    canDeleteRequirement: false,
+
+    canViewAllocations: true,
+    canCreateAllocation: false,
+    canEditAllocation: false,
+    canDeleteAllocation: false,
+    canSubmitAllocation: false,
+    canCancelAllocation: false,
+    canApproveAllocation: false,
+    canRejectAllocation: false,
+
+    canViewResources: true,
+    canManageResources: false,
+
+    canViewSchedules: true,
+    canCreateSchedule: false,
+    canEditSchedule: false,
+    canDeleteSchedule: false,
+    canUpdateScheduleStatus: false,
+
+    canViewConflicts: false,
+    canViewReports: false,
+    canViewNotifications: true,
+    canViewAnalytics: false,
+  },
+
+  Seasonal: {
     canManageUsers: false,
     canManageRoles: false,
     canManageSystemConfiguration: false,

@@ -37,8 +37,7 @@ import "./ExperimentPhaseList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 type StatusFilter =
   | ""
@@ -565,8 +564,6 @@ export default function ExperimentPhaseList() {
               <table className="experiment-phase-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-
                     <th>
                       Experiment
                     </th>
@@ -605,15 +602,6 @@ export default function ExperimentPhaseList() {
                           phase.experimentPhaseId
                         }
                       >
-                        <td>
-                          <span className="experiment-phase-id">
-                            #
-                            {
-                              phase.experimentPhaseId
-                            }
-                          </span>
-                        </td>
-
                         <td>
                           <div className="experiment-phase-experiment">
                             <strong>

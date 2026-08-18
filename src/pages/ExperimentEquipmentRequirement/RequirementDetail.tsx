@@ -8,7 +8,7 @@ import type { ExperimentEquipmentRequirement } from "../../types/experimentEquip
 
 import "./RequirementDetail.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+type Role = "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 function formatEfficiency(value: number): string {
   if (!Number.isFinite(value)) {
@@ -74,7 +74,7 @@ export default function RequirementDetail() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  const role = (localStorage.getItem("role") || "Student") as Role;
+  const role = (localStorage.getItem("role") || "Seasonal") as Role;
   const canEdit = role === "Admin" || role === "Manager" || role === "Researcher";
   const canCreateAllocation = role === "Admin" || role === "Manager" || role === "Researcher";
 

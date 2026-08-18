@@ -21,7 +21,7 @@ import type { ExperimentEquipmentRequirement } from "../../types/experimentEquip
 
 import "./RequirementList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student";
+type Role = "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 function formatMinEfficiency(
   value: number | null | undefined
@@ -39,7 +39,7 @@ export default function RequirementList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const role = (localStorage.getItem("role") || "Student") as Role;
+  const role = (localStorage.getItem("role") || "Seasonal") as Role;
 
   const canCreateRequirement = role === "Admin" || role === "Manager" || role === "Researcher";
   const canEditRequirement = role === "Admin" || role === "Manager" || role === "Researcher";
@@ -186,7 +186,7 @@ export default function RequirementList() {
             ) : (
               <p>
                 Researcher creates and updates requirements.
-                Manager, Technician and Student can view the
+                Manager, Technician and Seasonal can view the
                 requirement information.
               </p>
             )}
@@ -262,7 +262,6 @@ export default function RequirementList() {
               <table className="requirement-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>Experiment</th>
                     <th>Equipment Type</th>
                     <th>Quantity</th>
@@ -281,11 +280,11 @@ export default function RequirementList() {
 
                     return (
                       <tr key={id}>
-                        <td>#{id}</td>
-
                         <td>
-                          {item.experimentName ||
-                            `Experiment #${item.experimentId}`}
+                          <strong>
+                            {item.experimentName ||
+                              `Experiment #${item.experimentId}`}
+                          </strong>
                         </td>
 
                         <td>

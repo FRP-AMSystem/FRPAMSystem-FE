@@ -254,10 +254,31 @@ export default function EditHumanRequirement() {
             : []
         );
 
+        const allRoles = Array.isArray(roleData) ? roleData : [];
+        const filteredRoles = allRoles.filter((r) => {
+          const normalized = r.roleName.trim().toLowerCase();
+          if (
+            normalized.includes("admin") ||
+            normalized.includes("manager") ||
+            normalized.includes("researcher")
+          ) {
+            return false;
+          }
+          return (
+            normalized === "seasonal" ||
+            normalized.includes("seasonal") ||
+            normalized === "technician" ||
+            normalized.includes("technician")
+          );
+        });
+
         setRoles(
-          Array.isArray(roleData)
-            ? roleData
-            : []
+          filteredRoles.length > 0
+            ? filteredRoles
+            : [
+              { roleId: 4, roleName: "Technician", id: "4", name: "Technician" },
+              { roleId: 5, roleName: "Seasonal", id: "5", name: "Seasonal" },
+            ]
         );
 
         setSkills(
@@ -285,18 +306,18 @@ export default function EditHumanRequirement() {
           requiredSkillId:
             requirement.requiredSkillId
               ? String(
-                  requirement.requiredSkillId
-                )
+                requirement.requiredSkillId
+              )
               : "",
 
           workingHoursPerDay:
             requirement.workingHoursPerDay !==
               null &&
-            requirement.workingHoursPerDay !==
+              requirement.workingHoursPerDay !==
               undefined
               ? String(
-                  requirement.workingHoursPerDay
-                )
+                requirement.workingHoursPerDay
+              )
               : "",
 
           note:
@@ -368,15 +389,15 @@ export default function EditHumanRequirement() {
     const requiredSkillId =
       form.requiredSkillId
         ? Number(
-            form.requiredSkillId
-          )
+          form.requiredSkillId
+        )
         : null;
 
     const workingHoursPerDay =
       form.workingHoursPerDay
         ? Number(
-            form.workingHoursPerDay
-          )
+          form.workingHoursPerDay
+        )
         : null;
 
     if (

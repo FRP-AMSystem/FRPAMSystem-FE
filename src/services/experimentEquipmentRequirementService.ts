@@ -108,6 +108,15 @@ export async function createExperimentEquipmentRequirement(
     cleanBody.allowSubstitute = payload.allowSubstitute;
   }
 
+  if (payload.minAcceptableEfficiency !== undefined && payload.minAcceptableEfficiency !== null) {
+    const eff = Number(payload.minAcceptableEfficiency);
+    cleanBody.minAcceptableEfficiency = !isNaN(eff)
+      ? eff > 1
+        ? Number((eff / 100).toFixed(2))
+        : eff
+      : null;
+  }
+
   if (payload.note && payload.note.trim()) {
     cleanBody.note = payload.note.trim();
   }
@@ -134,6 +143,15 @@ export async function updateExperimentEquipmentRequirement(
 
   if (typeof payload.allowSubstitute === "boolean") {
     cleanBody.allowSubstitute = payload.allowSubstitute;
+  }
+
+  if (payload.minAcceptableEfficiency !== undefined && payload.minAcceptableEfficiency !== null) {
+    const eff = Number(payload.minAcceptableEfficiency);
+    cleanBody.minAcceptableEfficiency = !isNaN(eff)
+      ? eff > 1
+        ? Number((eff / 100).toFixed(2))
+        : eff
+      : null;
   }
 
   if (payload.note && payload.note.trim()) {

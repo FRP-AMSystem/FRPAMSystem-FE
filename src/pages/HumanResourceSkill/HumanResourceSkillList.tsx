@@ -52,8 +52,7 @@ type Role =
   | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 interface FormState {
   humanResourceId: string;
@@ -83,12 +82,12 @@ function getCurrentRole(): Role {
     role === "Manager" ||
     role === "Researcher" ||
     role === "Technician" ||
-    role === "Student"
+    (role === "Student" || role === "Seasonal")
   ) {
     return role;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -449,10 +448,10 @@ export default function HumanResourceSkillList() {
     const duplicate = items.some(
       (item) =>
         item.humanResourceId ===
-          humanResourceId &&
+        humanResourceId &&
         item.skillId === skillId &&
         item.humanResourceSkillId !==
-          editing?.humanResourceSkillId
+        editing?.humanResourceSkillId
     );
 
     if (duplicate) {
@@ -670,8 +669,8 @@ export default function HumanResourceSkillList() {
             onChange={(event) =>
               setLevelFilter(
                 event.target.value as
-                  | SkillLevel
-                  | ""
+                | SkillLevel
+                | ""
               )
             }
           >
@@ -707,14 +706,14 @@ export default function HumanResourceSkillList() {
             profileFilter ||
             skillFilter ||
             levelFilter) && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={clearFilters}
-            >
-              Clear
-            </button>
-          )}
+              <button
+                type="button"
+                className="secondary"
+                onClick={clearFilters}
+              >
+                Clear
+              </button>
+            )}
         </section>
 
         {error && (
@@ -751,7 +750,6 @@ export default function HumanResourceSkillList() {
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>Human Resource</th>
                     <th>Role</th>
                     <th>Skill</th>
@@ -768,13 +766,6 @@ export default function HumanResourceSkillList() {
                           item.humanResourceSkillId
                         }
                       >
-                        <td>
-                          #
-                          {
-                            item.humanResourceSkillId
-                          }
-                        </td>
-
                         <td>
                           <strong>
                             {getAssignmentHumanName(

@@ -49,13 +49,14 @@ import {
   getAllocationLandDetails,
 } from "../../services/allocationDetailService";
 
+import { useNotification } from "../../context/NotificationContext";
+
 import "./AllocationDetail.css";
 
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 type ResourceTab =
   | "equipment"
@@ -96,6 +97,14 @@ const permissions: Record<Role, RolePermission> = {
   },
 
   Student: {
+    canEditPlan: false,
+    canManageResources: false,
+    canApprove: false,
+    canReject: false,
+    canCancel: false,
+  },
+
+  Seasonal: {
     canEditPlan: false,
     canManageResources: false,
     canApprove: false,
@@ -229,7 +238,7 @@ function getLandDetailId(
   return detail.allocationLandDetailId;
 }
 
-export default function AllocationDetail() {
+function AllocationDetail() {
   const navigate = useNavigate();
 
   const { id } = useParams<{
@@ -245,11 +254,12 @@ export default function AllocationDetail() {
     savedRole === "Manager" ||
       savedRole === "Researcher" ||
       savedRole === "Technician" ||
-      savedRole === "Student"
+      (savedRole === "Student" || savedRole === "Seasonal")
       ? savedRole
-      : "Student";
+      : "Seasonal";
 
   const permission = permissions[role];
+  const { sendLocalNotification } = useNotification();
 
   const [plan, setPlan] =
     useState<AllocationPlan | null>(null);
@@ -584,7 +594,7 @@ export default function AllocationDetail() {
         );
 
         setSuccessMessage(
-          "Allocation submitted successfully."
+          "Allocation submitted successfully for Manager Review."
         );
 
         await loadAllocationDetail();
@@ -1441,7 +1451,6 @@ export default function AllocationDetail() {
                   <table className="allocation-resource-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
                         <th>Equipment</th>
                         <th>Instance</th>
                         <th>Quantity</th>
@@ -1470,10 +1479,6 @@ export default function AllocationDetail() {
 
                           return (
                             <tr key={detailId}>
-                              <td>
-                                #{detailId}
-                              </td>
-
                               <td>
                                 <strong>
                                   {detail.allocatedEquipmentTypeName ||
@@ -1622,7 +1627,6 @@ export default function AllocationDetail() {
                   <table className="allocation-resource-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
                         <th>
                           Human Resource
                         </th>
@@ -1654,10 +1658,6 @@ export default function AllocationDetail() {
 
                           return (
                             <tr key={detailId}>
-                              <td>
-                                #{detailId}
-                              </td>
-
                               <td>
                                 <strong>
                                   {detail.humanResourceName ||
@@ -1802,7 +1802,6 @@ export default function AllocationDetail() {
                   <table className="allocation-resource-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
                         <th>Land</th>
                         <th>Code</th>
                         <th>Area</th>
@@ -1832,10 +1831,6 @@ export default function AllocationDetail() {
 
                           return (
                             <tr key={detailId}>
-                              <td>
-                                #{detailId}
-                              </td>
-
                               <td>
                                 <strong>
                                   {detail.landName ||
@@ -1977,3 +1972,5 @@ export default function AllocationDetail() {
     </DashboardLayout>
   );
 }
+
+export default AllocationDetail;

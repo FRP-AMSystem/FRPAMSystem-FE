@@ -9,7 +9,10 @@ interface UserDetailModalProps {
 
 function getRoleBadgeClass(role: string): string {
   const normRole = (role || "").toLowerCase().trim();
-  const knownRoles = ["admin", "manager", "researcher", "technician", "student"];
+  if (normRole === "seasonal" || normRole === "student") {
+    return "role-badge role-seasonal";
+  }
+  const knownRoles = ["admin", "manager", "researcher", "technician"];
   return knownRoles.includes(normRole)
     ? `role-badge role-${normRole}`
     : "role-badge";
@@ -80,7 +83,7 @@ export default function UserDetailModal({ user, onClose }: UserDetailModalProps)
     fullName: detailedUser?.fullName || user.fullName || "—",
     username: detailedUser?.username || user.username || "—",
     email: detailedUser?.email || user.email || "—",
-    role: detailedUser?.roleName || user.role || "User",
+    role: ((detailedUser?.roleName || user.role || "").toLowerCase() === "student" ? "Seasonal" : (detailedUser?.roleName || user.role || "User")),
     status: user.status || "Active",
     avatar: avatarUrl,
     createdDate: user.createdDate,

@@ -153,11 +153,30 @@ export async function getExperimentById(
 export async function createExperiment(
   payload: ExperimentCreateRequest
 ): Promise<ExperimentResponse> {
-  const response =
-    await api.post(
-      "/Experiments",
-      payload
-    );
+  const sanitizeDate = (d?: string | null): string => {
+    if (!d) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}T00:00:00`;
+    }
+    const clean = d.slice(0, 10);
+    return `${clean}T00:00:00`;
+  };
+
+  const sanitizedPayload = {
+    experimentName: String(payload.experimentName || "").trim(),
+    description: payload.description ? String(payload.description).trim() : null,
+    researcherId: Number(payload.researcherId) || 1,
+    expectStartDate: sanitizeDate(payload.expectStartDate),
+    expectEndDate: sanitizeDate(payload.expectEndDate),
+    deadline: sanitizeDate(payload.deadline || payload.expectEndDate),
+    priority: Number.isInteger(Number(payload.priority)) ? Number(payload.priority) : 1,
+    status: payload.status || "Draft",
+  };
+
+  const response = await api.post("/Experiments", sanitizedPayload);
 
   return unwrapResponse<ExperimentResponse>(
     response.data
@@ -170,11 +189,33 @@ export async function updateExperiment(
 ): Promise<ExperimentResponse> {
   validateExperimentId(id);
 
-  const response =
-    await api.put(
-      `/Experiments/${id}`,
-      payload
-    );
+  let researcherId = payload.researcherId ? Number(payload.researcherId) : undefined;
+  if (!researcherId || isNaN(researcherId) || researcherId <= 0) {
+    try {
+      const stored = localStorage.getItem("userId");
+      if (stored && Number(stored) > 0) {
+        researcherId = Number(stored);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const sanitizedPayload = {
+    experimentName: String(payload.experimentName || "").trim(),
+    description: payload.description ? String(payload.description).trim() : null,
+    researcherId: researcherId,
+    expectStartDate: payload.expectStartDate,
+    expectEndDate: payload.expectEndDate,
+    deadline: payload.deadline,
+    actualStartDate: payload.actualStartDate || null,
+    actualEndDate: payload.actualEndDate || null,
+    priority: payload.priority !== undefined && payload.priority !== null ? Number(payload.priority) : 1,
+    status: payload.status || "Draft",
+    rejectReason: payload.rejectReason || null,
+  };
+
+  const response = await api.put(`/Experiments/${id}`, sanitizedPayload);
 
   return unwrapResponse<ExperimentResponse>(
     response.data

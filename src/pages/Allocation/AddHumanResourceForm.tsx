@@ -171,9 +171,25 @@ export default function AddHumanResourceForm({
             size: 100,
           });
 
-        setResources(
-          Array.isArray(data) ? data : []
-        );
+        const rawList = Array.isArray(data) ? data : [];
+        const filtered = rawList.filter((p) => {
+          const role = (p.roleName || "").trim().toLowerCase();
+          if (
+            role.includes("admin") ||
+            role.includes("manager") ||
+            role.includes("researcher")
+          ) {
+            return false;
+          }
+          return (
+            role === "seasonal" ||
+            role.includes("seasonal") ||
+            role === "technician" ||
+            role.includes("technician")
+          );
+        });
+
+        setResources(filtered);
       } catch (loadError) {
         console.error(
           "Load human resources failed:",

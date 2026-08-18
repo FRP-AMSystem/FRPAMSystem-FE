@@ -33,8 +33,7 @@ import "./EquipmentCategoryList.css";
 type Role =
     | "Manager"
     | "Researcher"
-    | "Technician"
-    | "Student";
+    | "Technician" | "Student" | "Seasonal";
 
 function getErrorMessage(
     error: unknown
@@ -114,12 +113,12 @@ function getCurrentRole(): Role {
         storedRole === "Manager" ||
         storedRole === "Researcher" ||
         storedRole === "Technician" ||
-        storedRole === "Student"
+        (storedRole === "Student" || storedRole === "Seasonal")
     ) {
         return storedRole;
     }
 
-    return "Student";
+    return "Seasonal";
 }
 
 export default function EquipmentCategoryList() {
@@ -502,7 +501,6 @@ export default function EquipmentCategoryList() {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
                                         <th>
                                             Category name
                                         </th>
@@ -526,13 +524,6 @@ export default function EquipmentCategoryList() {
                                                     item.equipmentCategoryId
                                                 }
                                             >
-                                                <td>
-                                                    #
-                                                    {
-                                                        item.equipmentCategoryId
-                                                    }
-                                                </td>
-
                                                 <td>
                                                     <strong>
                                                         {

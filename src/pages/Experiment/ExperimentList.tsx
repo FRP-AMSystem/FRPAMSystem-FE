@@ -11,7 +11,7 @@ import type { ExperimentResponse } from "../../types/experiment";
 
 import "./ExperimentList.css";
 
-type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student";
+type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -87,7 +87,7 @@ export default function ExperimentList() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const role = (localStorage.getItem("role") || "Student") as Role;
+  const role = (localStorage.getItem("role") || "Seasonal") as Role;
   const isResearcher = role === "Admin" || role === "Manager" || role === "Researcher";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
@@ -96,9 +96,6 @@ export default function ExperimentList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(
-    (location.state as { message?: string } | null)?.message || null
-  );
 
   const loadExperiments = useCallback(async (searchKeyword = "") => {
     try {
@@ -175,18 +172,6 @@ export default function ExperimentList() {
           )}
         </div>
 
-        {toastMessage && (
-          <div className="p-4 mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-semibold flex justify-between items-center">
-            <span>{toastMessage}</span>
-            <button
-              onClick={() => setToastMessage(null)}
-              className="text-xs text-emerald-600 hover:text-emerald-900 font-bold ml-4"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
         <div className="experiment-toolbar">
           <input
             value={keyword}
@@ -212,9 +197,8 @@ export default function ExperimentList() {
               key={st}
               type="button"
               onClick={() => setSelectedStatus(st)}
-              className={`experiment-tab-btn ${
-                selectedStatus === st ? "active" : ""
-              }`}
+              className={`experiment-tab-btn ${selectedStatus === st ? "active" : ""
+                }`}
             >
               {st === "All" ? "All Experiments" : st}
             </button>
@@ -232,7 +216,6 @@ export default function ExperimentList() {
             <table className="experiment-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Experiment Name</th>
                   <th>Priority</th>
                   <th>Status</th>
@@ -260,7 +243,7 @@ export default function ExperimentList() {
                   if (filtered.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={9} className="empty-cell">
+                        <td colSpan={8} className="empty-cell">
                           No experiments found.
                         </td>
                       </tr>
@@ -273,8 +256,7 @@ export default function ExperimentList() {
 
                     return (
                       <tr key={item.experimentId}>
-                        <td>#{item.experimentId}</td>
-                        <td>{item.experimentName || "-"}</td>
+                        <td style={{ fontWeight: 600 }}>{item.experimentName || "-"}</td>
                         <td>{getPriorityLabel(item.priority)}</td>
                         <td>
                           <span className={getStatusClass(item.status)}>

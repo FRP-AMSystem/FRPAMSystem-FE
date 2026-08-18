@@ -191,11 +191,10 @@ function formatRelativeTime(
         difference / minute
       );
 
-    return `${minutes} minute${
-      minutes === 1
+    return `${minutes} minute${minutes === 1
         ? ""
         : "s"
-    } ago`;
+      } ago`;
   }
 
   if (
@@ -206,11 +205,10 @@ function formatRelativeTime(
         difference / hour
       );
 
-    return `${hours} hour${
-      hours === 1
+    return `${hours} hour${hours === 1
         ? ""
         : "s"
-    } ago`;
+      } ago`;
   }
 
   const days =
@@ -218,11 +216,10 @@ function formatRelativeTime(
       difference / day
     );
 
-  return `${days} day${
-    days === 1
+  return `${days} day${days === 1
       ? ""
       : "s"
-  } ago`;
+    } ago`;
 }
 
 function normalizeText(
@@ -337,79 +334,49 @@ function getNotificationTypeLabel(
 function getNotificationTargetPath(
   notification: Notification
 ): string | null {
-  const referenceId =
-    notification.referenceId;
+  const referenceId = notification.referenceId;
+  const referenceType = normalizeText(notification.referenceType);
 
-  if (
-    !referenceId ||
-    referenceId <= 0
-  ) {
-    return null;
+  if (referenceId && referenceId > 0) {
+    if (referenceType.includes("allocation")) {
+      return `/allocation/${referenceId}`;
+    }
+    if (
+      referenceType.includes("experimentphase") ||
+      referenceType === "phase"
+    ) {
+      return `/experiment-phases/${referenceId}`;
+    }
+    if (referenceType.includes("experiment")) {
+      return `/experiments/${referenceId}`;
+    }
+    if (referenceType.includes("schedule")) {
+      return `/schedules/${referenceId}`;
+    }
+    if (referenceType.includes("equipmentrequirement")) {
+      return `/equipment-requirements/${referenceId}`;
+    }
+    if (referenceType.includes("humanrequirement")) {
+      return `/human-requirements/${referenceId}`;
+    }
+    if (referenceType.includes("landrequirement")) {
+      return `/land-requirements/${referenceId}`;
+    }
   }
 
-  const referenceType =
-    normalizeText(
-      notification.referenceType
-    );
-
-  if (
-    referenceType.includes(
-      "allocation"
-    )
-  ) {
-    return `/allocation/${referenceId}`;
+  // Fallback: Check title or message for experiment or allocation ID patterns (e.g., "EXP-12", "#12" or "Allocation #5")
+  const fullText = `${notification.title || ""} ${notification.message || ""}`;
+  const expMatch = fullText.match(/(?:EXP-|Experiment\s*#?)\s*(\d+)/i);
+  if (expMatch && expMatch[1]) {
+    return `/experiments/${expMatch[1]}`;
   }
 
-  if (
-    referenceType.includes(
-      "experimentphase"
-    ) ||
-    referenceType === "phase"
-  ) {
-    return `/experiment-phases/${referenceId}`;
+  const allocMatch = fullText.match(/(?:Allocation\s*(?:Plan)?\s*#?)\s*(\d+)/i);
+  if (allocMatch && allocMatch[1]) {
+    return `/allocation/${allocMatch[1]}`;
   }
 
-  if (
-    referenceType.includes(
-      "experiment"
-    )
-  ) {
-    return `/experiments/${referenceId}`;
-  }
-
-  if (
-    referenceType.includes(
-      "schedule"
-    )
-  ) {
-    return `/schedules/${referenceId}`;
-  }
-
-  if (
-    referenceType.includes(
-      "equipmentrequirement"
-    )
-  ) {
-    return `/equipment-requirements/${referenceId}`;
-  }
-
-  if (
-    referenceType.includes(
-      "humanrequirement"
-    )
-  ) {
-    return `/human-requirements/${referenceId}`;
-  }
-
-  if (
-    referenceType.includes(
-      "landrequirement"
-    )
-  ) {
-    return `/land-requirements/${referenceId}`;
-  }
-
-  return null;
+  return `/notifications/${notification.notificationId}`;
 }
 
 function notifyNotificationChanged(): void {
@@ -570,12 +537,12 @@ export default function NotificationList() {
           setRefreshing(false);
         }
       },
-    [
-      isReadQuery,
-      notificationType,
-      page,
-    ]
-  );
+      [
+        isReadQuery,
+        notificationType,
+        page,
+      ]
+    );
 
   useEffect(() => {
     void loadNotifications();
@@ -690,13 +657,13 @@ export default function NotificationList() {
             current.map(
               (item) =>
                 item.notificationId ===
-                notification.notificationId
+                  notification.notificationId
                   ? {
-                      ...item,
-                      isRead: true,
-                      readAt:
-                        new Date().toISOString(),
-                    }
+                    ...item,
+                    isRead: true,
+                    readAt:
+                      new Date().toISOString(),
+                  }
                   : item
             )
         );
@@ -767,17 +734,17 @@ export default function NotificationList() {
         setNotifications(
           (current) =>
             readFilter ===
-            "unread"
+              "unread"
               ? []
               : current.map(
-                  (item) => ({
-                    ...item,
-                    isRead: true,
-                    readAt:
-                      item.readAt ||
-                      new Date().toISOString(),
-                  })
-                )
+                (item) => ({
+                  ...item,
+                  isRead: true,
+                  readAt:
+                    item.readAt ||
+                    new Date().toISOString(),
+                })
+              )
         );
 
         if (
@@ -903,10 +870,10 @@ export default function NotificationList() {
     total === 0
       ? 0
       : (
-          page - 1
-        ) *
-          PAGE_SIZE +
-        1;
+        page - 1
+      ) *
+      PAGE_SIZE +
+      1;
 
   const lastItemNumber =
     Math.min(
@@ -1030,7 +997,7 @@ export default function NotificationList() {
                 {Math.max(
                   0,
                   total -
-                    unreadCount
+                  unreadCount
                 )}
               </strong>
             </div>
@@ -1105,25 +1072,25 @@ export default function NotificationList() {
 
           {(keyword ||
             readFilter !==
-              "all" ||
+            "all" ||
             notificationType) && (
-            <button
-              type="button"
-              className="notification-clear-button"
-              onClick={() => {
-                setKeyword("");
-                setReadFilter(
-                  "all"
-                );
-                setNotificationType(
-                  ""
-                );
-                setPage(1);
-              }}
-            >
-              Clear
-            </button>
-          )}
+              <button
+                type="button"
+                className="notification-clear-button"
+                onClick={() => {
+                  setKeyword("");
+                  setReadFilter(
+                    "all"
+                  );
+                  setNotificationType(
+                    ""
+                  );
+                  setPage(1);
+                }}
+              >
+                Clear
+              </button>
+            )}
         </section>
 
         {error && (
@@ -1169,7 +1136,7 @@ export default function NotificationList() {
                 {keyword
                   ? "No notification on this page matches your search."
                   : readFilter ===
-                      "unread"
+                    "unread"
                     ? "You have no unread notifications."
                     : "There are no notifications to display."}
               </p>
@@ -1210,6 +1177,12 @@ export default function NotificationList() {
                           ? "notification-item-read"
                           : "notification-item-unread",
                       ].join(" ")}
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        void handleOpenNotification(
+                          notification
+                        )
+                      }
                     >
                       <div
                         className={[
@@ -1295,13 +1268,12 @@ export default function NotificationList() {
 
                           <span>
                             {notification.isRead
-                              ? `Read ${
+                              ? `Read ${notification.readAt
+                                ? `at ${formatDateTime(
                                   notification.readAt
-                                    ? `at ${formatDateTime(
-                                        notification.readAt
-                                      )}`
-                                    : ""
-                                }`
+                                )}`
+                                : ""
+                              }`
                               : "Unread"}
                           </span>
                         </div>
@@ -1316,11 +1288,12 @@ export default function NotificationList() {
                             disabled={
                               isProcessing
                             }
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation();
                               void handleMarkAsRead(
                                 notification
-                              )
-                            }
+                              );
+                            }}
                           >
                             <Check
                               size={17}
@@ -1336,11 +1309,12 @@ export default function NotificationList() {
                             disabled={
                               isProcessing
                             }
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation();
                               void handleOpenNotification(
                                 notification
-                              )
-                            }
+                              );
+                            }}
                           >
                             <Eye
                               size={17}
@@ -1355,11 +1329,12 @@ export default function NotificationList() {
                           disabled={
                             isProcessing
                           }
-                          onClick={() =>
+                          onClick={(e) => {
+                            e.stopPropagation();
                             void handleDelete(
                               notification
-                            )
-                          }
+                            );
+                          }}
                         >
                           <Trash2
                             size={17}

@@ -47,8 +47,7 @@ import "./EquipmentInstanceList.css";
 type Role =
     | "Manager"
     | "Researcher"
-    | "Technician"
-    | "Student";
+    | "Technician" | "Student" | "Seasonal";
 
 interface FormState {
     equipmentTypeId: string;
@@ -110,12 +109,12 @@ function getCurrentRole(): Role {
         storedRole === "Manager" ||
         storedRole === "Researcher" ||
         storedRole === "Technician" ||
-        storedRole === "Student"
+        (storedRole === "Student" || storedRole === "Seasonal")
     ) {
         return storedRole;
     }
 
-    return "Student";
+    return "Seasonal";
 }
 
 function getErrorMessage(
@@ -377,14 +376,14 @@ export default function EquipmentInstanceList() {
                 prev.map((inst) =>
                     inst.equipmentInstanceId === receiptConfirmItem.equipmentInstanceId
                         ? {
-                              ...inst,
-                              receiptConfirmed: true,
-                              receiptConfirmedAt: new Date().toISOString(),
-                              receiptNotes: confirmNotes.trim() || null,
-                              receivedCondition: confirmCondition,
-                              conditionLevel: confirmCondition,
-                              status: "InUse",
-                          }
+                            ...inst,
+                            receiptConfirmed: true,
+                            receiptConfirmedAt: new Date().toISOString(),
+                            receiptNotes: confirmNotes.trim() || null,
+                            receivedCondition: confirmCondition,
+                            conditionLevel: confirmCondition,
+                            status: "InUse",
+                        }
                         : inst
                 )
             );
@@ -997,7 +996,6 @@ export default function EquipmentInstanceList() {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
                                         <th>Asset</th>
                                         <th>
                                             Equipment type
@@ -1020,13 +1018,6 @@ export default function EquipmentInstanceList() {
                                                     item.equipmentInstanceId
                                                 }
                                             >
-                                                <td>
-                                                    #
-                                                    {
-                                                        item.equipmentInstanceId
-                                                    }
-                                                </td>
-
                                                 <td>
                                                     <strong>
                                                         {item.assetCode ||
