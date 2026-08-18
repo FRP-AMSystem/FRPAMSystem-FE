@@ -63,6 +63,7 @@ const getRoleBadgeStyles = (role: string) => {
         color: "#92400E",
       };
     case "student":
+    case "seasonal":
       return {
         backgroundColor: "#CCFBF1",
         color: "#115E59",
@@ -74,6 +75,27 @@ const getRoleBadgeStyles = (role: string) => {
       };
   }
 };
+
+const ALLOWED_HR_ROLES = ["researcher", "seasonal", "student", "technician"];
+
+function isAllowedHrRole(roleName?: string | null, roleId?: number | null): boolean {
+  if (roleId === 3 || roleId === 4 || roleId === 5) return true;
+  if (!roleName) return false;
+  const norm = roleName.toLowerCase().trim();
+  if (norm === "admin" || norm === "manager") return false;
+  return ALLOWED_HR_ROLES.some((r) => norm.includes(r));
+}
+
+function getNormalizedHrRoleName(roleName?: string | null, roleId?: number | null): string {
+  if (roleId === 5) return "Seasonal";
+  if (roleId === 4) return "Technician";
+  if (roleId === 3) return "Researcher";
+  const norm = (roleName || "").toLowerCase().trim();
+  if (norm === "student" || norm === "seasonal" || norm.includes("student") || norm.includes("seasonal")) return "Seasonal";
+  if (norm === "technician" || norm.includes("technician") || norm.includes("tech")) return "Technician";
+  if (norm === "researcher" || norm.includes("researcher")) return "Researcher";
+  return roleName || "Staff";
+}
 
 export default function PersonnelPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -134,16 +156,63 @@ export default function PersonnelPage() {
     setError("");
     try {
       const [profilesData, skillsData, assignedSkillsData, usersData] = await Promise.all([
-        getHumanResourceProfiles(),
-        getSkills(),
-        getHumanResourceSkills(),
+        getHumanResourceProfiles().catch(() => [] as HumanResourceProfile[]),
+        getSkills().catch(() => [] as Skill[]),
+        getHumanResourceSkills().catch(() => [] as HumanResourceSkill[]),
         getUsers().catch(() => [] as User[]),
       ]);
 
-      setProfiles(profilesData);
+      const allowedUsers = (usersData || []).filter((u: any) =>
+        isAllowedHrRole(u.role || u.roleName, u.roleId)
+      );
+
+      const mergedProfiles: HumanResourceProfile[] = [];
+      const visitedUserIds = new Set<number>();
+
+      for (const p of profilesData) {
+        const uId = p.userId;
+        const matchedUser = allowedUsers.find((u: any) => (u.userId ?? Number(u.id)) === uId);
+        const effectiveRole = p.roleName || (matchedUser ? matchedUser.role : "");
+        const effectiveRoleId = (p as any).roleId || (matchedUser ? (matchedUser as any).roleId : null);
+
+        if (isAllowedHrRole(effectiveRole, effectiveRoleId)) {
+          const normRole = getNormalizedHrRoleName(effectiveRole, effectiveRoleId);
+          mergedProfiles.push({
+            ...p,
+            fullName: p.fullName || (matchedUser ? matchedUser.fullName : ""),
+            username: p.username || (matchedUser ? matchedUser.username || "" : ""),
+            email: p.email || (matchedUser ? matchedUser.email : ""),
+            roleName: normRole,
+          });
+          visitedUserIds.add(uId);
+        }
+      }
+
+      for (const u of allowedUsers) {
+        const uId = (u as any).userId ?? Number(u.id);
+        if (Number.isInteger(uId) && uId > 0 && !visitedUserIds.has(uId)) {
+          const normRole = getNormalizedHrRoleName(u.role, (u as any).roleId);
+          mergedProfiles.push({
+            humanResourceId: 0,
+            userId: uId,
+            fullName: u.fullName,
+            username: u.username || "",
+            email: u.email || "",
+            roleName: normRole,
+            maxWorkingHoursPerDay: 8,
+            currentWorkload: 0,
+            status: "Available",
+            createdAt: u.createdDate || "",
+            updatedAt: null,
+          });
+          visitedUserIds.add(uId);
+        }
+      }
+
+      setProfiles(mergedProfiles);
       setSkills(skillsData);
       setAssignedSkills(assignedSkillsData);
-      setUsers(usersData);
+      setUsers(allowedUsers);
     } catch (err: any) {
       console.error(err);
       setError("Failed to load personnel data from backend APIs.");
@@ -221,12 +290,21 @@ export default function PersonnelPage() {
       }
     } else if (modalType === "edit" && selectedProfile) {
       try {
-        await updateHumanResourceProfile(selectedProfile.humanResourceId, {
-          userId: selectedProfile.userId,
-          maxWorkingHoursPerDay: Number(formMaxHours),
-          currentWorkload: selectedProfile.currentWorkload,
-          status: formStatus,
-        });
+        if (selectedProfile.humanResourceId > 0) {
+          await updateHumanResourceProfile(selectedProfile.humanResourceId, {
+            userId: selectedProfile.userId,
+            maxWorkingHoursPerDay: Number(formMaxHours),
+            currentWorkload: selectedProfile.currentWorkload,
+            status: formStatus,
+          });
+        } else {
+          await createHumanResourceProfile({
+            userId: selectedProfile.userId,
+            maxWorkingHoursPerDay: Number(formMaxHours),
+            currentWorkload: selectedProfile.currentWorkload || 0,
+            status: formStatus,
+          });
+        }
         showToast("Human resource profile updated!");
         closeModal();
         loadData(false);
@@ -239,7 +317,9 @@ export default function PersonnelPage() {
   const handleDeleteProfile = async (id: number) => {
     if (!window.confirm("Are you sure you want to deactivate/delete this Human Resource profile?")) return;
     try {
-      await deleteHumanResourceProfile(id);
+      if (id > 0) {
+        await deleteHumanResourceProfile(id);
+      }
       showToast("Profile deactivated successfully!");
       loadData(false);
     } catch (err: any) {

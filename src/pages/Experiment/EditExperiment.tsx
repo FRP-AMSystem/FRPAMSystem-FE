@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Save } from "lucide-react";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import {
   getExperimentById,
+  getExperiments,
   updateExperiment,
 } from "../../services/experimentService";
 
@@ -41,15 +42,22 @@ import { PlanningStepper } from "./components/PlanningStepper";
 import { ExperimentStep, type ExperimentStepData } from "./components/ExperimentStep";
 import { PhasesStep, type PhaseFormItem } from "./components/PhasesStep";
 import { EquipmentReqStep, type EquipmentReqFormItem } from "./components/EquipmentReqStep";
-import { HumanReqStep, type HumanReqFormItem } from "./components/HumanReqStep";
+import { HumanReqStep, type HumanReqFormItem, isAllowedRole } from "./components/HumanReqStep";
 import { LandReqStep, type LandReqFormItem } from "./components/LandReqStep";
+import { useNotification } from "../../context/NotificationContext";
 
 import "./PlanningWizard.css";
 
-function formatToUtcIso(dateStr: string): string {
-  if (!dateStr) return new Date().toISOString();
-  if (dateStr.includes("T")) return dateStr;
-  return `${dateStr}T00:00:00.000Z`;
+function formatToUtcIso(dateStr?: string | null): string {
+  if (!dateStr) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}T00:00:00`;
+  }
+  const clean = dateStr.slice(0, 10);
+  return `${clean}T00:00:00`;
 }
 
 function toDateInputValue(value?: string | null): string {
@@ -101,12 +109,13 @@ export default function EditExperiment() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const experimentId = Number(id);
+  const { sendLocalNotification, fetchUnreadCount } = useNotification();
 
   // Wizard Step state (1 to 5)
   const [currentStep, setCurrentStep] = useState(1);
 
   // Step 1 State
-  const [expData, setExpData] = useState<ExperimentStepData>({
+  const [expData, setExpData] = useState<ExperimentStepData & { researcherId?: number }>({
     experimentName: "",
     description: "",
     expectStartDate: "",
@@ -114,6 +123,7 @@ export default function EditExperiment() {
     deadline: "",
     priority: "1",
     status: "Draft",
+    researcherId: undefined,
   });
 
   // Step 2 State
@@ -172,14 +182,15 @@ export default function EditExperiment() {
           deadline: toDateInputValue(exp.deadline),
           priority: String(exp.priority ?? 1),
           status: exp.status || "Draft",
+          researcherId: exp.researcherId,
         });
 
         // Step 2: Phases
-        const loadedPhases: PhaseFormItem[] = phasesData.map((p) => ({
+        const loadedPhases: PhaseFormItem[] = phasesData.map((p, idx) => ({
           id: String(p.experimentPhaseId),
           phaseName: p.phaseName || "",
           phaseDescription: p.phaseDescription || "",
-          phaseOrder: p.phaseOrder || 1,
+          phaseOrder: p.phaseOrder || idx + 1,
           expectedStartDate: toDateInputValue(p.expectedStartDate),
           expectedEndDate: toDateInputValue(p.expectedEndDate),
           status: "Planned",
@@ -188,29 +199,63 @@ export default function EditExperiment() {
         setInitialPhaseIds(phasesData.map((p) => p.experimentPhaseId));
 
         // Step 3: Equipment Reqs
-        const loadedEquip: EquipmentReqFormItem[] = equipData.map((e) => ({
-          id: String(e.expEquipmentReqId),
-          equipmentTypeId: e.equipmentTypeId,
-          equipmentTypeName: e.equipmentTypeName,
-          quantity: e.quantity,
-          allowSubstitute: e.allowSubstitute,
-          minAcceptableEfficiency: e.minAcceptableEfficiency,
-          note: e.note || "",
-        }));
+        const loadedEquip: EquipmentReqFormItem[] = equipData.map((e) => {
+          const match = (e.note || "").match(/^\[(.*?)\]/);
+          const phaseName = match ? match[1] : "";
+          const matchedPhase = loadedPhases.find(
+            (p) => p.phaseName.trim().toLowerCase() === phaseName.trim().toLowerCase()
+          );
+          const rawEff = e.minAcceptableEfficiency;
+          const normalizedEff =
+            rawEff != null
+              ? rawEff <= 1
+                ? Math.round(rawEff * 100)
+                : rawEff
+              : 80;
+
+          return {
+            id: String(e.expEquipmentReqId),
+            phaseId: matchedPhase ? matchedPhase.id : null,
+            phaseName: matchedPhase ? matchedPhase.phaseName : phaseName,
+            equipmentTypeId: e.equipmentTypeId,
+            equipmentTypeName: e.equipmentTypeName,
+            quantity: e.quantity,
+            allowSubstitute: e.allowSubstitute,
+            minAcceptableEfficiency: normalizedEff,
+            note: (e.note || "").replace(/^\[.*?\]\s*/, ""),
+          };
+        });
         setEquipmentReqs(loadedEquip);
         setInitialEquipmentReqIds(equipData.map((e) => e.expEquipmentReqId));
 
         // Step 4: Human Reqs
-        const loadedHuman: HumanReqFormItem[] = humanData.map((h) => ({
-          id: String(h.expHumanReqId),
-          roleId: h.roleId,
-          roleName: h.roleName,
-          quantity: h.quantity,
-          requiredSkillId: h.requiredSkillId,
-          requiredSkillName: h.requiredSkillName,
-          workingHoursPerDay: h.workingHoursPerDay,
-          note: h.note || "",
-        }));
+        const loadedHuman: HumanReqFormItem[] = humanData.map((h) => {
+          const match = (h.note || "").match(/^\[(.*?)\]/);
+          const phaseName = match ? match[1] : "";
+          const matchedPhase = loadedPhases.find(
+            (p) => p.phaseName.trim().toLowerCase() === phaseName.trim().toLowerCase()
+          );
+          const rawRole = (h.roleName || "").trim();
+          const isSeasonalOrStudent =
+            rawRole.toLowerCase() === "student" ||
+            rawRole.toLowerCase() === "seasonal" ||
+            h.roleId === 5;
+          const normalizedRoleName = isSeasonalOrStudent ? "Seasonal" : rawRole;
+          const normalizedRoleId = isSeasonalOrStudent ? 5 : h.roleId;
+
+          return {
+            id: String(h.expHumanReqId),
+            phaseId: matchedPhase ? matchedPhase.id : null,
+            phaseName: matchedPhase ? matchedPhase.phaseName : phaseName,
+            roleId: normalizedRoleId,
+            roleName: normalizedRoleName,
+            quantity: h.quantity,
+            requiredSkillId: h.requiredSkillId,
+            requiredSkillName: h.requiredSkillName,
+            workingHoursPerDay: h.workingHoursPerDay,
+            note: (h.note || "").replace(/^\[.*?\]\s*/, ""),
+          };
+        });
         setHumanReqs(loadedHuman);
         setInitialHumanReqIds(humanData.map((h) => h.expHumanReqId));
 
@@ -260,6 +305,23 @@ export default function EditExperiment() {
       }
     }
 
+    if (currentStep === 4) {
+      // Validate all human requirements are ONLY Seasonal or Technician
+      for (const hr of humanReqs) {
+        if (hr.roleName && !isAllowedRole(hr.roleName)) {
+          setError(`Invalid role "${hr.roleName}". Only Seasonal and Technician roles are allowed.`);
+          return;
+        }
+      }
+    }
+
+    if (currentStep === 5) {
+      if (landReqs.length > 1) {
+        setError("An experiment can have at most one Land Resource requirement.");
+        return;
+      }
+    }
+
     if (currentStep < 5) {
       setCurrentStep((prev) => prev + 1);
     }
@@ -275,19 +337,53 @@ export default function EditExperiment() {
   const handleSaveChanges = async () => {
     setError("");
 
-    if (!expData.experimentName.trim()) {
+    const trimmedName = expData.experimentName.trim();
+    if (!trimmedName) {
       setError("Experiment name is required.");
       setCurrentStep(1);
       return;
     }
 
+    // Validate Land: max 1
+    if (landReqs.length > 1) {
+      setError("An experiment can have at most one Land Resource requirement.");
+      return;
+    }
+
+    // Validate Human: only Seasonal & Technician
+    for (const hr of humanReqs) {
+      if (hr.roleName && !isAllowedRole(hr.roleName)) {
+        setError(`Invalid role "${hr.roleName}". Only Seasonal and Technician roles are allowed.`);
+        return;
+      }
+    }
+
     try {
       setSaving(true);
 
+      // Duplicate Name Check Upfront (excluding current experiment)
+      try {
+        const existingList = await getExperiments({ keyword: trimmedName, size: 20 });
+        const isDuplicate = (existingList || []).some(
+          (e) =>
+            e.experimentId !== experimentId &&
+            e.experimentName.trim().toLowerCase() === trimmedName.toLowerCase()
+        );
+        if (isDuplicate) {
+          setError(`An experiment plan named "${trimmedName}" already exists in the system. Please choose a different name.`);
+          setCurrentStep(1);
+          setSaving(false);
+          return;
+        }
+      } catch (checkErr) {
+        console.warn("Could not check duplicate experiment name:", checkErr);
+      }
+
       // 1. Update main Experiment
       await updateExperiment(experimentId, {
-        experimentName: expData.experimentName.trim(),
+        experimentName: trimmedName,
         description: expData.description.trim() || undefined,
+        researcherId: expData.researcherId,
         expectStartDate: expData.expectStartDate ? formatToUtcIso(expData.expectStartDate) : undefined,
         expectEndDate: expData.expectEndDate ? formatToUtcIso(expData.expectEndDate) : undefined,
         deadline: expData.deadline ? formatToUtcIso(expData.deadline) : undefined,
@@ -296,7 +392,12 @@ export default function EditExperiment() {
       });
 
       // 2. Sync Phases
-      const currentPhaseNumIds = phases
+      const orderedPhases = phases.map((p, idx) => ({
+        ...p,
+        phaseOrder: idx + 1,
+      }));
+
+      const currentPhaseNumIds = orderedPhases
         .map((p) => Number(p.id))
         .filter((num) => Number.isInteger(num) && num > 0);
 
@@ -312,7 +413,7 @@ export default function EditExperiment() {
         }
       }
 
-      for (const p of phases) {
+      for (const p of orderedPhases) {
         if (!p.phaseName.trim()) continue;
         const numId = Number(p.id);
         const isExisting = Number.isInteger(numId) && numId > 0 && initialPhaseIds.includes(numId);
@@ -355,13 +456,28 @@ export default function EditExperiment() {
         const numId = Number(e.id);
         const isExisting = Number.isInteger(numId) && numId > 0 && initialEquipmentReqIds.includes(numId);
 
+        const phasePrefix = e.phaseName ? `[${e.phaseName}] ` : "";
+        const cleanNote = (e.note || "").replace(/^\[.*?\]\s*/, "");
+        const finalNote = cleanNote
+          ? `${phasePrefix}${cleanNote}`.trim()
+          : phasePrefix
+          ? phasePrefix.trim()
+          : undefined;
+
+        const rawEff = Number(e.minAcceptableEfficiency);
+        const normalizedEff = !isNaN(rawEff)
+          ? rawEff > 1
+            ? Number((rawEff / 100).toFixed(2))
+            : rawEff
+          : 0.8;
+
         const payload = {
           experimentId,
           equipmentTypeId: e.equipmentTypeId,
           quantity: e.quantity,
           allowSubstitute: e.allowSubstitute,
-          minAcceptableEfficiency: e.minAcceptableEfficiency,
-          note: e.note || undefined,
+          minAcceptableEfficiency: normalizedEff,
+          note: finalNote,
         };
 
         if (isExisting) {
@@ -392,13 +508,21 @@ export default function EditExperiment() {
         const numId = Number(h.id);
         const isExisting = Number.isInteger(numId) && numId > 0 && initialHumanReqIds.includes(numId);
 
+        const phasePrefix = h.phaseName ? `[${h.phaseName}] ` : "";
+        const cleanNote = (h.note || "").replace(/^\[.*?\]\s*/, "");
+        const finalNote = cleanNote
+          ? `${phasePrefix}${cleanNote}`.trim()
+          : phasePrefix
+          ? phasePrefix.trim()
+          : null;
+
         const payload = {
           experimentId,
           roleId: h.roleId,
           quantity: h.quantity,
           requiredSkillId: h.requiredSkillId,
           workingHoursPerDay: h.workingHoursPerDay,
-          note: h.note || null,
+          note: finalNote,
         };
 
         if (isExisting) {
@@ -425,7 +549,7 @@ export default function EditExperiment() {
         }
       }
 
-      for (const l of landReqs) {
+      for (const l of landReqs.slice(0, 1)) {
         const numId = Number(l.id);
         const isExisting = Number.isInteger(numId) && numId > 0 && initialLandReqIds.includes(numId);
 
@@ -443,12 +567,24 @@ export default function EditExperiment() {
         }
       }
 
-      navigate(`/experiments/${experimentId}`, {
-        state: { message: "Experiment plan updated successfully!" },
+      // Trigger Topbar Bell Notification and Toast
+      sendLocalNotification({
+        title: "Experiment Plan Updated Successfully",
+        message: `Experiment plan "${trimmedName}" (#${experimentId}) and its resource requirements have been updated successfully.`,
+        notificationType: "Success",
+        referenceType: "Experiment",
+        referenceId: experimentId,
       });
-    } catch (submitError) {
-      console.error("Update Experiment plan failed:", submitError);
-      setError(getApiErrorMessage(submitError));
+      void fetchUnreadCount();
+
+      navigate(`/experiments/${experimentId}`, {
+        state: {
+          message: "Experiment plan and resource requirements updated successfully!",
+        },
+      });
+    } catch (saveErr) {
+      console.error("Save experiment changes failed:", saveErr);
+      setError(getApiErrorMessage(saveErr));
     } finally {
       setSaving(false);
     }
@@ -458,7 +594,9 @@ export default function EditExperiment() {
     return (
       <DashboardLayout>
         <div className="planning-wizard-page">
-          <p>Loading experiment plan details...</p>
+          <div className="planning-empty-box" style={{ padding: "60px 0" }}>
+            <p>Loading experiment plan details...</p>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -518,6 +656,7 @@ export default function EditExperiment() {
 
         {currentStep === 3 && (
           <EquipmentReqStep
+            phases={phases}
             requirements={equipmentReqs}
             onChange={setEquipmentReqs}
           />
@@ -525,6 +664,7 @@ export default function EditExperiment() {
 
         {currentStep === 4 && (
           <HumanReqStep
+            phases={phases}
             requirements={humanReqs}
             onChange={setHumanReqs}
           />

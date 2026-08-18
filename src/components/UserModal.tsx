@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import type { Role } from "../types/role";
 import type { User } from "../types/user";
 import { createUser, updateUser } from "../services/userService";
@@ -25,6 +26,7 @@ export default function UserModal({
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("Active");
 
@@ -40,8 +42,12 @@ export default function UserModal({
         setPassword("");
         setStatus(editUser.status || "Active");
 
+        const userRoleName = (editUser.role || "").toLowerCase();
         const matchedRole = roles.find(
-          (r) => r.name.toLowerCase() === editUser.role.toLowerCase()
+          (r) =>
+            r.name.toLowerCase() === userRoleName ||
+            ((userRoleName === "student" || userRoleName === "seasonal") &&
+              (r.name.toLowerCase() === "seasonal" || r.name.toLowerCase() === "student" || r.id === "5"))
         );
         setRole(matchedRole ? matchedRole.id : "");
       } else {
@@ -70,9 +76,7 @@ export default function UserModal({
         newErrors.username = "Username is required.";
       }
 
-      if (!email.trim()) {
-        newErrors.email = "Email is required.";
-      } else if (!/\S+@\S+\.\S+/.test(email)) {
+      if (email.trim() && !/\S+@\S+\.\S+/.test(email.trim())) {
         newErrors.email = "Invalid email format.";
       }
 
@@ -99,19 +103,21 @@ export default function UserModal({
     try {
       setIsSubmitting(true);
 
+      const effectiveEmail = email.trim() || `${username.trim()}@frpam.edu.vn`;
+
       if (editUser) {
         await updateUser(editUser.id, {
           fullName,
           username: username || editUser.username || "",
           roleId: Number(role),
-          email: editUser.email,
+          email: editUser.email || effectiveEmail,
         });
 
-        localStorage.setItem(`status_${editUser.email}`, status);
+        localStorage.setItem(`status_${editUser.email || editUser.username}`, status);
 
         logSystemActivity(
           "User Profile Updated",
-          `Admin updated profile details for user: ${fullName} (${editUser.email}).`,
+          `Admin updated profile details for user: ${fullName} (${username || editUser.username}).`,
           "Info"
         );
 
@@ -119,21 +125,21 @@ export default function UserModal({
       } else {
         await createUser({
           fullName,
-          username,
-          email,
+          username: username.trim(),
+          email: effectiveEmail,
           password,
           roleId: Number(role),
         });
 
         localStorage.setItem(
-          `createdDate_${email.trim()}`,
+          `createdDate_${effectiveEmail}`,
           new Date().toISOString()
         );
 
         const roleObj = roles.find((r) => String(r.id) === String(role));
         logSystemActivity(
           "New User Account Registered",
-          `Admin registered new system user: ${fullName} (${email}) with role ${roleObj?.name || "User"}.`,
+          `Admin registered new system user: ${fullName} (username: ${username.trim()}) with role ${roleObj?.name || "User"}.`,
           "Info"
         );
 
@@ -170,7 +176,7 @@ export default function UserModal({
             <input
               type="text"
               id="fullName"
-              placeholder="E.g., Alexander Thorne"
+              placeholder="E.g., Alexander Thorn"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className={errors.fullName ? "input-error" : ""}
@@ -204,16 +210,15 @@ export default function UserModal({
 
           <div className="form-group">
             <label htmlFor="email">
-              Email Address{" "}
+              Email Address (Optional){" "}
               {editUser && (
                 <span className="label-hint">(Read-only)</span>
-              )}{" "}
-              <span className="required">*</span>
+              )}
             </label>
             <input
               type="email"
               id="email"
-              placeholder="alexander@company.com"
+              placeholder="E.g., alexander@frpam.edu.vn (optional)"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={!!editUser}
@@ -229,14 +234,41 @@ export default function UserModal({
               <label htmlFor="password">
                 Password <span className="required">*</span>
               </label>
-              <input
-                type="password"
-                id="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={errors.password ? "input-error" : ""}
-              />
+              <div style={{ position: "relative", display: "flex", alignItems: "center", width: "100%" }}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={errors.password ? "input-error" : ""}
+                  style={{ width: "100%", paddingRight: "42px", boxSizing: "border-box" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: "#64748b",
+                    cursor: "pointer",
+                    padding: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "4px",
+                    transition: "color 0.15s ease",
+                  }}
+                  title={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
               {errors.password && (
                 <span className="error-text">{errors.password}</span>
               )}

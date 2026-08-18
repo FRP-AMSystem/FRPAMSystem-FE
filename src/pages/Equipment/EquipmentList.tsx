@@ -41,8 +41,7 @@ type TabType =
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 function getErrorMessage(
   error: unknown
@@ -166,11 +165,11 @@ export default function EquipmentList() {
 
   const role: Role =
     savedRole === "Manager" ||
-    savedRole === "Researcher" ||
-    savedRole === "Technician" ||
-    savedRole === "Student"
+      savedRole === "Researcher" ||
+      savedRole === "Technician" ||
+      (savedRole === "Student" || savedRole === "Seasonal")
       ? savedRole
-      : "Student";
+      : "Seasonal";
 
   const [
     activeTab,
@@ -528,7 +527,7 @@ export default function EquipmentList() {
               type="button"
               className={
                 activeTab ===
-                "instances"
+                  "instances"
                   ? "active"
                   : ""
               }
@@ -561,7 +560,7 @@ export default function EquipmentList() {
               type="button"
               className={
                 activeTab ===
-                "categories"
+                  "categories"
                   ? "active"
                   : ""
               }
@@ -596,435 +595,411 @@ export default function EquipmentList() {
           <>
             {activeTab ===
               "instances" && (
-              <div className="equipment-table-card">
-                <h3>
-                  Equipment Instances
-                </h3>
+                <div className="equipment-table-card">
+                  <h3>
+                    Equipment Instances
+                  </h3>
 
-                <div className="equipment-table-wrapper">
-                  <table className="equipment-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>
-                          Instance Name
-                        </th>
-                        <th>
-                          Asset Code
-                        </th>
-                        <th>Type</th>
-                        <th>
-                          Category
-                        </th>
-                        <th>
-                          Condition
-                        </th>
-                        <th>Status</th>
-                        <th>
-                          Serial Number
-                        </th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
+                  <div className="equipment-table-wrapper">
+                    <table className="equipment-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            Instance Name
+                          </th>
+                          <th>
+                            Asset Code
+                          </th>
+                          <th>Type</th>
+                          <th>
+                            Category
+                          </th>
+                          <th>
+                            Condition
+                          </th>
+                          <th>Status</th>
+                          <th>
+                            Serial Number
+                          </th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
 
-                    <tbody>
-                      {filteredInstances.map(
-                        (item) => (
-                          <tr
-                            key={
-                              item.equipmentInstanceId
-                            }
-                          >
-                            <td>
-                              #
-                              {
+                      <tbody>
+                        {filteredInstances.map(
+                          (item) => (
+                            <tr
+                              key={
                                 item.equipmentInstanceId
                               }
-                            </td>
-
-                            <td>
-                              {getInstanceName(
-                                item
-                              )}
-                            </td>
-
-                            <td>
-                              {getInstanceCode(
-                                item
-                              )}
-                            </td>
-
-                            <td>
-                              {getInstanceTypeName(
-                                item
-                              )}
-                            </td>
-
-                            <td>
-                              {getInstanceCategoryName(
-                                item
-                              )}
-                            </td>
-
-                            <td>
-                              {item.conditionLevel ||
-                                "-"}
-                            </td>
-
-                            <td>
-                              <span
-                                className={`equipment-status status-${(
-                                  item.status ||
-                                  "unknown"
-                                ).toLowerCase()}`}
-                              >
-                                {item.status ||
-                                  "Unknown"}
-                              </span>
-                            </td>
-
-                            <td>
-                              {item.serialNumber ||
-                                "-"}
-                            </td>
-
-                            <td>
-                              <div className="equipment-actions">
-                                <button
-                                  type="button"
-                                  className="action-btn-pill view"
-                                  onClick={() => {
-                                    window.alert(
-                                      `Equipment instance #${item.equipmentInstanceId}`
-                                    );
-                                  }}
-                                >
-                                  <Eye size={12} />
-                                  <span>View</span>
-                                </button>
-
-                                {canManage && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="action-btn-pill edit"
-                                      onClick={() => {
-                                        window.alert(
-                                          `Edit equipment instance #${item.equipmentInstanceId}`
-                                        );
-                                      }}
-                                    >
-                                      <Pencil size={12} />
-                                      <span>Edit</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      className="action-btn-pill delete"
-                                      disabled={
-                                        deletingId ===
-                                        item.equipmentInstanceId
-                                      }
-                                      onClick={() =>
-                                        void handleDeleteInstance(
-                                          item
-                                        )
-                                      }
-                                    >
-                                      <Trash2 size={12} />
-                                      <span>
-                                        {deletingId ===
-                                        item.equipmentInstanceId
-                                          ? "Deleting..."
-                                          : "Delete"}
-                                      </span>
-                                    </button>
-                                  </>
+                            >
+                              <td>
+                                {getInstanceName(
+                                  item
                                 )}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      )}
+                              </td>
 
-                      {filteredInstances.length ===
-                        0 && (
-                        <tr>
-                          <td
-                            colSpan={9}
-                            className="empty-cell"
-                          >
-                            No equipment
-                            instances found.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                              <td>
+                                {getInstanceCode(
+                                  item
+                                )}
+                              </td>
+
+                              <td>
+                                {getInstanceTypeName(
+                                  item
+                                )}
+                              </td>
+
+                              <td>
+                                {getInstanceCategoryName(
+                                  item
+                                )}
+                              </td>
+
+                              <td>
+                                {item.conditionLevel ||
+                                  "-"}
+                              </td>
+
+                              <td>
+                                <span
+                                  className={`equipment-status status-${(
+                                    item.status ||
+                                    "unknown"
+                                  ).toLowerCase()}`}
+                                >
+                                  {item.status ||
+                                    "Unknown"}
+                                </span>
+                              </td>
+
+                              <td>
+                                {item.serialNumber ||
+                                  "-"}
+                              </td>
+
+                              <td>
+                                <div className="equipment-actions">
+                                  <button
+                                    type="button"
+                                    className="action-btn-pill view"
+                                    onClick={() => {
+                                      window.alert(
+                                        `Equipment instance #${item.equipmentInstanceId}`
+                                      );
+                                    }}
+                                  >
+                                    <Eye size={12} />
+                                    <span>View</span>
+                                  </button>
+
+                                  {canManage && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="action-btn-pill edit"
+                                        onClick={() => {
+                                          window.alert(
+                                            `Edit equipment instance #${item.equipmentInstanceId}`
+                                          );
+                                        }}
+                                      >
+                                        <Pencil size={12} />
+                                        <span>Edit</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="action-btn-pill delete"
+                                        disabled={
+                                          deletingId ===
+                                          item.equipmentInstanceId
+                                        }
+                                        onClick={() =>
+                                          void handleDeleteInstance(
+                                            item
+                                          )
+                                        }
+                                      >
+                                        <Trash2 size={12} />
+                                        <span>
+                                          {deletingId ===
+                                            item.equipmentInstanceId
+                                            ? "Deleting..."
+                                            : "Delete"}
+                                        </span>
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        )}
+
+                        {filteredInstances.length ===
+                          0 && (
+                            <tr>
+                              <td
+                                colSpan={8}
+                                className="empty-cell"
+                              >
+                                No equipment
+                                instances found.
+                              </td>
+                            </tr>
+                          )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {activeTab ===
               "types" && (
-              <div className="equipment-table-card">
-                <h3>
-                  Equipment Types
-                </h3>
+                <div className="equipment-table-card">
+                  <h3>
+                    Equipment Types
+                  </h3>
 
-                <div className="equipment-table-wrapper">
-                  <table className="equipment-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>
-                          Type Name
-                        </th>
-                        <th>
-                          Category
-                        </th>
-                        <th>
-                          Tracking Type
-                        </th>
-                        <th>
-                          Total Quantity
-                        </th>
-                        <th>
-                          Description
-                        </th>
-                        <th>
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+                  <div className="equipment-table-wrapper">
+                    <table className="equipment-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            Type Name
+                          </th>
+                          <th>
+                            Category
+                          </th>
+                          <th>
+                            Tracking Type
+                          </th>
+                          <th>
+                            Total Quantity
+                          </th>
+                          <th>
+                            Description
+                          </th>
+                          <th>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
 
-                    <tbody>
-                      {filteredTypes.map(
-                        (item) => (
-                          <tr
-                            key={
-                              item.equipmentTypeId
-                            }
-                          >
-                            <td>
-                              #
-                              {
+                      <tbody>
+                        {filteredTypes.map(
+                          (item) => (
+                            <tr
+                              key={
                                 item.equipmentTypeId
                               }
-                            </td>
-
-                            <td>
-                              {getTypeName(
-                                item
-                              )}
-                            </td>
-
-                            <td>
-                              {getTypeCategoryName(
-                                item
-                              )}
-                            </td>
-
-                            <td>
-                              {item.trackingType ||
-                                "-"}
-                            </td>
-
-                            <td>
-                              {item.totalQuantity ??
-                                0}
-                            </td>
-
-                            <td>
-                              {item.description ||
-                                "-"}
-                            </td>
-
-                            <td>
-                              <div className="equipment-actions">
-                                <button
-                                  type="button"
-                                  className="action-btn-pill view"
-                                  onClick={() => {
-                                    window.alert(
-                                      `Equipment type #${item.equipmentTypeId}`
-                                    );
-                                  }}
-                                >
-                                  <Eye size={12} />
-                                  <span>View</span>
-                                </button>
-
-                                {canManage && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="action-btn-pill edit"
-                                      onClick={() => {
-                                        window.alert(
-                                          `Edit equipment type #${item.equipmentTypeId}`
-                                        );
-                                      }}
-                                    >
-                                      <Pencil size={12} />
-                                      <span>Edit</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      className="action-btn-pill delete"
-                                      onClick={() => {
-                                        window.alert(
-                                          "Delete equipment type will be implemented with its own form."
-                                        );
-                                      }}
-                                    >
-                                      <Trash2 size={12} />
-                                      <span>Delete</span>
-                                    </button>
-                                  </>
+                            >
+                              <td>
+                                {getTypeName(
+                                  item
                                 )}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      )}
+                              </td>
 
-                      {filteredTypes.length ===
-                        0 && (
-                        <tr>
-                          <td
-                            colSpan={7}
-                            className="empty-cell"
-                          >
-                            No equipment
-                            types found.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                              <td>
+                                {getTypeCategoryName(
+                                  item
+                                )}
+                              </td>
+
+                              <td>
+                                {item.trackingType ||
+                                  "-"}
+                              </td>
+
+                              <td>
+                                {item.totalQuantity ??
+                                  0}
+                              </td>
+
+                              <td>
+                                {item.description ||
+                                  "-"}
+                              </td>
+
+                              <td>
+                                <div className="equipment-actions">
+                                  <button
+                                    type="button"
+                                    className="action-btn-pill view"
+                                    onClick={() => {
+                                      window.alert(
+                                        `Equipment type #${item.equipmentTypeId}`
+                                      );
+                                    }}
+                                  >
+                                    <Eye size={12} />
+                                    <span>View</span>
+                                  </button>
+
+                                  {canManage && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="action-btn-pill edit"
+                                        onClick={() => {
+                                          window.alert(
+                                            `Edit equipment type #${item.equipmentTypeId}`
+                                          );
+                                        }}
+                                      >
+                                        <Pencil size={12} />
+                                        <span>Edit</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="action-btn-pill delete"
+                                        onClick={() => {
+                                          window.alert(
+                                            "Delete equipment type will be implemented with its own form."
+                                          );
+                                        }}
+                                      >
+                                        <Trash2 size={12} />
+                                        <span>Delete</span>
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        )}
+
+                        {filteredTypes.length ===
+                          0 && (
+                            <tr>
+                              <td
+                                colSpan={6}
+                                className="empty-cell"
+                              >
+                                No equipment
+                                types found.
+                              </td>
+                            </tr>
+                          )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {activeTab ===
               "categories" && (
-              <div className="equipment-table-card">
-                <h3>
-                  Equipment Categories
-                </h3>
+                <div className="equipment-table-card">
+                  <h3>
+                    Equipment Categories
+                  </h3>
 
-                <div className="equipment-table-wrapper">
-                  <table className="equipment-table">
-                    <thead>
-                      <tr>
-                        <th>ID</th>
-                        <th>
-                          Category Name
-                        </th>
-                        <th>
-                          Description
-                        </th>
-                        <th>
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+                  <div className="equipment-table-wrapper">
+                    <table className="equipment-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            Category Name
+                          </th>
+                          <th>
+                            Description
+                          </th>
+                          <th>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
 
-                    <tbody>
-                      {filteredCategories.map(
-                        (item) => (
-                          <tr
-                            key={
-                              item.equipmentCategoryId
-                            }
-                          >
-                            <td>
-                              #
-                              {
+                      <tbody>
+                        {filteredCategories.map(
+                          (item) => (
+                            <tr
+                              key={
                                 item.equipmentCategoryId
                               }
-                            </td>
-
-                            <td>
-                              {getCategoryName(
-                                item
-                              )}
-                            </td>
-
-                            <td>
-                              {item.description ||
-                                "-"}
-                            </td>
-
-                            <td>
-                              <div className="equipment-actions">
-                                <button
-                                  type="button"
-                                  className="action-btn-pill view"
-                                  onClick={() => {
-                                    window.alert(
-                                      `Equipment category #${item.equipmentCategoryId}`
-                                    );
-                                  }}
-                                >
-                                  <Eye size={12} />
-                                  <span>View</span>
-                                </button>
-
-                                {canManage && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="action-btn-pill edit"
-                                      onClick={() => {
-                                        window.alert(
-                                          `Edit equipment category #${item.equipmentCategoryId}`
-                                        );
-                                      }}
-                                    >
-                                      <Pencil size={12} />
-                                      <span>Edit</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      className="action-btn-pill delete"
-                                      onClick={() => {
-                                        window.alert(
-                                          "Delete category will be implemented with its own form."
-                                        );
-                                      }}
-                                    >
-                                      <Trash2 size={12} />
-                                      <span>Delete</span>
-                                    </button>
-                                  </>
+                            >
+                              <td>
+                                {getCategoryName(
+                                  item
                                 )}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      )}
+                              </td>
 
-                      {filteredCategories.length ===
-                        0 && (
-                        <tr>
-                          <td
-                            colSpan={4}
-                            className="empty-cell"
-                          >
-                            No equipment
-                            categories found.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                              <td>
+                                {item.description ||
+                                  "-"}
+                              </td>
+
+                              <td>
+                                <div className="equipment-actions">
+                                  <button
+                                    type="button"
+                                    className="action-btn-pill view"
+                                    onClick={() => {
+                                      window.alert(
+                                        `Equipment category #${item.equipmentCategoryId}`
+                                      );
+                                    }}
+                                  >
+                                    <Eye size={12} />
+                                    <span>View</span>
+                                  </button>
+
+                                  {canManage && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="action-btn-pill edit"
+                                        onClick={() => {
+                                          window.alert(
+                                            `Edit equipment category #${item.equipmentCategoryId}`
+                                          );
+                                        }}
+                                      >
+                                        <Pencil size={12} />
+                                        <span>Edit</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="action-btn-pill delete"
+                                        onClick={() => {
+                                          window.alert(
+                                            "Delete category will be implemented with its own form."
+                                          );
+                                        }}
+                                      >
+                                        <Trash2 size={12} />
+                                        <span>Delete</span>
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        )}
+
+                        {filteredCategories.length ===
+                          0 && (
+                            <tr>
+                              <td
+                                colSpan={4}
+                                className="empty-cell"
+                              >
+                                No equipment
+                                categories found.
+                              </td>
+                            </tr>
+                          )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </>
         )}
       </div>

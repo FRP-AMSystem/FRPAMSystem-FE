@@ -34,8 +34,7 @@ import "./ExperimentPhaseDetail.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 function getErrorMessage(
   error: unknown

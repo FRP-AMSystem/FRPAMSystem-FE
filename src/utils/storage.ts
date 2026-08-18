@@ -12,13 +12,22 @@ export const removeToken = () => {
   localStorage.removeItem("accessToken");
 };
 
+export const normalizeRole = (role?: string | null): string => {
+  if (!role) return "Seasonal";
+  const r = role.trim();
+  if (r.toLowerCase() === "student" || r.toLowerCase() === "seasonal") return "Seasonal";
+  return r;
+};
+
 export const saveRole = (role: string) => {
-  localStorage.setItem("role", role);
-  localStorage.setItem("roleName", role);
+  const normRole = normalizeRole(role);
+  localStorage.setItem("role", normRole);
+  localStorage.setItem("roleName", normRole);
 };
 
 export const getRole = () => {
-  return localStorage.getItem("role") || localStorage.getItem("roleName");
+  const raw = localStorage.getItem("role") || localStorage.getItem("roleName");
+  return normalizeRole(raw);
 };
 
 export const saveUserData = (data: { userName?: string; email?: string; avatar?: string }) => {

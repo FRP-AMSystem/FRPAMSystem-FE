@@ -34,7 +34,8 @@ type Role =
   | "Manager"
   | "Researcher"
   | "Technician"
-  | "Student";
+  | "Student"
+  | "Seasonal";
 
 const validRoles: Role[] = [
   "Admin",
@@ -42,6 +43,7 @@ const validRoles: Role[] = [
   "Researcher",
   "Technician",
   "Student",
+  "Seasonal",
 ];
 
 type ApprovalStatus =
@@ -252,7 +254,7 @@ function buildAllocationTrend(
           new Date(
             now.getFullYear(),
             now.getMonth() -
-              (5 - index),
+            (5 - index),
             1
           );
 
@@ -395,7 +397,8 @@ function getRoleTitle(
       return "Technician Dashboard";
 
     case "Student":
-      return "Student Dashboard";
+    case "Seasonal":
+      return "Seasonal Dashboard";
 
     default:
       return "Dashboard";
@@ -419,6 +422,7 @@ function getRoleDescription(
       return "Review equipment assignments, schedules and operational resource information.";
 
     case "Student":
+    case "Seasonal":
       return "View experiments, schedules and approved allocation information.";
 
     default:
@@ -605,19 +609,19 @@ export default function DashboardPage() {
       const averageFitness =
         fitnessValues.length > 0
           ? Number(
-              (
-                fitnessValues.reduce(
-                  (
-                    sum,
-                    value
-                  ) =>
-                    sum +
-                    value,
-                  0
-                ) /
-                fitnessValues.length
-              ).toFixed(1)
-            )
+            (
+              fitnessValues.reduce(
+                (
+                  sum,
+                  value
+                ) =>
+                  sum +
+                  value,
+                0
+              ) /
+              fitnessValues.length
+            ).toFixed(1)
+          )
           : 0;
 
       const equipmentCount =
@@ -892,16 +896,16 @@ export default function DashboardPage() {
 
               percentage:
                 dashboardData.totalResourceDetails >
-                0
+                  0
                   ? Number(
+                    (
                       (
-                        (
-                          dashboardData.equipmentCount /
-                          dashboardData.totalResourceDetails
-                        ) *
-                        100
-                      ).toFixed(1)
-                    )
+                        dashboardData.equipmentCount /
+                        dashboardData.totalResourceDetails
+                      ) *
+                      100
+                    ).toFixed(1)
+                  )
                   : 0,
 
               type:
@@ -955,6 +959,7 @@ export default function DashboardPage() {
           ];
 
         case "Student":
+        case "Seasonal":
           return [
             {
               id:
@@ -1174,8 +1179,8 @@ export default function DashboardPage() {
                       onAction={
                         actionPath
                           ? () => {
-                              navigate(actionPath);
-                            }
+                            navigate(actionPath);
+                          }
                           : undefined
                       }
                     />
@@ -1213,31 +1218,31 @@ export default function DashboardPage() {
 
             {role ===
               "Researcher" && (
-              <div className="role-section-card">
-                <h3>
-                  Researcher Workspace
-                </h3>
+                <div className="role-section-card">
+                  <h3>
+                    Researcher Workspace
+                  </h3>
 
-                <p>
-                  Create experiments,
-                  requirements and draft
-                  allocation plans, then
-                  submit them for manager
-                  approval.
-                </p>
+                  <p>
+                    Create experiments,
+                    requirements and draft
+                    allocation plans, then
+                    submit them for manager
+                    approval.
+                  </p>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      "/allocation"
-                    )
-                  }
-                >
-                  View My Allocations
-                </button>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        "/allocation"
+                      )
+                    }
+                  >
+                    View My Allocations
+                  </button>
+                </div>
+              )}
 
             {role === "Technician" && (
               <div className="role-section-card">
@@ -1263,9 +1268,9 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {role === "Student" && (
+            {(role === "Seasonal" || role === "Student") && (
               <div className="role-section-card">
-                <h3>Student Workspace</h3>
+                <h3>Seasonal Workspace</h3>
                 <p>
                   View assigned tasks, update task execution notes, and confirm receipt of assigned equipment.
                 </p>

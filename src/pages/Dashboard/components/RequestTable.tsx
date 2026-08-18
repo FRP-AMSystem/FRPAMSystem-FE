@@ -90,7 +90,6 @@ export default function RequestTable({ requests }: RequestTableProps) {
         <table className="request-table">
           <thead>
             <tr>
-              <th>ID</th>
               <th>Experiment</th>
               <th>Fitness</th>
               <th>Created By</th>
@@ -105,7 +104,7 @@ export default function RequestTable({ requests }: RequestTableProps) {
           <tbody>
             {requests.length === 0 ? (
               <tr>
-                <td colSpan={9} className="request-table-empty">
+                <td colSpan={8} className="request-table-empty">
                   No allocation plans found.
                 </td>
               </tr>
@@ -116,22 +115,14 @@ export default function RequestTable({ requests }: RequestTableProps) {
                 return (
                   <tr key={plan.allocationPlanId}>
                     <td>
-                      <button
-                        type="button"
-                        className="request-id-button"
-                        onClick={() => openDetail(plan.allocationPlanId)}
-                      >
-                        #{plan.allocationPlanId}
-                      </button>
-                    </td>
-
-                    <td>
                       <div className="request-experiment-cell">
-                        <strong>
+                        <strong
+                          style={{ cursor: "pointer", color: "#16a34a" }}
+                          onClick={() => openDetail(plan.allocationPlanId)}
+                        >
                           {plan.experimentName ||
                             `Experiment #${plan.experimentId}`}
                         </strong>
-                        <span>Experiment #{plan.experimentId}</span>
                       </div>
                     </td>
 

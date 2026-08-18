@@ -43,8 +43,7 @@ import "./EquipmentSubstitutionList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 interface FormState {
   primaryEquipmentTypeId: string;
@@ -75,12 +74,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -344,15 +343,15 @@ export default function EquipmentSubstitutionList() {
             primaryEquipmentTypeId:
               primaryFilter
                 ? Number(
-                    primaryFilter
-                  )
+                  primaryFilter
+                )
                 : undefined,
 
             subEquipmentTypeId:
               substituteFilter
                 ? Number(
-                    substituteFilter
-                  )
+                  substituteFilter
+                )
                 : undefined,
 
             page: 1,
@@ -582,11 +581,11 @@ export default function EquipmentSubstitutionList() {
       items.some(
         (item) =>
           item.primaryEquipmentTypeId ===
-            primaryEquipmentTypeId &&
+          primaryEquipmentTypeId &&
           item.subEquipmentTypeId ===
-            subEquipmentTypeId &&
+          subEquipmentTypeId &&
           item.equipmentSubstitutionId !==
-            editing?.equipmentSubstitutionId
+          editing?.equipmentSubstitutionId
       );
 
     if (duplicate) {
@@ -894,7 +893,6 @@ export default function EquipmentSubstitutionList() {
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>
                       Primary Equipment
                     </th>
@@ -945,13 +943,6 @@ export default function EquipmentSubstitutionList() {
                             item.equipmentSubstitutionId
                           }
                         >
-                          <td>
-                            #
-                            {
-                              item.equipmentSubstitutionId
-                            }
-                          </td>
-
                           <td>
                             <strong>
                               {primaryName}
@@ -1097,12 +1088,12 @@ export default function EquipmentSubstitutionList() {
 
                   <p>
                     {selectedPrimaryType &&
-                    selectedSubstituteType
+                      selectedSubstituteType
                       ? `${getEquipmentTypeName(
-                          selectedPrimaryType
-                        )} → ${getEquipmentTypeName(
-                          selectedSubstituteType
-                        )}`
+                        selectedPrimaryType
+                      )} → ${getEquipmentTypeName(
+                        selectedSubstituteType
+                      )}`
                       : "Select the original and replacement equipment types."}
                   </p>
                 </div>

@@ -134,6 +134,7 @@ const allRoles: Role[] = [
   "Researcher",
   "Technician",
   "Student",
+  "Seasonal",
 ];
 
 const operationalViewRoles: Role[] = [
@@ -142,6 +143,7 @@ const operationalViewRoles: Role[] = [
   "Researcher",
   "Technician",
   "Student",
+  "Seasonal",
 ];
 
 const researcherOnly: Role[] = [
@@ -285,7 +287,7 @@ function PlaceholderPage({
 function SchedulePageRouter() {
   const role = getStoredRole();
 
-  if (role === "Student" || role === "Technician") {
+  if (role === "Seasonal" || role === "Student" || role === "Technician") {
     return <ScheduleCalendar />;
   }
 
@@ -299,7 +301,7 @@ function SchedulePageRouter() {
 function DashboardRedirectOrPage() {
   const role = getStoredRole();
 
-  if (role === "Student" || role === "Technician") {
+  if (role === "Seasonal" || role === "Student" || role === "Technician") {
     return (
       <Navigate
         to="/schedules"
@@ -314,7 +316,7 @@ function DashboardRedirectOrPage() {
 function FallbackRedirect() {
   const role = getStoredRole();
 
-  if (role === "Student" || role === "Technician") {
+  if (role === "Seasonal" || role === "Student" || role === "Technician") {
     return (
       <Navigate
         to="/schedules"

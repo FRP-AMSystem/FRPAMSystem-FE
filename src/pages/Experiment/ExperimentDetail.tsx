@@ -25,17 +25,26 @@ import {
   Trash2,
   Users,
   Wrench,
+  XCircle,
+  X,
+  Clock3,
+  AlertTriangle,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
+import { useNotification } from "../../context/NotificationContext";
 
 import {
   getExperimentById,
   submitExperiment,
+  updateExperiment,
 } from "../../services/experimentService";
 
 import {
   createAllocationPlan,
+  getAllocationPlans,
+  approveAllocationPlan,
+  rejectAllocationPlan,
 } from "../../services/allocationPlanService";
 
 import {
@@ -89,8 +98,7 @@ type Role =
   | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 const priorityLabels: Record<
   number,
@@ -160,16 +168,16 @@ function getErrorMessage(
   ) {
     const responseData =
       error.response?.data as
-        | {
-            message?: string;
-            error?: string;
-            title?: string;
-            errors?: Record<
-              string,
-              string[]
-            >;
-          }
-        | undefined;
+      | {
+        message?: string;
+        error?: string;
+        title?: string;
+        errors?: Record<
+          string,
+          string[]
+        >;
+      }
+      | undefined;
 
     if (
       responseData?.errors
@@ -328,7 +336,7 @@ function normalizePhaseList(
 
   if (
     typeof response ===
-      "object" &&
+    "object" &&
     response !== null
   ) {
     const objectResponse =
@@ -355,7 +363,7 @@ function normalizePhaseList(
 
     if (
       typeof objectResponse.data ===
-        "object" &&
+      "object" &&
       objectResponse.data !== null
     ) {
       const nestedData =
@@ -406,12 +414,12 @@ export default function ExperimentDetail() {
 
   const role: Role =
     storedRole === "Admin" ||
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    storedRole === "Student"
+      storedRole === "Manager" ||
+      storedRole === "Researcher" ||
+      storedRole === "Technician" ||
+      (storedRole === "Student" || storedRole === "Seasonal")
       ? storedRole
-      : "Student";
+      : "Seasonal";
 
   const canManageExperiment =
     role === "Admin" || role === "Manager" || role === "Researcher";
@@ -433,15 +441,23 @@ export default function ExperimentDetail() {
     null
   );
 
+  const { sendLocalNotification, fetchUnreadCount } = useNotification();
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionProcessing, setActionProcessing] = useState(false);
+
+  const isManagerOrAdmin = role === "Admin" || role === "Manager";
+  const isSubmittedOrPending =
+    experiment?.status === "Submitted" ||
+    experiment?.status === "Pending" ||
+    experiment?.status === "Created" ||
+    experiment?.status === "Draft";
+  const canApproveReject = isManagerOrAdmin && isSubmittedOrPending;
+
   const [
     submitting,
     setSubmitting,
   ] = useState(false);
-
-  const [
-    successMessage,
-    setSuccessMessage,
-  ] = useState("");
 
   const [
     phases,
@@ -780,9 +796,14 @@ export default function ExperimentDetail() {
       }
 
       setExperiment(updated);
-      setSuccessMessage(
-        `AI Plan "${selectedPlan.title}" applied and experiment submitted successfully for Manager Review!`
-      );
+      sendLocalNotification({
+        title: "AI Plan Applied Successfully",
+        message: `AI Plan "${selectedPlan.title}" applied and experiment submitted successfully for Manager Review!`,
+        notificationType: "Success",
+        referenceType: "Experiment",
+        referenceId: experiment.experimentId,
+      });
+      void fetchUnreadCount();
       setShowAISuggestions(false);
       await loadExperiment();
       await loadExperimentPhases();
@@ -800,7 +821,6 @@ export default function ExperimentDetail() {
     try {
       setSubmitting(true);
       setError("");
-      setSuccessMessage("");
       setShowMethodSelector(false);
 
       if (phases.length === 0) {
@@ -834,9 +854,14 @@ export default function ExperimentDetail() {
       }
 
       setExperiment(updated);
-      setSuccessMessage(
-        `Manual Experiment Plan finalized and submitted successfully for Manager Review!`
-      );
+      sendLocalNotification({
+        title: "Manual Experiment Plan Finalized",
+        message: `Manual Experiment Plan finalized and submitted successfully for Manager Review!`,
+        notificationType: "Success",
+        referenceType: "Experiment",
+        referenceId: experiment.experimentId,
+      });
+      void fetchUnreadCount();
       await loadExperiment();
       await loadExperimentPhases();
       await loadRequirements();
@@ -892,7 +917,6 @@ export default function ExperimentDetail() {
       try {
         setSubmitting(true);
         setError("");
-        setSuccessMessage("");
 
         const updatedExperiment =
           await submitExperiment(
@@ -903,9 +927,14 @@ export default function ExperimentDetail() {
           updatedExperiment
         );
 
-        setSuccessMessage(
-          "Experiment submitted successfully."
-        );
+        sendLocalNotification({
+          title: "Experiment Plan Submitted",
+          message: "Experiment submitted successfully for Manager Review!",
+          notificationType: "Success",
+          referenceType: "Experiment",
+          referenceId: experiment.experimentId,
+        });
+        void fetchUnreadCount();
 
         await loadExperiment();
       } catch (submitError) {
@@ -923,6 +952,133 @@ export default function ExperimentDetail() {
         setSubmitting(false);
       }
     };
+
+  const handleApproveExperiment = async () => {
+    if (!experiment || actionProcessing) return;
+    const confirmed = window.confirm(
+      `Approve experiment plan "${experiment.experimentName}"?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setActionProcessing(true);
+      setError("");
+
+      // 1. Update experiment status to Running
+      let updated = experiment;
+      try {
+        updated = await updateExperiment(experiment.experimentId, {
+          experimentName: experiment.experimentName,
+          description: experiment.description || "",
+          researcherId: experiment.researcherId,
+          expectStartDate: experiment.expectStartDate || new Date().toISOString(),
+          expectEndDate: experiment.expectEndDate || new Date().toISOString(),
+          deadline: experiment.deadline || experiment.expectEndDate || new Date().toISOString(),
+          priority: experiment.priority ?? 1,
+          status: "Running",
+        });
+      } catch (uErr) {
+        console.warn("Direct update status to Running:", uErr);
+      }
+
+      // 2. Also approve attached allocation plans if any
+      try {
+        const allocs = await getAllocationPlans({ experimentId: experiment.experimentId });
+        for (const p of allocs) {
+          if (p.approveStatus === "Pending" || p.approveStatus === "Draft") {
+            await approveAllocationPlan(p.allocationPlanId);
+          }
+        }
+      } catch (aErr) {
+        console.warn("Approve attached allocation plans notice:", aErr);
+      }
+
+      setExperiment({ ...updated, status: "Running" });
+      sendLocalNotification({
+        title: "Experiment Plan Approved",
+        message: `Experiment plan "${experiment.experimentName}" has been APPROVED and is now Running!`,
+        notificationType: "Success",
+        referenceType: "Experiment",
+        referenceId: experiment.experimentId,
+      });
+      void fetchUnreadCount();
+      await loadExperiment();
+    } catch (appErr) {
+      console.error("Approve experiment failed:", appErr);
+      setError(getErrorMessage(appErr));
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  const handleRejectExperiment = async () => {
+    if (!experiment || actionProcessing) return;
+    const reasonText = rejectReason.trim();
+    if (!reasonText) {
+      setError("Please enter a rejection reason.");
+      return;
+    }
+
+    try {
+      setActionProcessing(true);
+      setError("");
+
+      const updatedDescription = experiment.description
+        ? `${experiment.description}\n\n[Manager Rejection Reason: ${reasonText}]`
+        : `[Manager Rejection Reason: ${reasonText}]`;
+
+      // 1. Update experiment status to Cancelled
+      let updated = experiment;
+      try {
+        updated = await updateExperiment(experiment.experimentId, {
+          experimentName: experiment.experimentName,
+          description: updatedDescription,
+          researcherId: experiment.researcherId,
+          expectStartDate: experiment.expectStartDate || new Date().toISOString(),
+          expectEndDate: experiment.expectEndDate || new Date().toISOString(),
+          deadline: experiment.deadline || experiment.expectEndDate || new Date().toISOString(),
+          priority: experiment.priority ?? 1,
+          status: "Cancelled",
+        });
+      } catch (uErr) {
+        console.warn("Direct update status to Cancelled:", uErr);
+      }
+
+      // 2. Also reject attached allocation plans if any
+      try {
+        const allocs = await getAllocationPlans({ experimentId: experiment.experimentId });
+        for (const p of allocs) {
+          if (p.approveStatus === "Pending" || p.approveStatus === "Draft") {
+            await rejectAllocationPlan(p.allocationPlanId);
+          }
+        }
+      } catch (aErr) {
+        console.warn("Reject attached allocation plans notice:", aErr);
+      }
+
+      setExperiment({
+        ...updated,
+        status: "Cancelled",
+        description: updatedDescription,
+      });
+      setShowRejectModal(false);
+      setRejectReason("");
+      sendLocalNotification({
+        title: "Experiment Plan Rejected",
+        message: `Experiment plan "${experiment.experimentName}" has been REJECTED (status changed to Cancelled).`,
+        notificationType: "Warning",
+        referenceType: "Experiment",
+        referenceId: experiment.experimentId,
+      });
+      void fetchUnreadCount();
+      await loadExperiment();
+    } catch (rejErr) {
+      console.error("Reject experiment failed:", rejErr);
+      setError(getErrorMessage(rejErr));
+    } finally {
+      setActionProcessing(false);
+    }
+  };
 
   const handleDeletePhase =
     async (
@@ -1066,15 +1222,15 @@ export default function ExperimentDetail() {
   const priority =
     experiment.priority ===
       null ||
-    experiment.priority ===
+      experiment.priority ===
       undefined
       ? "-"
       : priorityLabels[
-          experiment.priority
-        ] ??
-        String(
-          experiment.priority
-        );
+      experiment.priority
+      ] ??
+      String(
+        experiment.priority
+      );
 
   const experimentIsEditable =
     canSubmitExperimentStatus(
@@ -1104,7 +1260,7 @@ export default function ExperimentDetail() {
             </h1>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="experiment-detail-header-actions">
             <button
               type="button"
               className="experiment-detail-back-btn"
@@ -1117,6 +1273,36 @@ export default function ExperimentDetail() {
               <ArrowLeft size={15} />
               Back
             </button>
+
+            {/* Manager / Admin Approve & Reject Action Buttons */}
+            {canApproveReject && (
+              <>
+                <button
+                  type="button"
+                  className="experiment-approve-btn"
+                  disabled={actionProcessing}
+                  onClick={handleApproveExperiment}
+                  title="Approve this experiment plan"
+                >
+                  <CheckCircle2 size={15} />
+                  {actionProcessing ? "Processing..." : "Approve Plan"}
+                </button>
+
+                <button
+                  type="button"
+                  className="experiment-reject-btn"
+                  disabled={actionProcessing}
+                  onClick={() => {
+                    setError("");
+                    setShowRejectModal(true);
+                  }}
+                  title="Reject this experiment plan"
+                >
+                  <XCircle size={15} />
+                  Reject Plan
+                </button>
+              </>
+            )}
 
             {canManageExperiment && experimentIsEditable && (
               <button
@@ -1133,16 +1319,48 @@ export default function ExperimentDetail() {
           </div>
         </div>
 
-        {error && (
-          <div className="experiment-detail-error">
-            {error}
+        {/* Status Banners for Reviewers & Researchers */}
+        {(experiment.status === "Rejected" || experiment.status === "Cancelled") && (
+          <div className="experiment-status-banner rejected">
+            <AlertTriangle className="experiment-banner-icon" />
+            <div>
+              <strong>Experiment Plan Cancelled / Rejected (by Manager)</strong>
+              <p style={{ margin: "4px 0 0" }}>
+                {experiment.description && experiment.description.includes("Manager Rejection Reason:")
+                  ? experiment.description.split("[Manager Rejection Reason:")[1]?.replace("]", "").trim()
+                  : "The experiment plan has been rejected or cancelled. Please review and submit a revised plan."}
+              </p>
+            </div>
           </div>
         )}
 
-        {successMessage && (
-          <div className="experiment-success-message">
-            <CheckCircle2 size={18} />
-            <span>{successMessage}</span>
+        {(experiment.status === "Approved" || experiment.status === "Running") && (
+          <div className="experiment-status-banner approved">
+            <CheckCircle2 className="experiment-banner-icon" />
+            <div>
+              <strong>Experiment Plan Approved & Running</strong>
+              <p style={{ margin: "4px 0 0" }}>
+                The experiment plan was successfully approved by the Manager. All phases and allocated resources are ready for execution.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {(experiment.status === "Submitted" || experiment.status === "Pending") && (
+          <div className="experiment-status-banner pending">
+            <Clock3 className="experiment-banner-icon" />
+            <div>
+              <strong>Awaiting Manager Review (Under Review)</strong>
+              <p style={{ margin: "4px 0 0" }}>
+                The experiment plan has been submitted and is awaiting Manager review and resource allocation approvals.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="experiment-detail-error">
+            {error}
           </div>
         )}
 
@@ -1631,6 +1849,71 @@ export default function ExperimentDetail() {
             onConfirmSelection={handleApplySelectedAISuggestion}
             onClose={() => setShowAISuggestions(false)}
           />
+        )}
+
+        {/* Reject Modal with Mandatory Reason */}
+        {showRejectModal && (
+          <div className="reject-modal-overlay">
+            <div className="reject-modal-card">
+              <div className="reject-modal-header">
+                <div className="reject-modal-title">
+                  <AlertTriangle size={18} />
+                  <span>Reject Experiment Plan</span>
+                </div>
+                <button
+                  type="button"
+                  className="reject-modal-close-btn"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectReason("");
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="reject-modal-body">
+                <p className="reject-modal-hint">
+                  Please enter the reason for rejecting experiment plan{" "}
+                  <strong>"{experiment.experimentName}"</strong> (EXP-{experiment.experimentId}).
+                  This note will be notified to the Researcher for adjustments.
+                </p>
+
+                <label className="reject-modal-label">
+                  Rejection Reason <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <textarea
+                  className="reject-modal-textarea"
+                  placeholder="Enter detailed rejection reason (e.g., equipment shortage, schedule conflict, land unavailability)..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="reject-modal-footer">
+                <button
+                  type="button"
+                  className="reject-modal-cancel-btn"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectReason("");
+                  }}
+                  disabled={actionProcessing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="reject-modal-submit-btn"
+                  onClick={handleRejectExperiment}
+                  disabled={actionProcessing || !rejectReason.trim()}
+                >
+                  {actionProcessing ? "Processing..." : "Confirm Rejection (Reject)"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </DashboardLayout>

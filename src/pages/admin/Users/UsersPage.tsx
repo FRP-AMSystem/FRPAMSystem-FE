@@ -8,7 +8,7 @@ import UserFilter from "../../../components/UserFilter";
 import type { User } from "../../../types/user";
 import type { Role } from "../../../types/role";
 import { getUsers } from "../../../services/userService";
-import { getRoles } from "../../../services/roleService";
+import { getRoles, normalizeRoleName } from "../../../services/roleService";
 import { RotateCw, AlertCircle, Plus, UserCheck } from "lucide-react";
 import "./UsersPage.css";
 
@@ -23,7 +23,7 @@ export default function UsersPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -62,7 +62,7 @@ export default function UsersPage() {
     setError("");
     try {
       const [userData, roleData] = await Promise.all([getUsers(), getRoles()]);
-      
+
       if (!Array.isArray(userData)) {
         throw new Error("Invalid users format received from backend.");
       }
@@ -81,6 +81,7 @@ export default function UsersPage() {
           const matchedRole = roleData.find((r) => r.id === u.roleId.toString());
           if (matchedRole) roleName = matchedRole.name;
         }
+        roleName = normalizeRoleName(roleName);
         const rawBackendDate = u.createdDate || u.createdAt || u.created_at || u.createDate || u.createAt || u.createdTime || u.dateCreated;
 
         let finalCreatedDate = rawBackendDate;
@@ -129,20 +130,20 @@ export default function UsersPage() {
   // Filter users based on query and role selection
   const filteredUsers = Array.isArray(users)
     ? users.filter((user) => {
-        const matchesSearch =
-          (user.fullName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (user.email || "").toLowerCase().includes(searchQuery.toLowerCase());
-          
-        const matchesRole = selectedRole === "" || user.role === selectedRole;
+      const matchesSearch =
+        (user.fullName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (user.email || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-        return matchesSearch && matchesRole;
-      })
+      const matchesRole = selectedRole === "" || user.role === selectedRole;
+
+      return matchesSearch && matchesRole;
+    })
     : [];
 
   return (
     <DashboardLayout>
       <div className="users-page-container">
-        
+
         {/* Top Header */}
         <div className="page-header-row">
           <div>

@@ -43,8 +43,7 @@ import "./ScheduleDetail.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -62,12 +61,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -393,9 +392,8 @@ export default function ScheduleDetail() {
 
     const confirmed =
       window.confirm(
-        `Delete schedule "${
-          schedule.title ||
-          `#${schedule.scheduleId}`
+        `Delete schedule "${schedule.title ||
+        `#${schedule.scheduleId}`
         }"?`
       );
 

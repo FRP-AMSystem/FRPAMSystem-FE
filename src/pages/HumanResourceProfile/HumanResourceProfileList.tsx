@@ -23,6 +23,8 @@ import {
   getHumanResourceProfiles,
   updateHumanResourceProfile,
 } from "../../services/humanResourceProfileService";
+import { getUsers } from "../../services/userService";
+import type { User } from "../../types/user";
 
 import type {
   HumanResourceProfile,
@@ -35,8 +37,28 @@ import "./HumanResourceProfileList.css";
 type Role =
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
+
+const ALLOWED_HR_ROLES = ["researcher", "seasonal", "student", "technician"];
+
+export function isAllowedHrRole(roleName?: string | null, roleId?: number | null): boolean {
+  if (roleId === 3 || roleId === 4 || roleId === 5) return true;
+  if (!roleName) return false;
+  const norm = roleName.toLowerCase().trim();
+  if (norm === "admin" || norm === "manager") return false;
+  return ALLOWED_HR_ROLES.some((r) => norm.includes(r));
+}
+
+export function getNormalizedHrRoleName(roleName?: string | null, roleId?: number | null): string {
+  if (roleId === 5) return "Seasonal";
+  if (roleId === 4) return "Technician";
+  if (roleId === 3) return "Researcher";
+  const norm = (roleName || "").toLowerCase().trim();
+  if (norm === "student" || norm === "seasonal" || norm.includes("student") || norm.includes("seasonal")) return "Seasonal";
+  if (norm === "technician" || norm.includes("technician") || norm.includes("tech")) return "Technician";
+  if (norm === "researcher" || norm.includes("researcher")) return "Researcher";
+  return roleName || "Staff";
+}
 
 interface FormState {
   userId: string;
@@ -68,12 +90,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -239,9 +261,8 @@ export default function HumanResourceProfileList() {
   const [
     form,
     setForm,
-  ] = useState<FormState>(
-    emptyForm
-  );
+  ] = useState<FormState>(emptyForm);
+  const [eligibleUsers, setEligibleUsers] = useState<User[]>([]);
 
   const loadData =
     useCallback(async () => {
@@ -249,25 +270,88 @@ export default function HumanResourceProfileList() {
         setLoading(true);
         setError("");
 
-        const data =
-          await getHumanResourceProfiles({
-            keyword:
-              appliedKeyword ||
-              undefined,
-
-            status:
-              statusFilter ||
-              undefined,
-
+        const [profilesData, usersData] = await Promise.all([
+          getHumanResourceProfiles({
+            keyword: appliedKeyword || undefined,
+            status: statusFilter || undefined,
             page: 1,
             size: 300,
-          });
+          }).catch(() => [] as HumanResourceProfile[]),
+          getUsers().catch(() => [] as User[]),
+        ]);
 
-        setItems(
-          Array.isArray(data)
-            ? data
-            : []
+        // Filter only users belonging to the 3 permitted roles: Researcher, Seasonal (Student), Technician
+        const allowedUsers = (usersData || []).filter((u: any) =>
+          isAllowedHrRole(u.role || u.roleName, u.roleId)
         );
+        setEligibleUsers(allowedUsers);
+
+        const mergedList: HumanResourceProfile[] = [];
+        const visitedUserIds = new Set<number>();
+
+        // 1. Process profiles already created on Backend
+        for (const p of profilesData) {
+          const uId = p.userId;
+          const matchedUser = allowedUsers.find(
+            (u: any) => (u.userId ?? Number(u.id)) === uId
+          );
+          const effectiveRole = p.roleName || (matchedUser ? matchedUser.role : "");
+          const effectiveRoleId = p.roleId || (matchedUser ? (matchedUser as any).roleId : null);
+
+          if (isAllowedHrRole(effectiveRole, effectiveRoleId)) {
+            const normRole = getNormalizedHrRoleName(effectiveRole, effectiveRoleId);
+            mergedList.push({
+              ...p,
+              fullName: p.fullName || (matchedUser ? matchedUser.fullName : null),
+              username: p.username || (matchedUser ? matchedUser.username : null),
+              email: p.email || (matchedUser ? matchedUser.email : null),
+              roleName: normRole,
+              roleId: normRole === "Seasonal" ? 5 : normRole === "Technician" ? 4 : 3,
+            });
+            visitedUserIds.add(uId);
+          }
+        }
+
+        // 2. Synthesize personnel entries for any eligible users (Seasonal, Technician, Researcher) who do not have a DB profile yet
+        for (const u of allowedUsers) {
+          const uId = (u as any).userId ?? Number(u.id);
+          if (Number.isInteger(uId) && uId > 0 && !visitedUserIds.has(uId)) {
+            const normRole = getNormalizedHrRoleName(u.role, (u as any).roleId);
+            mergedList.push({
+              humanResourceId: 0,
+              userId: uId,
+              fullName: u.fullName,
+              username: u.username || null,
+              email: u.email || null,
+              roleName: normRole,
+              roleId: normRole === "Seasonal" ? 5 : normRole === "Technician" ? 4 : 3,
+              maxWorkingHoursPerDay: 8,
+              currentWorkload: 0,
+              status: "Available",
+              createdAt: u.createdDate || null,
+              updatedAt: null,
+            });
+            visitedUserIds.add(uId);
+          }
+        }
+
+        // 3. Apply keyword or status filtering if set
+        let finalItems = mergedList;
+        if (appliedKeyword) {
+          const kw = appliedKeyword.toLowerCase();
+          finalItems = finalItems.filter(
+            (i) =>
+              (i.fullName && i.fullName.toLowerCase().includes(kw)) ||
+              (i.username && i.username.toLowerCase().includes(kw)) ||
+              (i.email && i.email.toLowerCase().includes(kw)) ||
+              (i.roleName && i.roleName.toLowerCase().includes(kw))
+          );
+        }
+        if (statusFilter) {
+          finalItems = finalItems.filter((i) => i.status === statusFilter);
+        }
+
+        setItems(finalItems);
       } catch (loadError) {
         console.error(
           "Load human resource profiles failed:",
@@ -309,7 +393,11 @@ export default function HumanResourceProfileList() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm);
+    const firstUserId = eligibleUsers.length > 0 ? String((eligibleUsers[0] as any).userId ?? eligibleUsers[0].id) : "";
+    setForm({
+      ...emptyForm,
+      userId: firstUserId,
+    });
     setError("");
     setDialogOpen(true);
   };
@@ -594,8 +682,8 @@ export default function HumanResourceProfileList() {
               setStatusFilter(
                 event.target
                   .value as
-                  | HumanResourceStatus
-                  | ""
+                | HumanResourceStatus
+                | ""
               )
             }
           >
@@ -674,9 +762,7 @@ export default function HumanResourceProfileList() {
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>Person</th>
-                    <th>User ID</th>
                     <th>Role</th>
                     <th>
                       Max Hours/Day
@@ -699,13 +785,6 @@ export default function HumanResourceProfileList() {
                         }
                       >
                         <td>
-                          #
-                          {
-                            item.humanResourceId
-                          }
-                        </td>
-
-                        <td>
                           <strong>
                             {getProfileName(
                               item
@@ -717,13 +796,6 @@ export default function HumanResourceProfileList() {
                               item.username ||
                               "-"}
                           </small>
-                        </td>
-
-                        <td>
-                          #
-                          {
-                            item.userId
-                          }
                         </td>
 
                         <td>
@@ -854,8 +926,8 @@ export default function HumanResourceProfileList() {
                   <p>
                     {editing
                       ? getProfileName(
-                          editing
-                        )
+                        editing
+                      )
                       : "Enter the user and workload information."}
                   </p>
                 </div>
@@ -877,21 +949,38 @@ export default function HumanResourceProfileList() {
               <div className="human-profile-form-grid">
                 <div className="profile-form-group">
                   <label htmlFor="humanProfileUserId">
-                    User ID <span className="required">*</span>
+                    Personnel User <span className="required">*</span>
                   </label>
-                  <input
-                    id="humanProfileUserId"
-                    type="number"
-                    min="1"
-                    step="1"
-                    placeholder="e.g. 5"
-                    value={form.userId}
-                    onChange={(event) =>
-                      updateForm("userId", event.target.value)
-                    }
-                    disabled={saving || Boolean(editing)}
-                    required
-                  />
+                  {editing ? (
+                    <input
+                      id="humanProfileUserId"
+                      type="text"
+                      value={`${editing.fullName || editing.username || `User #${editing.userId}`} (${editing.roleName || "Staff"})`}
+                      disabled
+                      style={{ background: "#f8fafc", cursor: "not-allowed", fontWeight: 600 }}
+                    />
+                  ) : (
+                    <select
+                      id="humanProfileUserId"
+                      value={form.userId}
+                      onChange={(event) =>
+                        updateForm("userId", event.target.value)
+                      }
+                      disabled={saving}
+                      required
+                    >
+                      <option value="">-- Select Personnel (Researcher, Seasonal, Technician) --</option>
+                      {eligibleUsers.map((u: any) => {
+                        const uId = u.userId ?? u.id;
+                        const normRole = getNormalizedHrRoleName(u.role, u.roleId);
+                        return (
+                          <option key={uId} value={uId}>
+                            {u.fullName || u.username} ({normRole}) - {u.email || u.username || `ID: ${uId}`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  )}
                 </div>
 
                 <div className="profile-form-group">

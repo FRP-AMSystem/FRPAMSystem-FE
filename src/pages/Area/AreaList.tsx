@@ -35,8 +35,7 @@ type Role =
   | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician"
-  | "Student";
+  | "Technician" | "Student" | "Seasonal";
 
 function getCurrentRole(): Role {
   const storedRole =
@@ -47,12 +46,12 @@ function getCurrentRole(): Role {
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
-    storedRole === "Student"
+    (storedRole === "Student" || storedRole === "Seasonal")
   ) {
     return storedRole;
   }
 
-  return "Student";
+  return "Seasonal";
 }
 
 function getErrorMessage(
@@ -453,14 +452,14 @@ export default function AreaList() {
 
           {(keyword ||
             appliedKeyword) && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={handleClear}
-            >
-              Clear
-            </button>
-          )}
+              <button
+                type="button"
+                className="secondary"
+                onClick={handleClear}
+              >
+                Clear
+              </button>
+            )}
         </section>
 
         {error && (
@@ -500,7 +499,6 @@ export default function AreaList() {
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>
                       Area name
                     </th>
@@ -524,13 +522,6 @@ export default function AreaList() {
                           area.areaId
                         }
                       >
-                        <td>
-                          #
-                          {
-                            area.areaId
-                          }
-                        </td>
-
                         <td>
                           <strong>
                             {
