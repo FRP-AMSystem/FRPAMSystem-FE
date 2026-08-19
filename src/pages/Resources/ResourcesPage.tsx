@@ -605,9 +605,8 @@ export default function ResourcesPage() {
                         {areas.map((area) => (
                           <div
                             key={area.areaId}
-                            className={`area-item-card ${
-                              selectedAreaId === area.areaId ? "active" : ""
-                            }`}
+                            className={`area-item-card ${selectedAreaId === area.areaId ? "active" : ""
+                              }`}
                             onClick={() => setSelectedAreaId(area.areaId)}
                           >
                             <div className="area-item-card-header">
@@ -808,13 +807,12 @@ export default function ResourcesPage() {
                               </td>
                               <td>
                                 <span
-                                  className={`land-status-badge ${
-                                    inst.status === "Available"
+                                  className={`land-status-badge ${inst.status === "Available"
                                       ? "available"
                                       : inst.status === "InUse"
-                                      ? "allocated"
-                                      : "maintenance"
-                                  }`}
+                                        ? "allocated"
+                                        : "maintenance"
+                                    }`}
                                 >
                                   <span
                                     style={{

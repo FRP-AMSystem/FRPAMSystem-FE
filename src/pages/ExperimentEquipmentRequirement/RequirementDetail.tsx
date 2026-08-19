@@ -8,7 +8,7 @@ import type { ExperimentEquipmentRequirement } from "../../types/experimentEquip
 
 import "./RequirementDetail.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
+type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 function formatEfficiency(value: number): string {
   if (!Number.isFinite(value)) {

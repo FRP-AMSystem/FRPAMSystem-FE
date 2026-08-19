@@ -15,7 +15,8 @@ import {
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
-import { getSchedules } from "../../services/scheduleService";
+import { getSchedules, getMySchedules } from "../../services/scheduleService";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import type {
   Schedule,
@@ -213,11 +214,28 @@ export default function ScheduleCalendar() {
       setLoading(true);
       setError("");
 
-      const data = await getSchedules({
-        page: 1,
-        size: 500,
-        status: statusFilter || undefined,
-      });
+      const currentUser = getCurrentUserTokenInfo();
+      const role = currentUser.role || "Seasonal";
+      const isFieldStaff =
+        role === "Technician" || role === "Seasonal" || role === "Student";
+
+      const data = isFieldStaff
+        ? await getMySchedules({
+            page: 1,
+            size: 500,
+            status: statusFilter || undefined,
+          }).catch(() =>
+            getSchedules({
+              page: 1,
+              size: 500,
+              status: statusFilter || undefined,
+            })
+          )
+        : await getSchedules({
+            page: 1,
+            size: 500,
+            status: statusFilter || undefined,
+          });
 
       setSchedules(data);
     } catch (err) {

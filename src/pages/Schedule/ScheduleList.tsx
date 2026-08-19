@@ -26,6 +26,7 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import {
   deleteSchedule,
   getSchedules,
+  getMySchedules,
 } from "../../services/scheduleService";
 
 import type {
@@ -36,9 +37,12 @@ import type {
 import "./ScheduleList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 type StatusFilter =
   | ""
@@ -315,27 +319,37 @@ export default function ScheduleList() {
         setLoading(true);
         setError("");
 
-        const data =
-          await getSchedules({
-            keyword:
-              searchKeyword ||
-              undefined,
+        const isFieldStaff =
+          role === "Technician" ||
+          role === "Seasonal" ||
+          role === "Student";
 
-            status:
-              status ||
-              undefined,
-
-            startDateFrom:
-              startDateFrom ||
-              undefined,
-
-            startDateTo:
-              startDateTo ||
-              undefined,
-
-            page: 1,
-            size: 100,
-          });
+        const data = isFieldStaff
+          ? await getMySchedules({
+              keyword: searchKeyword || undefined,
+              status: status || undefined,
+              startDateFrom: startDateFrom || undefined,
+              startDateTo: startDateTo || undefined,
+              page: 1,
+              size: 100,
+            }).catch(() =>
+              getSchedules({
+                keyword: searchKeyword || undefined,
+                status: status || undefined,
+                startDateFrom: startDateFrom || undefined,
+                startDateTo: startDateTo || undefined,
+                page: 1,
+                size: 100,
+              })
+            )
+          : await getSchedules({
+              keyword: searchKeyword || undefined,
+              status: status || undefined,
+              startDateFrom: startDateFrom || undefined,
+              startDateTo: startDateTo || undefined,
+              page: 1,
+              size: 100,
+            });
 
         const sortedSchedules =
           [...data].sort(

@@ -20,6 +20,8 @@ export interface ExperimentHumanRequirement {
   updatedAt?: string | null;
 }
 
+export type ExperimentHumanRequirementResponse = ExperimentHumanRequirement;
+
 export interface ExperimentHumanRequirementRequest {
   experimentId: number;
   roleId: number;

@@ -28,3 +28,13 @@ export interface NotificationListResult {
   total: number;
   totalPages: number;
 }
+
+export interface RealtimeNotificationPayload {
+  notificationId?: number;
+  title?: string;
+  message?: string;
+  notificationType?: string;
+  referenceType?: string | null;
+  referenceId?: number | null;
+  createdAt?: string;
+}

@@ -27,10 +27,10 @@ import ResourcesPage from "../pages/Resources/ResourcesPage";
 ===================================================== */
 
 import ExperimentList from "../pages/Experiment/ExperimentList";
-import MyExperimentList from "../pages/Experiment/MyExperimentList";
 import CreateExperiment from "../pages/Experiment/CreateExperiment";
 import EditExperiment from "../pages/Experiment/EditExperiment";
 import ExperimentDetail from "../pages/Experiment/ExperimentDetail";
+import AISuggestionPage from "../pages/Experiment/AISuggestionPage";
 
 /* =====================================================
    EXPERIMENT PHASE
@@ -93,6 +93,7 @@ import HumanResourceSkillList from "../pages/HumanResourceSkill/HumanResourceSki
 import EquipmentList from "../pages/Equipment/EquipmentList";
 import EquipmentCategoryList from "../pages/Equipment/EquipmentCategoryList";
 import EquipmentInstanceList from "../pages/Equipment/EquipmentInstanceList";
+import EquipmentReturnPage from "../pages/EquipmentReturn/EquipmentReturnPage";
 
 import EquipmentSubstitutionList from "../pages/EquipmentSubstitution/EquipmentSubstitutionList";
 import EquipmentShortageLogList from "../pages/EquipmentShortageLog/EquipmentShortageLogList";
@@ -397,7 +398,7 @@ export default function AppRoutes() {
           <ProtectedRoute
             allowedRoles={operationalViewRoles}
           >
-            <MyExperimentList />
+            <Navigate to="/experiments" replace />
           </ProtectedRoute>
         }
       />
@@ -431,6 +432,50 @@ export default function AppRoutes() {
             allowedRoles={operationalViewRoles}
           >
             <ExperimentDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/experiments/:id/ai-suggestions"
+        element={
+          <ProtectedRoute
+            allowedRoles={researcherOnly}
+          >
+            <AISuggestionPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/experiments/ai-suggestions"
+        element={
+          <ProtectedRoute
+            allowedRoles={researcherOnly}
+          >
+            <AISuggestionPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/planning/ai-suggestions"
+        element={
+          <ProtectedRoute
+            allowedRoles={researcherOnly}
+          >
+            <AISuggestionPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/planning/:id/ai-suggestions"
+        element={
+          <ProtectedRoute
+            allowedRoles={researcherOnly}
+          >
+            <AISuggestionPage />
           </ProtectedRoute>
         }
       />
@@ -778,6 +823,17 @@ export default function AppRoutes() {
             allowedRoles={operationalViewRoles}
           >
             <EquipmentShortageLogList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/equipment-return"
+        element={
+          <ProtectedRoute
+            allowedRoles={operationalViewRoles}
+          >
+            <EquipmentReturnPage />
           </ProtectedRoute>
         }
       />

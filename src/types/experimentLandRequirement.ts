@@ -13,6 +13,8 @@ export interface ExperimentLandRequirement {
   updatedAt?: string | null;
 }
 
+export type ExperimentLandRequirementResponse = ExperimentLandRequirement;
+
 export interface ExperimentLandRequirementRequest {
   experimentId: number;
   requiredArea: number;

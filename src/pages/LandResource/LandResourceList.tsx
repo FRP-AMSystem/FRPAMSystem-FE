@@ -39,7 +39,7 @@ import type {
 
 import "./LandResourceList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
+type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 interface LandFormState {
     areaId: string;

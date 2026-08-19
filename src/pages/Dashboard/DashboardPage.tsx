@@ -493,8 +493,14 @@ export default function DashboardPage() {
             page: 1,
             size: 500,
           });
-          if (expData && Array.isArray(expData.items)) {
-            expIds = expData.items.map((e) => e.experimentId);
+          if (Array.isArray(expData)) {
+            expIds = expData
+              .filter(
+                (e) =>
+                  e.researcherId === userId ||
+                  e.createdByUserId === userId
+              )
+              .map((e) => e.experimentId);
           }
         }
 
@@ -1225,21 +1231,20 @@ export default function DashboardPage() {
 
                   <p>
                     Create experiments,
-                    requirements and draft
-                    allocation plans, then
-                    submit them for manager
-                    approval.
+                    requirements, and phases, then
+                    track their execution and
+                    progress.
                   </p>
 
                   <button
                     type="button"
                     onClick={() =>
                       navigate(
-                        "/allocation"
+                        "/experiments"
                       )
                     }
                   >
-                    View My Allocations
+                    View Experiments
                   </button>
                 </div>
               )}
@@ -1313,7 +1318,7 @@ export default function DashboardPage() {
                     )
                   }
                 >
-                  View Allocation Analytics
+                  View Experiment Analytics
                 </button>
               </div>
             )}

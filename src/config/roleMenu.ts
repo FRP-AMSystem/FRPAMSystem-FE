@@ -19,7 +19,6 @@ export const roleMenus = {
   Researcher: [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Experiments", path: "/experiments", icon: FlaskConical },
-    { name: "My Allocations", path: "/allocation", icon: CalendarDays },
   ],
 
   Technician: [

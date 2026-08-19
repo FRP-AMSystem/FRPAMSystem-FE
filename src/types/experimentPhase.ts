@@ -24,6 +24,8 @@ export interface ExperimentPhase {
   updatedAt?: string | null;
 }
 
+export type ExperimentPhaseResponse = ExperimentPhase;
+
 export interface ExperimentPhaseRequest {
   experimentId: number;
 

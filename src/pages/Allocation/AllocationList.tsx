@@ -15,11 +15,12 @@ import type {
   AllocationPlanStatus,
 } from "../../types/allocationPlan";
 
-import { Eye, Pencil, Trash2, CheckCircle2, XCircle, Ban, Plus } from "lucide-react";
+import { Eye, Pencil, Trash2, CheckCircle2, XCircle, Ban } from "lucide-react";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./AllocationList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
+type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 type StatusFilter = "All" | AllocationPlanStatus;
 
 type RolePermission = {
@@ -33,6 +34,15 @@ type RolePermission = {
 };
 
 const permissions: Record<Role, RolePermission> = {
+  Admin: {
+    canCreate: false,
+    canView: true,
+    canEdit: false,
+    canDelete: false,
+    canApprove: false,
+    canReject: false,
+    canCancel: false,
+  },
   Manager: {
     canCreate: false,
     canView: true,
@@ -93,6 +103,7 @@ function getStoredRole(): Role {
   const storedRole = localStorage.getItem("role");
 
   if (
+    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -114,13 +125,10 @@ function formatDate(date?: string | null): string {
   return parsedDate.toLocaleDateString("vi-VN");
 }
 
-function formatFitnessScore(score: number | null): string {
-  if (score === null || !Number.isFinite(score)) return "-";
-  return `${score}%`;
-}
-
 function getPageDescription(role: Role): string {
   switch (role) {
+    case "Admin":
+      return "View and monitor all allocation plans across the system.";
     case "Manager":
       return "Review pending allocation plans and approve, reject, or cancel them.";
     case "Researcher":
@@ -136,8 +144,10 @@ function getPageDescription(role: Role): string {
 export default function AllocationList() {
   const navigate = useNavigate();
 
-  const role = getStoredRole();
-  const permission = permissions[role];
+  const currentUser = useMemo(() => getCurrentUserTokenInfo(), []);
+  const role = (currentUser.role || "Seasonal") as Role;
+  const isPrivileged = role === "Admin" || role === "Manager";
+  const permission = permissions[role] || permissions.Seasonal;
 
   const [plans, setPlans] = useState<AllocationPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,8 +162,31 @@ export default function AllocationList() {
       setLoading(true);
       setError("");
 
-      const data = await getAllocationPlans();
-      setPlans(data);
+      const user = getCurrentUserTokenInfo();
+      const { userId, fullName, role: userRole } = user;
+      const privileged = userRole === "Admin" || userRole === "Manager";
+
+      // Query GET /api/AllocationPlans?CreatedBy={userId} for Researcher
+      const data = await getAllocationPlans({
+        createdBy: !privileged && userId > 0 ? userId : undefined,
+        size: 100,
+      });
+
+      // Filter on client as well to ensure strict researcher scoping
+      const userPlans = privileged
+        ? data
+        : data.filter((plan) => {
+            if (userId > 0 && plan.createdBy === userId) return true;
+            if (
+              fullName &&
+              plan.createdByName?.toLowerCase().includes(fullName.toLowerCase())
+            ) {
+              return true;
+            }
+            return false;
+          });
+
+      setPlans(userPlans);
     } catch (fetchError) {
       console.error("Failed to fetch allocation plans:", fetchError);
       setPlans([]);
@@ -310,7 +343,6 @@ export default function AllocationList() {
               <thead>
                 <tr>
                   <th>Experiment</th>
-                  <th>Fitness</th>
                   <th>Status</th>
                   <th>Created By</th>
                   <th>Created Date</th>
@@ -322,7 +354,7 @@ export default function AllocationList() {
               <tbody>
                 {filteredPlans.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="empty-table">
+                    <td colSpan={6} className="empty-table">
                       No allocation plans found.
                     </td>
                   </tr>
@@ -330,9 +362,7 @@ export default function AllocationList() {
                   filteredPlans.map((plan) => {
                     const isProcessing = processingId === plan.allocationPlanId;
                     const isDraft = plan.approveStatus === "Draft";
-                    const isPending =
-                      plan.approveStatus === "Pending" ||
-                      plan.approveStatus === "Submitted";
+                    const isPending = plan.approveStatus === "Pending";
 
                     const canEditPlan = permission.canEdit && isDraft;
                     const canDeletePlan = permission.canDelete && isDraft;
@@ -343,7 +373,6 @@ export default function AllocationList() {
                     return (
                       <tr key={plan.allocationPlanId}>
                         <td style={{ fontWeight: 600 }}>{plan.experimentName || "-"}</td>
-                        <td>{formatFitnessScore(plan.fitnessScore)}</td>
                         <td>
                           <span
                             className={`status-badge status-${plan.approveStatus.toLowerCase()}`}
@@ -364,21 +393,22 @@ export default function AllocationList() {
                             {permission.canView && (
                               <button
                                 type="button"
-                                className="action-btn-pill view"
+                                className="alloc-btn-icon view"
+                                title="View Details"
                                 disabled={isProcessing}
                                 onClick={() =>
                                   navigate(`/allocation/${plan.allocationPlanId}`)
                                 }
                               >
-                                <Eye size={12} />
-                                <span>View</span>
+                                <Eye size={13} />
                               </button>
                             )}
 
                             {canEditPlan && (
                               <button
                                 type="button"
-                                className="action-btn-pill edit"
+                                className="alloc-btn-icon edit"
+                                title="Edit Plan"
                                 disabled={isProcessing}
                                 onClick={() =>
                                   navigate(
@@ -386,56 +416,55 @@ export default function AllocationList() {
                                   )
                                 }
                               >
-                                <Pencil size={12} />
-                                <span>Edit</span>
+                                <Pencil size={13} />
                               </button>
                             )}
 
                             {canApprovePlan && (
                               <button
                                 type="button"
-                                className="action-btn-pill edit"
+                                className="alloc-btn-icon approve"
+                                title="Approve Plan"
                                 disabled={isProcessing}
                                 onClick={() => void handleApprove(plan)}
                               >
-                                <CheckCircle2 size={12} />
-                                <span>{isProcessing ? "Processing..." : "Approve"}</span>
+                                <CheckCircle2 size={13} />
                               </button>
                             )}
 
                             {canRejectPlan && (
                               <button
                                 type="button"
-                                className="action-btn-pill delete"
+                                className="alloc-btn-icon reject"
+                                title="Reject Plan"
                                 disabled={isProcessing}
                                 onClick={() => void handleReject(plan)}
                               >
-                                <XCircle size={12} />
-                                <span>{isProcessing ? "Processing..." : "Reject"}</span>
+                                <XCircle size={13} />
                               </button>
                             )}
 
                             {canCancelPlan && (
                               <button
                                 type="button"
-                                className="action-btn-pill edit"
+                                className="alloc-btn-icon cancel"
+                                title="Cancel Plan"
                                 disabled={isProcessing}
                                 onClick={() => void handleCancel(plan)}
                               >
-                                <Ban size={12} />
-                                <span>{isProcessing ? "Processing..." : "Cancel"}</span>
+                                <Ban size={13} />
                               </button>
                             )}
 
                             {canDeletePlan && (
                               <button
                                 type="button"
-                                className="action-btn-pill delete"
+                                className="alloc-btn-icon delete"
+                                title="Delete Plan"
                                 disabled={isProcessing}
                                 onClick={() => void handleDelete(plan)}
                               >
-                                <Trash2 size={12} />
-                                <span>{isProcessing ? "Deleting..." : "Delete"}</span>
+                                <Trash2 size={13} />
                               </button>
                             )}
                           </div>

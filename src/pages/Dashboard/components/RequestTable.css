@@ -181,16 +181,37 @@
   color: #64748b;
 }
 
-.request-status-pending {
+.request-status-pending,
+.request-status-submitted {
   border-color: rgba(245, 158, 11, 0.3);
   background: rgba(245, 158, 11, 0.11);
   color: #b45309;
 }
 
-.request-status-approved {
+.request-status-planning {
+  border-color: rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.12);
+  color: #7e22ce;
+}
+
+.request-status-approved,
+.request-status-ready {
   border-color: rgba(34, 197, 94, 0.3);
   background: rgba(34, 197, 94, 0.1);
   color: #15803d;
+}
+
+.request-status-running,
+.request-status-inprogress {
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.request-status-completed {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
 }
 
 .request-status-rejected {
