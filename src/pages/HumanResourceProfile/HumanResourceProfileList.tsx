@@ -35,9 +35,12 @@ import type {
 import "./HumanResourceProfileList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 const ALLOWED_HR_ROLES = ["researcher", "seasonal", "student", "technician"];
 

@@ -32,7 +32,7 @@ export async function getSystemHealth(): Promise<HealthCheckResponse> {
   try {
     const response = await apiClient.get<any>("/Health");
     return { status: response.data?.status || "Healthy (Server Operational)" };
-  } catch (error) {
+  } catch {
     return { status: "Healthy (Server Operational)" };
   }
 }
@@ -42,7 +42,7 @@ export async function getDatabaseHealth(): Promise<HealthCheckResponse> {
   try {
     const response = await apiClient.get<any>("/Health/database");
     return { status: response.data?.status || "Connected (Database Online)" };
-  } catch (error) {
+  } catch {
     return { status: "Connected (Database Online)" };
   }
 }
@@ -89,7 +89,7 @@ export async function getUnreadNotificationCount(): Promise<number> {
   try {
     const response = await apiClient.get<any>("/Notifications/unread-count");
     return response.data?.data ?? response.data ?? 0;
-  } catch (error) {
+  } catch {
     return 2;
   }
 }
@@ -99,7 +99,7 @@ export async function markNotificationAsRead(id: number): Promise<boolean> {
   try {
     await apiClient.put(`/Notifications/${id}/read`);
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -128,7 +128,7 @@ export async function markAllNotificationsAsRead(): Promise<boolean> {
   try {
     await apiClient.put("/Notifications/read-all");
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -139,7 +139,7 @@ export async function getEquipmentShortageLogs(): Promise<EquipmentShortageLog[]
     const response = await apiClient.get<any>("/EquipmentShortageLogs");
     const data = response.data?.data?.items || response.data?.data || response.data || [];
     return Array.isArray(data) ? data : [];
-  } catch (error) {
+  } catch {
     return [];
   }
 }

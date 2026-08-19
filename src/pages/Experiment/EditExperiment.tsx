@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
 import { ArrowLeft, ArrowRight, Save } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
@@ -115,7 +114,7 @@ export default function EditExperiment() {
   const [currentStep, setCurrentStep] = useState(1);
 
   // Step 1 State
-  const [expData, setExpData] = useState<ExperimentStepData & { researcherId?: number }>({
+  const [expData, setExpData] = useState<ExperimentStepData & { researcherId?: number; status?: string }>({
     experimentName: "",
     description: "",
     expectStartDate: "",
@@ -182,7 +181,7 @@ export default function EditExperiment() {
           deadline: toDateInputValue(exp.deadline),
           priority: String(exp.priority ?? 1),
           status: exp.status || "Draft",
-          researcherId: exp.researcherId,
+          researcherId: exp.researcherId ?? undefined,
         });
 
         // Step 2: Phases
@@ -218,7 +217,7 @@ export default function EditExperiment() {
             phaseId: matchedPhase ? matchedPhase.id : null,
             phaseName: matchedPhase ? matchedPhase.phaseName : phaseName,
             equipmentTypeId: e.equipmentTypeId,
-            equipmentTypeName: e.equipmentTypeName,
+            equipmentTypeName: e.equipmentTypeName || "",
             quantity: e.quantity,
             allowSubstitute: e.allowSubstitute,
             minAcceptableEfficiency: normalizedEff,
@@ -250,9 +249,9 @@ export default function EditExperiment() {
             roleId: normalizedRoleId,
             roleName: normalizedRoleName,
             quantity: h.quantity,
-            requiredSkillId: h.requiredSkillId,
-            requiredSkillName: h.requiredSkillName,
-            workingHoursPerDay: h.workingHoursPerDay,
+            requiredSkillId: h.requiredSkillId ?? null,
+            requiredSkillName: h.requiredSkillName || "",
+            workingHoursPerDay: h.workingHoursPerDay ?? 8,
             note: (h.note || "").replace(/^\[.*?\]\s*/, ""),
           };
         });
@@ -299,8 +298,12 @@ export default function EditExperiment() {
         setError("Expected end date must be after expected start date.");
         return;
       }
+      if (expData.deadline && expData.expectEndDate && expData.deadline < expData.expectEndDate) {
+        setError("Submission deadline must be on or after expected end date.");
+        return;
+      }
       if (expData.deadline && expData.expectStartDate && expData.deadline < expData.expectStartDate) {
-        setError("Deadline cannot be earlier than start date.");
+        setError("Submission deadline cannot be earlier than start date.");
         return;
       }
     }

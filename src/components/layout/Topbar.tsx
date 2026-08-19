@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Bell, CheckCheck, ChevronRight, Clock, Eye, Sparkles } from "lucide-react";
+import { Bell, CheckCheck, ChevronRight, Clock, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotification } from "../../context/NotificationContext";
 import type { Notification } from "../../types/notification";

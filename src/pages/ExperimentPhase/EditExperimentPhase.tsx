@@ -707,6 +707,10 @@ export default function EditExperimentPhase() {
                 value={
                   form.expectedStartDate
                 }
+                max={
+                  form.expectedEndDate ||
+                  undefined
+                }
                 onChange={
                   handleChange
                 }

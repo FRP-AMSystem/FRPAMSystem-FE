@@ -2,7 +2,7 @@ import axios, {
   AxiosError,
   type InternalAxiosRequestConfig,
 } from "axios";
-import { getToken } from "../utils/storage";
+import { clearAuth, getToken } from "../utils/storage";
 
 interface ApiErrorResponse {
   message?: string;
@@ -52,6 +52,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiErrorResponse>) => {
+    if (error.response?.status === 401) {
+      clearAuth();
+      if (
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login")
+      ) {
+        window.location.href = "/login";
+      }
+    }
     return Promise.reject(error);
   }
 );

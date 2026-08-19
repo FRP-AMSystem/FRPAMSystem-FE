@@ -175,11 +175,103 @@ export async function updateAllocationEquipmentDetail(
   );
 }
 
+export async function getMyAllocationEquipmentDetails(
+  query: AllocationEquipmentDetailQuery = {}
+): Promise<AllocationEquipmentDetail[]> {
+  const response = await api.get("/AllocationEquipmentDetails/mine", {
+    params: cleanParams({
+      Keyword: query.keyword,
+      AllocationPlanId: query.allocationPlanId,
+      ExperimentId: query.experimentId,
+      ExpEquipmentReqId: query.expEquipmentReqId,
+      PhaseEquipmentReqId: query.phaseEquipmentReqId,
+      AllocatedEquipmentTypeId: query.allocatedEquipmentTypeId,
+      EquipmentInstanceId: query.equipmentInstanceId,
+      IsSubstitute: query.isSubstitute,
+      Status: query.status,
+      StartFrom: query.startFrom,
+      StartTo: query.startTo,
+      EndFrom: query.endFrom,
+      EndTo: query.endTo,
+      Page: query.page,
+      Size: query.size,
+    }),
+  });
+
+  return normalizeList<AllocationEquipmentDetail>(response.data);
+}
+
+export async function getMyAllocationEquipmentDetailById(
+  id: number
+): Promise<AllocationEquipmentDetail> {
+  validateId(id, "Allocation equipment detail ID");
+  const response = await api.get(`/AllocationEquipmentDetails/mine/${id}`);
+  return unwrapResponse<AllocationEquipmentDetail>(response.data);
+}
+
+export async function handoverEquipmentDetail(
+  id: number
+): Promise<AllocationEquipmentDetail> {
+  validateId(id, "Allocation equipment detail ID");
+  try {
+    const response = await api.patch(
+      `/AllocationEquipmentDetails/mine/${id}/handover`
+    );
+    return unwrapResponse<AllocationEquipmentDetail>(response.data);
+  } catch (err) {
+    // Fallback if needed
+    const current = await getAllocationEquipmentDetailById(id);
+    const updated = await updateAllocationEquipmentDetail(id, {
+      allocationPlanId: current.allocationPlanId,
+      expEquipmentReqId: current.expEquipmentReqId ?? 0,
+      phaseEquipmentReqId: current.phaseEquipmentReqId || null,
+      allocatedEquipmentTypeId: current.allocatedEquipmentTypeId,
+      equipmentInstanceId: current.equipmentInstanceId || null,
+      quantity: current.quantity,
+      isSubstitute: current.isSubstitute,
+      efficiencyRate: current.efficiencyRate,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      status: "InUse",
+    });
+    return updated;
+  }
+}
+
+export async function returnEquipmentDetail(
+  id: number,
+  _returnNotes?: string
+): Promise<AllocationEquipmentDetail> {
+  validateId(id, "Allocation equipment detail ID");
+  try {
+    const response = await api.patch(
+      `/AllocationEquipmentDetails/mine/${id}/return`
+    );
+    return unwrapResponse<AllocationEquipmentDetail>(response.data);
+  } catch (_err) {
+    // Fallback if needed
+    const current = await getAllocationEquipmentDetailById(id);
+    const updated = await updateAllocationEquipmentDetail(id, {
+      allocationPlanId: current.allocationPlanId,
+      expEquipmentReqId: current.expEquipmentReqId ?? 0,
+      phaseEquipmentReqId: current.phaseEquipmentReqId || null,
+      allocatedEquipmentTypeId: current.allocatedEquipmentTypeId,
+      equipmentInstanceId: current.equipmentInstanceId || null,
+      quantity: current.quantity,
+      isSubstitute: current.isSubstitute,
+      efficiencyRate: current.efficiencyRate,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      status: "Completed",
+    });
+    return updated;
+  }
+}
+
 export async function deleteAllocationEquipmentDetail(
   id: number
 ): Promise<void> {
   validateId(id, "Allocation equipment detail ID");
-
   await api.delete(`/AllocationEquipmentDetails/${id}`);
 }
 

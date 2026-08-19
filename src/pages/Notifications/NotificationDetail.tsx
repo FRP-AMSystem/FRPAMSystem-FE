@@ -180,23 +180,28 @@ function getNotificationTone(
   return "info";
 }
 
-function getNotificationIcon(
-  notification: Notification
+function renderNotificationIcon(
+  notification: Notification | null,
+  size = 30
 ) {
+  if (!notification) {
+    return <Bell size={size} />;
+  }
+
   const tone = getNotificationTone(notification);
 
   if (tone === "success") {
-    return CircleCheck;
+    return <CircleCheck size={size} />;
   }
 
   if (
     tone === "danger" ||
     tone === "warning"
   ) {
-    return AlertTriangle;
+    return <AlertTriangle size={size} />;
   }
 
-  return Bell;
+  return <Bell size={size} />;
 }
 
 function getNotificationTargetPath(
@@ -356,11 +361,6 @@ export default function NotificationDetail() {
     notification
       ? getNotificationTone(notification)
       : "info";
-
-  const Icon =
-    notification
-      ? getNotificationIcon(notification)
-      : Bell;
 
   const handleMarkAsRead =
     async () => {
@@ -563,7 +563,7 @@ export default function NotificationDetail() {
               `notification-detail-icon-${tone}`,
             ].join(" ")}
           >
-            <Icon size={30} />
+            {renderNotificationIcon(notification, 30)}
           </div>
 
           <div className="notification-detail-main">

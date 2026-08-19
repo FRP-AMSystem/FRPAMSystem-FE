@@ -282,6 +282,9 @@ export default function UsersPage() {
               showToast(msg, "success");
               fetchData(false);
             }}
+            onError={(msg) => {
+              showToast(msg, "error");
+            }}
           />
         )}
 

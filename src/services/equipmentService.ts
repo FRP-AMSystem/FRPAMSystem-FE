@@ -142,7 +142,7 @@ function normalizeEquipmentType(
     totalQuantity: Number(item.totalQuantity ?? 0),
     baseMaintenanceIntervalHours:
       item.baseMaintenanceIntervalHours === null ||
-      item.baseMaintenanceIntervalHours === undefined
+        item.baseMaintenanceIntervalHours === undefined
         ? null
         : Number(item.baseMaintenanceIntervalHours),
     description:

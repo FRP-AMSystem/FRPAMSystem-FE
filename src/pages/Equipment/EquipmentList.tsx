@@ -5,7 +5,7 @@ import {
   useState,
 } from "react";
 
-import { Eye, Pencil, Trash2, Plus, Search, Truck, Cpu, ClipboardList } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
@@ -39,9 +39,12 @@ type TabType =
   | "categories";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 function getErrorMessage(
   error: unknown
@@ -164,7 +167,8 @@ export default function EquipmentList() {
     localStorage.getItem("role");
 
   const role: Role =
-    savedRole === "Manager" ||
+    savedRole === "Admin" ||
+      savedRole === "Manager" ||
       savedRole === "Researcher" ||
       savedRole === "Technician" ||
       (savedRole === "Student" || savedRole === "Seasonal")

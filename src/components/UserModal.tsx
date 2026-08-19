@@ -11,7 +11,7 @@ interface UserModalProps {
   editUser: User | null;
   onClose: () => void;
   onSuccess: (message: string) => void;
-  onError: (message: string) => void;
+  onError?: (message: string) => void;
 }
 
 export default function UserModal({
@@ -74,10 +74,6 @@ export default function UserModal({
     if (!editUser) {
       if (!username.trim()) {
         newErrors.username = "Username is required.";
-      }
-
-      if (email.trim() && !/\S+@\S+\.\S+/.test(email.trim())) {
-        newErrors.email = "Invalid email format.";
       }
 
       if (!password) {
@@ -152,7 +148,7 @@ export default function UserModal({
       const serverMsg =
         err.response?.data?.message ||
         (editUser ? "Failed to update user." : "Failed to create user.");
-      onError(serverMsg);
+      onError?.(serverMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -205,27 +201,6 @@ export default function UserModal({
             />
             {errors.username && (
               <span className="error-text">{errors.username}</span>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="email">
-              Email Address (Optional){" "}
-              {editUser && (
-                <span className="label-hint">(Read-only)</span>
-              )}
-            </label>
-            <input
-              type="email"
-              id="email"
-              placeholder="E.g., alexander@frpam.edu.vn (optional)"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={!!editUser}
-              className={`${errors.email ? "input-error" : ""} ${editUser ? "input-readonly" : ""}`}
-            />
-            {errors.email && (
-              <span className="error-text">{errors.email}</span>
             )}
           </div>
 

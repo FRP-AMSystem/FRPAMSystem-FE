@@ -15,6 +15,8 @@ export interface AllocationEquipmentDetail {
 
   expEquipmentReqId: number;
   phaseEquipmentReqId?: number | null;
+  phaseId?: number | null;
+  phaseName?: string | null;
 
   requestedEquipmentTypeId?: number;
   requestedEquipmentTypeName?: string;
@@ -25,6 +27,7 @@ export interface AllocationEquipmentDetail {
   equipmentInstanceId?: number | null;
   equipmentInstanceName?: string;
   assetCode?: string;
+  serialNumber?: string | null;
 
   quantity: number;
   efficiencyRate: number;

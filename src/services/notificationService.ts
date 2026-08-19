@@ -67,7 +67,7 @@ function normalizeList(payload: unknown): NotificationListResult {
     total: Number(value.total ?? value.totalCount ?? items.length),
     totalPages: Number(
       value.totalPages ??
-        (Number(value.total ?? items.length) > 0 ? 1 : 0),
+      (Number(value.total ?? items.length) > 0 ? 1 : 0),
     ),
   };
 }

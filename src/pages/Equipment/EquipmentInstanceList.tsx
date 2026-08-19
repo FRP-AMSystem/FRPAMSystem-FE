@@ -14,9 +14,11 @@ import {
     Search,
     Trash2,
     X,
+    RotateCcw,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
+import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
 
 import {
     getEquipmentTypes,
@@ -28,6 +30,7 @@ import {
     deleteEquipmentInstance,
     getEquipmentInstances,
     updateEquipmentInstance,
+    returnEquipmentInstance,
 } from "../../services/equipmentInstanceService";
 
 import type {
@@ -45,9 +48,12 @@ import type {
 import "./EquipmentInstanceList.css";
 
 type Role =
+    | "Admin"
     | "Manager"
     | "Researcher"
-    | "Technician" | "Student" | "Seasonal";
+    | "Technician"
+    | "Student"
+    | "Seasonal";
 
 interface FormState {
     equipmentTypeId: string;
@@ -355,6 +361,34 @@ export default function EquipmentInstanceList() {
     const [confirmNotes, setConfirmNotes] = useState("");
     const [confirming, setConfirming] = useState(false);
 
+    // Return equipment modal state
+    const [returnModalItem, setReturnModalItem] = useState<EquipmentInstance | null>(null);
+    const [returnCondition, setReturnCondition] = useState<EquipmentConditionLevel>("Good");
+    const [returnNotes, setReturnNotes] = useState("");
+    const [usageHoursInc, setUsageHoursInc] = useState("0");
+    const [returning, setReturning] = useState(false);
+
+    const [toast, setToast] = useState<{
+        visible: boolean;
+        type: ToastType;
+        title?: string;
+        message: string;
+    }>({
+        visible: false,
+        type: "error",
+        message: "",
+    });
+
+    const showToast = (message: string, type: ToastType = "error", title?: string) => {
+        if (type === "error") setError(message);
+        setToast({
+            visible: true,
+            type,
+            title: title || (type === "error" ? "Lỗi thực thi" : "Thành công"),
+            message,
+        });
+    };
+
     const openConfirmReceipt = (item: EquipmentInstance) => {
         setReceiptConfirmItem(item);
         setConfirmCondition(item.conditionLevel || "Good");
@@ -387,11 +421,33 @@ export default function EquipmentInstanceList() {
                         : inst
                 )
             );
+            showToast(`Đã xác nhận tiếp nhận thiết bị ${receiptConfirmItem.assetCode}!`, "success", "Tiếp nhận thiết bị");
             setReceiptConfirmItem(null);
         } catch (err: any) {
-            setError(getErrorMessage(err));
+            showToast(getErrorMessage(err), "error");
         } finally {
             setConfirming(false);
+        }
+    };
+
+    const handleConfirmReturnSubmit = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!returnModalItem) return;
+        try {
+            setReturning(true);
+            setError("");
+            await returnEquipmentInstance(returnModalItem.equipmentInstanceId, {
+                returnCondition: returnCondition,
+                returnNotes: returnNotes.trim() || undefined,
+                usageHoursIncrement: Number(usageHoursInc) || 0,
+            });
+            showToast(`Đã hoàn trả thiết bị "${returnModalItem.assetCode}" về kho (Available) thành công!`, "success", "Hoàn trả thiết bị thành công");
+            setReturnModalItem(null);
+            await loadData();
+        } catch (err: any) {
+            showToast(getErrorMessage(err), "error");
+        } finally {
+            setReturning(false);
         }
     };
 
@@ -1604,6 +1660,15 @@ export default function EquipmentInstanceList() {
                         </div>
                     </div>
                 )}
+
+                {/* Global Toast / Popup Alert */}
+                <ToastPopup
+                    visible={toast.visible}
+                    type={toast.type}
+                    title={toast.title}
+                    message={toast.message}
+                    onClose={() => setToast((prev) => ({ ...prev, visible: false }))}
+                />
             </div>
         </DashboardLayout>
     );

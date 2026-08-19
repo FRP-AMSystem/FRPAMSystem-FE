@@ -115,6 +115,9 @@ export async function getExperiments(
           Keyword:
             query.keyword,
 
+          ResearcherId:
+            query.researcherId,
+
           Status:
             query.status,
 

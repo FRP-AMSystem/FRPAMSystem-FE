@@ -242,14 +242,15 @@ function cleanParams(
 }
 
 function validateId(
-  id: number
+  id: number,
+  fieldName: string = "Equipment instance ID"
 ): void {
   if (
     !Number.isInteger(id) ||
     id <= 0
   ) {
     throw new Error(
-      "Equipment instance ID is invalid."
+      `${fieldName} is invalid.`
     );
   }
 }
@@ -434,4 +435,32 @@ export async function confirmEquipmentReceipt(
       receivedCondition: payload.receivedCondition,
     };
   }
+}
+
+export async function returnEquipmentInstance(
+  id: number,
+  payload: {
+    returnCondition: EquipmentConditionLevel;
+    returnNotes?: string;
+    usageHoursIncrement?: number;
+  }
+): Promise<EquipmentInstance> {
+  validateId(id, "Equipment instance ID");
+  const instance = await getEquipmentInstanceById(id);
+  const nextUsage = (instance.usageHours ?? 0) + (payload.usageHoursIncrement ?? 0);
+  const updated = await updateEquipmentInstance(id, {
+    equipmentTypeId: instance.equipmentTypeId,
+    assetCode: instance.assetCode,
+    serialNumber: instance.serialNumber,
+    status: "Available",
+    conditionLevel: payload.returnCondition,
+    usageHours: nextUsage,
+    lastMaintenanceDate: instance.lastMaintenanceDate,
+    nextMaintenanceDate: instance.nextMaintenanceDate,
+    note: payload.returnNotes
+      ? `[Returned]: ${payload.returnNotes}\n${instance.note || ""}`.trim()
+      : instance.note,
+  });
+
+  return updated;
 }

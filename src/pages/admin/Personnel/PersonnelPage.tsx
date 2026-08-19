@@ -177,12 +177,16 @@ export default function PersonnelPage() {
 
         if (isAllowedHrRole(effectiveRole, effectiveRoleId)) {
           const normRole = getNormalizedHrRoleName(effectiveRole, effectiveRoleId);
+          const computedRoleId =
+            effectiveRoleId ||
+            (normRole === "Seasonal" ? 5 : normRole === "Technician" ? 4 : normRole === "Researcher" ? 3 : 0);
           mergedProfiles.push({
             ...p,
             fullName: p.fullName || (matchedUser ? matchedUser.fullName : ""),
             username: p.username || (matchedUser ? matchedUser.username || "" : ""),
             email: p.email || (matchedUser ? matchedUser.email : ""),
             roleName: normRole,
+            roleId: computedRoleId,
           });
           visitedUserIds.add(uId);
         }
@@ -192,12 +196,16 @@ export default function PersonnelPage() {
         const uId = (u as any).userId ?? Number(u.id);
         if (Number.isInteger(uId) && uId > 0 && !visitedUserIds.has(uId)) {
           const normRole = getNormalizedHrRoleName(u.role, (u as any).roleId);
+          const computedRoleId =
+            (u as any).roleId ||
+            (normRole === "Seasonal" ? 5 : normRole === "Technician" ? 4 : normRole === "Researcher" ? 3 : 0);
           mergedProfiles.push({
             humanResourceId: 0,
             userId: uId,
             fullName: u.fullName,
             username: u.username || "",
             email: u.email || "",
+            roleId: computedRoleId,
             roleName: normRole,
             maxWorkingHoursPerDay: 8,
             currentWorkload: 0,

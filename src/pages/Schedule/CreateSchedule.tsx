@@ -1,835 +1,549 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
   type ChangeEvent,
   type FormEvent,
 } from "react";
-
-import {
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
-
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
-  CalendarDays,
+  Calendar,
+  Clock,
+  Layers,
+  Users,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+  Info,
+  UserCheck,
+  Briefcase,
+  ChevronRight,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
+import api from "../../services/api";
+import { getAllocationPlans } from "../../services/allocationPlanService";
+import { getAllocationHumanDetails } from "../../services/allocationDetailService";
+import { getExperimentPhases } from "../../services/experimentPhaseService";
+import { getExperiments } from "../../services/experimentService";
+import { createSchedule } from "../../services/scheduleService";
+import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
 
-import {
-  getAllocationPlans,
-} from "../../services/allocationPlanService";
+import type { AllocationPlan } from "../../types/allocationPlan";
+import type { AllocationHumanDetail } from "../../types/allocationHumanDetail";
+import type { ExperimentPhase } from "../../types/experimentPhase";
+import type { ExperimentResponse } from "../../types/experiment";
+import type { ScheduleStatus } from "../../types/schedule";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 
-import {
-  getExperimentPhases,
-} from "../../services/experimentPhaseService";
-
-import {
-  getHumanResourceProfiles,
-} from "../../services/humanResourceProfileService";
-
-import type {
-  HumanResourceProfile,
-} from "../../types/humanResourceProfile";
-
-import {
-  createSchedule,
-} from "../../services/scheduleService";
-
-import type {
-  AllocationPlan,
-} from "../../types/allocationPlan";
-
-import type {
-  ExperimentPhase,
-} from "../../types/experimentPhase";
-
-import type {
-  ScheduleStatus,
-} from "../../types/schedule";
-
-import "../ExperimentEquipmentRequirement/RequirementForm.css";
+import "./CreateSchedule.css";
 
 interface ScheduleFormState {
   allocationPlanId: string;
   phaseId: string;
-
   title: string;
   description: string;
-
   startDate: string;
   startTime: string;
-
   endDate: string;
   endTime: string;
-
   status: ScheduleStatus;
-
   assignedHumanResourceId: string;
-
   notes: string;
-
   priority: string;
 }
 
-const priorityLabels: Record<
-  number,
-  string
-> = {
+const TASK_TEMPLATES = [
+  {
+    title: "Field Plot Preparation & Clearing",
+    desc: "Clear debris, establish plot boundaries, and level soil beds according to protocol.",
+  },
+  {
+    title: "Equipment Setup & Sensor Calibration",
+    desc: "Calibrate IoT sensors, drone batteries, and test telemetry before starting field data collection.",
+  },
+  {
+    title: "Seedling Planting & Specimen Tagging",
+    desc: "Plant research saplings systematically following randomized block design and attach barcode tags.",
+  },
+  {
+    title: "Controlled Irrigation & Fertilizer Application",
+    desc: "Apply designated water volume and nutrient formula as specified in phase schedule.",
+  },
+  {
+    title: "Foliar Health Survey & Growth Measurement",
+    desc: "Measure sapling height, stem diameter, and inspect leaves for any pest or disease symptoms.",
+  },
+  {
+    title: "Biomass Harvest & Sample Logging",
+    desc: "Harvest plot samples, record fresh weight, and transfer to storage facility for drying analysis.",
+  },
+];
+
+const priorityLabels: Record<number, string> = {
   0: "Low",
   1: "Medium",
   2: "High",
   3: "Urgent",
 };
 
-function getErrorMessage(
-  error: unknown
-): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "response" in error
-  ) {
-    const response = (
-      error as {
-        response?: {
-          status?: number;
-
-          data?: {
-            message?: string;
-            title?: string;
-            error?: string;
-
-            errors?: Record<
-              string,
-              string[]
-            >;
-          };
-        };
-      }
-    ).response;
-
-    if (
-      response?.data?.message
-    ) {
-      return response.data.message;
-    }
-
-    if (
-      response?.data?.error
-    ) {
-      return response.data.error;
-    }
-
-    if (
-      response?.data?.errors
-    ) {
-      return Object.values(
-        response.data.errors
-      )
-        .flat()
-        .join(" ");
-    }
-
-    if (
-      response?.data?.title
-    ) {
-      return response.data.title;
-    }
-  }
-
-  if (
-    error instanceof Error
-  ) {
-    return error.message;
-  }
-
-  return "Cannot create schedule.";
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(d);
 }
 
-function getAllocationId(
-  plan: AllocationPlan
-): number {
-  return Number(
-    plan.allocationPlanId ?? 0
-  );
-}
-
-function getAllocationLabel(
-  plan: AllocationPlan
-): string {
-  const allocationId =
-    getAllocationId(plan);
-
-  const experimentName =
-    plan.experimentName ||
-    `Experiment #${plan.experimentId}`;
-
-  return `Allocation #${allocationId} - ${experimentName}`;
-}
-
-function getPhaseLabel(
-  phase: ExperimentPhase
-): string {
-  const phaseName =
-    phase.phaseName ||
-    `Phase #${phase.experimentPhaseId}`;
-
-  return `#${phase.experimentPhaseId} - Order ${phase.phaseOrder} - ${phaseName}`;
-}
-
-function getHumanResourceLabel(
-  resource: HumanResourceProfile
-): string {
-  const name =
-    resource.fullName ||
-    resource.username ||
-    resource.email ||
-    `Human Resource #${resource.humanResourceId}`;
-
-  const role = resource.roleName
-    ? ` - ${resource.roleName}`
-    : "";
-
-  return `#${resource.humanResourceId} - ${name}${role}`;
-}
-
-function combineDateAndTime(
-  date: string,
-  time: string
-): string {
-  if (
-    !date ||
-    !time
-  ) {
-    return "";
-  }
-
-  const value =
-    new Date(
-      `${date}T${time}:00`
-    );
-
-  if (
-    Number.isNaN(
-      value.getTime()
-    )
-  ) {
-    return "";
-  }
-
-  return value.toISOString();
-}
-
-function getCurrentUserId():
-  | number
-  | null {
-  const storedUserId =
-    localStorage.getItem(
-      "userId"
-    );
-
-  if (!storedUserId) {
-    return null;
-  }
-
-  const userId =
-    Number(storedUserId);
-
-  if (
-    !Number.isInteger(
-      userId
-    ) ||
-    userId <= 0
-  ) {
-    return null;
-  }
-
-  return userId;
-}
-
-function getStatusLabel(
-  status: ScheduleStatus
-): string {
-  if (
-    status === "InProgress"
-  ) {
-    return "In Progress";
-  }
-
-  return status;
+function combineDateAndTime(dateStr: string, timeStr: string): string | null {
+  if (!dateStr) return null;
+  const validTime = timeStr && timeStr.trim() ? timeStr.trim() : "08:00";
+  const iso = `${dateStr}T${validTime}:00`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
 export default function CreateSchedule() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [
-    searchParams,
-  ] = useSearchParams();
+  const allocationPlanIdFromUrl = searchParams.get("allocationPlanId") ?? "";
+  const phaseIdFromUrl = searchParams.get("phaseId") ?? "";
+  const personnelIdFromUrl = searchParams.get("personnelId") ?? "";
 
-  const allocationPlanIdFromUrl =
-    searchParams.get(
-      "allocationPlanId"
-    ) ?? "";
+  const currentUser = useMemo(() => getCurrentUserTokenInfo(), []);
+  const role = currentUser.role || "Seasonal";
+  const currentUserId = currentUser.userId ? Number(currentUser.userId) : null;
 
-  const phaseIdFromUrl =
-    searchParams.get(
-      "phaseId"
-    ) ?? "";
+  // Master State
+  const [allAllocationPlans, setAllAllocationPlans] = useState<AllocationPlan[]>([]);
+  const [myExperiments, setMyExperiments] = useState<ExperimentResponse[]>([]);
+  const [phases, setPhases] = useState<ExperimentPhase[]>([]);
+  const [allocatedHumans, setAllocatedHumans] = useState<AllocationHumanDetail[]>([]);
 
-  const [
-    allocationPlans,
-    setAllocationPlans,
-  ] = useState<
-    AllocationPlan[]
-  >([]);
-
-  const [
-    phases,
-    setPhases,
-  ] = useState<
-    ExperimentPhase[]
-  >([]);
-
-  const [
-    humanResources,
-    setHumanResources,
-  ] = useState<
-    HumanResourceProfile[]
-  >([]);
-
-  const [
-    form,
-    setForm,
-  ] = useState<ScheduleFormState>({
-    allocationPlanId:
-      allocationPlanIdFromUrl,
-
-    phaseId:
-      phaseIdFromUrl,
-
+  const [form, setForm] = useState<ScheduleFormState>({
+    allocationPlanId: allocationPlanIdFromUrl,
+    phaseId: phaseIdFromUrl,
     title: "",
     description: "",
-
     startDate: "",
     startTime: "08:00",
-
     endDate: "",
     endTime: "17:00",
-
     status: "Planned",
-
-    assignedHumanResourceId:
-      "",
-
+    assignedHumanResourceId: personnelIdFromUrl,
     notes: "",
-
     priority: "1",
   });
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    type: ToastType;
+    title?: string;
+    message: string;
+  }>({
+    visible: false,
+    type: "error",
+    message: "",
+  });
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const showToast = (message: string, type: ToastType = "error", title?: string) => {
+    setError(message);
+    setToast({
+      visible: true,
+      type,
+      title:
+        title ||
+        (type === "error"
+          ? "Lỗi xác thực lịch (Validation Error)"
+          : type === "warning"
+          ? "Cảnh báo (Warning)"
+          : "Thông báo (Notice)"),
+      message,
+    });
+  };
 
-  const selectedAllocation =
-    useMemo(() => {
-      return allocationPlans.find(
-        (plan) =>
-          getAllocationId(
-            plan
-          ) ===
-          Number(
-            form.allocationPlanId
-          )
-      );
-    }, [
-      allocationPlans,
-      form.allocationPlanId,
-    ]);
-
-  const selectedPhase =
-    useMemo(() => {
-      return phases.find(
-        (phase) =>
-          phase.experimentPhaseId ===
-          Number(
-            form.phaseId
-          )
-      );
-    }, [
-      phases,
-      form.phaseId,
-    ]);
-
-  const selectedHumanResource =
-    useMemo(() => {
-      return humanResources.find(
-        (resource) =>
-          resource.humanResourceId ===
-          Number(
-            form.assignedHumanResourceId
-          )
-      );
-    }, [
-      humanResources,
-      form.assignedHumanResourceId,
-    ]);
-
-  const availablePhases =
-    useMemo(() => {
-      if (
-        !selectedAllocation
-      ) {
-        return phases;
-      }
-
-      const experimentId =
-        Number(
-          selectedAllocation.experimentId
-        );
-
-      if (
-        !Number.isInteger(
-          experimentId
-        ) ||
-        experimentId <= 0
-      ) {
-        return phases;
-      }
-
-      return phases.filter(
-        (phase) =>
-          phase.experimentId ===
-          experimentId
-      );
-    }, [
-      phases,
-      selectedAllocation,
-    ]);
-
+  // 1. Initial Load of Allocations & Experiments
   useEffect(() => {
-    async function loadFormData() {
+    async function loadInitialData() {
       try {
         setLoading(true);
         setError("");
 
-        const [
-          allocationData,
-          phaseData,
-          humanData,
-        ] = await Promise.all([
-          getAllocationPlans(),
-
-          getExperimentPhases({
-            page: 1,
-            size: 100,
-          }),
-
-          getHumanResourceProfiles({
-            status: "Available",
-            page: 1,
-            size: 100,
-          }),
+        const [allocationsRes, expRes] = await Promise.all([
+          getAllocationPlans().catch(() => []),
+          role === "Researcher" && currentUserId
+            ? getExperiments({ researcherId: currentUserId, size: 300 }).catch(() => [])
+            : getExperiments({ size: 300 }).catch(() => []),
         ]);
 
-        const normalizedAllocations =
-          Array.isArray(
-            allocationData
-          )
-            ? allocationData
-            : [];
+        const rawAllocations = Array.isArray(allocationsRes) ? allocationsRes : [];
+        const rawExperiments = Array.isArray(expRes) ? expRes : [];
 
-        const approvedAllocations =
-          normalizedAllocations.filter(
-            (plan) => {
-              const status =
-                String(
-                  plan.approveStatus ??
-                  ""
-                ).toLowerCase();
-
-              return (
-                status ===
-                  "approved" ||
-                status ===
-                  "pending" ||
-                status ===
-                  "draft" ||
-                status === ""
-              );
-            }
-          );
-
-        setAllocationPlans(
-          approvedAllocations
-        );
-
-        setPhases(
-          Array.isArray(
-            phaseData
-          )
-            ? phaseData
-            : []
-        );
-
-        setHumanResources(
-          Array.isArray(
-            humanData
-          )
-            ? humanData
-            : []
-        );
-      } catch (loadError) {
-        console.error(
-          "Load create schedule form failed:",
-          loadError
-        );
-
-        setError(
-          getErrorMessage(
-            loadError
-          )
-        );
-
-        setAllocationPlans([]);
-        setPhases([]);
-        setHumanResources([]);
+        setAllAllocationPlans(rawAllocations);
+        setMyExperiments(rawExperiments);
+      } catch (err: any) {
+        console.error("Failed to load initial schedule creation data:", err);
+        setError(err?.response?.data?.message || "Failed to load allocation plans.");
       } finally {
         setLoading(false);
       }
     }
 
-    void loadFormData();
-  }, []);
+    void loadInitialData();
+  }, [role, currentUserId]);
 
-  useEffect(() => {
-    if (
-      !form.phaseId
-    ) {
-      return;
-    }
+  // 2. Filter Allocations for Researcher (Only allow Researcher to pick their own allocations)
+  const allowedAllocationPlans = useMemo(() => {
+    const isResearcher = role === "Researcher";
+    const myExpIds = new Set(myExperiments.map((e) => e.experimentId));
 
-    const phaseStillAvailable =
-      availablePhases.some(
-        (phase) =>
-          phase.experimentPhaseId ===
-          Number(
-            form.phaseId
-          )
-      );
+    return allAllocationPlans.filter((plan) => {
+      // If opened via URL, always include the targeted plan
+      if (
+        allocationPlanIdFromUrl &&
+        String(plan.allocationPlanId) === allocationPlanIdFromUrl
+      ) {
+        return true;
+      }
 
-    if (
-      !phaseStillAvailable
-    ) {
-      setForm(
-        (current) => ({
-          ...current,
-          phaseId: "",
-        })
-      );
-    }
+      if (!isResearcher) {
+        // Admin or Manager can view all allocations
+        return true;
+      }
+
+      // Researcher restriction: only their own experiments or allocations created by them
+      const isOwner =
+        (currentUserId && plan.createdBy === currentUserId) ||
+        (plan.experimentId && myExpIds.has(plan.experimentId)) ||
+        (plan.createdByName &&
+          currentUser.fullName &&
+          plan.createdByName.toLowerCase() === currentUser.fullName.toLowerCase());
+
+      return isOwner;
+    });
   }, [
-    availablePhases,
-    form.phaseId,
+    allAllocationPlans,
+    myExperiments,
+    role,
+    currentUserId,
+    currentUser.fullName,
+    allocationPlanIdFromUrl,
   ]);
 
-  const handleChange = (
-    event: ChangeEvent<
-      | HTMLInputElement
-      | HTMLSelectElement
-      | HTMLTextAreaElement
-    >
-  ) => {
-    const {
-      name,
-      value,
-    } = event.target;
+  // Selected Allocation Object
+  const selectedAllocation = useMemo(() => {
+    return allAllocationPlans.find(
+      (p) => String(p.allocationPlanId) === form.allocationPlanId
+    );
+  }, [allAllocationPlans, form.allocationPlanId]);
 
-    setError("");
+  // 3. When Allocation Plan changes -> Fetch allocated humans & experiment phases
+  const loadAllocationSpecificData = useCallback(
+    async (planId: number, experimentId?: number | null) => {
+      try {
+        setLoadingDetails(true);
+        setError("");
 
-    if (
-      name ===
-      "allocationPlanId"
-    ) {
-      setForm(
-        (current) => ({
-          ...current,
-          allocationPlanId:
-            value,
-          phaseId: "",
-        })
-      );
+        const [humanRes, phaseRes, liveHumanAllRes] = await Promise.all([
+          getAllocationHumanDetails({ allocationPlanId: planId, size: 100 }).catch(() => []),
+          experimentId
+            ? getExperimentPhases({ experimentId, size: 100 }).catch(() => [])
+            : Promise.resolve([]),
+          api.get("/AllocationHumanDetails?size=300").catch(() => ({ data: [] })),
+        ]);
 
+        let humans: AllocationHumanDetail[] = Array.isArray(humanRes) ? humanRes : [];
+
+        // Fallback: If empty, filter all AllocationHumanDetails by planId or experimentId
+        if (humans.length === 0 && liveHumanAllRes?.data) {
+          const rawAll = Array.isArray(liveHumanAllRes.data)
+            ? liveHumanAllRes.data
+            : liveHumanAllRes.data?.items || liveHumanAllRes.data?.data || [];
+          humans = rawAll.filter(
+            (h: any) =>
+              h.allocationPlanId === planId ||
+              (experimentId && h.experimentId === experimentId)
+          );
+        }
+
+        setAllocatedHumans(humans);
+        setPhases(Array.isArray(phaseRes) ? phaseRes : []);
+
+        // If personnelId was in URL, preselect it
+        if (personnelIdFromUrl) {
+          const matched = humans.find(
+            (h) =>
+              String(h.humanResourceId) === personnelIdFromUrl ||
+              String(h.userId) === personnelIdFromUrl
+          );
+          if (matched) {
+            setForm((prev) => ({
+              ...prev,
+              assignedHumanResourceId: String(matched.humanResourceId),
+              phaseId: matched.phaseId ? String(matched.phaseId) : prev.phaseId,
+              startDate: matched.startDate ? matched.startDate.slice(0, 10) : prev.startDate,
+              endDate: matched.endDate ? matched.endDate.slice(0, 10) : prev.endDate,
+            }));
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to load allocation human details:", err);
+      } finally {
+        setLoadingDetails(false);
+      }
+    },
+    [personnelIdFromUrl]
+  );
+
+  useEffect(() => {
+    if (!form.allocationPlanId) {
+      setAllocatedHumans([]);
+      setPhases([]);
       return;
     }
 
-    setForm(
-      (current) => ({
-        ...current,
-        [name]: value,
-      })
+    const planId = Number(form.allocationPlanId);
+    if (!planId || isNaN(planId)) return;
+
+    const plan = allAllocationPlans.find((p) => p.allocationPlanId === planId);
+    void loadAllocationSpecificData(planId, plan?.experimentId);
+  }, [form.allocationPlanId, allAllocationPlans, loadAllocationSpecificData]);
+
+  // 4. Group Allocated Human Resources clearly by Phase
+  const groupedPersonnelByPhase = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        phaseId: number | null;
+        phaseName: string;
+        phaseOrder?: number;
+        personnel: AllocationHumanDetail[];
+      }
+    >();
+
+    // Initialize map with all known experiment phases
+    phases.forEach((p) => {
+      const key = `phase_${p.experimentPhaseId}`;
+      map.set(key, {
+        phaseId: p.experimentPhaseId,
+        phaseName: `Phase #${p.phaseOrder ?? 1}: ${p.phaseName}`,
+        phaseOrder: p.phaseOrder ?? 1,
+        personnel: [],
+      });
+    });
+
+    // Add general / unassigned bucket
+    map.set("general", {
+      phaseId: null,
+      phaseName: "General / Entire Experiment Personnel",
+      phaseOrder: 999,
+      personnel: [],
+    });
+
+    // Populate personnel into respective phase buckets
+    allocatedHumans.forEach((h) => {
+      const targetPhaseId = h.phaseId || (h.phaseHumanReqId ? Number(h.phaseHumanReqId) : null);
+      const phaseKey = targetPhaseId ? `phase_${targetPhaseId}` : "general";
+
+      if (map.has(phaseKey)) {
+        map.get(phaseKey)!.personnel.push(h);
+      } else {
+        // Phase not in current phase list, create dynamic entry
+        map.set(phaseKey, {
+          phaseId: targetPhaseId,
+          phaseName: h.phaseName || `Phase #${targetPhaseId}`,
+          phaseOrder: 50,
+          personnel: [h],
+        });
+      }
+    });
+
+    // Return only groups that have personnel
+    return Array.from(map.values())
+      .filter((g) => g.personnel.length > 0)
+      .sort((a, b) => (a.phaseOrder ?? 999) - (b.phaseOrder ?? 999));
+  }, [allocatedHumans, phases]);
+
+  // Selected Personnel Object
+  const selectedPersonnel = useMemo(() => {
+    if (!form.assignedHumanResourceId) return null;
+    return allocatedHumans.find(
+      (h) => String(h.humanResourceId) === form.assignedHumanResourceId
     );
+  }, [allocatedHumans, form.assignedHumanResourceId]);
+
+  // Selected Phase Object
+  const selectedPhase = useMemo(() => {
+    if (!form.phaseId) return null;
+    return phases.find((p) => String(p.experimentPhaseId) === form.phaseId);
+  }, [phases, form.phaseId]);
+
+  // Handle Form Changes
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setError("");
+
+    if (name === "allocationPlanId") {
+      setForm((prev) => ({
+        ...prev,
+        allocationPlanId: value,
+        phaseId: "",
+        assignedHumanResourceId: "",
+        startDate: "",
+        endDate: "",
+      }));
+      return;
+    }
+
+    if (name === "assignedHumanResourceId") {
+      const targetStaff = allocatedHumans.find(
+        (h) => String(h.humanResourceId) === value
+      );
+
+      setForm((prev) => {
+        const nextPhaseId =
+          targetStaff?.phaseId && !prev.phaseId
+            ? String(targetStaff.phaseId)
+            : prev.phaseId;
+
+        const nextStartDate =
+          targetStaff?.startDate && !prev.startDate
+            ? targetStaff.startDate.slice(0, 10)
+            : prev.startDate;
+
+        const nextEndDate =
+          targetStaff?.endDate && !prev.endDate
+            ? targetStaff.endDate.slice(0, 10)
+            : prev.endDate;
+
+        return {
+          ...prev,
+          assignedHumanResourceId: value,
+          phaseId: nextPhaseId,
+          startDate: nextStartDate,
+          endDate: nextEndDate,
+        };
+      });
+      return;
+    }
+
+    if (name === "phaseId") {
+      const targetPhase = phases.find((p) => String(p.experimentPhaseId) === value);
+      setForm((prev) => ({
+        ...prev,
+        phaseId: value,
+        startDate:
+          targetPhase?.expectedStartDate && !prev.startDate
+            ? targetPhase.expectedStartDate.slice(0, 10)
+            : prev.startDate,
+        endDate:
+          targetPhase?.expectedEndDate && !prev.endDate
+            ? targetPhase.expectedEndDate.slice(0, 10)
+            : prev.endDate,
+      }));
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
+  // Quick Template Click
+  const handleApplyTemplate = (tpl: { title: string; desc: string }) => {
+    setForm((prev) => ({
+      ...prev,
+      title: tpl.title,
+      description: tpl.desc,
+    }));
+  };
+
+  // Submit Handler
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setError("");
 
-    const allocationPlanId =
-      Number(
-        form.allocationPlanId
-      );
-
-    const phaseId =
-      form.phaseId
-        ? Number(
-            form.phaseId
-          )
-        : null;
-
-    const assignedHumanResourceId =
-      form.assignedHumanResourceId
-        ? Number(
-            form.assignedHumanResourceId
-          )
-        : null;
-
-    const priority =
-      Number(
-        form.priority
-      );
-
-    const title =
-      form.title.trim();
-
-    const description =
-      form.description.trim();
-
-    const notes =
-      form.notes.trim();
-
-    if (
-      !Number.isInteger(
-        allocationPlanId
-      ) ||
-      allocationPlanId <= 0
-    ) {
-      setError(
-        "Please select a valid allocation plan."
-      );
-
+    const planId = Number(form.allocationPlanId);
+    if (!planId || isNaN(planId)) {
+      showToast("Vui lòng chọn một kế hoạch phân bổ (Allocation Plan).", "warning");
       return;
     }
 
-    if (
-      phaseId !== null &&
-      (
-        !Number.isInteger(
-          phaseId
-        ) ||
-        phaseId <= 0
-      )
-    ) {
-      setError(
-        "Please select a valid experiment phase."
-      );
-
+    if (!form.title.trim()) {
+      showToast("Vui lòng nhập tiêu đề lịch làm việc (Schedule Title).", "warning");
       return;
     }
 
-    if (
-      assignedHumanResourceId !==
-        null &&
-      (
-        !Number.isInteger(
-          assignedHumanResourceId
-        ) ||
-        assignedHumanResourceId <= 0
-      )
-    ) {
-      setError(
-        "Please select a valid human resource."
-      );
-
+    if (!form.startDate || !form.endDate) {
+      showToast("Vui lòng chỉ định ngày bắt đầu và ngày kết thúc.", "warning");
       return;
     }
 
-    if (!title) {
-      setError(
-        "Please enter the schedule title."
-      );
+    const startIso = combineDateAndTime(form.startDate, form.startTime);
+    const endIso = combineDateAndTime(form.endDate, form.endTime);
 
+    if (!startIso || !endIso) {
+      showToast("Định dạng ngày hoặc giờ không hợp lệ.", "error");
       return;
     }
 
-    if (
-      !form.startDate ||
-      !form.startTime
-    ) {
-      setError(
-        "Please select the schedule start date and time."
+    if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+      showToast(
+        "Thời gian kết thúc lịch phải sau thời gian bắt đầu (Schedule end time must be strictly after start time).",
+        "error",
+        "Lỗi thời gian (Invalid Schedule Period)"
       );
-
       return;
     }
 
-    if (
-      !form.endDate ||
-      !form.endTime
-    ) {
-      setError(
-        "Please select the schedule end date and time."
-      );
-
-      return;
-    }
-
-    const startDate =
-      combineDateAndTime(
-        form.startDate,
-        form.startTime
-      );
-
-    const endDate =
-      combineDateAndTime(
-        form.endDate,
-        form.endTime
-      );
-
-    if (
-      !startDate ||
-      !endDate
-    ) {
-      setError(
-        "The schedule date or time is invalid."
-      );
-
-      return;
-    }
-
-    if (
-      new Date(
-        endDate
-      ).getTime() <=
-      new Date(
-        startDate
-      ).getTime()
-    ) {
-      setError(
-        "The schedule end time must be after the start time."
-      );
-
-      return;
-    }
-
-    if (
-      !Number.isInteger(
-        priority
-      ) ||
-      priority < 0 ||
-      priority > 3
-    ) {
-      setError(
-        "Please select a valid priority."
-      );
-
-      return;
-    }
-
-    if (
-      selectedPhase &&
-      selectedAllocation &&
-      selectedPhase.experimentId !==
-        Number(
-          selectedAllocation.experimentId
-        )
-    ) {
-      setError(
-        "The selected phase does not belong to the allocation experiment."
-      );
-
-      return;
-    }
+    const assignedHumanResourceId = form.assignedHumanResourceId
+      ? Number(form.assignedHumanResourceId)
+      : null;
 
     try {
       setSaving(true);
 
-      const createdSchedule =
-        await createSchedule({
-          allocationPlanId,
+      const created = await createSchedule({
+        allocationPlanId: planId,
+        phaseId: form.phaseId ? Number(form.phaseId) : null,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        startDate: startIso,
+        endDate: endIso,
+        status: form.status,
+        priority: Number(form.priority),
+        assignedHumanResourceId: assignedHumanResourceId,
+        createdBy: currentUserId,
+        notes: form.notes.trim() || null,
+      });
 
-          phaseId,
-
-          title,
-
-          description:
-            description ||
-            null,
-
-          startDate,
-
-          endDate,
-
-          status:
-            form.status,
-
-          createdBy:
-            getCurrentUserId(),
-
-          assignedHumanResourceId,
-
-          notes:
-            notes ||
-            null,
-
-          priority,
-        });
-
-      if (
-        createdSchedule.scheduleId
-      ) {
-        navigate(
-          `/schedules/${createdSchedule.scheduleId}`,
-          {
-            replace: true,
-          }
-        );
-
-        return;
+      if (created?.scheduleId) {
+        navigate(`/schedules/${created.scheduleId}`, { replace: true });
+      } else {
+        navigate("/schedules", { replace: true });
       }
-
-      navigate(
-        "/schedules",
-        {
-          replace: true,
-        }
-      );
-    } catch (submitError) {
-      console.error(
-        "Create schedule failed:",
-        submitError
-      );
-
-      setError(
-        getErrorMessage(
-          submitError
-        )
+    } catch (submitErr: any) {
+      console.error("Create schedule failed:", submitErr);
+      showToast(
+        submitErr?.response?.data?.message ||
+          submitErr?.message ||
+          "Không thể tạo lịch làm việc. Vui lòng kiểm tra lại các trường dữ liệu.",
+        "error"
       );
     } finally {
       setSaving(false);
@@ -839,9 +553,9 @@ export default function CreateSchedule() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="requirement-form-page">
-          <div className="requirement-form-loading">
-            Loading schedule form...
+        <div className="schedule-create-page">
+          <div style={{ textAlign: "center", padding: "48px 0", color: "#64748b" }}>
+            Loading schedule creation form...
           </div>
         </div>
       </DashboardLayout>
@@ -850,573 +564,492 @@ export default function CreateSchedule() {
 
   return (
     <DashboardLayout>
-      <div className="requirement-form-page">
-        <div className="requirement-form-header">
+      <div className="schedule-create-page">
+        {/* Top Header */}
+        <div className="schedule-create-header">
           <div>
-            <p className="requirement-breadcrumb">
-              Dashboard / Schedules / Create
-            </p>
-
-            <h1>
-              Create Schedule
-            </h1>
-
-            <p>
-              Create a work schedule for
-              an allocation plan, phase
-              and assigned human resource.
+            <button
+              type="button"
+              className="schedule-back-btn"
+              onClick={() => navigate("/schedules")}
+            >
+              <ArrowLeft size={15} /> Back to Schedules
+            </button>
+            <p className="schedule-breadcrumb">Dashboard / Schedules / Create</p>
+            <h1>Create Work Schedule</h1>
+            <p className="schedule-subtitle">
+              Assign field work schedule to allocated Technicians and Seasonal staff for each phase.
             </p>
           </div>
-
-          <button
-            type="button"
-            className="requirement-back-button"
-            onClick={() =>
-              navigate(
-                "/schedules"
-              )
-            }
-          >
-            <ArrowLeft
-              size={18}
-            />
-
-            Back
-          </button>
         </div>
 
-        {error && (
-          <div className="requirement-form-error">
-            {error}
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="schedule-form-layout">
+          {/* Main Left Column */}
+          <div className="schedule-main-col">
+            {/* Step 1: Allocation Plan & Phase Context */}
+            <div className="schedule-card">
+              <div className="schedule-card-header">
+                <div>
+                  <span className="schedule-card-eyebrow">Step 1: Allocation & Phase</span>
+                  <h3>
+                    <Layers size={16} color="#16a34a" /> Allocation Plan Selection
+                  </h3>
+                </div>
+              </div>
 
-        <form
-          className="requirement-form-layout"
-          onSubmit={
-            handleSubmit
-          }
-        >
-          <section className="requirement-form-card">
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-              }}
-            >
-              <CalendarDays
-                size={21}
-              />
-
-              <h2>
-                Schedule Information
-              </h2>
-            </div>
-
-            <label htmlFor="allocationPlanId">
-              Allocation Plan
-            </label>
-
-            <select
-              id="allocationPlanId"
-              name="allocationPlanId"
-              value={
-                form.allocationPlanId
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving ||
-                Boolean(
-                  allocationPlanIdFromUrl
-                )
-              }
-              required
-            >
-              <option value="">
-                Select allocation plan
-              </option>
-
-              {allocationPlans.map(
-                (plan) => {
-                  const planId =
-                    getAllocationId(
-                      plan
+              {/* Allocation Plan Select */}
+              <div className="schedule-form-group">
+                <label htmlFor="allocationPlanId">
+                  Resource Allocation Plan <span className="required-star">*</span>
+                </label>
+                <select
+                  id="allocationPlanId"
+                  name="allocationPlanId"
+                  className="schedule-select"
+                  value={form.allocationPlanId}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">-- Select an Approved Allocation Plan --</option>
+                  {allowedAllocationPlans.map((plan) => {
+                    const planId = plan.allocationPlanId;
+                    const expTitle = plan.experimentName || `Experiment #${plan.experimentId}`;
+                    const status = plan.approveStatus || "Pending";
+                    const fitness = Math.round(plan.fitnessScore ?? 85);
+                    return (
+                      <option key={planId} value={planId}>
+                        Allocation #{planId} — {expTitle} [{status} • Fitness {fitness}%]
+                      </option>
                     );
+                  })}
+                </select>
+                {role === "Researcher" && allowedAllocationPlans.length === 0 && (
+                  <p style={{ fontSize: "12px", color: "#b45309", margin: "4px 0 0" }}>
+                    No allocation plans found for your experiments. Please create an allocation plan first.
+                  </p>
+                )}
+              </div>
 
-                  return (
-                    <option
-                      key={
-                        planId
-                      }
-                      value={
-                        planId
-                      }
-                    >
-                      {getAllocationLabel(
-                        plan
-                      )}
+              {/* Experiment Phase Select */}
+              <div className="schedule-form-group">
+                <label htmlFor="phaseId">
+                  Experiment Phase (Optional / Specific Phase)
+                </label>
+                <select
+                  id="phaseId"
+                  name="phaseId"
+                  className="schedule-select"
+                  value={form.phaseId}
+                  onChange={handleChange}
+                  disabled={!form.allocationPlanId || loadingDetails}
+                >
+                  <option value="">-- General / Entire Experiment --</option>
+                  {phases.map((p) => (
+                    <option key={p.experimentPhaseId} value={p.experimentPhaseId}>
+                      Phase #{p.phaseOrder ?? 1}: {p.phaseName} ({formatDate(p.expectedStartDate)} →{" "}
+                      {formatDate(p.expectedEndDate)})
                     </option>
-                  );
-                }
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Step 2: Assigned Human Resource (Phased Grouping) */}
+            <div className="schedule-card">
+              <div className="schedule-card-header">
+                <div>
+                  <span className="schedule-card-eyebrow">Step 2: Personnel Assignment</span>
+                  <h3>
+                    <Users size={16} color="#16a34a" /> Assigned Human Resource (By Phase)
+                  </h3>
+                </div>
+                {allocatedHumans.length > 0 && (
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#16a34a" }}>
+                    {allocatedHumans.length} Allocated Staff Available
+                  </span>
+                )}
+              </div>
+
+              {/* Assigned Human Resource Select with Phased Optgroups */}
+              <div className="schedule-form-group">
+                <label htmlFor="assignedHumanResourceId">
+                  Assigned Personnel (Seasonal / Technician) <span className="required-star">*</span>
+                </label>
+                <select
+                  id="assignedHumanResourceId"
+                  name="assignedHumanResourceId"
+                  className="schedule-select"
+                  value={form.assignedHumanResourceId}
+                  onChange={handleChange}
+                  disabled={!form.allocationPlanId || loadingDetails}
+                  required
+                >
+                  <option value="">-- Select Allocated Personnel --</option>
+                  {groupedPersonnelByPhase.map((group, gIdx) => (
+                    <optgroup key={gIdx} label={`📍 ${group.phaseName} (${group.personnel.length} staff)`}>
+                      {group.personnel.map((h, hIdx) => {
+                        const roleName = h.roleName || h.humanResourceRoleName || "Technician";
+                        const skill = h.requiredSkillName || h.skillName || "Field Forestry";
+                        const hours = h.workingHours || 8;
+                        const period = `${formatDate(h.startDate)} → ${formatDate(h.endDate)}`;
+
+                        return (
+                          <option key={h.humanResourceId || hIdx} value={h.humanResourceId}>
+                            [{roleName}] {h.fullName || "Field Staff"} • {skill} ({hours}h/day, {period})
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  ))}
+                </select>
+
+                {!form.allocationPlanId ? (
+                  <p style={{ fontSize: "12px", color: "#64748b", margin: "4px 0 0" }}>
+                    Please select an allocation plan above to view the allocated field personnel.
+                  </p>
+                ) : allocatedHumans.length === 0 && !loadingDetails ? (
+                  <p style={{ fontSize: "12px", color: "#dc2626", margin: "4px 0 0" }}>
+                    No personnel allocated to this plan. You can still assign manually if needed.
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Visual Personnel Cards Grid */}
+              {allocatedHumans.length > 0 && (
+                <div>
+                  <label style={{ fontSize: "12px", color: "#475569", fontWeight: 600 }}>
+                    Click staff card to assign quickly:
+                  </label>
+                  <div className="schedule-personnel-visual-grid">
+                    {allocatedHumans.map((h, idx) => {
+                      const isSelected = String(h.humanResourceId) === form.assignedHumanResourceId;
+                      const roleName = h.roleName || h.humanResourceRoleName || "Technician";
+                      const isSeasonal = roleName.toLowerCase().includes("seasonal");
+                      const initials = (h.fullName || "FS")
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2);
+
+                      return (
+                        <div
+                          key={h.humanResourceId || idx}
+                          className={`schedule-personnel-card ${isSelected ? "selected" : ""}`}
+                          onClick={() => {
+                            handleChange({
+                              target: {
+                                name: "assignedHumanResourceId",
+                                value: String(h.humanResourceId),
+                              },
+                            } as any);
+                          }}
+                        >
+                          <div className="schedule-personnel-avatar">{initials}</div>
+                          <div className="schedule-personnel-info">
+                            <span className="schedule-personnel-name">{h.fullName || "Field Staff"}</span>
+                            <div className="schedule-personnel-badges">
+                              <span
+                                className={`schedule-role-tag ${
+                                  isSeasonal ? "seasonal" : "technician"
+                                }`}
+                              >
+                                {roleName}
+                              </span>
+                              {h.phaseName && (
+                                <span className="schedule-phase-tag">{h.phaseName}</span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: "11px", color: "#64748b" }}>
+                              {h.workingHours || 8} hrs/day • {formatDate(h.startDate)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-            </select>
+            </div>
 
-            {allocationPlans.length ===
-              0 && (
-              <small>
-                No allocation plans are
-                currently available.
-              </small>
-            )}
+            {/* Step 3: Work Description & Task Details */}
+            <div className="schedule-card">
+              <div className="schedule-card-header">
+                <div>
+                  <span className="schedule-card-eyebrow">Step 3: Work Content</span>
+                  <h3>
+                    <Briefcase size={16} color="#16a34a" /> Task & Work Instructions
+                  </h3>
+                </div>
+              </div>
 
-            <label htmlFor="phaseId">
-              Experiment Phase
-            </label>
+              {/* Quick Task Templates */}
+              <div className="schedule-templates-wrapper">
+                <span className="schedule-templates-title">
+                  <Sparkles size={13} color="#16a34a" /> Quick Task Templates:
+                </span>
+                <div className="schedule-templates-grid">
+                  {TASK_TEMPLATES.map((t, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="schedule-template-btn"
+                      onClick={() => handleApplyTemplate(t)}
+                    >
+                      {t.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <select
-              id="phaseId"
-              name="phaseId"
-              value={
-                form.phaseId
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving ||
-                !form.allocationPlanId ||
-                Boolean(
-                  phaseIdFromUrl
-                )
-              }
-            >
-              <option value="">
-                No specific phase
-              </option>
+              {/* Title */}
+              <div className="schedule-form-group">
+                <label htmlFor="title">
+                  Schedule Title <span className="required-star">*</span>
+                </label>
+                <input
+                  id="title"
+                  name="title"
+                  type="text"
+                  className="schedule-input"
+                  value={form.title}
+                  onChange={handleChange}
+                  placeholder="e.g., Soil Sample Collection & Nutrient Measurement"
+                  required
+                />
+              </div>
 
-              {availablePhases.map(
-                (phase) => (
-                  <option
-                    key={
-                      phase.experimentPhaseId
-                    }
-                    value={
-                      phase.experimentPhaseId
-                    }
+              {/* Description */}
+              <div className="schedule-form-group">
+                <label htmlFor="description">Detailed Work Instructions</label>
+                <textarea
+                  id="description"
+                  name="description"
+                  className="schedule-textarea"
+                  value={form.description}
+                  onChange={handleChange}
+                  placeholder="Provide step-by-step instructions for the technician or seasonal worker..."
+                  rows={3}
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="schedule-form-group">
+                <label htmlFor="notes">Safety & Equipment Notes</label>
+                <input
+                  id="notes"
+                  name="notes"
+                  type="text"
+                  className="schedule-input"
+                  value={form.notes}
+                  onChange={handleChange}
+                  placeholder="e.g., Wear safety boots, ensure drone battery is fully charged..."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Side Right Column */}
+          <div className="schedule-side-col">
+            {/* Step 4: Schedule Timing & Execution */}
+            <div className="schedule-card">
+              <div className="schedule-card-header">
+                <div>
+                  <span className="schedule-card-eyebrow">Step 4: Timing & Priority</span>
+                  <h3>
+                    <Clock size={16} color="#16a34a" /> Execution Period
+                  </h3>
+                </div>
+              </div>
+
+              {/* Start Date & Time */}
+              <div className="schedule-form-group">
+                <label>
+                  Start Date & Time <span className="required-star">*</span>
+                </label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="date"
+                    name="startDate"
+                    className="schedule-input"
+                    style={{ flex: 1 }}
+                    value={form.startDate}
+                    onChange={handleChange}
+                    required
+                  />
+                  <input
+                    type="time"
+                    name="startTime"
+                    className="schedule-input"
+                    style={{ width: "105px" }}
+                    value={form.startTime}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* End Date & Time */}
+              <div className="schedule-form-group">
+                <label>
+                  End Date & Time <span className="required-star">*</span>
+                </label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="date"
+                    name="endDate"
+                    className="schedule-input"
+                    style={{ flex: 1 }}
+                    value={form.endDate}
+                    onChange={handleChange}
+                    required
+                  />
+                  <input
+                    type="time"
+                    name="endTime"
+                    className="schedule-input"
+                    style={{ width: "105px" }}
+                    value={form.endTime}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Priority & Status */}
+              <div className="schedule-form-row">
+                <div className="schedule-form-group">
+                  <label htmlFor="priority">Priority</label>
+                  <select
+                    id="priority"
+                    name="priority"
+                    className="schedule-select"
+                    value={form.priority}
+                    onChange={handleChange}
                   >
-                    {getPhaseLabel(
-                      phase
-                    )}
-                  </option>
-                )
-              )}
-            </select>
+                    <option value="0">Low</option>
+                    <option value="1">Medium</option>
+                    <option value="2">High</option>
+                    <option value="3">Urgent</option>
+                  </select>
+                </div>
 
-            <label htmlFor="title">
-              Schedule Title
-            </label>
-
-            <input
-              id="title"
-              type="text"
-              name="title"
-              value={
-                form.title
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              placeholder="Example: Prepare equipment for field phase"
-              required
-            />
-
-            <label htmlFor="description">
-              Description
-            </label>
-
-            <textarea
-              id="description"
-              name="description"
-              rows={4}
-              value={
-                form.description
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              placeholder="Describe the work that must be completed..."
-            />
-
-            <label htmlFor="assignedHumanResourceId">
-              Assigned Human Resource
-            </label>
-
-            <select
-              id="assignedHumanResourceId"
-              name="assignedHumanResourceId"
-              value={
-                form.assignedHumanResourceId
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-            >
-              <option value="">
-                Not assigned
-              </option>
-
-              {humanResources.map(
-                (resource) => (
-                  <option
-                    key={
-                      resource.humanResourceId
-                    }
-                    value={
-                      resource.humanResourceId
-                    }
+                <div className="schedule-form-group">
+                  <label htmlFor="status">Initial Status</label>
+                  <select
+                    id="status"
+                    name="status"
+                    className="schedule-select"
+                    value={form.status}
+                    onChange={handleChange}
                   >
-                    {getHumanResourceLabel(
-                      resource
+                    <option value="Planned">Planned</option>
+                    <option value="InProgress">In Progress</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Summary Preview Card */}
+            <div className="schedule-card" style={{ background: "#f8fafc" }}>
+              <div className="schedule-card-header">
+                <div>
+                  <span className="schedule-card-eyebrow">Overview</span>
+                  <h3>
+                    <Info size={16} color="#0284c7" /> Schedule Summary
+                  </h3>
+                </div>
+              </div>
+
+              <div className="schedule-summary-box">
+                <div className="schedule-summary-item">
+                  <span>Allocation Plan</span>
+                  <strong>
+                    {selectedAllocation
+                      ? `Plan #${selectedAllocation.allocationPlanId}`
+                      : "Not selected"}
+                  </strong>
+                </div>
+
+                <div className="schedule-summary-item">
+                  <span>Experiment</span>
+                  <strong>
+                    {selectedAllocation?.experimentName ||
+                      (selectedAllocation?.experimentId
+                        ? `Experiment #${selectedAllocation.experimentId}`
+                        : "-")}
+                  </strong>
+                </div>
+
+                <div className="schedule-summary-item">
+                  <span>Target Phase</span>
+                  <strong>{selectedPhase?.phaseName || "Entire Experiment"}</strong>
+                </div>
+
+                <div className="schedule-summary-item">
+                  <span>Assigned Staff</span>
+                  <strong>
+                    {selectedPersonnel ? (
+                      <span style={{ color: "#16a34a" }}>
+                        [{selectedPersonnel.roleName || "Technician"}]{" "}
+                        {selectedPersonnel.fullName || "Staff"}
+                      </span>
+                    ) : (
+                      "Not selected"
                     )}
-                  </option>
-                )
-              )}
-            </select>
+                  </strong>
+                </div>
 
-            <label htmlFor="priority">
-              Priority
-            </label>
+                <div className="schedule-summary-item">
+                  <span>Priority</span>
+                  <strong>{priorityLabels[Number(form.priority)] || "Medium"}</strong>
+                </div>
 
-            <select
-              id="priority"
-              name="priority"
-              value={
-                form.priority
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            >
-              <option value="0">
-                Low
-              </option>
-
-              <option value="1">
-                Medium
-              </option>
-
-              <option value="2">
-                High
-              </option>
-
-              <option value="3">
-                Urgent
-              </option>
-            </select>
-
-            <label htmlFor="status">
-              Status
-            </label>
-
-            <select
-              id="status"
-              name="status"
-              value={
-                form.status
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            >
-              <option value="Planned">
-                Planned
-              </option>
-
-              <option value="InProgress">
-                In Progress
-              </option>
-
-              <option value="Completed">
-                Completed
-              </option>
-
-              <option value="Cancelled">
-                Cancelled
-              </option>
-            </select>
-          </section>
-
-          <section className="requirement-form-card">
-            <h2>
-              Schedule Period
-            </h2>
-
-            <label htmlFor="startDate">
-              Start Date
-            </label>
-
-            <input
-              id="startDate"
-              type="date"
-              name="startDate"
-              value={
-                form.startDate
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            />
-
-            <label htmlFor="startTime">
-              Start Time
-            </label>
-
-            <input
-              id="startTime"
-              type="time"
-              name="startTime"
-              value={
-                form.startTime
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            />
-
-            <label htmlFor="endDate">
-              End Date
-            </label>
-
-            <input
-              id="endDate"
-              type="date"
-              name="endDate"
-              min={
-                form.startDate ||
-                undefined
-              }
-              value={
-                form.endDate
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            />
-
-            <label htmlFor="endTime">
-              End Time
-            </label>
-
-            <input
-              id="endTime"
-              type="time"
-              name="endTime"
-              value={
-                form.endTime
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              required
-            />
-
-            <label htmlFor="notes">
-              Notes
-            </label>
-
-            <textarea
-              id="notes"
-              name="notes"
-              rows={4}
-              value={
-                form.notes
-              }
-              onChange={
-                handleChange
-              }
-              disabled={
-                saving
-              }
-              placeholder="Enter additional instructions or notes..."
-            />
-
-            <div className="requirement-preview">
-              <div>
-                <span>
-                  Allocation
-                </span>
-
-                <strong>
-                  {selectedAllocation
-                    ? getAllocationLabel(
-                        selectedAllocation
-                      )
-                    : "Not selected"}
-                </strong>
+                <div className="schedule-summary-item">
+                  <span>Period</span>
+                  <strong>
+                    {form.startDate ? `${formatDate(form.startDate)}` : "TBD"} →{" "}
+                    {form.endDate ? `${formatDate(form.endDate)}` : "TBD"}
+                  </strong>
+                </div>
               </div>
 
-              <div>
-                <span>
-                  Allocation ID
-                </span>
-
-                <strong>
-                  {form.allocationPlanId
-                    ? `#${form.allocationPlanId}`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Phase
-                </span>
-
-                <strong>
-                  {selectedPhase
-                    ? selectedPhase.phaseName
-                    : "No specific phase"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Assigned Human
-                </span>
-
-                <strong>
-                  {selectedHumanResource
-                    ? selectedHumanResource.fullName ||
-                      selectedHumanResource.username ||
-                      `#${selectedHumanResource.humanResourceId}`
-                    : "Not assigned"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Start
-                </span>
-
-                <strong>
-                  {form.startDate &&
-                  form.startTime
-                    ? `${form.startDate} ${form.startTime}`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  End
-                </span>
-
-                <strong>
-                  {form.endDate &&
-                  form.endTime
-                    ? `${form.endDate} ${form.endTime}`
-                    : "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Priority
-                </span>
-
-                <strong>
-                  {priorityLabels[
-                    Number(
-                      form.priority
-                    )
-                  ] || "-"}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Status
-                </span>
-
-                <strong>
-                  {getStatusLabel(
-                    form.status
+              {/* Form Action Buttons */}
+              <div className="schedule-form-actions">
+                <button
+                  type="button"
+                  className="schedule-btn schedule-btn-cancel"
+                  onClick={() => navigate("/schedules")}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="schedule-btn schedule-btn-submit"
+                  disabled={saving || !form.allocationPlanId}
+                >
+                  {saving ? (
+                    "Assigning..."
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} /> Assign Schedule
+                    </>
                   )}
-                </strong>
+                </button>
               </div>
             </div>
-
-            <div className="requirement-form-actions">
-              <button
-                type="button"
-                className="requirement-cancel-button"
-                disabled={
-                  saving
-                }
-                onClick={() =>
-                  navigate(
-                    "/schedules"
-                  )
-                }
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                className="requirement-save-button"
-                disabled={
-                  saving ||
-                  !form.allocationPlanId ||
-                  !form.title.trim() ||
-                  !form.startDate ||
-                  !form.startTime ||
-                  !form.endDate ||
-                  !form.endTime
-                }
-              >
-                {saving
-                  ? "Creating..."
-                  : "Create Schedule"}
-              </button>
-            </div>
-          </section>
+          </div>
         </form>
+
+        {/* Global Toast / Popup Alert */}
+        <ToastPopup
+          visible={toast.visible}
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={() => setToast((prev) => ({ ...prev, visible: false }))}
+        />
       </div>
     </DashboardLayout>
   );

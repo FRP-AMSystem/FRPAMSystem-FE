@@ -232,7 +232,7 @@ export const rolePermissions: Record<
     canApproveAllocation: false,
     canRejectAllocation: false,
 
-    canViewResources: true,
+    canViewResources: false,
     canManageResources: false,
 
     canViewSchedules: true,

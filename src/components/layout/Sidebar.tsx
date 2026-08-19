@@ -36,18 +36,20 @@ import {
   Map,
   Settings,
   ShieldCheck,
+  Sparkles,
   Trees,
   Truck,
   UserCheck,
   UserRound,
   UserRoundCheck,
   Users,
+  RotateCcw,
 } from "lucide-react";
 
 import {
   getUnreadNotificationCount,
 } from "../../services/notificationService";
-
+import type { RealtimeNotificationPayload } from "../../types/notification";
 
 import {
   getStoredRole,
@@ -55,7 +57,9 @@ import {
 } from "../../config/rolePermissions";
 
 import {
+  getToken,
   getUserData,
+  isTokenExpired,
   logout as performLogout,
 } from "../../utils/storage";
 
@@ -87,11 +91,6 @@ const planningItems: MenuItem[] = [
     icon: FlaskConical,
   },
   {
-    name: "My Experiments",
-    path: "/my-experiments",
-    icon: FlaskConical,
-  },
-  {
     name: "Experiment Phases",
     path: "/experiment-phases",
     icon: Layers3,
@@ -115,6 +114,11 @@ const planningItems: MenuItem[] = [
     name: "Allocations",
     path: "/allocation",
     icon: CalendarDays,
+  },
+  {
+    name: "AI Suggestions",
+    path: "/experiments/ai-suggestions",
+    icon: Sparkles,
   },
 ];
 
@@ -184,6 +188,11 @@ const standardOperations: MenuItem[] = [
     name: "Schedules",
     path: "/schedules",
     icon: Calendar,
+  },
+  {
+    name: "Equipment Return",
+    path: "/equipment-return",
+    icon: RotateCcw,
   },
   {
     name: "Conflicts",
@@ -262,7 +271,7 @@ const managerMenuGroups: MenuGroup[] = [
     items: [
       ...planningItems,
       {
-        name: "Allocation Analytics",
+        name: "Experiment Analytics",
         path: "/allocation-analytics",
         icon: BarChart3,
       },
@@ -295,42 +304,21 @@ const researcherMenuGroups: MenuGroup[] = [
     icon: FlaskConical,
     defaultOpen: true,
     items: [
-      ...planningItems
-        .filter(
-          (item) =>
-            ![
-              "/experiment-phases",
-              "/equipment-requirements",
-              "/human-requirements",
-              "/land-requirements",
-            ].includes(item.path)
-        )
-        .map((item) =>
-          item.path === "/allocation"
-            ? {
-              ...item,
-              name: "My Allocations",
-            }
-            : item
-        ),
+      ...planningItems.filter(
+        (item) =>
+          ![
+            "/experiment-phases",
+            "/equipment-requirements",
+            "/human-requirements",
+            "/land-requirements",
+          ].includes(item.path)
+      ),
       {
-        name: "Allocation Analytics",
+        name: "Experiment Analytics",
         path: "/allocation-analytics",
         icon: BarChart3,
       },
     ],
-  },
-  {
-    id: "human-resources",
-    title: "Human Resources",
-    icon: Users,
-    items: humanResourceItems,
-  },
-  {
-    id: "resources",
-    title: "Equipment & Resources",
-    icon: Truck,
-    items: resourceItems,
   },
   {
     id: "operations",
@@ -343,12 +331,13 @@ const researcherMenuGroups: MenuGroup[] = [
 const technicianMenuGroups: MenuGroup[] = [
   {
     id: "operations",
-    title: "Schedule & Notifications",
+    title: "Schedule & Operations",
     icon: Calendar,
     defaultOpen: true,
     items: standardOperations.filter((item) =>
       [
         "/schedules",
+        "/equipment-return",
         "/notifications",
       ].includes(item.path)
     ),
@@ -358,12 +347,13 @@ const technicianMenuGroups: MenuGroup[] = [
 const studentMenuGroups: MenuGroup[] = [
   {
     id: "operations",
-    title: "Schedule & Notifications",
+    title: "Schedule & Operations",
     icon: Calendar,
     defaultOpen: true,
     items: standardOperations.filter((item) =>
       [
         "/schedules",
+        "/equipment-return",
         "/notifications",
       ].includes(item.path)
     ),
@@ -492,13 +482,9 @@ export default function Sidebar() {
 
   const loadUnreadCount =
     useCallback(async () => {
-      const token =
-        localStorage.getItem("token") ||
-        localStorage.getItem(
-          "accessToken"
-        );
+      const token = getToken();
 
-      if (!token) {
+      if (!token || isTokenExpired(token)) {
         setUnreadCount(0);
         return;
       }
@@ -512,11 +498,20 @@ export default function Sidebar() {
             ? Math.max(0, count)
             : 0
         );
-      } catch (error) {
-        console.error(
-          "Load unread notification count failed:",
-          error
-        );
+      } catch (error: unknown) {
+        if (
+          !(
+            typeof error === "object" &&
+            error !== null &&
+            "response" in error &&
+            (error as { response?: { status?: number } }).response?.status === 401
+          )
+        ) {
+          console.error(
+            "Load unread notification count failed:",
+            error
+          );
+        }
 
         setUnreadCount(0);
       }
@@ -561,6 +556,14 @@ export default function Sidebar() {
       }
     };
 
+    const handleNotificationReceived = (e: Event) => {
+      const customEvent = e as CustomEvent<RealtimeNotificationPayload>;
+      if (customEvent.detail) {
+        setRealtimeToast(customEvent.detail);
+        void loadUnreadCount();
+      }
+    };
+
     window.addEventListener(
       "notification-updated",
       refresh
@@ -569,6 +572,11 @@ export default function Sidebar() {
     window.addEventListener(
       "notification-count-updated",
       handleCountUpdated
+    );
+
+    window.addEventListener(
+      "notification-received",
+      handleNotificationReceived
     );
 
     window.addEventListener(
@@ -589,6 +597,11 @@ export default function Sidebar() {
       window.removeEventListener(
         "notification-count-updated",
         handleCountUpdated
+      );
+
+      window.removeEventListener(
+        "notification-received",
+        handleNotificationReceived
       );
 
       window.removeEventListener(

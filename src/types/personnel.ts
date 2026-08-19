@@ -6,7 +6,7 @@ export interface HumanResourceProfile {
   fullName: string;
   username: string;
   email: string;
-  roleId: number;
+  roleId?: number | null;
   roleName: string;
   maxWorkingHoursPerDay: number;
   currentWorkload: number;

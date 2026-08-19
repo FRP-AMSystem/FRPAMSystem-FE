@@ -18,7 +18,6 @@ import {
   Hash,
   Layers3,
   Pencil,
-  Play,
   RefreshCw,
   Trash2,
   UserRound,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
+import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
 
 import {
   deleteSchedule,
@@ -41,9 +41,12 @@ import type {
 import "./ScheduleDetail.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -285,24 +288,37 @@ export default function ScheduleDetail() {
     setError,
   ] = useState("");
 
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    type: ToastType;
+    title?: string;
+    message: string;
+  }>({
+    visible: false,
+    type: "error",
+    message: "",
+  });
+
+  const showToast = (message: string, type: ToastType = "error", title?: string) => {
+    setError(message);
+    setToast({
+      visible: true,
+      type,
+      title:
+        title ||
+        (type === "error"
+          ? "Thông báo lỗi"
+          : type === "success"
+          ? "Thành công"
+          : "Thông báo"),
+      message,
+    });
+  };
+
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<ScheduleStatus>("InProgress");
   const [updateNotes, setUpdateNotes] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
-
-  const handleQuickStatusChange = async (newStatus: ScheduleStatus) => {
-    if (!schedule) return;
-    try {
-      setUpdatingStatus(true);
-      setError("");
-      const updated = await updateScheduleStatus(schedule.scheduleId, newStatus);
-      setSchedule(updated);
-    } catch (err: any) {
-      setError(getErrorMessage(err));
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
 
   const handleStatusModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,8 +330,9 @@ export default function ScheduleDetail() {
       setSchedule(updated);
       setStatusModalOpen(false);
       setUpdateNotes("");
+      showToast("Cập nhật trạng thái và tiến độ lịch làm việc thành công!", "success", "Cập nhật thành công");
     } catch (err: any) {
-      setError(getErrorMessage(err));
+      showToast(getErrorMessage(err), "error", "Cập nhật thất bại");
     } finally {
       setUpdatingStatus(false);
     }
@@ -525,49 +542,19 @@ export default function ScheduleDetail() {
               Back
             </button>
 
-            {schedule.status !== "Completed" && schedule.status !== "Cancelled" && (
-              <>
-                {schedule.status === "Planned" && (
-                  <button
-                    type="button"
-                    className="schedule-detail-action-btn start"
-                    disabled={updatingStatus}
-                    onClick={() => void handleQuickStatusChange("InProgress")}
-                    style={{ background: "#16a34a", color: "#fff", padding: "8px 14px", borderRadius: "8px", border: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
-                  >
-                    <Play size={16} />
-                    <span>Start Task</span>
-                  </button>
-                )}
-
-                {schedule.status === "InProgress" && (
-                  <button
-                    type="button"
-                    className="schedule-detail-action-btn complete"
-                    disabled={updatingStatus}
-                    onClick={() => void handleQuickStatusChange("Completed")}
-                    style={{ background: "#2563eb", color: "#fff", padding: "8px 14px", borderRadius: "8px", border: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
-                  >
-                    <CheckCircle size={16} />
-                    <span>Complete Task</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  className="schedule-detail-action-btn update"
-                  disabled={updatingStatus}
-                  onClick={() => {
-                    setSelectedStatus(schedule.status);
-                    setStatusModalOpen(true);
-                  }}
-                  style={{ background: "#f8fafc", color: "#334155", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
-                >
-                  <FileText size={16} />
-                  <span>Update Status & Notes</span>
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              className="schedule-detail-action-btn update"
+              disabled={updatingStatus}
+              onClick={() => {
+                setSelectedStatus(schedule.status);
+                setStatusModalOpen(true);
+              }}
+              style={{ background: "#f8fafc", color: "#334155", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+            >
+              <FileText size={16} />
+              <span>Update Status & Notes</span>
+            </button>
 
             {canManage && (
               <>
@@ -603,12 +590,6 @@ export default function ScheduleDetail() {
             )}
           </div>
         </div>
-
-        {error && (
-          <div className="schedule-detail-error">
-            {error}
-          </div>
-        )}
 
         <section className="schedule-detail-summary-card">
           <div className="schedule-detail-summary-icon">
@@ -1000,6 +981,15 @@ export default function ScheduleDetail() {
             </div>
           </div>
         )}
+
+        {/* Global Toast / Popup Alert */}
+        <ToastPopup
+          visible={toast.visible}
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={() => setToast((prev) => ({ ...prev, visible: false }))}
+        />
       </div>
     </DashboardLayout>
   );

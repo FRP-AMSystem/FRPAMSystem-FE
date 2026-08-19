@@ -823,6 +823,10 @@ export default function CreateExperimentPhase() {
                       value={
                         form.expectedStartDate
                       }
+                      max={
+                        form.expectedEndDate ||
+                        undefined
+                      }
                       onChange={
                         handleChange
                       }
