@@ -33,9 +33,12 @@ import type {
 import "./LandRequirementList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 function getErrorMessage(
   error: unknown

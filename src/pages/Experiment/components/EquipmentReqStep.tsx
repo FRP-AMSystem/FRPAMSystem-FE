@@ -76,7 +76,7 @@ export const EquipmentReqStep: React.FC<EquipmentReqStepProps> = ({
       phaseId: targetPhase ? targetPhase.id : null,
       phaseName: targetPhase ? targetPhase.phaseName : "",
       equipmentTypeId: defaultType ? defaultType.equipmentTypeId : 1,
-      equipmentTypeName: defaultType ? defaultType.name : "",
+      equipmentTypeName: defaultType ? (defaultType.equipmentTypeName || defaultType.typeName || defaultType.name || "") : "",
       quantity: 1,
       allowSubstitute: true,
       minAcceptableEfficiency: 80,
@@ -102,7 +102,7 @@ export const EquipmentReqStep: React.FC<EquipmentReqStepProps> = ({
         return {
           ...r,
           equipmentTypeId: selectedId,
-          equipmentTypeName: eqType ? eqType.name : r.equipmentTypeName,
+          equipmentTypeName: eqType ? (eqType.equipmentTypeName || eqType.typeName || eqType.name || "") : (r.equipmentTypeName || ""),
         };
       }
       return { ...r, [field]: value };

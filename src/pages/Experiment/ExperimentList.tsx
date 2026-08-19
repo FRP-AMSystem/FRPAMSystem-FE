@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { Eye, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import {
@@ -8,6 +8,7 @@ import {
   getExperiments,
 } from "../../services/experimentService";
 import type { ExperimentResponse } from "../../types/experiment";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./ExperimentList.css";
 
@@ -49,24 +50,20 @@ function getPriorityLabel(priority?: number | null): string {
     return "-";
   }
 
-  return priorityLabels[priority] ?? String(priority);
+  return priorityLabels[priority] || `Level ${priority}`;
 }
 
 function getErrorMessage(error: unknown): string {
   if (
     typeof error === "object" &&
     error !== null &&
-    "response" in error
+    "response" in error &&
+    typeof (error as { response?: unknown }).response === "object" &&
+    (error as { response?: { data?: { message?: string; title?: string } } })
+      .response !== null
   ) {
     const response = (
-      error as {
-        response?: {
-          data?: {
-            message?: string;
-            title?: string;
-          };
-        };
-      }
+      error as { response?: { data?: { message?: string; title?: string } } }
     ).response;
 
     return (
@@ -85,10 +82,11 @@ function getErrorMessage(error: unknown): string {
 
 export default function ExperimentList() {
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const role = (localStorage.getItem("role") || "Seasonal") as Role;
+  const currentUser = useMemo(() => getCurrentUserTokenInfo(), []);
+  const role = currentUser.role as Role;
   const isResearcher = role === "Admin" || role === "Manager" || role === "Researcher";
+  const isPrivileged = role === "Admin" || role === "Manager";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -102,13 +100,40 @@ export default function ExperimentList() {
       setLoading(true);
       setError("");
 
+      const user = getCurrentUserTokenInfo();
+      const { userId, fullName, email, role: userRole } = user;
+      const privileged = userRole === "Admin" || userRole === "Manager";
+
       const data = await getExperiments({
         keyword: searchKeyword.trim() || undefined,
+        researcherId: !privileged && userId > 0 ? userId : undefined,
         page: 1,
-        size: 50,
+        size: 100,
       });
 
-      setExperiments(data);
+      // Filter experiments by current user's token info if user is Researcher
+      const userExperiments = privileged
+        ? data
+        : data.filter((item) => {
+            if (userId > 0 && item.researcherId === userId) return true;
+            if (
+              fullName &&
+              (item.researcherName?.toLowerCase().includes(fullName.toLowerCase()) ||
+                item.createdByName?.toLowerCase().includes(fullName.toLowerCase()))
+            ) {
+              return true;
+            }
+            if (
+              email &&
+              (item.researcherEmail?.toLowerCase() === email.toLowerCase() ||
+                item.createdByEmail?.toLowerCase() === email.toLowerCase())
+            ) {
+              return true;
+            }
+            return false;
+          });
+
+      setExperiments(userExperiments);
     } catch (loadError) {
       console.error("Failed to load experiments:", loadError);
       setExperiments([]);
@@ -192,7 +217,7 @@ export default function ExperimentList() {
 
         {/* Status Filter Tabs */}
         <div className="experiment-tabs-bar">
-          {["All", "Submitted", "Running", "Completed"].map((st) => (
+          {["All", "Draft", "Submitted", "Running", "Completed", "Cancelled"].map((st) => (
             <button
               key={st}
               type="button"
@@ -230,9 +255,6 @@ export default function ExperimentList() {
               <tbody>
                 {(() => {
                   const filtered = experiments.filter((item) => {
-                    if ((item.status || "").toLowerCase() === "draft") {
-                      return false;
-                    }
                     if (selectedStatus === "All") return true;
                     return (
                       (item.status || "").toLowerCase() ===
@@ -278,7 +300,6 @@ export default function ExperimentList() {
                                 }
                                 title="Open Draft & Select Planning Method (Manual or AI)"
                               >
-                                <Sparkles size={12} />
                                 <span>Open Draft</span>
                               </button>
                             ) : (

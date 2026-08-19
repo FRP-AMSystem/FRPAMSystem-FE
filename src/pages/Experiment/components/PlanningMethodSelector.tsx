@@ -1,5 +1,5 @@
 import React from "react";
-import { Edit3, Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import "../PlanningWizard.css";
 
 interface PlanningMethodSelectorProps {
@@ -38,9 +38,6 @@ export const PlanningMethodSelector: React.FC<PlanningMethodSelectorProps> = ({
           {/* Manual Option */}
           <div onClick={onSelectManual} className="planning-method-card">
             <div>
-              <div className="planning-method-icon">
-                <Edit3 size={24} />
-              </div>
               <h3>Manual Planning</h3>
               <p>
                 Review, edit, and fine-tune your draft requirements manually before sending to Manager.
@@ -70,9 +67,6 @@ export const PlanningMethodSelector: React.FC<PlanningMethodSelectorProps> = ({
               Recommended
             </span>
             <div>
-              <div className="planning-method-icon">
-                <Sparkles size={24} />
-              </div>
               <h3>AI Suggestion</h3>
               <p>
                 Generate 5 optimized plan alternatives in RAM. Compare strategies, select the best fit, and submit.

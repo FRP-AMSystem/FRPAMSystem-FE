@@ -131,6 +131,8 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
                       <input
                         type="date"
                         value={phase.expectedStartDate}
+                        min={baseStartDate || undefined}
+                        max={phase.expectedEndDate || baseEndDate || undefined}
                         onChange={(e) =>
                           handleUpdatePhase(
                             phase.id,
@@ -153,6 +155,8 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
                       <input
                         type="date"
                         value={phase.expectedEndDate}
+                        min={phase.expectedStartDate || baseStartDate || undefined}
+                        max={baseEndDate || undefined}
                         onChange={(e) =>
                           handleUpdatePhase(
                             phase.id,

@@ -12,6 +12,73 @@ export interface AISuggestionInput {
   landRequirements: Array<Omit<ExperimentLandRequirementRequest, "experimentId"> & { id?: string }>;
 }
 
+export interface FitnessBreakdown {
+  landScore?: number;
+  humanScore?: number;
+  equipmentScore?: number;
+  scheduleScore?: number;
+  penaltyScore?: number;
+  bonusScore?: number;
+  finalScore?: number;
+}
+
+export interface ConstraintReport {
+  landConflicts?: string[];
+  humanConflicts?: string[];
+  equipmentConflicts?: string[];
+  scheduleConflicts?: string[];
+  maintenanceConflicts?: string[];
+  skillConflicts?: string[];
+  roleConflicts?: string[];
+  deadlineConflicts?: string[];
+}
+
+export interface AllocatedLandItem {
+  phaseId?: number;
+  phaseName?: string;
+  landId?: number;
+  landCode?: string;
+  soilType?: string;
+  areaSize?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface AllocatedHumanItem {
+  phaseId?: number;
+  phaseName?: string;
+  humanResourceId?: number;
+  fullName?: string;
+  roleId?: number;
+  roleName?: string;
+  currentWorkload?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface AllocatedEquipmentItem {
+  phaseId?: number;
+  phaseName?: string;
+  equipmentInstanceId?: number;
+  assetCode?: string;
+  requiredEquipmentTypeId?: number;
+  allocatedEquipmentTypeId?: number;
+  equipmentTypeName?: string;
+  isSubstitute?: boolean;
+  efficiencyRate?: number;
+  timeMultiplier?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface TimelinePhaseItem {
+  phaseId?: number;
+  phaseName?: string;
+  startDate?: string;
+  endDate?: string;
+  durationDays?: number;
+}
+
 export interface AISuggestionPhaseItem {
   phaseName: string;
   phaseDescription?: string | null;
@@ -54,13 +121,27 @@ export interface AIChangeItem {
 
 export interface AISuggestionPlan {
   id: string;
+  rank: number;
   title: string;
   strategyBadge: string;
   description: string;
+  fitnessScore: number;
+  penaltyScore: number;
+  bonusScore: number;
+  fitnessBreakdown?: FitnessBreakdown;
+  constraintReport?: ConstraintReport;
+  conflictCount: number;
+  estimatedCompletionTime?: string;
   estimatedDurationDays: number;
   totalResourceScore: number;
+  advantages: string[];
+  disadvantages: string[];
   rationale: string[];
   changesSummary?: AIChangeItem[];
+  allocatedLands: AllocatedLandItem[];
+  allocatedHumans: AllocatedHumanItem[];
+  allocatedEquipment: AllocatedEquipmentItem[];
+  timeline: TimelinePhaseItem[];
   experimentPhases: AISuggestionPhaseItem[];
   equipmentRequirements: AISuggestionEquipmentItem[];
   humanRequirements: AISuggestionHumanItem[];

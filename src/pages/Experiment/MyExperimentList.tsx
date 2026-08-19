@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Pencil, Sparkles, Trash2 } from "lucide-react";
 
@@ -8,6 +8,7 @@ import {
   getExperiments,
 } from "../../services/experimentService";
 import type { ExperimentResponse } from "../../types/experiment";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./ExperimentList.css";
 
@@ -49,24 +50,20 @@ function getPriorityLabel(priority?: number | null): string {
     return "-";
   }
 
-  return priorityLabels[priority] ?? String(priority);
+  return priorityLabels[priority] || `Level ${priority}`;
 }
 
 function getErrorMessage(error: unknown): string {
   if (
     typeof error === "object" &&
     error !== null &&
-    "response" in error
+    "response" in error &&
+    typeof (error as { response?: unknown }).response === "object" &&
+    (error as { response?: { data?: { message?: string; title?: string } } })
+      .response !== null
   ) {
     const response = (
-      error as {
-        response?: {
-          data?: {
-            message?: string;
-            title?: string;
-          };
-        };
-      }
+      error as { response?: { data?: { message?: string; title?: string } } }
     ).response;
 
     return (
@@ -87,8 +84,10 @@ export default function MyExperimentList() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const role = (localStorage.getItem("role") || "Seasonal") as Role;
+  const currentUser = useMemo(() => getCurrentUserTokenInfo(), []);
+  const role = currentUser.role as Role;
   const isResearcher = role === "Admin" || role === "Manager" || role === "Researcher";
+  const isPrivileged = role === "Admin" || role === "Manager";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -104,20 +103,42 @@ export default function MyExperimentList() {
       setLoading(true);
       setError("");
 
+      const user = getCurrentUserTokenInfo();
+      const { userId, fullName, email, role: userRole } = user;
+      const privileged = userRole === "Admin" || userRole === "Manager";
+
       const data = await getExperiments({
         keyword: searchKeyword.trim() || undefined,
+        researcherId: !privileged && userId > 0 ? userId : undefined,
         page: 1,
-        size: 50,
+        size: 100,
       });
 
-      // Keep only Draft experiments
-      const draftOnly = data.filter(
-        (item) => (item.status || "").toLowerCase() === "draft"
-      );
+      // Filter experiments by current user's token info if user is Researcher
+      const userExperiments = privileged
+        ? data
+        : data.filter((item) => {
+            if (userId > 0 && item.researcherId === userId) return true;
+            if (
+              fullName &&
+              (item.researcherName?.toLowerCase().includes(fullName.toLowerCase()) ||
+                item.createdByName?.toLowerCase().includes(fullName.toLowerCase()))
+            ) {
+              return true;
+            }
+            if (
+              email &&
+              (item.researcherEmail?.toLowerCase() === email.toLowerCase() ||
+                item.createdByEmail?.toLowerCase() === email.toLowerCase())
+            ) {
+              return true;
+            }
+            return false;
+          });
 
-      setExperiments(draftOnly);
+      setExperiments(userExperiments);
     } catch (loadError) {
-      console.error("Failed to load draft experiments:", loadError);
+      console.error("Failed to load experiments:", loadError);
       setExperiments([]);
       setError(getErrorMessage(loadError));
     } finally {

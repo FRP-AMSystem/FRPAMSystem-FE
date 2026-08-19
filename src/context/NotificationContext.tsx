@@ -18,6 +18,7 @@ import {
   markAllNotificationsAsRead as apiMarkAllAsRead,
   deleteNotification as apiDeleteNotification,
 } from "../services/notificationService";
+import { getToken, isTokenExpired } from "../utils/storage";
 
 interface NotificationContextType {
   unreadCount: number;
@@ -48,11 +49,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const fetchUnreadCount = useCallback(async (): Promise<number> => {
+    const token = getToken();
+    if (!token || isTokenExpired(token)) {
+      setUnreadCount(0);
+      return 0;
+    }
+
     try {
       const count = await getUnreadNotificationCount();
       setUnreadCount(count);
       return count;
-    } catch (err) {
+    } catch (err: unknown) {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        (err as { response?: { status?: number } }).response?.status === 401
+      ) {
+        setUnreadCount(0);
+        return 0;
+      }
       console.warn("Failed to fetch unread notification count:", err);
       return 0;
     }
@@ -162,20 +178,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Initialize Unread Count & Periodic Sync when authenticated
   useEffect(() => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("accessToken");
-    if (!token) return;
+    const token = getToken();
+    if (!token || isTokenExpired(token)) return;
 
     // Fetch initial unread count
     void fetchUnreadCount();
 
     // Poll unread count every 30 seconds
     const interval = setInterval(() => {
-      void fetchUnreadCount();
+      const currentToken = getToken();
+      if (currentToken && !isTokenExpired(currentToken)) {
+        void fetchUnreadCount();
+      }
     }, 30000);
 
     const handleSync = () => {
-      void fetchUnreadCount();
+      const currentToken = getToken();
+      if (currentToken && !isTokenExpired(currentToken)) {
+        void fetchUnreadCount();
+      }
     };
 
     window.addEventListener("notification-updated", handleSync);

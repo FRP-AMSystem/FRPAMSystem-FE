@@ -132,54 +132,54 @@ function normalizeSchedule(
 
     scheduleId: Number(
       item.scheduleId ??
-        item.id ??
-        0
+      item.id ??
+      0
     ),
 
     allocationPlanId: Number(
       item.allocationPlanId ??
-        0
+      0
     ),
 
     allocationPlanName:
       typeof item.allocationPlanName ===
-      "string"
+        "string"
         ? item.allocationPlanName
         : null,
 
     phaseId:
       item.phaseId === null ||
-      item.phaseId === undefined
+        item.phaseId === undefined
         ? null
         : Number(item.phaseId),
 
     phaseName:
       typeof item.phaseName ===
-      "string"
+        "string"
         ? item.phaseName
         : null,
 
     title:
       typeof item.title ===
-      "string"
+        "string"
         ? item.title
         : null,
 
     description:
       typeof item.description ===
-      "string"
+        "string"
         ? item.description
         : null,
 
     startDate:
       typeof item.startDate ===
-      "string"
+        "string"
         ? item.startDate
         : "",
 
     endDate:
       typeof item.endDate ===
-      "string"
+        "string"
         ? item.endDate
         : "",
 
@@ -190,35 +190,35 @@ function normalizeSchedule(
 
     createdBy:
       item.createdBy === null ||
-      item.createdBy === undefined
+        item.createdBy === undefined
         ? null
         : Number(item.createdBy),
 
     createdByName:
       typeof item.createdByName ===
-      "string"
+        "string"
         ? item.createdByName
         : null,
 
     assignedHumanResourceId:
       item.assignedHumanResourceId ===
         null ||
-      item.assignedHumanResourceId ===
+        item.assignedHumanResourceId ===
         undefined
         ? null
         : Number(
-            item.assignedHumanResourceId
-          ),
+          item.assignedHumanResourceId
+        ),
 
     assignedHumanResourceName:
       typeof item.assignedHumanResourceName ===
-      "string"
+        "string"
         ? item.assignedHumanResourceName
         : null,
 
     notes:
       typeof item.notes ===
-      "string"
+        "string"
         ? item.notes
         : null,
 
@@ -228,13 +228,13 @@ function normalizeSchedule(
 
     createdAt:
       typeof item.createdAt ===
-      "string"
+        "string"
         ? item.createdAt
         : null,
 
     updatedAt:
       typeof item.updatedAt ===
-      "string"
+        "string"
         ? item.updatedAt
         : null,
   };
@@ -306,6 +306,33 @@ export async function getScheduleById(
       response.data
     )
   );
+}
+
+export async function getMySchedules(
+  query: ScheduleQuery = {}
+): Promise<Schedule[]> {
+  const response = await api.get("/Schedules/mine", {
+    params: cleanParams({
+      Keyword: query.keyword,
+      AllocationPlanId: query.allocationPlanId,
+      PhaseId: query.phaseId,
+      AssignedHumanResourceId: query.assignedHumanResourceId,
+      CreatedBy: query.createdBy,
+      Status: query.status,
+      StartDateFrom: query.startDateFrom,
+      StartDateTo: query.startDateTo,
+      Page: query.page,
+      Size: query.size,
+    }),
+  });
+
+  return normalizeList<unknown>(response.data).map(normalizeSchedule);
+}
+
+export async function getMyScheduleById(id: number): Promise<Schedule> {
+  validateId(id, "Schedule ID");
+  const response = await api.get(`/Schedules/mine/${id}`);
+  return normalizeSchedule(unwrapResponse<unknown>(response.data));
 }
 
 export async function createSchedule(

@@ -4,7 +4,7 @@ import axios from "axios";
 import { ArrowLeft, ArrowRight, Save } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import { createExperiment, getExperiments } from "../../services/experimentService";
+import { createExperiment, getExperiments, submitExperiment } from "../../services/experimentService";
 import { createExperimentPhase } from "../../services/experimentPhaseService";
 import { createExperimentEquipmentRequirement } from "../../services/experimentEquipmentRequirementService";
 import { createExperimentHumanRequirement } from "../../services/experimentHumanRequirementService";
@@ -17,8 +17,6 @@ import { PhasesStep, type PhaseFormItem } from "./components/PhasesStep";
 import { EquipmentReqStep, type EquipmentReqFormItem } from "./components/EquipmentReqStep";
 import { HumanReqStep, type HumanReqFormItem, isAllowedRole } from "./components/HumanReqStep";
 import { LandReqStep, type LandReqFormItem } from "./components/LandReqStep";
-import { getHumanResourceProfiles } from "../../services/humanResourceProfileService";
-import type { ExperimentResponse } from "../../types/experiment";
 import "./PlanningWizard.css";
 
 function convertDateToIso(dateStr?: string | null): string {
@@ -60,8 +58,7 @@ function getApiErrorMessage(error: unknown): string {
     responseData?.error ||
     responseData?.title ||
     responseData?.detail ||
-    `Create experiment failed${
-      error.response?.status ? ` (${error.response.status})` : ""
+    `Create experiment failed${error.response?.status ? ` (${error.response.status})` : ""
     }.`
   );
 }
@@ -110,8 +107,12 @@ export default function CreateExperiment() {
         setError("Expected end date must be after expected start date.");
         return;
       }
+      if (expData.deadline && expData.expectEndDate && expData.deadline < expData.expectEndDate) {
+        setError("Submission deadline must be on or after expected end date.");
+        return;
+      }
       if (expData.deadline && expData.expectStartDate && expData.deadline < expData.expectStartDate) {
-        setError("Deadline cannot be earlier than start date.");
+        setError("Submission deadline cannot be earlier than start date.");
         return;
       }
     }
@@ -204,21 +205,16 @@ export default function CreateExperiment() {
         console.warn("Could not check duplicate experiment name:", checkErr);
       }
 
-      const storedUserId =
-        Number(localStorage.getItem("userId")) ||
-        Number(localStorage.getItem("researcherId")) ||
-        1;
-
-      // 1. Create main Experiment with status = Draft
+      // 1. Create main Experiment with status = Submitted
       const createdExp = await createExperiment({
         experimentName: trimmedName,
         description: expData.description.trim() || undefined,
-        researcherId: storedUserId,
+        researcherId: resolveResearcherId(),
         expectStartDate: convertDateToIso(expData.expectStartDate),
         expectEndDate: convertDateToIso(expData.expectEndDate),
         deadline: convertDateToIso(expData.deadline),
         priority: Number(expData.priority) || 1,
-        status: "Draft",
+        status: "Submitted",
       });
 
       if (!createdExp || !createdExp.experimentId) {
@@ -261,8 +257,8 @@ export default function CreateExperiment() {
           const finalNote = cleanNote
             ? `${phasePrefix}${cleanNote}`.trim()
             : phasePrefix
-            ? phasePrefix.trim()
-            : undefined;
+              ? phasePrefix.trim()
+              : undefined;
 
           await createExperimentEquipmentRequirement({
             experimentId: expId,
@@ -287,8 +283,8 @@ export default function CreateExperiment() {
           const finalNote = cleanNote
             ? `${phasePrefix}${cleanNote}`.trim()
             : phasePrefix
-            ? phasePrefix.trim()
-            : null;
+              ? phasePrefix.trim()
+              : null;
 
           await createExperimentHumanRequirement({
             experimentId: expId,
@@ -318,30 +314,37 @@ export default function CreateExperiment() {
         }
       }
 
+      // Submit experiment to trigger backend workflow
+      try {
+        await submitExperiment(expId);
+      } catch (subErr) {
+        console.warn("Submit experiment notice:", subErr);
+      }
+
       // Trigger Topbar Bell Notification and Toast
       sendLocalNotification({
-        title: "Experiment Plan Created Successfully",
-        message: `Experiment plan "${createdExp.experimentName}" has been created successfully as Draft.`,
+        title: "Experiment Created & Submitted",
+        message: `Experiment "${createdExp.experimentName}" has been submitted successfully. Ready for Resource Allocation!`,
         notificationType: "Success",
         referenceType: "Experiment",
         referenceId: expId,
       });
       void fetchUnreadCount();
 
-      // Redirect to My Experiments list
-      navigate("/experiments", {
+      // Redirect directly to Resource Allocation Hub
+      navigate(`/allocation/create?experimentId=${expId}`, {
         state: {
-          message: `Experiment "${createdExp.experimentName}" created successfully as Draft!`,
+          message: `Experiment "${createdExp.experimentName}" created and submitted! Proceed to resource allocation below.`,
         },
       });
     } catch (createErr: any) {
-      console.error("Create Plan (Draft) failed:", createErr);
+      console.error("Create Experiment failed:", createErr);
       if (createErr?.response?.data) {
         console.error("Backend Error Detail:", createErr.response.data);
       }
       const apiMsg = getApiErrorMessage(createErr);
       if (apiMsg.includes("500") || apiMsg.toLowerCase().includes("internal server error")) {
-        setError(`Failed to create experiment plan. The name "${trimmedName}" might be duplicated or the data is invalid. Please check the name.`);
+        setError(`Failed to create experiment. The name "${trimmedName}" might be duplicated or the data is invalid. Please check the name.`);
       } else {
         setError(apiMsg);
       }
@@ -356,12 +359,11 @@ export default function CreateExperiment() {
         {/* Header */}
         <div className="planning-wizard-header">
           <div>
-            <p className="breadcrumb">Dashboard / Experiments / Create Plan</p>
-            <h1>New Experiment Plan</h1>
-            <p>Unified step-by-step experiment planning wizard</p>
+            <p className="breadcrumb">Dashboard / Experiments / New Experiment</p>
+            <h1>New Experiment</h1>
+            <p>Step-by-step experiment creation wizard</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span className="planning-draft-badge">Target Status: Draft</span>
             <button
               type="button"
               onClick={() => navigate("/experiments")}

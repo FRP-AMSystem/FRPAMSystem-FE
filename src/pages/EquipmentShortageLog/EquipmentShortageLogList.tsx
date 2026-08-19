@@ -28,13 +28,9 @@ import type {
   EquipmentShortageLog,
   EquipmentShortageLogRequest,
 } from "../../types/equipmentShortageLog";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./EquipmentShortageLogList.css";
-
-type Role =
-  | "Manager"
-  | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
 
 type RequirementType =
   | "Experiment"
@@ -57,23 +53,6 @@ const emptyForm: FormState = {
 
   shortageQuantity: "1",
 };
-
-function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  if (
-    storedRole === "Admin" ||
-    storedRole === "Manager" ||
-    storedRole === "Researcher" ||
-    storedRole === "Technician" ||
-    (storedRole === "Student" || storedRole === "Seasonal")
-  ) {
-    return storedRole;
-  }
-
-  return "Seasonal";
-}
 
 function getErrorMessage(
   error: unknown
@@ -208,8 +187,7 @@ function getQuantityValue(
 }
 
 export default function EquipmentShortageLogList() {
-  const role =
-    getCurrentRole();
+  const { role } = getCurrentUserTokenInfo();
 
   const canManage =
     role === "Admin" || role === "Manager";

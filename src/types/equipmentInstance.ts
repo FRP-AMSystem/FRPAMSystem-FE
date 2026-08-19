@@ -42,6 +42,8 @@ export interface EquipmentInstance {
   receiptNotes?: string | null;
   receivedCondition?: EquipmentConditionLevel | null;
 
+  efficiencyRate?: number | null;
+
   createdAt?: string | null;
   updatedAt?: string | null;
 }

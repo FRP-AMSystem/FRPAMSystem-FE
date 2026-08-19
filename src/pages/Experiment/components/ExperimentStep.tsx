@@ -33,7 +33,36 @@ export const ExperimentStep: React.FC<ExperimentStepProps> = ({
     >
   ) => {
     const { name, value } = e.target;
-    onChange({ [name]: value });
+    const updates: Partial<ExperimentStepData> = { [name]: value };
+
+    if (name === "expectStartDate" && value) {
+      if (data.expectEndDate && data.expectEndDate < value) {
+        updates.expectEndDate = "";
+      }
+      if (data.deadline && data.deadline < value) {
+        updates.deadline = "";
+      }
+    }
+
+    if (name === "expectEndDate" && value) {
+      if (data.expectStartDate && data.expectStartDate > value) {
+        updates.expectStartDate = "";
+      }
+      if (data.deadline && data.deadline < value) {
+        updates.deadline = "";
+      }
+    }
+
+    if (name === "deadline" && value) {
+      if (data.expectEndDate && data.expectEndDate > value) {
+        updates.expectEndDate = "";
+      }
+      if (data.expectStartDate && data.expectStartDate > value) {
+        updates.expectStartDate = "";
+      }
+    }
+
+    onChange(updates);
   };
 
   return (
@@ -88,6 +117,7 @@ export const ExperimentStep: React.FC<ExperimentStepProps> = ({
               type="date"
               name="expectStartDate"
               value={data.expectStartDate}
+              max={data.expectEndDate || data.deadline || undefined}
               onChange={handleInputChange}
               className="planning-input"
               required
@@ -107,6 +137,8 @@ export const ExperimentStep: React.FC<ExperimentStepProps> = ({
               type="date"
               name="expectEndDate"
               value={data.expectEndDate}
+              min={data.expectStartDate || undefined}
+              max={data.deadline || undefined}
               onChange={handleInputChange}
               className="planning-input"
               required
@@ -126,6 +158,7 @@ export const ExperimentStep: React.FC<ExperimentStepProps> = ({
               type="date"
               name="deadline"
               value={data.deadline}
+              min={data.expectEndDate || data.expectStartDate || undefined}
               onChange={handleInputChange}
               className="planning-input"
               required

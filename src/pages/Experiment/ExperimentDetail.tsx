@@ -14,14 +14,11 @@ import axios from "axios";
 import {
   ArrowLeft,
   CheckCircle2,
-  ClipboardList,
   Eye,
   Layers3,
   MapPin,
   Pencil,
   Plus,
-  Send,
-  Sparkles,
   Trash2,
   Users,
   Wrench,
@@ -29,6 +26,7 @@ import {
   X,
   Clock3,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
@@ -224,6 +222,12 @@ function getErrorMessage(
 function formatToUtcIso(dateStr?: string | null): string {
   if (!dateStr) return new Date().toISOString();
   if (dateStr.includes("T")) return dateStr;
+  if (dateStr.includes("/")) {
+    const parts = dateStr.split("/");
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}T00:00:00.000Z`;
+    }
+  }
   return `${dateStr}T00:00:00.000Z`;
 }
 
@@ -638,68 +642,10 @@ export default function ExperimentDetail() {
     loadRequirements,
   ]);
 
-  const handleFetchAISuggestions = async () => {
+  const handleFetchAISuggestions = () => {
     if (!experiment) return;
-    try {
-      setShowMethodSelector(false);
-      setShowAISuggestions(true);
-      setAiLoading(true);
-      setAiError(null);
-
-      const payload: AISuggestionInput = {
-        experiment: {
-          experimentId: experiment.experimentId,
-          experimentName: experiment.experimentName,
-          description: experiment.description || "",
-          researcherId: experiment.researcherId || Number(localStorage.getItem("userId")) || 1,
-          expectStartDate: experiment.expectStartDate || new Date().toISOString(),
-          expectEndDate: experiment.expectEndDate || new Date().toISOString(),
-          deadline: experiment.deadline || new Date().toISOString(),
-          priority: experiment.priority ?? 1,
-          status: "Draft",
-        },
-        experimentPhases: phases.map((p) => ({
-          phaseName: p.phaseName,
-          phaseDescription: p.phaseDescription,
-          phaseOrder: p.phaseOrder,
-          expectedStartDate: p.expectedStartDate,
-          expectedEndDate: p.expectedEndDate,
-          status: "Planned",
-        })),
-        equipmentRequirements: equipReqs.map((e) => ({
-          equipmentTypeId: e.equipmentTypeId,
-          equipmentTypeName: e.equipmentTypeName,
-          quantity: e.quantity,
-          allowSubstitute: e.allowSubstitute,
-          minAcceptableEfficiency: e.minAcceptableEfficiency,
-          note: e.note,
-        })),
-        humanRequirements: humanReqs.map((h) => ({
-          roleId: h.roleId,
-          roleName: h.roleName || undefined,
-          quantity: h.quantity,
-          requiredSkillId: h.requiredSkillId || null,
-          requiredSkillName: h.requiredSkillName || undefined,
-          workingHoursPerDay: h.workingHoursPerDay || null,
-          note: h.note || null,
-        })),
-        landRequirements: landReqs.map((l) => ({
-          requiredArea: l.requiredArea,
-          requiredSoilType: l.requiredSoilType,
-          note: l.note,
-        })),
-      };
-
-      const result = await generateAISuggestions(payload);
-      setAiSuggestions(result.suggestions || []);
-    } catch (err) {
-      console.error("AI Suggestion fetch failed:", err);
-      setAiError(
-        err instanceof Error ? err.message : "Failed to generate AI plan suggestions."
-      );
-    } finally {
-      setAiLoading(false);
-    }
+    setShowMethodSelector(false);
+    navigate(`/experiments/${experiment.experimentId}/ai-suggestions`);
   };
 
   const handleApplySelectedAISuggestion = async (selectedPlan: AISuggestionPlan) => {
@@ -1797,32 +1743,37 @@ export default function ExperimentDetail() {
           )}
         </div>
 
-        {/* Draft Planning Banner - Simple & Clean */}
-        {experiment.status === "Draft" && canManageExperiment && (
+        {/* Resource Allocation Action Card */}
+        {canManageExperiment && (
           <div className="experiment-detail-card" style={{ marginTop: "28px", marginBottom: "24px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                  <span className="planning-draft-badge" style={{ fontSize: "11px", padding: "3px 8px" }}>
-                    Draft Plan
-                  </span>
-                </div>
                 <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 700, color: "#0f172a", border: "none", padding: 0 }}>
-                  Refine & Finalize Plan
+                  Resource Allocation Hub
                 </h3>
                 <p style={{ margin: 0, fontSize: "13.5px", color: "#64748b" }}>
-                  Choose between Manual fine-tuning or AI Suggestion mode to generate 5 optimized plan alternatives in RAM before submitting for Manager review.
+                  Allocate equipment, personnel, and land plots for this experiment using Manual Allocation or AI Optimization.
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowMethodSelector(true)}
-                className="btn-primary-green"
-                style={{ whiteSpace: "nowrap" }}
-              >
-                <Sparkles size={16} /> Choose Planning Method
-              </button>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/allocation/create?experimentId=${experiment.experimentId}`)}
+                  className="btn-primary-green"
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  Start Resource Allocation
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/experiments/${experiment.experimentId}/ai-suggestions`)}
+                  className="btn-secondary-white"
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  AI Optimization
+                </button>
+              </div>
             </div>
           </div>
         )}

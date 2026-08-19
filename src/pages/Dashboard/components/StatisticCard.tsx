@@ -47,19 +47,19 @@ function clampPercentage(value?: number): number {
   return Math.min(100, Math.max(0, value));
 }
 
-function getIcon(type: DashboardStat["type"]) {
+function renderStatIcon(type: DashboardStat["type"]) {
   switch (type) {
     case "total-resources":
-      return Layers3;
+      return <Layers3 size={20} />;
 
     case "utilization":
-      return Gauge;
+      return <Gauge size={20} />;
 
     case "active-experiments":
-      return CheckCircle2;
+      return <CheckCircle2 size={20} />;
 
     case "conflicts":
-      return AlertTriangle;
+      return <AlertTriangle size={20} />;
   }
 }
 
@@ -81,7 +81,6 @@ function getIconClassName(type: DashboardStat["type"]): string {
 
 export default function StatisticCard({ stat, onAction }: StatisticCardProps) {
   const navigate = useNavigate();
-  const Icon = getIcon(stat.type);
   const percentage = clampPercentage(stat.percentage);
 
   const handleCardClick = () => {
@@ -101,7 +100,7 @@ export default function StatisticCard({ stat, onAction }: StatisticCardProps) {
         </div>
 
         <div className={getIconClassName(stat.type)}>
-          <Icon size={20} />
+          {renderStatIcon(stat.type)}
         </div>
       </div>
 

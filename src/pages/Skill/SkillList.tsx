@@ -32,9 +32,12 @@ import type {
 import "./SkillList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 interface FormState {
   skillName: string;

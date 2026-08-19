@@ -123,7 +123,7 @@ function getErrorMessage(
       response?.data?.message ||
       response?.data?.error ||
       response?.data?.title ||
-      "Unable to load allocation analytics."
+      "Unable to load experiment analytics."
     );
   }
 
@@ -131,7 +131,7 @@ function getErrorMessage(
     return error.message;
   }
 
-  return "Unable to load allocation analytics.";
+  return "Unable to load experiment analytics.";
 }
 
 function normalizeFitnessScore(
@@ -246,7 +246,7 @@ export default function AllocationAnalytics() {
           );
         } catch (loadError) {
           console.error(
-            "Load allocation analytics failed:",
+            "Load experiment analytics failed:",
             loadError
           );
 
@@ -519,7 +519,7 @@ export default function AllocationAnalytics() {
           .map((plan) => ({
             name:
               plan.experimentName ||
-              `Plan #${plan.allocationPlanId}`,
+              `Experiment #${plan.experimentId || plan.allocationPlanId}`,
 
             Equipment:
               plan.equipmentDetailCount ??
@@ -561,7 +561,7 @@ export default function AllocationAnalytics() {
       <DashboardLayout>
         <div className="allocation-analytics-page">
           <div className="allocation-analytics-loading">
-            Loading allocation analytics...
+            Loading experiment analytics...
           </div>
         </div>
       </DashboardLayout>
@@ -575,15 +575,15 @@ export default function AllocationAnalytics() {
           <div>
             <p>
               Dashboard / Reports /
-              Allocation Analytics
+              Experiment Analytics
             </p>
 
             <h1>
-              Allocation Analytics
+              Experiment Analytics
             </h1>
 
             <span>
-              Review allocation status,
+              Review experiment status,
               fitness scores and resource
               distribution.
             </span>
@@ -594,10 +594,10 @@ export default function AllocationAnalytics() {
               type="button"
               className="secondary"
               onClick={() =>
-                navigate("/allocation")
+                navigate("/experiments")
               }
             >
-              View Allocations
+              View Experiments
             </button>
 
             <button
@@ -637,7 +637,7 @@ export default function AllocationAnalytics() {
 
             <div>
               <span>
-                Total Plans
+                Total Experiments
               </span>
 
               <strong>
@@ -729,7 +729,7 @@ export default function AllocationAnalytics() {
               </strong>
 
               <small>
-                Allocation quality score
+                Experiment quality score
               </small>
             </div>
           </article>
@@ -744,7 +744,7 @@ export default function AllocationAnalytics() {
                 </h2>
 
                 <p>
-                  Allocation plans grouped
+                  Experiments grouped
                   by approval status.
                 </p>
               </div>
@@ -794,7 +794,7 @@ export default function AllocationAnalytics() {
                 </strong>
 
                 <span>
-                  Plans
+                  Experiments
                 </span>
               </div>
             </div>
@@ -809,7 +809,7 @@ export default function AllocationAnalytics() {
 
                 <p>
                   Resource records allocated
-                  across all visible plans.
+                  across all visible experiments.
                 </p>
               </div>
             </div>
@@ -862,11 +862,11 @@ export default function AllocationAnalytics() {
           <div className="allocation-analytics-card-header">
             <div>
               <h2>
-                Resource Distribution by Plan
+                Resource Distribution by Experiment
               </h2>
 
               <p>
-                Ten plans with the highest
+                Ten experiments with the highest
                 number of assigned resource
                 records.
               </p>
@@ -877,7 +877,7 @@ export default function AllocationAnalytics() {
             {resourceChartData.length ===
               0 ? (
               <div className="allocation-analytics-empty">
-                No resource allocation
+                No resource experiment
                 information is available.
               </div>
             ) : (
@@ -947,11 +947,11 @@ export default function AllocationAnalytics() {
           <div className="allocation-analytics-card-header">
             <div>
               <h2>
-                Recent Allocation Plans
+                Recent Experiments
               </h2>
 
               <p>
-                Latest plans included in
+                Latest experiments included in
                 the analytics report.
               </p>
             </div>
@@ -980,7 +980,7 @@ export default function AllocationAnalytics() {
                       colSpan={8}
                       className="allocation-analytics-empty-cell"
                     >
-                      No allocation plans
+                      No experiments
                       found.
                     </td>
                   </tr>
@@ -1046,7 +1046,9 @@ export default function AllocationAnalytics() {
                             title="View"
                             onClick={() =>
                               navigate(
-                                `/allocation/${plan.allocationPlanId}`
+                                plan.experimentId
+                                  ? `/experiments/${plan.experimentId}`
+                                  : `/allocation/${plan.allocationPlanId}`
                               )
                             }
                           >

@@ -41,9 +41,12 @@ import type {
 import "./EquipmentSubstitutionList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 interface FormState {
   primaryEquipmentTypeId: string;

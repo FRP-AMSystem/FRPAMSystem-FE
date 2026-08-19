@@ -35,9 +35,12 @@ import type {
 import "./ExperimentPhaseList.css";
 
 type Role =
+  | "Admin"
   | "Manager"
   | "Researcher"
-  | "Technician" | "Student" | "Seasonal";
+  | "Technician"
+  | "Student"
+  | "Seasonal";
 
 type StatusFilter =
   | ""

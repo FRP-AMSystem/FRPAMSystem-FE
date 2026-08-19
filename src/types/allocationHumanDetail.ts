@@ -13,8 +13,10 @@ export interface AllocationHumanDetail {
   experimentId?: number;
   experimentName?: string;
 
-  expHumanReqId: number | null;
-  phaseHumanReqId: number | null;
+  expHumanReqId?: number | null;
+  phaseHumanReqId?: number | null;
+  phaseId?: number | null;
+  phaseName?: string | null;
 
   humanResourceId: number;
   humanResourceName?: string;
@@ -26,12 +28,18 @@ export interface AllocationHumanDetail {
 
   roleId?: number;
   roleName?: string;
+  humanResourceRoleId?: number;
+  humanResourceRoleName?: string;
 
   requiredSkillId?: number | null;
   requiredSkillName?: string;
+  skillName?: string;
   skillLevel?: string;
 
   workingHours: number;
+  allocatedHoursPerDay?: number;
+  maxWorkingHoursPerDay?: number;
+  currentWorkload?: number;
   startDate: string;
   endDate: string;
   status: AllocationDetailStatus;

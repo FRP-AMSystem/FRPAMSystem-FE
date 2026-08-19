@@ -21,7 +21,7 @@ import type { ExperimentEquipmentRequirement } from "../../types/experimentEquip
 
 import "./RequirementList.css";
 
-type Role = "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
+type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 function formatMinEfficiency(
   value: number | null | undefined

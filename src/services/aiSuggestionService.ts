@@ -3,7 +3,72 @@ import type {
   AISuggestionInput,
   AISuggestionPlan,
   AISuggestionResponse,
+  AllocatedEquipmentItem,
+  AllocatedHumanItem,
+  AllocatedLandItem,
+  ConstraintReport,
+  FitnessBreakdown,
+  TimelinePhaseItem,
 } from "../types/aiSuggestion";
+
+export interface OptimizationSettings {
+  populationSize?: number;
+  generationCount?: number;
+  mutationRate?: number;
+  initialMutationRate?: number;
+  finalMutationRate?: number;
+  crossoverRate?: number;
+  eliteCount?: number;
+  tournamentSize?: number;
+  topSuggestionCount?: number;
+  maxScheduleShiftDays?: number;
+  landWeight?: number;
+  humanWeight?: number;
+  equipmentWeight?: number;
+  scheduleWeight?: number;
+  penaltyWeight?: number;
+  bonusWeight?: number;
+  hardConstraintPenalty?: number;
+  softConstraintPenalty?: number;
+}
+
+export const DEFAULT_OPTIMIZATION_SETTINGS: OptimizationSettings = {
+  populationSize: 100,
+  generationCount: 80,
+  mutationRate: 0.15,
+  initialMutationRate: 0.3,
+  finalMutationRate: 0.05,
+  crossoverRate: 0.8,
+  eliteCount: 10,
+  tournamentSize: 5,
+  topSuggestionCount: 5,
+  maxScheduleShiftDays: 7,
+  landWeight: 25,
+  humanWeight: 25,
+  equipmentWeight: 25,
+  scheduleWeight: 25,
+  penaltyWeight: 1.0,
+  bonusWeight: 1.0,
+  hardConstraintPenalty: 40,
+  softConstraintPenalty: 8,
+};
+
+export interface ApiOptimizationSuggestion {
+  rank?: number;
+  fitnessScore?: number;
+  penaltyScore?: number;
+  bonusScore?: number;
+  fitnessBreakdown?: FitnessBreakdown;
+  constraintReport?: ConstraintReport;
+  conflictCount?: number;
+  estimatedCompletionTime?: string;
+  allocatedLands?: AllocatedLandItem[];
+  allocatedHumans?: AllocatedHumanItem[];
+  allocatedEquipment?: AllocatedEquipmentItem[];
+  timeline?: TimelinePhaseItem[];
+  advantages?: string[];
+  disadvantages?: string[];
+}
 
 /**
  * Formats ISO date or raw date string to DD/MM/YYYY
@@ -20,15 +85,8 @@ function formatDateShort(dateStr?: string | null): string {
 }
 
 /**
- * Calculates date offsets in ISO format string (YYYY-MM-DD)
+ * Calculates date difference in days
  */
-function addDays(baseDateStr: string, days: number): string {
-  const base = baseDateStr ? new Date(baseDateStr) : new Date();
-  if (Number.isNaN(base.getTime())) return new Date().toISOString().split("T")[0];
-  base.setDate(base.getDate() + days);
-  return base.toISOString().split("T")[0];
-}
-
 function calculateDiffDays(startDateStr: string, endDateStr: string): number {
   const start = new Date(startDateStr);
   const end = new Date(endDateStr);
@@ -38,383 +96,254 @@ function calculateDiffDays(startDateStr: string, endDateStr: string): number {
 }
 
 /**
- * Helper to generate 5 AI Plan suggestions in RAM
+ * Maps raw API suggestion items from the backend solver into the UI plan model.
  */
-function generateMockAISuggestions(input: AISuggestionInput): AISuggestionResponse {
-  const baseStart = input.experiment.expectStartDate || new Date().toISOString().split("T")[0];
-  const baseEnd = input.experiment.expectEndDate || addDays(baseStart, 30);
+function mapApiSuggestions(
+  rawList: ApiOptimizationSuggestion[],
+  input: AISuggestionInput
+): AISuggestionPlan[] {
+  const baseStart =
+    input.experiment.expectStartDate || new Date().toISOString().split("T")[0];
+  const baseEnd = input.experiment.expectEndDate || baseStart;
   const totalDays = calculateDiffDays(baseStart, baseEnd);
-
   const formattedStart = formatDateShort(baseStart);
   const formattedEnd = formatDateShort(baseEnd);
 
-  const rawPhases = input.experimentPhases.length > 0 ? input.experimentPhases : [
-    { phaseName: "Initial Preparation & Soil Sampling", phaseDescription: "Baseline field survey and site setup", phaseOrder: 1, expectedStartDate: baseStart, expectedEndDate: addDays(baseStart, Math.floor(totalDays * 0.3)), status: "Planned" as const },
-    { phaseName: "Treatment Execution & Monitoring", phaseDescription: "Apply treatment regimens and log daily sensor data", phaseOrder: 2, expectedStartDate: addDays(baseStart, Math.floor(totalDays * 0.3) + 1), expectedEndDate: addDays(baseStart, Math.floor(totalDays * 0.8)), status: "Planned" as const },
-    { phaseName: "Data Synthesis & Site Cleanup", phaseDescription: "Final specimen collection and site restoration", phaseOrder: 3, expectedStartDate: addDays(baseStart, Math.floor(totalDays * 0.8) + 1), expectedEndDate: baseEnd, status: "Planned" as const },
-  ];
+  return rawList.map((item, idx) => {
+    const rank = Number(item.rank ?? idx + 1);
+    const isTop = rank === 1;
+    const fitness = Number(item.fitnessScore ?? 0);
+    const penaltyScore = Number(item.penaltyScore ?? 0);
+    const bonusScore = Number(item.bonusScore ?? 0);
+    const conflictCount = Number(item.conflictCount ?? 0);
 
-  const rawEquip = input.equipmentRequirements.length > 0 ? input.equipmentRequirements : [
-    { equipmentTypeId: 1, equipmentTypeName: "Soil Analysis Kit", quantity: 2, allowSubstitute: true, minAcceptableEfficiency: 85, note: "Calibrated" },
-  ];
+    const timeline = Array.isArray(item.timeline) ? item.timeline : [];
+    const allocatedLands = Array.isArray(item.allocatedLands)
+      ? item.allocatedLands
+      : [];
+    const allocatedHumans = Array.isArray(item.allocatedHumans)
+      ? item.allocatedHumans
+      : [];
+    const allocatedEquipment = Array.isArray(item.allocatedEquipment)
+      ? item.allocatedEquipment
+      : [];
 
-  const rawHuman = input.humanRequirements.length > 0 ? input.humanRequirements : [
-    { roleId: 3, roleName: "Researcher", quantity: 1, requiredSkillId: null, requiredSkillName: "Field Survey", workingHoursPerDay: 8, note: "Lead investigator" },
-  ];
+    const durationDays = timeline.reduce(
+      (max, t) => Math.max(max, Number(t.durationDays ?? 0)),
+      totalDays
+    );
 
-  const rawLand = input.landRequirements.length > 0 ? input.landRequirements : [
-    { requiredArea: 500, requiredSoilType: "Sandy Loam", note: "Primary plot" },
-  ];
+    const firstStart = timeline[0]?.startDate
+      ? formatDateShort(timeline[0].startDate)
+      : formattedStart;
+    const lastEnd = timeline[timeline.length - 1]?.endDate
+      ? formatDateShort(timeline[timeline.length - 1].endDate)
+      : formattedEnd;
 
-  const suggestions: AISuggestionPlan[] = [
-    {
-      id: "ai-plan-1",
-      title: "Balanced Optimization Plan",
-      strategyBadge: "Recommended",
-      description: "Standard balanced approach optimizing timeline risk with safety margins for equipment and human effort.",
-      estimatedDurationDays: totalDays,
-      totalResourceScore: 92,
-      rationale: [
-        "Distributes workload evenly across 3 distinct phases.",
-        "Includes a 15% safety buffer for weather-dependent field sampling.",
-        "Optimal equipment utilization avoiding bottleneck schedules."
-      ],
-      changesSummary: [
-        {
-          field: "Timeline",
-          from: `${totalDays} Days (${formattedStart} → ${formattedEnd})`,
-          to: `${totalDays} Days (Balanced across 3 phases)`
-        },
-        {
-          field: "Equipment Requirements",
-          from: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} Qty: ${e.quantity}`).join(", ") || "Baseline Equipment",
-          to: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} Qty: ${Math.max(1, e.quantity)} (Min Eff: 80%)`).join(", ")
-        },
-        {
-          field: "Human Resources",
-          from: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${h.quantity}`).join(", ") || "Baseline Personnel",
-          to: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${Math.max(1, h.quantity)} (8h/day)`).join(", ")
-        },
-        {
-          field: "Land Area",
-          from: rawLand.map((l) => `${l.requiredArea} m²`).join(", ") || "500 m²",
-          to: rawLand.map((l) => `${l.requiredArea} m² (Standard plot)`).join(", ") || "500 m²"
-        }
-      ],
-      experimentPhases: rawPhases.map((p, idx) => ({
-        phaseName: p.phaseName,
-        phaseDescription: p.phaseDescription || `Optimized execution phase ${idx + 1}`,
-        phaseOrder: idx + 1,
-        expectedStartDate: formatDateShort(p.expectedStartDate || baseStart),
-        expectedEndDate: formatDateShort(p.expectedEndDate || baseEnd),
-        status: "Planned"
-      })),
-      equipmentRequirements: rawEquip.map((e) => ({
-        equipmentTypeId: e.equipmentTypeId,
-        equipmentTypeName: e.equipmentTypeName || "Equipment",
-        quantity: Math.max(1, e.quantity),
-        allowSubstitute: true,
-        minAcceptableEfficiency: Math.max(70, e.minAcceptableEfficiency || 80),
-        note: e.note || "Standard allocation"
-      })),
-      humanRequirements: rawHuman.map((h) => ({
-        roleId: h.roleId,
-        roleName: h.roleName || "Personnel",
-        quantity: Math.max(1, h.quantity),
-        requiredSkillId: h.requiredSkillId,
-        requiredSkillName: h.requiredSkillName,
-        workingHoursPerDay: h.workingHoursPerDay || 8,
-        note: h.note || "Standard schedule"
-      })),
-      landRequirements: rawLand.map((l) => ({
-        requiredArea: l.requiredArea,
-        requiredSoilType: l.requiredSoilType,
-        note: l.note
-      }))
-    },
-    {
-      id: "ai-plan-2",
-      title: "Fast-Track Accelerated Schedule",
-      strategyBadge: "Fastest Execution",
-      description: "Compresses total duration by overlapping preparation and field deployment phases with increased personnel capacity.",
-      estimatedDurationDays: Math.max(5, Math.floor(totalDays * 0.75)),
-      totalResourceScore: 85,
-      rationale: [
-        "Reduces total timeline by approximately 25%.",
-        "Increases human resource staffing to enable parallel task execution.",
-        "Requires high-efficiency equipment readiness."
-      ],
-      changesSummary: [
-        {
-          field: "Timeline",
-          from: `${totalDays} Days (${formattedStart} → ${formattedEnd})`,
-          to: `${Math.max(5, Math.floor(totalDays * 0.75))} Days (25% faster via task overlap)`
-        },
-        {
-          field: "Equipment Requirements",
-          from: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} Qty: ${e.quantity}`).join(", ") || "Baseline Equipment",
-          to: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} Qty: ${e.quantity + 1} (High Eff: 90% required)`).join(", ")
-        },
-        {
-          field: "Human Resources",
-          from: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${h.quantity} (8h/day)`).join(", ") || "Baseline Personnel",
-          to: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${h.quantity + 1} (10h/day shift)`).join(", ")
-        },
-        {
-          field: "Land Area",
-          from: rawLand.map((l) => `${l.requiredArea} m²`).join(", ") || "500 m²",
-          to: rawLand.map((l) => `${l.requiredArea} m² (High-intensity plot usage)`).join(", ") || "500 m²"
-        }
-      ],
-      experimentPhases: rawPhases.map((p, idx) => {
-        const compressedStart = addDays(baseStart, Math.floor((idx * totalDays * 0.75) / rawPhases.length));
-        const compressedEnd = addDays(compressedStart, Math.max(2, Math.floor((totalDays * 0.75) / rawPhases.length)));
-        return {
-          phaseName: `${p.phaseName} (Accelerated)`,
-          phaseDescription: `${p.phaseDescription || "Accelerated execution phase"}. Overlapped tasks.`,
-          phaseOrder: idx + 1,
-          expectedStartDate: formatDateShort(compressedStart),
-          expectedEndDate: formatDateShort(compressedEnd),
-          status: "Planned"
-        };
-      }),
-      equipmentRequirements: rawEquip.map((e) => ({
-        equipmentTypeId: e.equipmentTypeId,
-        equipmentTypeName: e.equipmentTypeName || "Equipment",
-        quantity: Math.max(2, e.quantity + 1),
-        allowSubstitute: false,
-        minAcceptableEfficiency: 90,
-        note: `${e.note || ""} (Requires high-efficiency performance)`
-      })),
-      humanRequirements: rawHuman.map((h) => ({
-        roleId: h.roleId,
-        roleName: h.roleName || "Personnel",
-        quantity: h.quantity + 1,
-        requiredSkillId: h.requiredSkillId,
-        requiredSkillName: h.requiredSkillName,
-        workingHoursPerDay: 10,
-        note: `${h.note || ""} (Accelerated 10h/day shift)`
-      })),
-      landRequirements: rawLand.map((l) => ({
-        requiredArea: l.requiredArea,
-        requiredSoilType: l.requiredSoilType,
-        note: l.note
-      }))
-    },
-    {
-      id: "ai-plan-3",
-      title: "Resource-Efficient Plan",
-      strategyBadge: "Cost & Resource Saver",
-      description: "Minimizes equipment overlap and reduces required staff hours by staggering phase starts.",
-      estimatedDurationDays: Math.floor(totalDays * 1.15),
-      totalResourceScore: 95,
-      rationale: [
-        "Lowers overall equipment footprint by sequential utilization.",
-        "Ideal for tight equipment availability windows.",
-        "Slightly extended duration in exchange for maximum cost efficiency."
-      ],
-      changesSummary: [
-        {
-          field: "Timeline",
-          from: `${totalDays} Days (${formattedStart} → ${formattedEnd})`,
-          to: `${Math.floor(totalDays * 1.15)} Days (Staggered sequential execution)`
-        },
-        {
-          field: "Equipment Requirements",
-          from: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} Qty: ${e.quantity}`).join(", ") || "Baseline Equipment",
-          to: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} Qty: ${Math.max(1, e.quantity)} (Sequential sharing)`).join(", ")
-        },
-        {
-          field: "Human Resources",
-          from: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${h.quantity} (8h/day)`).join(", ") || "Baseline Personnel",
-          to: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${Math.max(1, h.quantity)} (6h/day shift)`).join(", ")
-        },
-        {
-          field: "Land Area",
-          from: rawLand.map((l) => `${l.requiredArea} m²`).join(", ") || "500 m²",
-          to: rawLand.map((l) => `${l.requiredArea} m² (Staggered plot usage)`).join(", ") || "500 m²"
-        }
-      ],
-      experimentPhases: rawPhases.map((p, idx) => {
-        const staggeredStart = addDays(baseStart, Math.floor((idx * totalDays * 1.15) / rawPhases.length));
-        const staggeredEnd = addDays(staggeredStart, Math.floor((totalDays * 1.15) / rawPhases.length));
-        return {
-          phaseName: p.phaseName,
-          phaseDescription: `${p.phaseDescription || "Sequential phase execution"}. Zero resource contention.`,
-          phaseOrder: idx + 1,
-          expectedStartDate: formatDateShort(staggeredStart),
-          expectedEndDate: formatDateShort(staggeredEnd),
-          status: "Planned"
-        };
-      }),
-      equipmentRequirements: rawEquip.map((e) => ({
-        equipmentTypeId: e.equipmentTypeId,
-        equipmentTypeName: e.equipmentTypeName || "Equipment",
-        quantity: Math.max(1, e.quantity),
-        allowSubstitute: true,
-        minAcceptableEfficiency: 75,
-        note: `${e.note || ""} (Sequential sharing)`
-      })),
-      humanRequirements: rawHuman.map((h) => ({
-        roleId: h.roleId,
-        roleName: h.roleName || "Personnel",
-        quantity: Math.max(1, h.quantity),
-        requiredSkillId: h.requiredSkillId,
-        requiredSkillName: h.requiredSkillName,
-        workingHoursPerDay: 6,
-        note: `${h.note || ""} (6h/day standard shift)`
-      })),
-      landRequirements: rawLand.map((l) => ({
-        requiredArea: l.requiredArea,
-        requiredSoilType: l.requiredSoilType,
-        note: l.note
-      }))
-    },
-    {
-      id: "ai-plan-4",
-      title: "High-Precision Soil & Quality Plan",
-      strategyBadge: "Maximum Accuracy",
-      description: "Allocates additional verification and sub-sampling buffer periods to maximize research data fidelity.",
-      estimatedDurationDays: Math.floor(totalDays * 1.1),
-      totalResourceScore: 88,
-      rationale: [
-        "Adds dedicated validation checkpoints between experiment phases.",
-        "Enforces strict equipment efficiency standards (>= 90%).",
-        "Recommended for high-impact publishing research."
-      ],
-      changesSummary: [
-        {
-          field: "Timeline",
-          from: `${totalDays} Days (${formattedStart} → ${formattedEnd})`,
-          to: `${Math.floor(totalDays * 1.1)} Days (Includes verification & quality audit buffers)`
-        },
-        {
-          field: "Equipment Requirements",
-          from: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} (Min Eff: ${e.minAcceptableEfficiency || 80}%)`).join(", ") || "Baseline Equipment",
-          to: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} (Min Eff: 95% High Precision)`).join(", ")
-        },
-        {
-          field: "Human Resources",
-          from: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${h.quantity}`).join(", ") || "Baseline Personnel",
-          to: rawHuman.map((h) => `${h.roleName || "Personnel"} Qty: ${h.quantity} (Data Audit Emphasis)`).join(", ")
-        },
-        {
-          field: "Land Area",
-          from: rawLand.map((l) => `${l.requiredArea} m²`).join(", ") || "500 m²",
-          to: rawLand.map((l) => `${Math.ceil(l.requiredArea * 1.1)} m² (+10% research buffer zone)`).join(", ") || "550 m²"
-        }
-      ],
-      experimentPhases: rawPhases.flatMap((p, idx) => [
-        {
-          phaseName: p.phaseName,
-          phaseDescription: p.phaseDescription || "Primary research phase",
-          phaseOrder: idx * 2 + 1,
-          expectedStartDate: formatDateShort(p.expectedStartDate || baseStart),
-          expectedEndDate: formatDateShort(p.expectedEndDate || baseEnd),
-          status: "Planned" as const
-        }
-      ]),
-      equipmentRequirements: rawEquip.map((e) => ({
-        equipmentTypeId: e.equipmentTypeId,
-        equipmentTypeName: e.equipmentTypeName || "Equipment",
-        quantity: Math.max(1, e.quantity),
-        allowSubstitute: false,
-        minAcceptableEfficiency: 95,
-        note: "High precision calibration required"
-      })),
-      humanRequirements: rawHuman.map((h) => ({
-        roleId: h.roleId,
-        roleName: h.roleName || "Personnel",
-        quantity: h.quantity,
-        requiredSkillId: h.requiredSkillId,
-        requiredSkillName: h.requiredSkillName,
-        workingHoursPerDay: 8,
-        note: "Data audit & quality control emphasis"
-      })),
-      landRequirements: rawLand.map((l) => ({
-        requiredArea: Math.ceil(l.requiredArea * 1.1),
-        requiredSoilType: l.requiredSoilType,
-        note: `${l.note || ""} (Includes 10% buffer zone)`
-      }))
-    },
-    {
-      id: "ai-plan-5",
-      title: "Adaptive Risk-Mitigated Plan",
-      strategyBadge: "High Reliability",
-      description: "Integrates flexible equipment substitution permissions and backup land plot allocations to safeguard against field disruptions.",
-      estimatedDurationDays: totalDays,
-      totalResourceScore: 90,
-      rationale: [
-        "Allows 100% equipment substitution to eliminate single-point-of-failure bottlenecks.",
-        "Includes contingency buffer for weather delays.",
-        "Flexible working hours to accommodate field availability."
-      ],
-      changesSummary: [
-        {
-          field: "Timeline",
-          from: `${totalDays} Days (${formattedStart} → ${formattedEnd})`,
-          to: `${totalDays} Days (Includes weather delay contingency)`
-        },
-        {
-          field: "Equipment Requirements",
-          from: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} (No substitution)`).join(", ") || "Baseline Equipment",
-          to: rawEquip.map((e) => `${e.equipmentTypeName || "Equipment"} (100% substitution fallback)`).join(", ")
-        },
-        {
-          field: "Human Resources",
-          from: rawHuman.map((h) => `${h.roleName || "Personnel"} (Fixed 8h shift)`).join(", ") || "Baseline Personnel",
-          to: rawHuman.map((h) => `${h.roleName || "Personnel"} (Flexible shift schedule)`).join(", ")
-        },
-        {
-          field: "Land Area",
-          from: rawLand.map((l) => `${l.requiredArea} m²`).join(", ") || "500 m²",
-          to: rawLand.map((l) => `${l.requiredArea} m² (+Backup plot registered)`).join(", ") || "500 m²"
-        }
-      ],
-      experimentPhases: rawPhases.map((p, idx) => ({
-        phaseName: `${p.phaseName} (Adaptive)`,
-        phaseDescription: p.phaseDescription || "Adaptive phase execution with contingency windows",
-        phaseOrder: idx + 1,
-        expectedStartDate: formatDateShort(p.expectedStartDate || baseStart),
-        expectedEndDate: formatDateShort(p.expectedEndDate || baseEnd),
-        status: "Planned"
-      })),
-      equipmentRequirements: rawEquip.map((e) => ({
-        equipmentTypeId: e.equipmentTypeId,
-        equipmentTypeName: e.equipmentTypeName || "Equipment",
-        quantity: e.quantity,
-        allowSubstitute: true,
-        minAcceptableEfficiency: 70,
-        note: "Substitution fallback enabled"
-      })),
-      humanRequirements: rawHuman.map((h) => ({
-        roleId: h.roleId,
-        roleName: h.roleName || "Personnel",
-        quantity: h.quantity,
-        requiredSkillId: h.requiredSkillId,
-        requiredSkillName: h.requiredSkillName,
-        workingHoursPerDay: 8,
-        note: "Flexible schedule"
-      })),
-      landRequirements: rawLand.map((l) => ({
-        requiredArea: l.requiredArea,
-        requiredSoilType: l.requiredSoilType,
-        note: `${l.note || ""} (Backup plot registered)`
-      }))
+    const advantages = Array.isArray(item.advantages) ? item.advantages : [];
+    const disadvantages = Array.isArray(item.disadvantages)
+      ? item.disadvantages
+      : [];
+
+    const rationale = [
+      ...advantages,
+      ...disadvantages.map((d) => (d.startsWith("Notice:") ? d : `Notice: ${d}`)),
+    ];
+
+    if (rationale.length === 0) {
+      rationale.push(
+        `Optimization plan generated by solver with fitness score of ${fitness.toFixed(1)}%.`
+      );
     }
-  ];
 
-  return { suggestions };
+    const description =
+      advantages.length > 0
+        ? advantages.join(". ")
+        : `AI optimization plan with fitness score of ${fitness.toFixed(1)}%.`;
+
+    const changesSummary = [
+      {
+        field: "Timeline",
+        from: `${totalDays} Days (${formattedStart} → ${formattedEnd})`,
+        to: `${durationDays} Days (${firstStart} → ${lastEnd})`,
+      },
+      {
+        field: "Equipment Allocation",
+        from: `${input.equipmentRequirements?.length || 0} types requested`,
+        to:
+          allocatedEquipment.length > 0
+            ? allocatedEquipment
+                .map((e) => e.assetCode || e.equipmentTypeName || "Equipment")
+                .join(", ")
+            : "Standard availability",
+      },
+      {
+        field: "Human Allocation",
+        from: `${input.humanRequirements?.length || 0} roles requested`,
+        to:
+          allocatedHumans.length > 0
+            ? allocatedHumans
+                .map((h) => h.fullName || h.roleName || "Staff")
+                .join(", ")
+            : "Standard assignment",
+      },
+      {
+        field: "Land Allocation",
+        from: `${input.landRequirements?.length || 0} plot(s) requested`,
+        to:
+          allocatedLands.length > 0
+            ? allocatedLands
+                .map((l) => `${l.landCode || "Plot"} (${l.areaSize || 0} m²)`)
+                .join(", ")
+            : "Standard plot",
+      },
+    ];
+
+    const experimentPhases =
+      timeline.length > 0
+        ? timeline.map((t, pIdx) => ({
+            phaseName: t.phaseName || `Phase ${pIdx + 1}`,
+            phaseDescription: `Optimized execution window (${t.durationDays || 0} days)`,
+            phaseOrder: pIdx + 1,
+            expectedStartDate: formatDateShort(t.startDate || baseStart),
+            expectedEndDate: formatDateShort(t.endDate || baseEnd),
+            status: "Planned" as const,
+          }))
+        : (input.experimentPhases || []).map((p, pIdx) => ({
+            phaseName: p.phaseName,
+            phaseDescription: p.phaseDescription || null,
+            phaseOrder: p.phaseOrder || pIdx + 1,
+            expectedStartDate: formatDateShort(p.expectedStartDate || baseStart),
+            expectedEndDate: formatDateShort(p.expectedEndDate || baseEnd),
+            status: "Planned" as const,
+          }));
+
+    const equipmentRequirements =
+      allocatedEquipment.length > 0
+        ? allocatedEquipment.map((e) => ({
+            equipmentTypeId: Number(
+              e.allocatedEquipmentTypeId || e.requiredEquipmentTypeId || 0
+            ),
+            equipmentTypeName:
+              e.equipmentTypeName || e.assetCode || "Equipment",
+            quantity: 1,
+            allowSubstitute: Boolean(e.isSubstitute),
+            minAcceptableEfficiency: Math.round(
+              Number(e.efficiencyRate ?? 1) * 100
+            ),
+            note: e.assetCode ? `Assigned unit: ${e.assetCode}` : undefined,
+          }))
+        : (input.equipmentRequirements || []).map((e) => ({
+            equipmentTypeId: e.equipmentTypeId,
+            equipmentTypeName: e.equipmentTypeName,
+            quantity: e.quantity,
+            allowSubstitute: e.allowSubstitute,
+            minAcceptableEfficiency: e.minAcceptableEfficiency,
+            note: e.note,
+          }));
+
+    const humanRequirements =
+      allocatedHumans.length > 0
+        ? allocatedHumans.map((h) => ({
+            roleId: Number(h.roleId || 0),
+            roleName: h.fullName || h.roleName || "Personnel",
+            quantity: 1,
+            requiredSkillId: null,
+            requiredSkillName: undefined,
+            workingHoursPerDay: 8,
+            note: h.fullName ? `Assigned staff: ${h.fullName}` : null,
+          }))
+        : (input.humanRequirements || []).map((h) => ({
+            roleId: h.roleId,
+            roleName: h.roleName,
+            quantity: h.quantity,
+            requiredSkillId: h.requiredSkillId,
+            requiredSkillName: h.requiredSkillName,
+            workingHoursPerDay: h.workingHoursPerDay,
+            note: h.note,
+          }));
+
+    const landRequirements =
+      allocatedLands.length > 0
+        ? allocatedLands.map((l) => ({
+            requiredArea: Number(l.areaSize || 0),
+            requiredSoilType: l.soilType || null,
+            note: l.landCode ? `Assigned plot: ${l.landCode}` : null,
+          }))
+        : (input.landRequirements || []).map((l) => ({
+            requiredArea: l.requiredArea,
+            requiredSoilType: l.requiredSoilType,
+            note: l.note,
+          }));
+
+    return {
+      id: `ai-plan-${rank}`,
+      rank,
+      title: isTop
+        ? `Optimal Allocation Candidate (Rank #${rank})`
+        : `Alternative Candidate (Rank #${rank})`,
+      strategyBadge: isTop
+        ? "Recommended (Rank 1)"
+        : `Rank #${rank} • Fitness ${fitness.toFixed(1)}%`,
+      description,
+      fitnessScore: fitness,
+      penaltyScore,
+      bonusScore,
+      fitnessBreakdown: item.fitnessBreakdown,
+      constraintReport: item.constraintReport,
+      conflictCount,
+      estimatedCompletionTime: item.estimatedCompletionTime,
+      estimatedDurationDays: durationDays,
+      totalResourceScore: Math.round(fitness),
+      advantages,
+      disadvantages,
+      rationale,
+      changesSummary,
+      allocatedLands,
+      allocatedHumans,
+      allocatedEquipment,
+      timeline,
+      experimentPhases,
+      equipmentRequirements,
+      humanRequirements,
+      landRequirements,
+    };
+  });
 }
 
 /**
- * Service function to generate AI experiment plan suggestions in RAM.
- * Generates 5 optimized plans based on experiment parameters.
+ * Service function to fetch real AI experiment plan suggestions from the backend optimization API.
+ * Calls POST /api/AllocationOptimizations/experiments/{experimentId}/suggestions
  */
 export async function generateAISuggestions(
-  input: AISuggestionInput
+  input: AISuggestionInput,
+  settings: OptimizationSettings = {}
 ): Promise<AISuggestionResponse> {
-  // Simulate AI computation time
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  return generateMockAISuggestions(input);
+  const experimentId = input.experiment.experimentId;
+
+  if (!experimentId || experimentId <= 0) {
+    throw new Error("Experiment ID is required to generate AI suggestions.");
+  }
+
+  const mergedSettings: OptimizationSettings = {
+    ...DEFAULT_OPTIMIZATION_SETTINGS,
+    ...settings,
+  };
+
+  const response = await api.post(
+    `/AllocationOptimizations/experiments/${experimentId}/suggestions`,
+    mergedSettings
+  );
+
+  const rawData = response.data?.data ?? response.data;
+  const rawList: ApiOptimizationSuggestion[] = Array.isArray(rawData)
+    ? rawData
+    : [];
+
+  if (rawList.length === 0) {
+    throw new Error("No AI suggestions were returned by the optimization solver.");
+  }
+
+  const suggestions = mapApiSuggestions(rawList, input);
+  return { suggestions };
 }
