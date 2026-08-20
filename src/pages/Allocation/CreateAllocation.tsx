@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
@@ -7,7 +7,9 @@ import { useNotification } from "../../context/NotificationContext";
 
 import { getExperiments } from "../../services/experimentService";
 import { getEquipmentInstances } from "../../services/equipmentInstanceService";
+import { getEquipmentSubstitutions } from "../../services/equipmentSubstitutionService";
 import { getHumanResourceProfiles } from "../../services/humanResourceProfileService";
+import { getHumanResourceSkills } from "../../services/humanResourceSkillService";
 import { getLandResources } from "../../services/landResourceService";
 import { getExperimentPhases } from "../../services/experimentPhaseService";
 import {
@@ -32,7 +34,9 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import type { ExperimentResponse } from "../../types/experiment";
 import type { EquipmentInstance } from "../../types/equipmentInstance";
+import type { EquipmentSubstitution } from "../../types/equipmentSubstitution";
 import type { HumanResourceProfile } from "../../types/humanResourceProfile";
+import type { HumanResourceSkill } from "../../types/humanResourceSkill";
 import type { LandResource } from "../../types/landResource";
 import type { ExperimentPhase } from "../../types/experimentPhase";
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
@@ -71,7 +75,9 @@ export default function CreateAllocation() {
   const [selectedExpId, setSelectedExpId] = useState<number>(initialExpId);
 
   const [availableEquipment, setAvailableEquipment] = useState<EquipmentInstance[]>([]);
+  const [equipmentSubstitutions, setEquipmentSubstitutions] = useState<EquipmentSubstitution[]>([]);
   const [humanProfiles, setHumanProfiles] = useState<HumanResourceProfile[]>([]);
+  const [humanResourceSkills, setHumanResourceSkills] = useState<HumanResourceSkill[]>([]);
   const [landResources, setLandResources] = useState<LandResource[]>([]);
 
   // Experiment Specific Context
@@ -102,13 +108,15 @@ export default function CreateAllocation() {
         const { userId, fullName, role } = currentUser;
         const isPrivileged = role === "Admin" || role === "Manager";
 
-        const [expRes, equipRes, humanRes, landRes] = await Promise.all([
+        const [expRes, equipRes, substitutionRes, humanRes, humanSkillRes, landRes] = await Promise.all([
           getExperiments({
             researcherId: !isPrivileged && userId > 0 ? userId : undefined,
             size: 100,
           }).catch(() => []),
-          getEquipmentInstances({ size: 100 }).catch(() => []),
-          getHumanResourceProfiles({ size: 100 }).catch(() => []),
+          getEquipmentInstances({ size: 500 }).catch(() => []),
+          getEquipmentSubstitutions({ size: 500 }).catch(() => []),
+          getHumanResourceProfiles({ size: 300 }).catch(() => []),
+          getHumanResourceSkills({ page: 1, size: 500 }).catch(() => []),
           getLandResources({ size: 100 }).catch(() => []),
         ]);
 
@@ -132,6 +140,11 @@ export default function CreateAllocation() {
         );
         setAvailableEquipment(availEquips);
 
+        const substitutions = Array.isArray(substitutionRes)
+          ? substitutionRes
+          : (substitutionRes as any)?.items || [];
+        setEquipmentSubstitutions(substitutions);
+
         // Strictly filter personnel to only Seasonal and Technician roles
         const humans = Array.isArray(humanRes) ? humanRes : (humanRes as any)?.items || [];
         const fieldStaff = humans.filter((hp: HumanResourceProfile) => {
@@ -139,6 +152,11 @@ export default function CreateAllocation() {
           return r.includes("seasonal") || r.includes("technician");
         });
         setHumanProfiles(fieldStaff);
+
+        const skills = Array.isArray(humanSkillRes)
+          ? humanSkillRes
+          : (humanSkillRes as any)?.items || [];
+        setHumanResourceSkills(skills);
 
         const lands = Array.isArray(landRes) ? landRes : (landRes as any)?.items || [];
         setLandResources(lands);
@@ -209,31 +227,441 @@ export default function CreateAllocation() {
   const selectedExp = allExperiments.find((e) => e.experimentId === selectedExpId);
   const activePhase = phases.find((p) => p.experimentPhaseId === activePhaseId);
 
-  // Toggle Equipment for current active phase
-  const handleToggleEquipment = (eqId: number) => {
-    if (!activePhaseId) return;
-    setSelectedEquipByPhase((prev) => {
-      const currentList = prev[activePhaseId] || [];
-      if (currentList.includes(eqId)) {
-        return { ...prev, [activePhaseId]: currentList.filter((id) => id !== eqId) };
-      } else {
-        return { ...prev, [activePhaseId]: [...currentList, eqId] };
-      }
+  // Normalize efficiency so both 80 and 0.8 are treated as 80%.
+  const normalizeEfficiency = (value?: number | null): number => {
+    if (value === null || value === undefined || Number.isNaN(value)) return 0;
+    return value > 1 ? value / 100 : value;
+  };
+
+  // Get equipment requirements that belong to a specific phase.
+  // Current create-experiment flow stores the phase label in note, e.g. [Phase 1:].
+  // If an experiment has only one phase, all equipment requirements belong to that phase.
+  const getEquipmentRequirementsForPhase = (
+    phaseId: number
+  ): ExperimentEquipmentRequirement[] => {
+    const phase = phases.find((item) => item.experimentPhaseId === phaseId);
+    if (!phase) return [];
+
+    if (phases.length === 1) {
+      return equipmentReqs;
+    }
+
+    const phaseName = (phase.phaseName || "").trim().toLowerCase();
+    if (!phaseName) return [];
+
+    const phaseNameWithoutColon = phaseName.replace(/:$/, "");
+
+    return equipmentReqs.filter((req) => {
+      const note = (req.note || "").trim().toLowerCase();
+      return (
+        note.includes(`[${phaseName}`) ||
+        note.includes(`[${phaseNameWithoutColon}`)
+      );
     });
   };
 
-  // Toggle Personnel for current active phase
-  const handleToggleHuman = (humanId: number) => {
-    if (!activePhaseId) return;
-    setSelectedHumansByPhase((prev) => {
-      const currentList = prev[activePhaseId] || [];
-      if (currentList.includes(humanId)) {
-        return { ...prev, [activePhaseId]: currentList.filter((id) => id !== humanId) };
-      } else {
-        return { ...prev, [activePhaseId]: [...currentList, humanId] };
+  const activePhaseEquipmentRequirements = useMemo(() => {
+    if (!activePhaseId) return [];
+    return getEquipmentRequirementsForPhase(activePhaseId);
+  }, [activePhaseId, phases, equipmentReqs]);
+
+  type EquipmentRequirementMatch = {
+    requirement: ExperimentEquipmentRequirement;
+    substitution?: EquipmentSubstitution;
+    isSubstitute: boolean;
+    effectiveEfficiency: number;
+  };
+
+  // Find which requirement an equipment instance satisfies.
+  // Primary equipment must match equipmentTypeId directly.
+  // Substitute equipment is allowed only when:
+  // - Researcher enabled allowSubstitute
+  // - EquipmentSubstitutions links primary -> substitute type
+  // - Effective efficiency meets minAcceptableEfficiency
+  const findEquipmentMatch = (
+    phaseId: number,
+    equipment: EquipmentInstance
+  ): EquipmentRequirementMatch | null => {
+    const requirements = getEquipmentRequirementsForPhase(phaseId);
+    const equipmentTypeId = equipment.equipmentTypeId;
+    const instanceEfficiency = normalizeEfficiency(equipment.efficiencyRate ?? 1);
+
+    // Prefer the requested equipment type itself.
+    for (const requirement of requirements) {
+      if (requirement.equipmentTypeId !== equipmentTypeId) continue;
+
+      const minimumEfficiency = normalizeEfficiency(
+        requirement.minAcceptableEfficiency
+      );
+
+      if (instanceEfficiency >= minimumEfficiency) {
+        return {
+          requirement,
+          isSubstitute: false,
+          effectiveEfficiency: instanceEfficiency,
+        };
       }
+    }
+
+    // Then try valid substitute types.
+    let bestMatch: EquipmentRequirementMatch | null = null;
+
+    for (const requirement of requirements) {
+      if (!requirement.allowSubstitute) continue;
+
+      const minimumEfficiency = normalizeEfficiency(
+        requirement.minAcceptableEfficiency
+      );
+
+      const validRelations = equipmentSubstitutions.filter(
+        (substitution) =>
+          substitution.primaryEquipmentTypeId === requirement.equipmentTypeId &&
+          substitution.subEquipmentTypeId === equipmentTypeId
+      );
+
+      for (const substitution of validRelations) {
+        const substitutionEfficiency = normalizeEfficiency(
+          substitution.efficiencyRate
+        );
+
+        // Effective efficiency combines the actual instance condition/efficiency
+        // with the substitution conversion efficiency.
+        const effectiveEfficiency = instanceEfficiency * substitutionEfficiency;
+
+        if (effectiveEfficiency < minimumEfficiency) continue;
+
+        if (
+          !bestMatch ||
+          effectiveEfficiency > bestMatch.effectiveEfficiency
+        ) {
+          bestMatch = {
+            requirement,
+            substitution,
+            isSubstitute: true,
+            effectiveEfficiency,
+          };
+        }
+      }
+    }
+
+    return bestMatch;
+  };
+
+  const primaryEquipmentForActivePhase = useMemo(() => {
+    if (!activePhaseId) return [];
+
+    return availableEquipment.filter((equipment) => {
+      if (equipment.status !== "Available") return false;
+      const match = findEquipmentMatch(activePhaseId, equipment);
+      return Boolean(match && !match.isSubstitute);
+    });
+  }, [
+    activePhaseId,
+    activePhaseEquipmentRequirements,
+    availableEquipment,
+    equipmentSubstitutions,
+  ]);
+
+  const substituteEquipmentForActivePhase = useMemo(() => {
+    if (!activePhaseId) return [];
+
+    return availableEquipment
+      .map((equipment) => {
+        if (equipment.status !== "Available") return null;
+        const match = findEquipmentMatch(activePhaseId, equipment);
+        if (!match || !match.isSubstitute) return null;
+        return { equipment, match };
+      })
+      .filter(
+        (
+          item
+        ): item is {
+          equipment: EquipmentInstance;
+          match: EquipmentRequirementMatch;
+        } => item !== null
+      );
+  }, [
+    activePhaseId,
+    activePhaseEquipmentRequirements,
+    availableEquipment,
+    equipmentSubstitutions,
+  ]);
+
+  // Toggle Equipment for current active phase.
+  // Quantity is enforced per requirement, so a substitute counts toward
+  // the quantity of its primary requirement.
+  const handleToggleEquipment = (eqId: number) => {
+    if (!activePhaseId) return;
+
+    const equipment = availableEquipment.find(
+      (item) => item.equipmentInstanceId === eqId
+    );
+
+    if (!equipment) return;
+
+    const targetMatch = findEquipmentMatch(activePhaseId, equipment);
+    if (!targetMatch) {
+      setError("This equipment does not satisfy the selected phase requirement.");
+      return;
+    }
+
+    setSelectedEquipByPhase((prev) => {
+      const currentList = prev[activePhaseId] || [];
+
+      if (currentList.includes(eqId)) {
+        setError("");
+        return {
+          ...prev,
+          [activePhaseId]: currentList.filter((id) => id !== eqId),
+        };
+      }
+
+      const selectedForSameRequirement = currentList.filter((selectedId) => {
+        const selectedEquipment = availableEquipment.find(
+          (item) => item.equipmentInstanceId === selectedId
+        );
+        if (!selectedEquipment) return false;
+
+        const selectedMatch = findEquipmentMatch(
+          activePhaseId,
+          selectedEquipment
+        );
+
+        return (
+          selectedMatch?.requirement.expEquipmentReqId ===
+          targetMatch.requirement.expEquipmentReqId
+        );
+      }).length;
+
+      const requiredQuantity = Math.max(
+        0,
+        targetMatch.requirement.quantity || 0
+      );
+
+      if (
+        requiredQuantity > 0 &&
+        selectedForSameRequirement >= requiredQuantity
+      ) {
+        setError(
+          `Requirement "${
+            targetMatch.requirement.equipmentTypeName ||
+            `Equipment Type #${targetMatch.requirement.equipmentTypeId}`
+          }" requires only ${requiredQuantity} unit(s).`
+        );
+        return prev;
+      }
+
+      setError("");
+      return {
+        ...prev,
+        [activePhaseId]: [...currentList, eqId],
+      };
     });
   };
+
+  // Get human requirements that belong to a specific phase.
+  // Current create-experiment flow stores the phase label in note, e.g. [Phase 1:].
+  // If an experiment has only one phase, all human requirements belong to that phase.
+  const getHumanRequirementsForPhase = (
+    phaseId: number
+  ): ExperimentHumanRequirement[] => {
+    const phase = phases.find((item) => item.experimentPhaseId === phaseId);
+    if (!phase) return [];
+
+    if (phases.length === 1) {
+      return humanReqs;
+    }
+
+    const phaseName = (phase.phaseName || "").trim().toLowerCase();
+    if (!phaseName) return [];
+
+    const phaseNameWithoutColon = phaseName.replace(/:$/, "");
+
+    return humanReqs.filter((req) => {
+      const note = (req.note || "").trim().toLowerCase();
+      return (
+        note.includes(`[${phaseName}`) ||
+        note.includes(`[${phaseNameWithoutColon}`)
+      );
+    });
+  };
+
+  const activePhaseHumanRequirements = useMemo(() => {
+    if (!activePhaseId) return [];
+    return getHumanRequirementsForPhase(activePhaseId);
+  }, [activePhaseId, phases, humanReqs]);
+
+  type HumanRequirementMatch = {
+    requirement: ExperimentHumanRequirement;
+    matchedSkill?: HumanResourceSkill;
+  };
+
+  // Find which human requirement a profile satisfies.
+  // A person must match role, available working hours, and required skill (when specified).
+  const findHumanMatch = (
+    phaseId: number,
+    human: HumanResourceProfile
+  ): HumanRequirementMatch | null => {
+    const requirements = getHumanRequirementsForPhase(phaseId);
+
+    for (const requirement of requirements) {
+      if (human.roleId == null || human.roleId !== requirement.roleId) {
+        continue;
+      }
+
+      const requiredHours = requirement.workingHoursPerDay ?? 0;
+      const availableHours = human.maxWorkingHoursPerDay ?? 0;
+
+      if (requiredHours > 0 && availableHours < requiredHours) {
+        continue;
+      }
+
+      if (requirement.requiredSkillId == null) {
+        return { requirement };
+      }
+
+      const matchedSkill = humanResourceSkills.find(
+        (skill) =>
+          skill.humanResourceId === human.humanResourceId &&
+          skill.skillId === requirement.requiredSkillId
+      );
+
+      if (matchedSkill) {
+        return { requirement, matchedSkill };
+      }
+    }
+
+    return null;
+  };
+
+  const filteredHumansForActivePhase = useMemo(() => {
+    if (!activePhaseId) return [];
+
+    return humanProfiles.filter((human) => {
+      if (human.status !== "Available") return false;
+      return Boolean(findHumanMatch(activePhaseId, human));
+    });
+  }, [
+    activePhaseId,
+    activePhaseHumanRequirements,
+    humanProfiles,
+    humanResourceSkills,
+  ]);
+
+  // Toggle Personnel for current active phase.
+  // Quantity is enforced per human requirement.
+  const handleToggleHuman = (humanId: number) => {
+    if (!activePhaseId) return;
+
+    const human = humanProfiles.find(
+      (item) => item.humanResourceId === humanId
+    );
+
+    if (!human) return;
+
+    const targetMatch = findHumanMatch(activePhaseId, human);
+    if (!targetMatch) {
+      setError("This person does not satisfy the selected phase personnel requirement.");
+      return;
+    }
+
+    setSelectedHumansByPhase((prev) => {
+      const currentList = prev[activePhaseId] || [];
+
+      if (currentList.includes(humanId)) {
+        setError("");
+        return {
+          ...prev,
+          [activePhaseId]: currentList.filter((id) => id !== humanId),
+        };
+      }
+
+      const selectedForSameRequirement = currentList.filter((selectedId) => {
+        const selectedHuman = humanProfiles.find(
+          (item) => item.humanResourceId === selectedId
+        );
+        if (!selectedHuman) return false;
+
+        const selectedMatch = findHumanMatch(activePhaseId, selectedHuman);
+
+        return (
+          selectedMatch?.requirement.expHumanReqId ===
+          targetMatch.requirement.expHumanReqId
+        );
+      }).length;
+
+      const requiredQuantity = Math.max(
+        0,
+        targetMatch.requirement.quantity || 0
+      );
+
+      if (
+        requiredQuantity > 0 &&
+        selectedForSameRequirement >= requiredQuantity
+      ) {
+        setError(
+          `Requirement "${
+            targetMatch.requirement.roleName ||
+            `Role #${targetMatch.requirement.roleId}`
+          }" requires only ${requiredQuantity} person(s).`
+        );
+        return prev;
+      }
+
+      setError("");
+      return {
+        ...prev,
+        [activePhaseId]: [...currentList, humanId],
+      };
+    });
+  };
+
+
+  // Land requirement for the selected experiment.
+  // Current business rule: each experiment has at most one land requirement.
+  const activeLandRequirement = useMemo(() => {
+    if (landReqs.length === 0) return null;
+    return landReqs[0];
+  }, [landReqs]);
+
+  // Filter land plots according to the requirement chosen by the Researcher.
+  // A plot is valid when:
+  // - status is Available (or backend omitted the status),
+  // - soilType matches requiredSoilType,
+  // - areaSize is greater than or equal to requiredArea.
+  const filteredLandResources = useMemo(() => {
+    if (!activeLandRequirement) return [];
+
+    const requiredSoilType = (
+      activeLandRequirement.requiredSoilType || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    const requiredArea = Number(activeLandRequirement.requiredArea) || 0;
+
+    return landResources.filter((land) => {
+      if (land.status && land.status !== "Available") {
+        return false;
+      }
+
+      const landSoilType = (land.soilType || "")
+        .trim()
+        .toLowerCase();
+
+      if (requiredSoilType && landSoilType !== requiredSoilType) {
+        return false;
+      }
+
+      const landArea = Number(land.areaSize) || 0;
+
+      if (requiredArea > 0 && landArea < requiredArea) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [activeLandRequirement, landResources]);
 
   // Select Land (Strictly 1 Land Plot for the Experiment)
   const handleSelectLand = (landId: number) => {
@@ -279,34 +707,44 @@ export default function CreateAllocation() {
         const eDate = convertDateToIso(pObj?.expectedEndDate || selectedExp.expectEndDate, true);
 
         for (const eqId of eqIds) {
-          const eqObj = availableEquipment.find((e) => e.equipmentInstanceId === eqId);
-          let expEqReqId = equipmentReqs.find((er) => er.equipmentTypeId === eqObj?.equipmentTypeId)?.expEquipmentReqId || equipmentReqs[0]?.expEquipmentReqId;
-          
+          const eqObj = availableEquipment.find(
+            (e) => e.equipmentInstanceId === eqId
+          );
+
+          if (!eqObj) {
+            console.warn(`Skipping equipment ${eqId}: equipment instance not found.`);
+            continue;
+          }
+
+          const equipmentTypeId = eqObj.equipmentTypeId;
+          const match = findEquipmentMatch(phaseIdNum, eqObj);
+
+          if (!match) {
+            console.warn(
+              `Skipping equipment ${eqId}: it no longer matches a requirement for phase ${phaseIdNum}.`
+            );
+            continue;
+          }
+
+          const expEqReqId = match.requirement.expEquipmentReqId;
+
           if (!expEqReqId) {
-            try {
-              const createdEqReq = await createExperimentEquipmentRequirement({
-                experimentId: selectedExpId,
-                equipmentTypeId: eqObj?.equipmentTypeId || 1,
-                quantity: 1,
-                allowSubstitute: true,
-                minAcceptableEfficiency: eqObj?.efficiencyRate ?? 1,
-              });
-              expEqReqId = (createdEqReq as any)?.expEquipmentReqId || (createdEqReq as any)?.id;
-            } catch {
-              expEqReqId = 1;
-            }
+            console.warn(
+              `Skipping equipment ${eqId}: matching experiment equipment requirement has no ID.`
+            );
+            continue;
           }
 
           try {
             await createAllocationEquipmentDetail({
               allocationPlanId: planId,
-              expEquipmentReqId: expEqReqId || 1,
+              expEquipmentReqId: expEqReqId,
               phaseEquipmentReqId: phaseIdNum,
-              allocatedEquipmentTypeId: eqObj?.equipmentTypeId || 1,
+              allocatedEquipmentTypeId: equipmentTypeId,
               equipmentInstanceId: eqId,
               quantity: 1,
-              efficiencyRate: eqObj?.efficiencyRate ?? 1,
-              isSubstitute: false,
+              efficiencyRate: match.effectiveEfficiency,
+              isSubstitute: match.isSubstitute,
               startDate: sDate,
               endDate: eDate,
               status: "Allocated",
@@ -590,7 +1028,7 @@ export default function CreateAllocation() {
                 <div>
                   <h4>Equipment for "{activePhase.phaseName}"</h4>
                   <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 400 }}>
-                    Select available units to allocate to this phase.
+                    Select equipment that matches this phase's equipment requirements.
                   </span>
                 </div>
                 <span className="alloc-selection-count">
@@ -598,76 +1036,468 @@ export default function CreateAllocation() {
                 </span>
               </div>
 
-              {availableEquipment.length === 0 ? (
-                <p style={{ color: "#64748b", fontSize: "12.5px", margin: "12px 0", fontWeight: 400 }}>
-                  {loading ? "Loading available equipment..." : "No available equipment instances found in the system."}
+              {activePhaseEquipmentRequirements.length > 0 && (
+                <div
+                  style={{
+                    margin: "10px 0 12px",
+                    padding: "10px 12px",
+                    border: "1px solid #dcfce7",
+                    background: "#f0fdf4",
+                    borderRadius: "7px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#166534",
+                      marginBottom: "6px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    Equipment Requirement
+                  </div>
+
+                  {activePhaseEquipmentRequirements.map((req) => (
+                    <div
+                      key={req.expEquipmentReqId}
+                      style={{
+                        fontSize: "12px",
+                        color: "#334155",
+                        marginTop: "3px",
+                      }}
+                    >
+                      <strong>
+                        {req.equipmentTypeName || `Equipment Type #${req.equipmentTypeId}`}
+                      </strong>
+                      {" • "}
+                      Required: {req.quantity}
+                      {" • "}
+                      Min Eff: {Math.round(
+                        normalizeEfficiency(req.minAcceptableEfficiency) * 100
+                      )}%
+                      {" • "}
+                      Substitute: {req.allowSubstitute ? "Allowed" : "No"}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {loading ? (
+                <p
+                  style={{
+                    color: "#64748b",
+                    fontSize: "12.5px",
+                    margin: "12px 0",
+                    fontWeight: 400,
+                  }}
+                >
+                  Loading available equipment...
+                </p>
+              ) : activePhaseEquipmentRequirements.length === 0 ? (
+                <p
+                  style={{
+                    color: "#b45309",
+                    fontSize: "12.5px",
+                    margin: "12px 0",
+                    fontWeight: 500,
+                  }}
+                >
+                  No equipment requirement is configured for this phase.
+                </p>
+              ) : primaryEquipmentForActivePhase.length === 0 &&
+                substituteEquipmentForActivePhase.length === 0 ? (
+                <p
+                  style={{
+                    color: "#64748b",
+                    fontSize: "12.5px",
+                    margin: "12px 0",
+                    fontWeight: 400,
+                  }}
+                >
+                  No available equipment or valid substitution matches the requirements for this phase.
                 </p>
               ) : (
-                <div className="alloc-items-list">
-                  {availableEquipment.map((eq) => {
-                    const isChecked = (
-                      selectedEquipByPhase[activePhase.experimentPhaseId] || []
-                    ).includes(eq.equipmentInstanceId);
+                <>
+                  <div
+                    style={{
+                      margin: "10px 0 7px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#0f766e",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Requested Equipment
+                  </div>
 
-                    return (
-                      <div
-                        key={eq.equipmentInstanceId}
-                        onClick={() => handleToggleEquipment(eq.equipmentInstanceId)}
-                        className={`alloc-item-row ${isChecked ? "selected" : ""}`}
-                      >
-                        <div style={{ display: "flex", alignItems: "center" }}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            className="alloc-item-checkbox"
-                          />
-                          <div>
-                            <div style={{ fontSize: "13px", color: "#0284c7", fontWeight: 550 }}>
-                              {eq.assetCode || `EQ-${eq.equipmentInstanceId}`}
+                  {primaryEquipmentForActivePhase.length === 0 ? (
+                    <p
+                      style={{
+                        color: "#64748b",
+                        fontSize: "12px",
+                        margin: "8px 0 12px",
+                      }}
+                    >
+                      No primary equipment is currently available.
+                    </p>
+                  ) : (
+                    <div className="alloc-items-list">
+                      {primaryEquipmentForActivePhase.map((eq) => {
+                        const match = findEquipmentMatch(
+                          activePhase.experimentPhaseId,
+                          eq
+                        );
+                        const isChecked = (
+                          selectedEquipByPhase[activePhase.experimentPhaseId] || []
+                        ).includes(eq.equipmentInstanceId);
+
+                        return (
+                          <div
+                            key={`primary-${eq.equipmentInstanceId}`}
+                            onClick={() =>
+                              handleToggleEquipment(eq.equipmentInstanceId)
+                            }
+                            className={`alloc-item-row ${
+                              isChecked ? "selected" : ""
+                            }`}
+                          >
+                            <div style={{ display: "flex", alignItems: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}}
+                                className="alloc-item-checkbox"
+                              />
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    color: "#0284c7",
+                                    fontWeight: 550,
+                                  }}
+                                >
+                                  {eq.assetCode || `EQ-${eq.equipmentInstanceId}`}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "11.5px",
+                                    color: "#64748b",
+                                    fontWeight: 400,
+                                  }}
+                                >
+                                  {eq.equipmentTypeName ||
+                                    `Type #${eq.equipmentTypeId}`} {" • "}
+                                  {eq.conditionLevel || "Good"}
+                                </div>
+                              </div>
                             </div>
-                            <div style={{ fontSize: "11.5px", color: "#64748b", fontWeight: 400 }}>
-                              {eq.equipmentTypeName || `Type #${eq.equipmentTypeId}`} • {eq.conditionLevel || "Good"}
+
+                            <div style={{ textAlign: "right" }}>
+                              <div
+                                style={{
+                                  fontSize: "10.5px",
+                                  fontWeight: 700,
+                                  color: "#15803d",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                PRIMARY
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: "11.5px",
+                                  fontWeight: 500,
+                                  color: "#16a34a",
+                                }}
+                              >
+                                {Math.round(
+                                  (match?.effectiveEfficiency ??
+                                    normalizeEfficiency(eq.efficiencyRate ?? 1)) *
+                                    100
+                                )}
+                                % Eff.
+                              </span>
                             </div>
                           </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                        <div style={{ textAlign: "right" }}>
-                          <span style={{ fontSize: "11.5px", fontWeight: 500, color: "#16a34a" }}>
-                            {Math.round((eq.efficiencyRate ?? 1) * 100)}% Eff.
-                          </span>
-                        </div>
+                  {activePhaseEquipmentRequirements.some(
+                    (req) => req.allowSubstitute
+                  ) && (
+                    <>
+                      <div
+                        style={{
+                          margin: "16px 0 7px",
+                          paddingTop: "12px",
+                          borderTop: "1px dashed #cbd5e1",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: "#7c3aed",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        Valid Equipment Substitutions
                       </div>
-                    );
-                  })}
-                </div>
+
+                      {substituteEquipmentForActivePhase.length === 0 ? (
+                        <p
+                          style={{
+                            color: "#64748b",
+                            fontSize: "12px",
+                            margin: "8px 0",
+                          }}
+                        >
+                          No available substitute equipment meets the minimum efficiency requirement.
+                        </p>
+                      ) : (
+                        <div className="alloc-items-list">
+                          {substituteEquipmentForActivePhase.map(
+                            ({ equipment: eq, match }) => {
+                              const isChecked = (
+                                selectedEquipByPhase[
+                                  activePhase.experimentPhaseId
+                                ] || []
+                              ).includes(eq.equipmentInstanceId);
+
+                              const substitutionEfficiency = normalizeEfficiency(
+                                match.substitution?.efficiencyRate ?? 0
+                              );
+
+                              return (
+                                <div
+                                  key={`sub-${eq.equipmentInstanceId}-${match.requirement.expEquipmentReqId}`}
+                                  onClick={() =>
+                                    handleToggleEquipment(eq.equipmentInstanceId)
+                                  }
+                                  className={`alloc-item-row ${
+                                    isChecked ? "selected" : ""
+                                  }`}
+                                  style={{
+                                    borderColor: isChecked ? "#a78bfa" : "#ddd6fe",
+                                    background: isChecked ? "#f5f3ff" : "#faf5ff",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {}}
+                                      className="alloc-item-checkbox"
+                                    />
+                                    <div>
+                                      <div
+                                        style={{
+                                          fontSize: "13px",
+                                          color: "#7c3aed",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {eq.assetCode ||
+                                          `EQ-${eq.equipmentInstanceId}`}
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: "11.5px",
+                                          color: "#64748b",
+                                          fontWeight: 400,
+                                        }}
+                                      >
+                                        {eq.equipmentTypeName ||
+                                          match.substitution?.subEquipmentTypeName ||
+                                          `Type #${eq.equipmentTypeId}`} {" • "}
+                                        substitutes for {" "}
+                                        <strong>
+                                          {match.requirement.equipmentTypeName ||
+                                            match.substitution
+                                              ?.primaryEquipmentTypeName ||
+                                            `Type #${match.requirement.equipmentTypeId}`}
+                                        </strong>
+                                      </div>
+                                      {match.substitution?.note && (
+                                        <div
+                                          style={{
+                                            fontSize: "10.5px",
+                                            color: "#7c3aed",
+                                            marginTop: "2px",
+                                          }}
+                                        >
+                                          {match.substitution.note}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div style={{ textAlign: "right" }}>
+                                    <div
+                                      style={{
+                                        fontSize: "10.5px",
+                                        fontWeight: 700,
+                                        color: "#7c3aed",
+                                        marginBottom: "2px",
+                                      }}
+                                    >
+                                      SUBSTITUTE
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: "11.5px",
+                                        fontWeight: 600,
+                                        color: "#7c3aed",
+                                      }}
+                                    >
+                                      {Math.round(match.effectiveEfficiency * 100)}%
+                                      Effective
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: "10.5px",
+                                        color: "#64748b",
+                                      }}
+                                    >
+                                      Rule: {Math.round(substitutionEfficiency * 100)}%
+                                      {match.substitution?.timeMultiplier
+                                        ? ` • Time ×${match.substitution.timeMultiplier}`
+                                        : ""}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
 
-            {/* Right: Phase Personnel Allocation (Seasonal & Technician Only) */}
+            {/* Right: Phase Personnel Allocation */}
             <div className="alloc-section-card">
               <div className="alloc-section-header">
                 <div>
                   <h4>Personnel for "{activePhase.phaseName}"</h4>
-                  <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 400 }}>
-                    Select seasonal/technician workforce for this phase.
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748b",
+                      fontWeight: 400,
+                    }}
+                  >
+                    Select personnel matching this phase&apos;s role, skill, and working-hour requirements.
                   </span>
                 </div>
+
                 <span className="alloc-selection-count">
                   {selectedHumansByPhase[activePhase.experimentPhaseId]?.length || 0} Selected
                 </span>
               </div>
 
-              {humanProfiles.length === 0 ? (
-                <p style={{ color: "#64748b", fontSize: "12.5px", margin: "12px 0", fontWeight: 400 }}>
-                  {loading ? "Loading workforce data..." : "No seasonal workers or field technicians found."}
+              {activePhaseHumanRequirements.length > 0 && (
+                <div
+                  style={{
+                    margin: "10px 0 12px",
+                    padding: "10px 12px",
+                    border: "1px solid #ede9fe",
+                    background: "#faf5ff",
+                    borderRadius: "7px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#7e22ce",
+                      marginBottom: "6px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    Personnel Requirement
+                  </div>
+
+                  {activePhaseHumanRequirements.map((requirement) => (
+                    <div
+                      key={requirement.expHumanReqId}
+                      style={{
+                        fontSize: "12px",
+                        color: "#334155",
+                        marginTop: "4px",
+                      }}
+                    >
+                      <strong>
+                        {requirement.roleName || `Role #${requirement.roleId}`}
+                      </strong>
+                      {" • "}
+                      Required: {requirement.quantity}
+                      {" • "}
+                      Skill: {requirement.requiredSkillName ||
+                        (requirement.requiredSkillId
+                          ? `Skill #${requirement.requiredSkillId}`
+                          : "Any")}
+                      {" • "}
+                      Working: {requirement.workingHoursPerDay ?? "-"} hrs/day
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {loading ? (
+                <p
+                  style={{
+                    color: "#64748b",
+                    fontSize: "12.5px",
+                    margin: "12px 0",
+                    fontWeight: 400,
+                  }}
+                >
+                  Loading workforce data...
+                </p>
+              ) : activePhaseHumanRequirements.length === 0 ? (
+                <p
+                  style={{
+                    color: "#b45309",
+                    fontSize: "12.5px",
+                    margin: "12px 0",
+                    fontWeight: 500,
+                  }}
+                >
+                  No personnel requirement is configured for this phase.
+                </p>
+              ) : filteredHumansForActivePhase.length === 0 ? (
+                <p
+                  style={{
+                    color: "#64748b",
+                    fontSize: "12.5px",
+                    margin: "12px 0",
+                    fontWeight: 400,
+                  }}
+                >
+                  No available personnel matches this phase&apos;s role, skill, and working-hour requirements.
                 </p>
               ) : (
                 <div className="alloc-items-list">
-                  {humanProfiles.map((hp) => {
+                  {filteredHumansForActivePhase.map((hp) => {
                     const isChecked = (
                       selectedHumansByPhase[activePhase.experimentPhaseId] || []
                     ).includes(hp.humanResourceId);
+
+                    const match = findHumanMatch(
+                      activePhase.experimentPhaseId,
+                      hp
+                    );
 
                     return (
                       <div
@@ -682,26 +1512,73 @@ export default function CreateAllocation() {
                             onChange={() => {}}
                             className="alloc-item-checkbox"
                           />
+
                           <div>
-                            <div style={{ fontSize: "13px", color: "#1e293b", fontWeight: 550 }}>
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#1e293b",
+                                fontWeight: 550,
+                              }}
+                            >
                               {hp.fullName || `Staff #${hp.userId || hp.humanResourceId}`}
                             </div>
-                            <div style={{ fontSize: "11.5px", color: "#64748b", fontWeight: 400 }}>
-                              <span style={{ fontWeight: 500, color: "#7e22ce", marginRight: "6px" }}>
-                                {hp.roleName || (hp as any)?.role || "Technician"}
+
+                            <div
+                              style={{
+                                fontSize: "11.5px",
+                                color: "#64748b",
+                                fontWeight: 400,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontWeight: 500,
+                                  color: "#7e22ce",
+                                  marginRight: "6px",
+                                }}
+                              >
+                                {hp.roleName || `Role #${hp.roleId ?? "-"}`}
                               </span>
-                              • {hp.maxWorkingHoursPerDay ?? 8} hrs/day
+                              • {hp.maxWorkingHoursPerDay ?? 0} hrs/day
                             </div>
                           </div>
                         </div>
 
-                        <div>
-                          {Array.isArray((hp as any)?.skills) && (hp as any).skills.length > 0 ? (
-                            <span style={{ fontSize: "11px", background: "#f0f9ff", color: "#0369a1", padding: "2px 6px", borderRadius: "4px", border: "1px solid #e0f2fe", fontWeight: 500 }}>
-                              {typeof (hp as any).skills[0] === "string" ? (hp as any).skills[0] : (hp as any).skills[0]?.skillName}
-                            </span>
+                        <div style={{ textAlign: "right" }}>
+                          {match?.matchedSkill ? (
+                            <>
+                              <div
+                                style={{
+                                  fontSize: "11.5px",
+                                  color: "#0369a1",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {match.matchedSkill.skillName ||
+                                  `Skill #${match.matchedSkill.skillId}`}
+                              </div>
+
+                              <div
+                                style={{
+                                  fontSize: "10.5px",
+                                  color: "#64748b",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                {match.matchedSkill.skillLevel}
+                              </div>
+                            </>
                           ) : (
-                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>General</span>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                color: "#16a34a",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Role Match
+                            </span>
                           )}
                         </div>
                       </div>
@@ -714,29 +1591,123 @@ export default function CreateAllocation() {
         ) : null}
 
         {/* 3. Experiment Land Plot Selection (Strictly 1 Plot Allowed) */}
-        <div className="alloc-section-card full-width" style={{ marginBottom: "20px" }}>
+        <div
+          className="alloc-section-card full-width"
+          style={{ marginBottom: "20px" }}
+        >
           <div className="alloc-section-header">
             <div>
               <h4>3. Experiment Land Plot (Strictly Max 1 Plot)</h4>
-              <span style={{ fontSize: "12px", color: "#b45309", fontWeight: 450 }}>
-                Mỗi Experiment chỉ được phép phân bổ tối đa 01 thửa đất duy nhất cho toàn bộ chu kỳ thí nghiệm.
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "#64748b",
+                  fontWeight: 400,
+                }}
+              >
+                Select one available land plot matching the Researcher&apos;s land requirement.
               </span>
             </div>
+
             {selectedLandId && (
-              <span className="alloc-selection-count">
-                Plot #{landResources.find((l) => l.landId === selectedLandId)?.landCode || selectedLandId} Selected
-              </span>
+              <span className="alloc-selection-count">1 Selected</span>
             )}
           </div>
 
-          {landResources.length === 0 ? (
-            <p style={{ color: "#64748b", fontSize: "12.5px", margin: "12px 0", fontWeight: 400 }}>
-              {loading ? "Loading land plots..." : "No available land plots found in the system."}
+          {/* Land requirement summary */}
+          {activeLandRequirement && (
+            <div
+              style={{
+                margin: "10px 0 14px",
+                padding: "10px 12px",
+                border: "1px solid #fed7aa",
+                background: "#fff7ed",
+                borderRadius: "7px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "#c2410c",
+                  marginBottom: "6px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
+                }}
+              >
+                Land Requirement
+              </div>
+
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#334155",
+                }}
+              >
+                <strong>
+                  Soil Type: {activeLandRequirement.requiredSoilType || "Any"}
+                </strong>
+                {" • "}
+                Required Area:{" "}
+                <strong>
+                  {activeLandRequirement.requiredArea || 0} m²
+                </strong>
+                {activeLandRequirement.note && (
+                  <>
+                    {" • "}
+                    Note: {activeLandRequirement.note}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: "12.5px",
+                margin: "12px 0",
+                fontWeight: 400,
+              }}
+            >
+              Loading land resources...
+            </p>
+          ) : !activeLandRequirement ? (
+            <p
+              style={{
+                color: "#b45309",
+                fontSize: "12.5px",
+                margin: "12px 0",
+                fontWeight: 500,
+              }}
+            >
+              No land requirement is configured for this experiment.
+            </p>
+          ) : filteredLandResources.length === 0 ? (
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: "12.5px",
+                margin: "12px 0",
+                fontWeight: 400,
+              }}
+            >
+              No available land plot matches the required soil type and area.
             </p>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "10px" }}>
-              {landResources.map((land) => {
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: "10px",
+              }}
+            >
+              {filteredLandResources.map((land) => {
                 const isSelected = selectedLandId === land.landId;
+                const requiredArea = Number(activeLandRequirement.requiredArea) || 0;
+                const landArea = Number(land.areaSize) || 0;
+                const extraArea = Math.max(0, landArea - requiredArea);
 
                 return (
                   <div
@@ -752,18 +1723,62 @@ export default function CreateAllocation() {
                         onChange={() => {}}
                         className="alloc-land-radio"
                       />
+
                       <div>
-                        <div style={{ fontSize: "13px", color: "#15803d", fontWeight: 550 }}>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "#15803d",
+                            fontWeight: 600,
+                          }}
+                        >
                           {land.landCode || `Plot #${land.landId}`}
                         </div>
-                        <div style={{ fontSize: "11.5px", color: "#64748b", fontWeight: 400 }}>
-                          {land.soilType || "Standard Soil"} • {land.areaSize?.toLocaleString() || "-"} m²
+
+                        <div
+                          style={{
+                            fontSize: "11.5px",
+                            color: "#64748b",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {land.soilType || "Unknown Soil"}
+                          {" • "}
+                          {land.areaSize?.toLocaleString() || "-"} m²
                         </div>
+
+                        {extraArea > 0 && (
+                          <div
+                            style={{
+                              marginTop: "3px",
+                              fontSize: "10.5px",
+                              color: "#64748b",
+                            }}
+                          >
+                            +{extraArea.toLocaleString()} m² above requirement
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: "4px",
+                      }}
+                    >
                       <span className="badge-available">Available</span>
+                      <span
+                        style={{
+                          fontSize: "10.5px",
+                          color: "#16a34a",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Matches Requirement
+                      </span>
                     </div>
                   </div>
                 );
