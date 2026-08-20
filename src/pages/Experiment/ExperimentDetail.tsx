@@ -451,11 +451,10 @@ export default function ExperimentDetail() {
   const [actionProcessing, setActionProcessing] = useState(false);
 
   const isManagerOrAdmin = role === "Admin" || role === "Manager";
+  const isResearcher = role === "Researcher";
   const isSubmittedOrPending =
     experiment?.status === "Submitted" ||
-    experiment?.status === "Pending" ||
-    experiment?.status === "Created" ||
-    experiment?.status === "Draft";
+    experiment?.status === "Pending";
   const canApproveReject = isManagerOrAdmin && isSubmittedOrPending;
 
   const [
@@ -853,7 +852,7 @@ export default function ExperimentDetail() {
 
       const confirmed =
         window.confirm(
-          `Submit experiment "${experiment.experimentName}" for planning?\n\nAfter submission, editing may be restricted.`
+          `Submit experiment "${experiment.experimentName}" for planning?`
         );
 
       if (!confirmed) {
@@ -1743,36 +1742,101 @@ export default function ExperimentDetail() {
           )}
         </div>
 
-        {/* Resource Allocation Action Card */}
-        {canManageExperiment && (
-          <div className="experiment-detail-card" style={{ marginTop: "28px", marginBottom: "24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+        {/* Submit / Resource Allocation Action Card */}
+        {isResearcher && (
+          <div
+            className="experiment-detail-card"
+            style={{ marginTop: "28px", marginBottom: "24px" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "16px",
+                flexWrap: "wrap",
+              }}
+            >
               <div>
-                <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 700, color: "#0f172a", border: "none", padding: 0 }}>
-                  Resource Allocation Hub
+                <h3
+                  style={{
+                    margin: "0 0 4px",
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    border: "none",
+                    padding: 0,
+                  }}
+                >
+                  {experiment.status === "Draft" || experiment.status === "Created"
+                    ? "Submit Experiment Plan"
+                    : "Resource Allocation Hub"}
                 </h3>
-                <p style={{ margin: 0, fontSize: "13.5px", color: "#64748b" }}>
-                  Allocate equipment, personnel, and land plots for this experiment using Manual Allocation or AI Optimization.
+
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "13.5px",
+                    color: "#64748b",
+                  }}
+                >
+                  {experiment.status === "Draft" || experiment.status === "Created"
+                    ? "Submit this experiment plan so the Manager can see and review it."
+                    : "The experiment plan has been submitted. Continue allocating equipment, personnel, and land resources using Manual Allocation or AI Optimization."}
                 </p>
               </div>
 
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/allocation/create?experimentId=${experiment.experimentId}`)}
-                  className="btn-primary-green"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  Start Resource Allocation
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/experiments/${experiment.experimentId}/ai-suggestions`)}
-                  className="btn-secondary-white"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  AI Optimization
-                </button>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
+                {(experiment.status === "Draft" || experiment.status === "Created") && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmitExperiment()}
+                    disabled={submitting}
+                    className="btn-primary-green"
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    {submitting ? "Submitting..." : "Submit"}
+                  </button>
+                )}
+
+                {experiment.status !== "Draft" &&
+                  experiment.status !== "Created" &&
+                  experiment.status !== "Cancelled" &&
+                  experiment.status !== "Rejected" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `/allocation/create?experimentId=${experiment.experimentId}`
+                          )
+                        }
+                        className="btn-primary-green"
+                        style={{ whiteSpace: "nowrap" }}
+                      >
+                        Start Resource Allocation
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `/experiments/${experiment.experimentId}/ai-suggestions`
+                          )
+                        }
+                        className="btn-secondary-white"
+                        style={{ whiteSpace: "nowrap" }}
+                      >
+                        AI Optimization
+                      </button>
+                    </>
+                  )}
               </div>
             </div>
           </div>
