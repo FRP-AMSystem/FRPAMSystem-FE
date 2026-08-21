@@ -71,6 +71,9 @@ export interface ScheduleQuery {
   startDateFrom?: string;
   startDateTo?: string;
 
+  dateFrom?: string;
+  dateTo?: string;
+
   page?: number;
   size?: number;
 }

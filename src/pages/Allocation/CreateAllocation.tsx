@@ -24,13 +24,28 @@ import {
   createExperimentLandRequirement,
   getExperimentLandRequirements,
 } from "../../services/experimentLandRequirementService";
-import { createAllocationPlan } from "../../services/allocationPlanService";
+import {
+  createAllocationPlan,
+  evaluateAllocationPlan,
+  getAllocationPlanById,
+  updateAllocationPlan,
+  submitAllocationPlan,
+} from "../../services/allocationPlanService";
 import {
   createAllocationEquipmentDetail,
   createAllocationHumanDetail,
   createAllocationLandDetail,
+  getAllocationEquipmentDetails,
+  getAllocationHumanDetails,
+  getAllocationLandDetails,
 } from "../../services/allocationDetailService";
+import {
+  createSchedule,
+  deleteSchedule,
+  getSchedules,
+} from "../../services/scheduleService";
 import { getCurrentUserTokenInfo } from "../../utils/storage";
+import HumanScheduleCalendar from "./components/HumanScheduleCalendar";
 
 import type { ExperimentResponse } from "../../types/experiment";
 import type { EquipmentInstance } from "../../types/equipmentInstance";
@@ -42,6 +57,7 @@ import type { ExperimentPhase } from "../../types/experimentPhase";
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
 import type { ExperimentHumanRequirement } from "../../types/experimentHumanRequirement";
 import type { ExperimentLandRequirement } from "../../types/experimentLandRequirement";
+import type { Schedule } from "../../types/schedule";
 
 import "./CreateAllocation.css";
 
@@ -61,6 +77,150 @@ function convertDateToIso(d?: string | null, endOfDay = false): string {
   if (d.includes("T")) return d;
   const clean = d.slice(0, 10);
   return endOfDay ? `${clean}T23:59:59` : `${clean}T00:00:00`;
+}
+
+
+const WORK_START_HOUR = 8;
+const WORK_END_HOUR = 17;
+
+type WorkTimeRange = {
+  start: number;
+  end: number;
+};
+
+function clampHour(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function toHourValue(date: Date): number {
+  return date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+}
+
+function mergeWorkRanges(ranges: WorkTimeRange[]): WorkTimeRange[] {
+  if (ranges.length === 0) return [];
+
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  const merged: WorkTimeRange[] = [{ ...sorted[0] }];
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const current = sorted[index];
+    const previous = merged[merged.length - 1];
+
+    if (current.start <= previous.end) {
+      previous.end = Math.max(previous.end, current.end);
+    } else {
+      merged.push({ ...current });
+    }
+  }
+
+  return merged;
+}
+
+function getBusyRangesForDate(
+  schedules: Schedule[],
+  dateKey: string,
+  ignoredPlanId?: number,
+  ignoredPhaseId?: number,
+  ignoredHumanId?: number
+): WorkTimeRange[] {
+  const dayStart = new Date(`${dateKey}T00:00:00`);
+  const dayEnd = new Date(`${dateKey}T23:59:59`);
+  const ranges: WorkTimeRange[] = [];
+
+  for (const schedule of schedules) {
+    if (schedule.status === "Cancelled") continue;
+
+    // When retrying Submit, schedules created by this same draft/phase/person
+    // are replaced below and must not make the person look busy to themselves.
+    if (
+      ignoredPlanId &&
+      ignoredPhaseId &&
+      ignoredHumanId &&
+      schedule.allocationPlanId === ignoredPlanId &&
+      schedule.phaseId === ignoredPhaseId &&
+      schedule.assignedHumanResourceId === ignoredHumanId
+    ) {
+      continue;
+    }
+
+    const start = new Date(schedule.startDate);
+    const end = new Date(schedule.endDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+    if (end <= dayStart || start >= dayEnd) continue;
+
+    const clippedStart = start < dayStart ? dayStart : start;
+    const clippedEnd = end > dayEnd ? dayEnd : end;
+
+    const startHour = clampHour(
+      toHourValue(clippedStart),
+      WORK_START_HOUR,
+      WORK_END_HOUR
+    );
+    const endHour = clampHour(
+      toHourValue(clippedEnd),
+      WORK_START_HOUR,
+      WORK_END_HOUR
+    );
+
+    if (endHour > startHour) {
+      ranges.push({ start: startHour, end: endHour });
+    }
+  }
+
+  return mergeWorkRanges(ranges);
+}
+
+function getFreeWorkRanges(busyRanges: WorkTimeRange[]): WorkTimeRange[] {
+  const free: WorkTimeRange[] = [];
+  let cursor = WORK_START_HOUR;
+
+  for (const range of busyRanges) {
+    if (range.start > cursor) {
+      free.push({ start: cursor, end: range.start });
+    }
+    cursor = Math.max(cursor, range.end);
+  }
+
+  if (cursor < WORK_END_HOUR) {
+    free.push({ start: cursor, end: WORK_END_HOUR });
+  }
+
+  return free.filter((range) => range.end > range.start);
+}
+
+function buildWorkSegments(
+  freeRanges: WorkTimeRange[],
+  requiredHours: number
+): WorkTimeRange[] {
+  const result: WorkTimeRange[] = [];
+  let remaining = requiredHours;
+
+  for (const range of freeRanges) {
+    if (remaining <= 0.0001) break;
+
+    const available = range.end - range.start;
+    const used = Math.min(available, remaining);
+
+    if (used > 0) {
+      result.push({ start: range.start, end: range.start + used });
+      remaining -= used;
+    }
+  }
+
+  return remaining <= 0.0001 ? result : [];
+}
+
+function hourToDateTime(dateKey: string, hourValue: number): string {
+  let hour = Math.floor(hourValue);
+  let minute = Math.round((hourValue - hour) * 60);
+
+  if (minute === 60) {
+    hour += 1;
+    minute = 0;
+  }
+
+  return `${dateKey}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
 }
 
 export default function CreateAllocation() {
@@ -91,12 +251,23 @@ export default function CreateAllocation() {
   const [selectedEquipByPhase, setSelectedEquipByPhase] = useState<Record<number, number[]>>({});
   const [selectedHumansByPhase, setSelectedHumansByPhase] = useState<Record<number, number[]>>({});
 
+  const [draftPlanId, setDraftPlanId] = useState<number | null>(null);
+  const [initializingDraftPlan, setInitializingDraftPlan] = useState(false);
+  const [scheduleHumanId, setScheduleHumanId] = useState<number | null>(null);
+  const [scheduledHumanDates, setScheduledHumanDates] = useState<
+    Record<number, Record<number, string[]>>
+  >({});
+
   // Land Plot selection: Strictly 1 land plot for the experiment!
   const [selectedLandId, setSelectedLandId] = useState<number | null>(null);
 
   // UI State
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [evaluatingFitness, setEvaluatingFitness] = useState(false);
+  const [fitnessScore, setFitnessScore] = useState<number | null>(null);
+  const [fitnessEvaluationMessage, setFitnessEvaluationMessage] = useState("");
+  const [allocationDetailsSaved, setAllocationDetailsSaved] = useState(false);
   const [error, setError] = useState("");
 
   // 1. Fetch initial experiments and system inventory
@@ -120,11 +291,22 @@ export default function CreateAllocation() {
           getLandResources({ size: 100 }).catch(() => []),
         ]);
 
-        // Show active experiments filtered by token user if Researcher
+        // Resource Allocation Hub only shows experiments that have already
+        // been submitted by the Researcher and are ready for allocation.
+        // Draft / Planning / Ready / Running / Completed / Cancelled experiments
+        // must not appear in the Target Experiment selector.
         const rawExps = Array.isArray(expRes) ? expRes : (expRes as any)?.items || [];
+
+        const submittedExperiments = rawExps.filter(
+          (item: ExperimentResponse) =>
+            String(item.status || "")
+              .trim()
+              .toLowerCase() === "submitted"
+        );
+
         const exps = isPrivileged
-          ? rawExps
-          : rawExps.filter(
+          ? submittedExperiments
+          : submittedExperiments.filter(
               (item: ExperimentResponse) =>
                 (userId > 0 && item.researcherId === userId) ||
                 (fullName &&
@@ -215,7 +397,13 @@ export default function CreateAllocation() {
         // Reset phase selections
         setSelectedEquipByPhase({});
         setSelectedHumansByPhase({});
+        setScheduledHumanDates({});
+        setScheduleHumanId(null);
+        setDraftPlanId(null);
         setSelectedLandId(null);
+        setFitnessScore(null);
+        setFitnessEvaluationMessage("");
+        setAllocationDetailsSaved(false);
       } catch (detailErr) {
         console.warn("Could not load experiment requirements for allocation hub:", detailErr);
       }
@@ -391,6 +579,11 @@ export default function CreateAllocation() {
   // Quantity is enforced per requirement, so a substitute counts toward
   // the quantity of its primary requirement.
   const handleToggleEquipment = (eqId: number) => {
+    if (allocationDetailsSaved) {
+      setError("Fitness evaluation has already been prepared. Submit this plan before changing resources.");
+      return;
+    }
+
     if (!activePhaseId) return;
 
     const equipment = availableEquipment.find(
@@ -404,6 +597,9 @@ export default function CreateAllocation() {
       setError("This equipment does not satisfy the selected phase requirement.");
       return;
     }
+
+    setFitnessScore(null);
+    setFitnessEvaluationMessage("");
 
     setSelectedEquipByPhase((prev) => {
       const currentList = prev[activePhaseId] || [];
@@ -548,15 +744,52 @@ export default function CreateAllocation() {
     humanResourceSkills,
   ]);
 
-  // Toggle Personnel for current active phase.
-  // Quantity is enforced per human requirement.
-  const handleToggleHuman = (humanId: number) => {
+  // ScheduleRequest needs an allocationPlanId, therefore a Draft plan is
+  // initialized the first time the Researcher opens a personnel calendar.
+  const ensureDraftAllocationPlan = async (): Promise<number> => {
+    if (draftPlanId) return draftPlanId;
+
+    if (!selectedExpId) {
+      throw new Error("Please select an experiment first.");
+    }
+
+    try {
+      setInitializingDraftPlan(true);
+
+      const createdPlan = await createAllocationPlan({
+        experimentId: selectedExpId,
+        fitnessScore: null,
+        approveStatus: "Draft",
+      });
+
+      const newPlanId =
+        createdPlan?.allocationPlanId ||
+        Number((createdPlan as unknown as { id?: number })?.id || 0);
+
+      if (!newPlanId) {
+        throw new Error("Failed to initialize Allocation Draft.");
+      }
+
+      setDraftPlanId(newPlanId);
+      return newPlanId;
+    } finally {
+      setInitializingDraftPlan(false);
+    }
+  };
+
+  // Clicking a matching worker opens the schedule calendar. The worker is
+  // counted as selected only after a valid working date is persisted.
+  const handleOpenHumanSchedule = async (humanId: number) => {
+    if (allocationDetailsSaved) {
+      setError("Fitness evaluation has already been prepared. Submit this plan before changing personnel schedules.");
+      return;
+    }
+
     if (!activePhaseId) return;
 
     const human = humanProfiles.find(
       (item) => item.humanResourceId === humanId
     );
-
     if (!human) return;
 
     const targetMatch = findHumanMatch(activePhaseId, human);
@@ -565,17 +798,10 @@ export default function CreateAllocation() {
       return;
     }
 
-    setSelectedHumansByPhase((prev) => {
-      const currentList = prev[activePhaseId] || [];
+    const currentList = selectedHumansByPhase[activePhaseId] || [];
+    const alreadySelected = currentList.includes(humanId);
 
-      if (currentList.includes(humanId)) {
-        setError("");
-        return {
-          ...prev,
-          [activePhaseId]: currentList.filter((id) => id !== humanId),
-        };
-      }
-
+    if (!alreadySelected) {
       const selectedForSameRequirement = currentList.filter((selectedId) => {
         const selectedHuman = humanProfiles.find(
           (item) => item.humanResourceId === selectedId
@@ -583,37 +809,70 @@ export default function CreateAllocation() {
         if (!selectedHuman) return false;
 
         const selectedMatch = findHumanMatch(activePhaseId, selectedHuman);
-
         return (
           selectedMatch?.requirement.expHumanReqId ===
           targetMatch.requirement.expHumanReqId
         );
       }).length;
 
-      const requiredQuantity = Math.max(
-        0,
-        targetMatch.requirement.quantity || 0
-      );
-
-      if (
-        requiredQuantity > 0 &&
-        selectedForSameRequirement >= requiredQuantity
-      ) {
+      const requiredQuantity = Math.max(0, targetMatch.requirement.quantity || 0);
+      if (requiredQuantity > 0 && selectedForSameRequirement >= requiredQuantity) {
         setError(
           `Requirement "${
             targetMatch.requirement.roleName ||
             `Role #${targetMatch.requirement.roleId}`
           }" requires only ${requiredQuantity} person(s).`
         );
-        return prev;
+        return;
+      }
+    }
+
+    setError("");
+    setScheduleHumanId(humanId);
+  };
+
+  const handleHumanScheduled = (payload: {
+    humanResourceId: number;
+    phaseId: number;
+    dates: string[];
+  }) => {
+    const normalizedDates = Array.from(new Set(payload.dates)).sort();
+
+    setScheduledHumanDates((prev) => ({
+      ...prev,
+      [payload.phaseId]: {
+        ...(prev[payload.phaseId] || {}),
+        [payload.humanResourceId]: normalizedDates,
+      },
+    }));
+
+    setSelectedHumansByPhase((prev) => {
+      const current = prev[payload.phaseId] || [];
+      const alreadySelected = current.includes(payload.humanResourceId);
+
+      if (normalizedDates.length > 0 && !alreadySelected) {
+        return {
+          ...prev,
+          [payload.phaseId]: [...current, payload.humanResourceId],
+        };
       }
 
-      setError("");
-      return {
-        ...prev,
-        [activePhaseId]: [...currentList, humanId],
-      };
+      if (normalizedDates.length === 0 && alreadySelected) {
+        return {
+          ...prev,
+          [payload.phaseId]: current.filter(
+            (id) => id !== payload.humanResourceId
+          ),
+        };
+      }
+
+      return prev;
     });
+
+    setFitnessScore(null);
+    setFitnessEvaluationMessage("");
+    setError("");
+    setScheduleHumanId(null);
   };
 
 
@@ -665,6 +924,13 @@ export default function CreateAllocation() {
 
   // Select Land (Strictly 1 Land Plot for the Experiment)
   const handleSelectLand = (landId: number) => {
+    if (allocationDetailsSaved) {
+      setError("Fitness evaluation has already been prepared. Submit this plan before changing the land plot.");
+      return;
+    }
+
+    setFitnessScore(null);
+    setFitnessEvaluationMessage("");
     setSelectedLandId((prev) => (prev === landId ? null : landId));
   };
 
@@ -678,6 +944,447 @@ export default function CreateAllocation() {
     0
   );
 
+  /*
+   * ============================================================
+   * BACKEND FITNESS EVALUATION
+   * ============================================================
+   *
+   * The backend owns the Fitness Score calculation through:
+   * POST /api/AllocationPlans/{id}/evaluate
+   *
+   * To evaluate a manual plan, the current Equipment/Human/Land selections
+   * must first be persisted into the Draft Allocation Plan. After evaluation
+   * succeeds, resource editing is locked for this draft so the score shown to
+   * the Researcher always matches the details stored on the backend.
+   */
+
+  const persistAllocationDetails = async (planId: number) => {
+    if (allocationDetailsSaved) return;
+
+    /*
+     * Fitness evaluation can be retried after a partial failure. For example,
+     * Equipment may have been saved successfully while Human failed. If we
+     * blindly POST everything again on the next Evaluate click, the backend can
+     * reject duplicate allocation details with HTTP 500.
+     *
+     * Always reload the current Draft details first and only create records that
+     * do not already exist for this Allocation Plan.
+     */
+    const [existingEquipmentDetails, existingHumanDetails, existingLandDetails] =
+      await Promise.all([
+        getAllocationEquipmentDetails({
+          allocationPlanId: planId,
+          page: 1,
+          size: 500,
+        }),
+        getAllocationHumanDetails({
+          allocationPlanId: planId,
+          page: 1,
+          size: 500,
+        }),
+        getAllocationLandDetails({
+          allocationPlanId: planId,
+          page: 1,
+          size: 500,
+        }),
+      ]);
+
+    // Equipment details per phase
+    for (const [pIdStr, eqIds] of Object.entries(selectedEquipByPhase)) {
+      const phaseIdNum = Number(pIdStr);
+      const pObj = phases.find((p) => p.experimentPhaseId === phaseIdNum);
+      const sDate = convertDateToIso(
+        pObj?.expectedStartDate || selectedExp?.expectStartDate
+      );
+      const eDate = convertDateToIso(
+        pObj?.expectedEndDate || selectedExp?.expectEndDate,
+        true
+      );
+
+      for (const eqId of eqIds) {
+        const eqObj = availableEquipment.find(
+          (e) => e.equipmentInstanceId === eqId
+        );
+
+        if (!eqObj) {
+          console.warn(`Skipping equipment ${eqId}: equipment instance not found.`);
+          continue;
+        }
+
+        const match = findEquipmentMatch(phaseIdNum, eqObj);
+        if (!match) {
+          console.warn(
+            `Skipping equipment ${eqId}: it no longer matches a requirement for phase ${phaseIdNum}.`
+          );
+          continue;
+        }
+
+        const expEqReqId = match.requirement.expEquipmentReqId;
+        if (!expEqReqId) {
+          console.warn(
+            `Skipping equipment ${eqId}: matching experiment equipment requirement has no ID.`
+          );
+          continue;
+        }
+
+        const equipmentAlreadyExists = existingEquipmentDetails.some(
+          (detail) =>
+            detail.allocationPlanId === planId &&
+            detail.expEquipmentReqId === expEqReqId &&
+            detail.equipmentInstanceId === eqId
+        );
+
+        if (equipmentAlreadyExists) {
+          console.info(
+            `Skipping duplicate equipment allocation detail: plan=${planId}, requirement=${expEqReqId}, equipment=${eqId}.`
+          );
+          continue;
+        }
+
+        const createdEquipmentDetail = await createAllocationEquipmentDetail({
+          allocationPlanId: planId,
+          expEquipmentReqId: expEqReqId,
+          phaseEquipmentReqId: null,
+          allocatedEquipmentTypeId: eqObj.equipmentTypeId,
+          equipmentInstanceId: eqId,
+          quantity: 1,
+          efficiencyRate: match.effectiveEfficiency,
+          isSubstitute: match.isSubstitute,
+          startDate: sDate,
+          endDate: eDate,
+          status: "Allocated",
+        });
+
+        // Keep the local snapshot in sync so another selected entry in this same
+        // persist pass cannot create the exact same detail again.
+        existingEquipmentDetails.push(createdEquipmentDetail);
+      }
+    }
+
+    // Human details per phase / selected working dates
+    for (const [pIdStr, hIds] of Object.entries(selectedHumansByPhase)) {
+      const phaseIdNum = Number(pIdStr);
+
+      for (const hId of hIds) {
+        const hObj = humanProfiles.find((h) => h.humanResourceId === hId);
+        if (!hObj) continue;
+
+        const humanMatch = findHumanMatch(phaseIdNum, hObj);
+        const requirement = humanMatch?.requirement;
+
+        let expHReqId = requirement?.expHumanReqId;
+        const requiredWorkingHours =
+          requirement?.workingHoursPerDay ??
+          hObj.maxWorkingHoursPerDay ??
+          8;
+
+        if (!expHReqId) {
+          const createdHReq = await createExperimentHumanRequirement({
+            experimentId: selectedExpId,
+            roleId: requirement?.roleId ?? hObj.roleId ?? 1,
+            quantity: requirement?.quantity ?? 1,
+            requiredSkillId: requirement?.requiredSkillId ?? null,
+            workingHoursPerDay: requiredWorkingHours,
+            note: requirement?.note ?? null,
+          });
+
+          expHReqId =
+            (createdHReq as { expHumanReqId?: number; id?: number })
+              ?.expHumanReqId ??
+            (createdHReq as { expHumanReqId?: number; id?: number })?.id;
+        }
+
+        if (!expHReqId) {
+          throw new Error(
+            `Human requirement ID is missing for resource #${hId}.`
+          );
+        }
+
+        const selectedDates = scheduledHumanDates[phaseIdNum]?.[hId] || [];
+        if (selectedDates.length === 0) {
+          throw new Error(
+            `${hObj.fullName || `Human resource #${hId}`} has no scheduled working date.`
+          );
+        }
+
+        const sortedDates = [...selectedDates].sort();
+        const firstWorkingDate = sortedDates[0];
+        const lastWorkingDate = sortedDates[sortedDates.length - 1];
+
+        if (!firstWorkingDate || !lastWorkingDate) {
+          throw new Error(
+            `${hObj.fullName || `Human resource #${hId}`} has no valid scheduled working date.`
+          );
+        }
+
+        const humanAlreadyExists = existingHumanDetails.some(
+          (detail) =>
+            detail.allocationPlanId === planId &&
+            detail.expHumanReqId === expHReqId &&
+            detail.humanResourceId === hId
+        );
+
+        if (humanAlreadyExists) {
+          console.info(
+            `Skipping duplicate human allocation detail: plan=${planId}, requirement=${expHReqId}, human=${hId}.`
+          );
+          continue;
+        }
+
+        // AllocationHumanDetail represents one assignment of this person. The
+        // exact selected work-day/time segments remain FE-only until Submit.
+        const createdHumanDetail = await createAllocationHumanDetail({
+          allocationPlanId: planId,
+          expHumanReqId: expHReqId,
+          phaseHumanReqId: null,
+          humanResourceId: hId,
+          workingHours: requiredWorkingHours,
+          startDate: `${firstWorkingDate}T08:00:00`,
+          endDate: `${lastWorkingDate}T17:00:00`,
+          status: "Allocated",
+        });
+
+        existingHumanDetails.push(createdHumanDetail);
+      }
+    }
+
+    // One land plot for the experiment
+    if (selectedLandId) {
+      const sDate = convertDateToIso(selectedExp?.expectStartDate);
+      const eDate = convertDateToIso(selectedExp?.expectEndDate, true);
+      const selLandObj = landResources.find(
+        (l) => l.landId === selectedLandId
+      );
+
+      let expLandReqId: number | undefined = landReqs[0]?.expLandReqId;
+
+      if (expLandReqId == null) {
+        const createdReq = await createExperimentLandRequirement({
+          experimentId: selectedExpId,
+          requiredArea: selLandObj?.areaSize || 1000,
+          requiredSoilType: selLandObj?.soilType || "Standard Soil",
+          note: "Allocated Land Plot",
+        });
+
+        const createdLandReqId =
+          (createdReq as { expLandReqId?: number; id?: number })
+            ?.expLandReqId ??
+          (createdReq as { expLandReqId?: number; id?: number })?.id;
+
+        if (createdLandReqId == null) {
+          throw new Error("Failed to create land requirement ID.");
+        }
+
+        expLandReqId = createdLandReqId;
+      }
+
+      const resolvedExpLandReqId = expLandReqId;
+
+      if (resolvedExpLandReqId == null) {
+        throw new Error("Land requirement ID is missing.");
+      }
+
+      const landAlreadyExists = existingLandDetails.some(
+        (detail) =>
+          detail.allocationPlanId === planId &&
+          detail.landId === selectedLandId &&
+          detail.expLandReqId === resolvedExpLandReqId
+      );
+
+      if (landAlreadyExists) {
+        console.info(
+          `Skipping duplicate land allocation detail: plan=${planId}, requirement=${resolvedExpLandReqId}, land=${selectedLandId}.`
+        );
+      } else {
+        const createdLandDetail = await createAllocationLandDetail({
+          allocationPlanId: planId,
+          landId: selectedLandId,
+          expLandReqId: resolvedExpLandReqId,
+          startDate: sDate,
+          endDate: eDate,
+          status: "Allocated",
+        });
+
+        existingLandDetails.push(createdLandDetail);
+      }
+    }
+
+    setAllocationDetailsSaved(true);
+  };
+
+  const persistHumanSchedules = async (planId: number) => {
+    const currentUser = getCurrentUserTokenInfo();
+
+    for (const [phaseIdText, humans] of Object.entries(scheduledHumanDates)) {
+      const phaseId = Number(phaseIdText);
+      const phase = phases.find((item) => item.experimentPhaseId === phaseId);
+      if (!phase) continue;
+
+      for (const [humanIdText, selectedDatesRaw] of Object.entries(humans)) {
+        const humanId = Number(humanIdText);
+        const human = humanProfiles.find(
+          (item) => item.humanResourceId === humanId
+        );
+        if (!human) continue;
+
+        const selectedDates = Array.from(new Set(selectedDatesRaw)).sort();
+        if (selectedDates.length === 0) continue;
+
+        const humanMatch = findHumanMatch(phaseId, human);
+        const requiredHours =
+          humanMatch?.requirement.workingHoursPerDay ??
+          human.maxWorkingHoursPerDay ??
+          8;
+
+        if (requiredHours <= 0 || requiredHours > WORK_END_HOUR - WORK_START_HOUR) {
+          throw new Error(
+            `Invalid working hours for ${human.fullName || `Human #${humanId}`}.`
+          );
+        }
+
+        const firstDate = selectedDates[0];
+        const lastDate = selectedDates[selectedDates.length - 1];
+
+        const schedules = await getSchedules({
+          assignedHumanResourceId: humanId,
+          dateFrom: `${firstDate}T00:00:00`,
+          dateTo: `${lastDate}T23:59:59`,
+          page: 1,
+          size: 500,
+        });
+
+        // Validate every selected day again at Submit time. Another plan may
+        // have occupied the person after the Researcher opened the calendar.
+        const preparedDays = selectedDates.map((dateKey) => {
+          const busyRanges = getBusyRangesForDate(
+            schedules,
+            dateKey,
+            planId,
+            phaseId,
+            humanId
+          );
+          const freeRanges = getFreeWorkRanges(busyRanges);
+          const segments = buildWorkSegments(freeRanges, requiredHours);
+
+          return { dateKey, segments };
+        });
+
+        const invalidDay = preparedDays.find((item) => item.segments.length === 0);
+        if (invalidDay) {
+          throw new Error(
+            `${human.fullName || `Human #${humanId}`} no longer has ${requiredHours} free hour(s) on ${formatDate(invalidDay.dateKey)}.`
+          );
+        }
+
+        // A retry of Submit should update this draft's schedules rather than
+        // create duplicate rows.
+        const oldDraftSchedules = schedules.filter(
+          (schedule) =>
+            schedule.status !== "Cancelled" &&
+            schedule.allocationPlanId === planId &&
+            schedule.phaseId === phaseId &&
+            schedule.assignedHumanResourceId === humanId
+        );
+
+        for (const schedule of oldDraftSchedules) {
+          if (schedule.scheduleId > 0) {
+            await deleteSchedule(schedule.scheduleId);
+          }
+        }
+
+        const titleBase = selectedExp?.experimentName?.trim() || "Experiment";
+        const phaseLabel = phase.phaseName?.trim() || `Phase #${phaseId}`;
+
+        for (const preparedDay of preparedDays) {
+          for (let index = 0; index < preparedDay.segments.length; index += 1) {
+            const segment = preparedDay.segments[index];
+
+            await createSchedule({
+              allocationPlanId: planId,
+              phaseId,
+              title:
+                preparedDay.segments.length > 1
+                  ? `${titleBase} - ${phaseLabel} (${index + 1}/${preparedDay.segments.length})`
+                  : `${titleBase} - ${phaseLabel}`,
+              description: `Scheduled from Resource Allocation Hub for ${
+                human.fullName || `Human Resource #${humanId}`
+              }.`,
+              startDate: hourToDateTime(preparedDay.dateKey, segment.start),
+              endDate: hourToDateTime(preparedDay.dateKey, segment.end),
+              status: "Planned",
+              createdBy: currentUser.userId > 0 ? currentUser.userId : null,
+              assignedHumanResourceId: humanId,
+              notes: `Required ${requiredHours} working hour(s) within office hours 08:00-17:00.`,
+              priority: 1,
+            });
+          }
+        }
+      }
+    }
+  };
+
+  const handleEvaluateFitnessScore = async () => {
+    if (!selectedExpId || !selectedExp) {
+      setError("Please select an experiment first.");
+      return;
+    }
+
+    if (totalEquipmentCount === 0) {
+      setError("Please select the required equipment before evaluating Fitness Score.");
+      return;
+    }
+
+    if (totalHumanCount === 0) {
+      setError("Please select and schedule the required personnel before evaluating Fitness Score.");
+      return;
+    }
+
+    if (activeLandRequirement && !selectedLandId) {
+      setError("Please select a land plot before evaluating Fitness Score.");
+      return;
+    }
+
+    try {
+      setEvaluatingFitness(true);
+      setError("");
+      setFitnessEvaluationMessage("");
+
+      const planId = await ensureDraftAllocationPlan();
+      await persistAllocationDetails(planId);
+
+      const evaluation = await evaluateAllocationPlan(planId);
+
+      let evaluatedScore = evaluation.fitnessScore;
+
+      // Some backend versions update the AllocationPlan but return only a
+      // generic success response. Reload the plan to obtain the persisted score.
+      if (evaluatedScore === null || evaluatedScore === undefined) {
+        const refreshedPlan = await getAllocationPlanById(planId);
+        evaluatedScore = refreshedPlan.fitnessScore;
+      }
+
+      if (evaluatedScore === null || evaluatedScore === undefined) {
+        throw new Error(
+          "The backend evaluation completed but did not return a Fitness Score."
+        );
+      }
+
+      setFitnessScore(Number(evaluatedScore));
+      setFitnessEvaluationMessage(
+        "Fitness Score was calculated by the backend allocation evaluation engine."
+      );
+    } catch (evaluationError: any) {
+      console.error("Evaluate allocation fitness failed:", evaluationError);
+      setError(
+        evaluationError?.response?.data?.message ||
+          evaluationError?.message ||
+          "Failed to evaluate Fitness Score."
+      );
+    } finally {
+      setEvaluatingFitness(false);
+    }
+  };
+
   // Save & Submit Allocation Plan (Manual)
   const handleSaveAndSubmitPlan = async () => {
     if (!selectedExpId || !selectedExp) {
@@ -685,159 +1392,41 @@ export default function CreateAllocation() {
       return;
     }
 
+    if (fitnessScore === null) {
+      setError("Please evaluate the Fitness Score before submitting the Allocation Plan.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
     try {
-      // 1. Create Allocation Plan with Pending status
-      const createdPlan = await createAllocationPlan({
+      const planId = await ensureDraftAllocationPlan();
+
+      // Allocation details are normally persisted during Fitness evaluation.
+      await persistAllocationDetails(planId);
+
+      // IMPORTANT: personnel calendar selections have only lived in FE state
+      // until this exact point. Create/update the real backend schedules only
+      // when Researcher confirms Save & Submit Allocation Plan.
+      await persistHumanSchedules(planId);
+
+      // Persist the exact Fitness Score that the Researcher reviewed before
+      // moving the Allocation Plan from Draft -> Pending. This guarantees the
+      // Manager sees the same score on the submitted plan.
+      await updateAllocationPlan(planId, {
         experimentId: selectedExpId,
-        fitnessScore: 85,
-        approveStatus: "Pending",
+        fitnessScore,
+        approveStatus: "Draft",
       });
 
-      const planId = (createdPlan as any)?.allocationPlanId || (createdPlan as any)?.id;
-      if (!planId) throw new Error("Failed to initialize allocation plan ID.");
+      // Backend submit endpoint transitions the plan to Pending so it becomes
+      // actionable for Manager approval/rejection.
+      await submitAllocationPlan(planId);
 
-      // 2. Create Equipment details per phase
-      for (const [pIdStr, eqIds] of Object.entries(selectedEquipByPhase)) {
-        const phaseIdNum = Number(pIdStr);
-        const pObj = phases.find((p) => p.experimentPhaseId === phaseIdNum);
-        const sDate = convertDateToIso(pObj?.expectedStartDate || selectedExp.expectStartDate);
-        const eDate = convertDateToIso(pObj?.expectedEndDate || selectedExp.expectEndDate, true);
-
-        for (const eqId of eqIds) {
-          const eqObj = availableEquipment.find(
-            (e) => e.equipmentInstanceId === eqId
-          );
-
-          if (!eqObj) {
-            console.warn(`Skipping equipment ${eqId}: equipment instance not found.`);
-            continue;
-          }
-
-          const equipmentTypeId = eqObj.equipmentTypeId;
-          const match = findEquipmentMatch(phaseIdNum, eqObj);
-
-          if (!match) {
-            console.warn(
-              `Skipping equipment ${eqId}: it no longer matches a requirement for phase ${phaseIdNum}.`
-            );
-            continue;
-          }
-
-          const expEqReqId = match.requirement.expEquipmentReqId;
-
-          if (!expEqReqId) {
-            console.warn(
-              `Skipping equipment ${eqId}: matching experiment equipment requirement has no ID.`
-            );
-            continue;
-          }
-
-          try {
-            await createAllocationEquipmentDetail({
-              allocationPlanId: planId,
-              expEquipmentReqId: expEqReqId,
-              phaseEquipmentReqId: phaseIdNum,
-              allocatedEquipmentTypeId: equipmentTypeId,
-              equipmentInstanceId: eqId,
-              quantity: 1,
-              efficiencyRate: match.effectiveEfficiency,
-              isSubstitute: match.isSubstitute,
-              startDate: sDate,
-              endDate: eDate,
-              status: "Allocated",
-            });
-          } catch (eErr) {
-            console.error("Create equipment allocation detail notice:", eErr);
-          }
-        }
-      }
-
-      // 3. Create Human details per phase
-      for (const [pIdStr, hIds] of Object.entries(selectedHumansByPhase)) {
-        const phaseIdNum = Number(pIdStr);
-        const pObj = phases.find((p) => p.experimentPhaseId === phaseIdNum);
-        const sDate = convertDateToIso(pObj?.expectedStartDate || selectedExp.expectStartDate);
-        const eDate = convertDateToIso(pObj?.expectedEndDate || selectedExp.expectEndDate, true);
-
-        for (const hId of hIds) {
-          const hObj = humanProfiles.find((h) => h.humanResourceId === hId);
-          let expHReqId = humanReqs[0]?.expHumanReqId;
-          
-          if (!expHReqId) {
-            try {
-              const createdHReq = await createExperimentHumanRequirement({
-                experimentId: selectedExpId,
-                roleId: hObj?.roleId || 1,
-                quantity: 1,
-                requiredSkillId: null,
-                workingHoursPerDay: hObj?.maxWorkingHoursPerDay || 8,
-                note: null,
-              });
-              expHReqId = (createdHReq as any)?.expHumanReqId || (createdHReq as any)?.id;
-            } catch {
-              expHReqId = 1;
-            }
-          }
-
-          try {
-            await createAllocationHumanDetail({
-              allocationPlanId: planId,
-              expHumanReqId: expHReqId || 1,
-              phaseHumanReqId: phaseIdNum,
-              humanResourceId: hId,
-              workingHours: hObj?.maxWorkingHoursPerDay || 8,
-              startDate: sDate,
-              endDate: eDate,
-              status: "Allocated",
-            });
-          } catch (hErr) {
-            console.error("Create human allocation detail notice:", hErr);
-          }
-        }
-      }
-
-      // 4. Create Land detail (Single Land Plot)
-      if (selectedLandId) {
-        const sDate = convertDateToIso(selectedExp.expectStartDate);
-        const eDate = convertDateToIso(selectedExp.expectEndDate, true);
-        const selLandObj = landResources.find((l) => l.landId === selectedLandId);
-
-        let expLandReqId = landReqs[0]?.expLandReqId;
-        if (!expLandReqId) {
-          try {
-            const createdReq = await createExperimentLandRequirement({
-              experimentId: selectedExpId,
-              requiredArea: selLandObj?.areaSize || 1000,
-              requiredSoilType: selLandObj?.soilType || "Standard Soil",
-              note: "Allocated Land Plot",
-            });
-            expLandReqId = (createdReq as any)?.expLandReqId || (createdReq as any)?.id;
-          } catch (lrErr) {
-            console.warn("Auto create experiment land requirement notice:", lrErr);
-          }
-        }
-
-        try {
-          await createAllocationLandDetail({
-            allocationPlanId: planId,
-            landId: selectedLandId,
-            expLandReqId: expLandReqId || 1,
-            startDate: sDate,
-            endDate: eDate,
-            status: "Allocated",
-          });
-        } catch (lErr) {
-          console.error("Create land allocation detail error:", lErr);
-        }
-      }
-
-      // 5. Notify and navigate
       sendLocalNotification({
         title: "Allocation Plan Submitted",
-        message: `Allocation plan for Experiment #${selectedExpId} with ${totalEquipmentCount} equipment and ${totalHumanCount} personnel has been submitted for Manager approval!`,
+        message: `Allocation plan for Experiment #${selectedExpId} with ${totalEquipmentCount} equipment and ${totalHumanCount} personnel (Fitness Score: ${fitnessScore}) has been submitted for Manager approval!`,
         notificationType: "Success",
         referenceType: "AllocationPlan",
         referenceId: planId,
@@ -846,7 +1435,7 @@ export default function CreateAllocation() {
 
       navigate("/allocation", {
         state: {
-          message: `Allocation plan for Experiment "${selectedExp.experimentName}" submitted successfully for Manager approval!`,
+          message: `Allocation plan for Experiment "${selectedExp.experimentName}" submitted successfully for Manager approval! Fitness Score: ${fitnessScore}.`,
         },
       });
     } catch (err: any) {
@@ -1396,7 +1985,7 @@ export default function CreateAllocation() {
                       fontWeight: 400,
                     }}
                   >
-                    Select personnel matching this phase&apos;s role, skill, and working-hour requirements.
+                    Select personnel matching this phase&apos;s role, skill, and working-hour requirements. Click a person to choose a working date (08:00-17:00).
                   </span>
                 </div>
 
@@ -1502,7 +2091,7 @@ export default function CreateAllocation() {
                     return (
                       <div
                         key={hp.humanResourceId}
-                        onClick={() => handleToggleHuman(hp.humanResourceId)}
+                        onClick={() => void handleOpenHumanSchedule(hp.humanResourceId)}
                         className={`alloc-item-row ${isChecked ? "selected" : ""}`}
                       >
                         <div style={{ display: "flex", alignItems: "center" }}>
@@ -1542,6 +2131,37 @@ export default function CreateAllocation() {
                               </span>
                               • {hp.maxWorkingHoursPerDay ?? 0} hrs/day
                             </div>
+
+                            {(scheduledHumanDates[activePhase.experimentPhaseId]?.[
+                              hp.humanResourceId
+                            ]?.length || 0) > 0 && (
+                              <div
+                                style={{
+                                  marginTop: "3px",
+                                  fontSize: "10.5px",
+                                  color: "#15803d",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Selected {
+                                  scheduledHumanDates[activePhase.experimentPhaseId][
+                                    hp.humanResourceId
+                                  ].length
+                                } day(s): {
+                                  scheduledHumanDates[activePhase.experimentPhaseId][
+                                    hp.humanResourceId
+                                  ]
+                                    .slice(0, 3)
+                                    .map((date) => formatDate(date))
+                                    .join(", ")
+                                }
+                                {scheduledHumanDates[activePhase.experimentPhaseId][
+                                  hp.humanResourceId
+                                ].length > 3
+                                  ? " ..."
+                                  : ""}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1787,7 +2407,182 @@ export default function CreateAllocation() {
           )}
         </div>
 
-        {/* 4. Bottom Summary Bar & Submit Action */}
+        {/* 4. Backend Fitness Evaluation */}
+        <div
+          className="alloc-section-card full-width"
+          style={{ marginBottom: "20px" }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "18px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: "280px" }}>
+              <h4 style={{ margin: 0, color: "#0f172a" }}>
+                4. Allocation Fitness Evaluation
+              </h4>
+              <p
+                style={{
+                  margin: "5px 0 0",
+                  fontSize: "12.5px",
+                  color: "#64748b",
+                  lineHeight: 1.6,
+                }}
+              >
+                After selecting Equipment, Personnel schedules, and Land, use the
+                backend evaluation engine to calculate the official Fitness Score
+                before submitting this Allocation Plan.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleEvaluateFitnessScore()}
+              disabled={
+                evaluatingFitness ||
+                submitting ||
+                initializingDraftPlan ||
+                fitnessScore !== null
+              }
+              className="alloc-btn-manual"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {evaluatingFitness
+                ? "Evaluating..."
+                : fitnessScore !== null
+                  ? "Evaluation Complete"
+                  : "Evaluate Fitness Score"}
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: "10px",
+              marginTop: "16px",
+            }}
+          >
+            <div
+              style={{
+                padding: "12px 14px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                background: "#f8fafc",
+              }}
+            >
+              <div style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 700 }}>
+                EQUIPMENT
+              </div>
+              <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>
+                {totalEquipmentCount}
+              </strong>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>unit(s) selected</span>
+            </div>
+
+            <div
+              style={{
+                padding: "12px 14px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                background: "#f8fafc",
+              }}
+            >
+              <div style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 700 }}>
+                PERSONNEL
+              </div>
+              <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>
+                {totalHumanCount}
+              </strong>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>person(s) scheduled</span>
+            </div>
+
+            <div
+              style={{
+                padding: "12px 14px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                background: "#f8fafc",
+              }}
+            >
+              <div style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 700 }}>
+                LAND
+              </div>
+              <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>
+                {selectedLandId ? 1 : 0}
+              </strong>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>plot selected</span>
+            </div>
+
+            <div
+              style={{
+                padding: "12px 14px",
+                border: fitnessScore !== null ? "1px solid #86efac" : "1px solid #cbd5e1",
+                borderRadius: "8px",
+                background: fitnessScore !== null ? "#f0fdf4" : "#ffffff",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "10.5px",
+                  color: fitnessScore !== null ? "#15803d" : "#64748b",
+                  fontWeight: 700,
+                }}
+              >
+                FITNESS SCORE
+              </div>
+              <strong
+                style={{
+                  display: "block",
+                  marginTop: "4px",
+                  fontSize: "24px",
+                  color: fitnessScore !== null ? "#15803d" : "#94a3b8",
+                }}
+              >
+                {fitnessScore !== null ? fitnessScore.toFixed(2) : "--"}
+              </strong>
+              <span style={{ fontSize: "11px", color: "#64748b" }}>
+                calculated by backend
+              </span>
+            </div>
+          </div>
+
+          {fitnessEvaluationMessage && (
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "10px 12px",
+                border: "1px solid #bbf7d0",
+                background: "#f0fdf4",
+                color: "#166534",
+                borderRadius: "7px",
+                fontSize: "12px",
+                fontWeight: 500,
+              }}
+            >
+              {fitnessEvaluationMessage}
+            </div>
+          )}
+
+          {allocationDetailsSaved && fitnessScore !== null && (
+            <div
+              style={{
+                marginTop: "10px",
+                fontSize: "11.5px",
+                color: "#64748b",
+              }}
+            >
+              The evaluated Draft is locked to keep the displayed Fitness Score
+              consistent with the resources stored on the backend.
+            </div>
+          )}
+        </div>
+
+        {/* 5. Bottom Summary Bar & Submit Action */}
         <div className="alloc-summary-card">
           <div className="alloc-summary-stats">
             <div className="alloc-stat-pill">
@@ -1819,14 +2614,60 @@ export default function CreateAllocation() {
             <button
               type="button"
               onClick={() => void handleSaveAndSubmitPlan()}
-              disabled={submitting || !selectedExpId}
+              disabled={
+                submitting ||
+                evaluatingFitness ||
+                initializingDraftPlan ||
+                !selectedExpId ||
+                fitnessScore === null
+              }
               className="alloc-btn-ai"
             >
-              {submitting ? "Submitting Plan..." : "Save & Submit Allocation Plan"}
+              {submitting
+                ? "Submitting Plan..."
+                : fitnessScore === null
+                  ? "Evaluate Before Submit"
+                  : "Save & Submit Allocation Plan"}
             </button>
           </div>
         </div>
       </div>
+      <HumanScheduleCalendar
+        open={scheduleHumanId !== null}
+        human={
+          scheduleHumanId !== null
+            ? humanProfiles.find(
+                (item) => item.humanResourceId === scheduleHumanId
+              ) || null
+            : null
+        }
+        phaseId={activePhaseId}
+        phaseName={activePhase?.phaseName}
+        phaseStartDate={activePhase?.expectedStartDate}
+        phaseEndDate={activePhase?.expectedEndDate}
+        experimentName={selectedExp?.experimentName}
+        selectedWorkingDates={
+          activePhaseId && scheduleHumanId !== null
+            ? scheduledHumanDates[activePhaseId]?.[scheduleHumanId] || []
+            : []
+        }
+        requiredWorkingHours={(() => {
+          if (!activePhaseId || scheduleHumanId === null) return 0;
+
+          const human = humanProfiles.find(
+            (item) => item.humanResourceId === scheduleHumanId
+          );
+          if (!human) return 0;
+
+          return (
+            findHumanMatch(activePhaseId, human)?.requirement.workingHoursPerDay ??
+            0
+          );
+        })()}
+        onClose={() => setScheduleHumanId(null)}
+        onScheduled={handleHumanScheduled}
+      />
+
     </DashboardLayout>
   );
 }
