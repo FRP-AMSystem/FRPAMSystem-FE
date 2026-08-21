@@ -346,6 +346,7 @@ export default function AllocationList() {
                   <th>Status</th>
                   <th>Created By</th>
                   <th>Created Date</th>
+                  <th>Fitness Score</th>
                   <th>Resources</th>
                   <th>Actions</th>
                 </tr>
@@ -354,7 +355,7 @@ export default function AllocationList() {
               <tbody>
                 {filteredPlans.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="empty-table">
+                    <td colSpan={7} className="empty-table">
                       No allocation plans found.
                     </td>
                   </tr>
@@ -382,6 +383,18 @@ export default function AllocationList() {
                         </td>
                         <td>{plan.createdByName || "-"}</td>
                         <td>{formatDate(plan.createdAt)}</td>
+                        <td>
+                          <strong
+                            style={{
+                              color:
+                                plan.fitnessScore != null ? "#15803d" : "#94a3b8",
+                            }}
+                          >
+                            {plan.fitnessScore != null
+                              ? Number(plan.fitnessScore).toFixed(2)
+                              : "-"}
+                          </strong>
+                        </td>
                         <td>
                           Land: {plan.landDetailCount ?? 0} | Equipment:{" "}
                           {plan.equipmentDetailCount ?? 0} | Human:{" "}
