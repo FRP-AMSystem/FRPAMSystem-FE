@@ -37,6 +37,9 @@ export interface AllocationEquipmentDetail {
   endDate: string;
   status: AllocationDetailStatus;
 
+  note?: string | null;
+  notes?: string | null;
+
   createdAt?: string;
   updatedAt?: string | null;
 }
@@ -58,6 +61,8 @@ export interface AllocationEquipmentDetailRequest {
   startDate: string;
   endDate: string;
   status: AllocationDetailStatus;
+  note?: string | null;
+  notes?: string | null;
 }
 
 export interface AllocationEquipmentDetailQuery {

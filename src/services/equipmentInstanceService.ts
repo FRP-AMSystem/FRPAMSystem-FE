@@ -464,3 +464,26 @@ export async function returnEquipmentInstance(
 
   return updated;
 }
+
+export async function reportEquipmentInstances(
+  payload: {
+    allocationPlanId?: number;
+    equipmentInstanceIds?: number[];
+    reportType?: string;
+    note?: string;
+  }
+): Promise<any> {
+  const response = await api.post("/EquipmentInstances/report", payload);
+  return unwrapResponse<unknown>(response.data);
+}
+
+export async function confirmEquipmentInstances(
+  payload: {
+    equipmentInstanceIds?: number[];
+    confirmAction?: string;
+    note?: string;
+  }
+): Promise<any> {
+  const response = await api.post("/EquipmentInstances/confirm", payload);
+  return unwrapResponse<unknown>(response.data);
+}

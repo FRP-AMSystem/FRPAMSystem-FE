@@ -272,6 +272,12 @@ export async function getSchedules(
           StartDateTo:
             query.startDateTo,
 
+          DateFrom:
+            query.dateFrom,
+
+          DateTo:
+            query.dateTo,
+
           Page:
             query.page,
 
@@ -321,6 +327,8 @@ export async function getMySchedules(
       Status: query.status,
       StartDateFrom: query.startDateFrom,
       StartDateTo: query.startDateTo,
+      DateFrom: query.dateFrom,
+      DateTo: query.dateTo,
       Page: query.page,
       Size: query.size,
     }),

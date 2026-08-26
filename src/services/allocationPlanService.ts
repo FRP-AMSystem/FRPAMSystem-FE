@@ -7,6 +7,11 @@ import type {
   AllocationPlanRequest,
 } from "../types/allocationPlan";
 
+import {
+  DEFAULT_OPTIMIZATION_SETTINGS,
+  type OptimizationSettings,
+} from "./aiSuggestionService";
+
 type WrappedResponse<T> = {
   success?: boolean;
   message?: string;
@@ -14,6 +19,45 @@ type WrappedResponse<T> = {
   result?: T;
   items?: T;
 };
+
+export interface AllocationPlanEvaluationResult {
+  fitnessScore: number | null;
+  raw: unknown;
+}
+
+function extractFitnessScore(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  for (const key of [
+    "fitnessScore",
+    "score",
+    "totalScore",
+    "finalFitnessScore",
+  ]) {
+    const candidate = record[key];
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+
+  for (const key of ["data", "result", "allocationPlan", "plan"]) {
+    const nested = record[key];
+    const nestedScore = extractFitnessScore(nested);
+    if (nestedScore !== null) {
+      return nestedScore;
+    }
+  }
+
+  return null;
+}
 
 function unwrapResponse<T>(responseData: unknown): T {
   if (responseData === null || responseData === undefined) {
@@ -317,6 +361,30 @@ export async function updateAllocationPlan(
   );
 
   return unwrapResponse<AllocationPlan>(response.data);
+}
+
+export async function evaluateAllocationPlan(
+  id: number,
+  settings: OptimizationSettings = {}
+): Promise<AllocationPlanEvaluationResult> {
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("Allocation plan ID is invalid.");
+  }
+
+  const payload: OptimizationSettings = {
+    ...DEFAULT_OPTIMIZATION_SETTINGS,
+    ...settings,
+  };
+
+  const response = await api.post(
+    `/AllocationPlans/${id}/evaluate`,
+    payload
+  );
+
+  return {
+    fitnessScore: extractFitnessScore(response.data),
+    raw: response.data,
+  };
 }
 
 export async function deleteAllocationPlan(

@@ -591,6 +591,20 @@ export default function AllocationDetail() {
                   <span className="alloc-metric-label">Experiment Phases</span>
                   <div className="alloc-metric-value">{phaseCount}</div>
                 </div>
+
+                <div className="alloc-metric-item">
+                  <span className="alloc-metric-label">Fitness Score</span>
+                  <div
+                    className="alloc-metric-value"
+                    style={{
+                      color: plan.fitnessScore != null ? "#15803d" : "#94a3b8",
+                    }}
+                  >
+                    {plan.fitnessScore != null
+                      ? Number(plan.fitnessScore).toFixed(2)
+                      : "-"}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -934,6 +948,19 @@ export default function AllocationDetail() {
                 <div className="alloc-side-info-row">
                   <span>Approval Status</span>
                   <strong>{plan.approveStatus}</strong>
+                </div>
+
+                <div className="alloc-side-info-row">
+                  <span>Fitness Score</span>
+                  <strong
+                    style={{
+                      color: plan.fitnessScore != null ? "#15803d" : undefined,
+                    }}
+                  >
+                    {plan.fitnessScore != null
+                      ? Number(plan.fitnessScore).toFixed(2)
+                      : "-"}
+                  </strong>
                 </div>
 
                 <div className="alloc-side-info-row">

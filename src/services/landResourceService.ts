@@ -54,11 +54,7 @@ function normalizeList<T>(
     return [];
   }
 
-  if (
-    Array.isArray(
-      payload.items
-    )
-  ) {
+  if (Array.isArray(payload.items)) {
     return payload.items as T[];
   }
 
@@ -173,6 +169,29 @@ export async function getLandResources(
 
   return normalizeList<LandResource>(
     response.data
+  );
+}
+
+export async function getAllSoilTypes(): Promise<string[]> {
+  const landResources =
+    await getLandResources({
+      page: 1,
+      size: 1000,
+    });
+
+  const soilTypes = landResources
+    .map((land) =>
+      land.soilType?.trim()
+    )
+    .filter(
+      (soilType): soilType is string =>
+        Boolean(soilType)
+    );
+
+  return Array.from(
+    new Set(soilTypes)
+  ).sort((a, b) =>
+    a.localeCompare(b)
   );
 }
 

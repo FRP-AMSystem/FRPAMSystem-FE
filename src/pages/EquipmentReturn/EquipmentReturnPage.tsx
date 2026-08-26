@@ -13,13 +13,16 @@ import {
   PackageCheck,
   RotateCcw,
   Search,
+  Send,
   Sparkles,
   Truck,
+  X,
   XCircle,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
+import { useNotification } from "../../context/NotificationContext";
 
 import {
   getMyAllocationEquipmentDetails,
@@ -27,6 +30,10 @@ import {
   handoverEquipmentDetail,
   returnEquipmentDetail,
 } from "../../services/allocationDetailService";
+import {
+  reportEquipmentInstances,
+  confirmEquipmentInstances,
+} from "../../services/equipmentInstanceService";
 
 import { getStoredRole } from "../../config/rolePermissions";
 
@@ -47,6 +54,7 @@ export default function EquipmentReturnPage() {
   const role = getStoredRole();
   const isManager = role === "Manager" || role === "Admin";
   const isFieldStaff = role === "Seasonal" || role === "Technician" || role === "Student";
+  const { sendLocalNotification, fetchUnreadCount } = useNotification();
 
   const [items, setItems] = useState<AllocationEquipmentDetail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,10 +87,10 @@ export default function EquipmentReturnPage() {
       title:
         title ||
         (type === "error"
-          ? "Lỗi xử lý"
+          ? "Operation Failed"
           : type === "success"
-          ? "Thành công"
-          : "Thông báo"),
+          ? "Success"
+          : "Notification"),
       message,
     });
   };
@@ -91,7 +99,7 @@ export default function EquipmentReturnPage() {
     try {
       setLoading(true);
       let list: AllocationEquipmentDetail[] = [];
-      
+
       if (isManager) {
         // Manager loads all allocated equipment across plans to inspect and confirm returns
         list = await getAllocationEquipmentDetails({ size: 400 });
@@ -113,7 +121,7 @@ export default function EquipmentReturnPage() {
 
       setItems(list || []);
     } catch (err: any) {
-      showToast(err?.message || "Không thể tải danh sách thiết bị.", "error");
+      showToast(err?.message || "Failed to load equipment list.", "error");
     } finally {
       setLoading(false);
     }
@@ -174,14 +182,14 @@ export default function EquipmentReturnPage() {
       setActionLoading(true);
       await handoverEquipmentDetail(handoverModalItem.allocationEquipmentDetailId);
       showToast(
-        `Đã tiếp nhận thiết bị "${handoverModalItem.equipmentInstanceName || handoverModalItem.assetCode || "thiết bị"}" vào sử dụng (InUse)!`,
+        `Equipment "${handoverModalItem.equipmentInstanceName || handoverModalItem.assetCode || "machine"}" has been accepted into active use (In Use)!`,
         "success",
-        "Tiếp nhận thiết bị thành công"
+        "Equipment Handover Complete"
       );
       setHandoverModalItem(null);
       await loadData();
     } catch (err: any) {
-      showToast(err?.response?.data?.message || "Không thể tiếp nhận thiết bị.", "error");
+      showToast(err?.response?.data?.message || "Failed to accept equipment.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -192,19 +200,46 @@ export default function EquipmentReturnPage() {
     if (!returnModalItem) return;
     try {
       setActionLoading(true);
-      await returnEquipmentDetail(returnModalItem.allocationEquipmentDetailId, returnNotes);
-      
+
+      const targetInstanceId = returnModalItem.equipmentInstanceId;
+      const ids = targetInstanceId ? [targetInstanceId] : [];
+
       if (isManager) {
+        // Manager final acceptance
+        await confirmEquipmentInstances({
+          equipmentInstanceIds: ids,
+          confirmAction: "AcceptReturn",
+          note: returnNotes || "Manager verified and accepted equipment into inventory.",
+        });
+        await returnEquipmentDetail(returnModalItem.allocationEquipmentDetailId, returnNotes);
+
         showToast(
-          `Đã xác nhận nghiệm thu và nhận thiết bị "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "thiết bị"}" về kho (Available)!`,
+          `Equipment "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "machine"}" has been accepted back into inventory (Available)!`,
           "success",
-          "Xác nhận trả thiết bị thành công"
+          "Equipment Return Confirmed"
         );
       } else {
+        // Seasonal / Technician submitting return request to Researcher
+        await reportEquipmentInstances({
+          allocationPlanId: returnModalItem.allocationPlanId,
+          equipmentInstanceIds: ids,
+          reportType: "Return",
+          note: `[Field Staff Return Request]: Condition: ${returnCondition}. ${returnNotes}`.trim(),
+        });
+
+        sendLocalNotification({
+          title: "Return Request Sent to Researcher",
+          message: `Return request for equipment "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode}" has been submitted to the Lead Researcher.`,
+          notificationType: "Info",
+          referenceType: "AllocationEquipmentDetail",
+          referenceId: returnModalItem.allocationEquipmentDetailId,
+        });
+        void fetchUnreadCount();
+
         showToast(
-          `Đã bàn giao trả thiết bị "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "thiết bị"}" về kho thành công!`,
+          `Return request for equipment "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "machine"}" submitted to Lead Researcher successfully!`,
           "success",
-          "Trả thiết bị thành công"
+          "Return Request Submitted"
         );
       }
 
@@ -212,7 +247,7 @@ export default function EquipmentReturnPage() {
       setReturnNotes("");
       await loadData();
     } catch (err: any) {
-      showToast(err?.response?.data?.message || "Không thể thực hiện thao tác hoàn trả.", "error");
+      showToast(err?.response?.data?.message || "Failed to process equipment return.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -221,23 +256,32 @@ export default function EquipmentReturnPage() {
   return (
     <DashboardLayout>
       <div className="equipment-return-page">
+        {/* Toast */}
+        <ToastPopup
+          visible={toast.visible}
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          onClose={() => setToast((prev) => ({ ...prev, visible: false }))}
+        />
+
         {/* Header */}
         <header className="eq-return-header">
           <div>
             <p className="eq-return-breadcrumb">
               {isManager
                 ? "Operations / Equipment Return Confirmation"
-                : "Operations / Equipment Return"}
+                : "Operations / Equipment Handover & Return"}
             </p>
             <h1>
               {isManager
-                ? "Equipment Return Confirmation (Xác nhận trả thiết bị)"
-                : "Equipment Handover & Return (Bàn giao & Trả thiết bị)"}
+                ? "Equipment Return Confirmation"
+                : "Equipment Handover & Return"}
             </h1>
             <p className="eq-return-description">
               {isManager
-                ? "Kiểm tra nghiệm thu và xác nhận tiếp nhận hoàn trả máy móc, thiết bị thực địa từ Kỹ thuật viên (Technician) và Thời vụ (Seasonal) về lại kho tài nguyên."
-                : "Danh sách máy móc và trang thiết bị thực địa được phân bổ cho các ca làm việc và đề tài của bạn. Thực hiện tiếp nhận máy và gửi trả thiết bị sau khi hoàn thành nhiệm vụ."}
+                ? "Inspect and confirm final inventory returns of field machines and equipment from Researchers and Field Technicians back into the central asset pool."
+                : "Manage field machines and tools assigned to your active trials and shifts. Accept equipment into active use and submit return requests to the Lead Researcher upon trial completion."}
             </p>
           </div>
         </header>
@@ -250,7 +294,7 @@ export default function EquipmentReturnPage() {
             </div>
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Tổng thiết bị phân bổ" : "Tổng thiết bị được giao"}
+                {isManager ? "Total Allocated Equipment" : "Total Assigned Equipment"}
               </span>
               <span className="eq-stat-value">{stats.total}</span>
             </div>
@@ -262,7 +306,7 @@ export default function EquipmentReturnPage() {
             </div>
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Cần xác nhận trả (In Use)" : "Đang sử dụng (Cần trả)"}
+                {isManager ? "Pending Return Confirmation" : "In Active Use (Ready to Return)"}
               </span>
               <span className="eq-stat-value" style={{ color: isManager ? "#059669" : "#dc2626" }}>
                 {stats.inUse}
@@ -276,7 +320,7 @@ export default function EquipmentReturnPage() {
             </div>
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Chờ nhân viên nhận máy" : "Chờ tiếp nhận máy"}
+                {isManager ? "Awaiting Field Handover" : "Awaiting Handover (New)"}
               </span>
               <span className="eq-stat-value" style={{ color: "#2563eb" }}>
                 {stats.allocated}
@@ -290,7 +334,7 @@ export default function EquipmentReturnPage() {
             </div>
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Đã nghiệm thu nhập kho" : "Đã hoàn trả về kho"}
+                {isManager ? "Accepted into Inventory" : "Returned to Inventory"}
               </span>
               <span className="eq-stat-value" style={{ color: "#16a34a" }}>
                 {stats.completed}
@@ -299,389 +343,338 @@ export default function EquipmentReturnPage() {
           </div>
         </div>
 
-        {/* Controls & Search */}
-        <div className="eq-return-controls">
+        {/* Toolbar & Search */}
+        <div className="eq-return-toolbar">
           <div className="eq-return-search-box">
-            <Search className="eq-return-search-icon" size={17} />
+            <Search size={16} className="eq-return-search-icon" />
             <input
               type="text"
-              placeholder="Tìm theo tên máy, mã tài sản, số serial, đề tài, giai đoạn..."
+              placeholder="Search by equipment name, code, serial number, experiment..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="eq-return-search-input"
             />
           </div>
 
-          <div className="eq-return-filter-tabs">
+          {/* Tab Filter Pills */}
+          <div className="eq-return-tabs">
             <button
               type="button"
-              className={`eq-return-tab-btn ${tabFilter === "all" ? "active" : ""}`}
+              className={`eq-tab-btn ${tabFilter === "all" ? "active" : ""}`}
               onClick={() => setTabFilter("all")}
             >
-              Tất cả <span className="eq-tab-counter">{stats.total}</span>
+              All Equipment ({stats.total})
             </button>
             <button
               type="button"
-              className={`eq-return-tab-btn ${tabFilter === "inuse" ? "active" : ""}`}
+              className={`eq-tab-btn ${tabFilter === "inuse" ? "active" : ""}`}
               onClick={() => setTabFilter("inuse")}
             >
-              {isManager ? "Cần xác nhận trả" : "Đang sử dụng (Cần trả)"}{" "}
-              <span className="eq-tab-counter">{stats.inUse}</span>
+              In Use ({stats.inUse})
             </button>
             <button
               type="button"
-              className={`eq-return-tab-btn ${tabFilter === "allocated" ? "active" : ""}`}
+              className={`eq-tab-btn ${tabFilter === "allocated" ? "active" : ""}`}
               onClick={() => setTabFilter("allocated")}
             >
-              {isManager ? "Chờ giao máy" : "Chờ nhận máy"}{" "}
-              <span className="eq-tab-counter">{stats.allocated}</span>
+              Awaiting Handover ({stats.allocated})
             </button>
             <button
               type="button"
-              className={`eq-return-tab-btn ${tabFilter === "completed" ? "active" : ""}`}
+              className={`eq-tab-btn ${tabFilter === "completed" ? "active" : ""}`}
               onClick={() => setTabFilter("completed")}
             >
-              {isManager ? "Đã nhập kho" : "Đã hoàn trả"}{" "}
-              <span className="eq-tab-counter">{stats.completed}</span>
+              Returned ({stats.completed})
             </button>
           </div>
         </div>
 
-        {/* Table Card */}
+        {/* Main Table Card */}
         <div className="eq-return-table-card">
-          {loading ? (
-            <div className="eq-empty-state">
-              <p>Đang tải danh sách thiết bị...</p>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="eq-empty-state">
-              <Cpu size={40} color="#cbd5e1" style={{ margin: "0 auto 12px" }} />
-              <h3>Không tìm thấy thiết bị nào</h3>
-              <p>Không có trang thiết bị nào phù hợp với bộ lọc hiện tại của bạn.</p>
-            </div>
-          ) : (
-            <table className="eq-return-table">
-              <thead>
+          <table className="eq-return-table">
+            <thead>
+              <tr>
+                <th>Equipment Name & Type</th>
+                <th>Asset Code / Serial</th>
+                <th>Assigned Experiment & Phase</th>
+                <th>Scheduled Period</th>
+                <th>Efficiency</th>
+                <th>Status</th>
+                <th style={{ textAlign: "center" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
                 <tr>
-                  <th>Tên thiết bị & Mã tài sản</th>
-                  <th>Loại thiết bị</th>
-                  <th>Đề tài & Giai đoạn</th>
-                  <th>Thời hạn phân bổ</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: "right" }}>
-                    {isManager ? "Thao tác Quản lý" : "Thao tác"}
-                  </th>
+                  <td colSpan={7} className="eq-return-loading">
+                    <div className="eq-return-spinner" />
+                    <span>Loading equipment records from server...</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item) => {
+              ) : filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="eq-return-empty">
+                    <PackageCheck size={40} color="#94a3b8" />
+                    <p>No equipment records found.</p>
+                    <span>No equipment matches your current filter or search criteria.</span>
+                  </td>
+                </tr>
+              ) : (
+                filteredItems.map((item) => {
                   const status = item.status || "Allocated";
-                  const isAllocated = status === "Allocated" || status === "Reserved";
-                  const isInUse = status === "InUse";
-                  const isCompleted = status === "Completed";
+                  const canHandover = !isManager && status === "Allocated";
+                  const canReturn = status === "InUse";
 
                   return (
                     <tr key={item.allocationEquipmentDetailId}>
-                      <td>
-                        <div className="eq-name-title">
-                          {item.equipmentInstanceName || item.assetCode || "Máy thực địa"}
+                      <td className="eq-name-cell">
+                        <div className="eq-icon-small">
+                          <Cpu size={16} />
                         </div>
-                        <div className="eq-asset-code">
-                          Mã tài sản: <strong>{item.assetCode || "Chưa gán mã"}</strong>
-                          {item.serialNumber && ` • S/N: ${item.serialNumber}`}
+                        <div>
+                          <strong className="eq-main-title">
+                            {item.allocatedEquipmentTypeName || "Field Machine"}
+                          </strong>
+                          <span className="eq-sub-title">
+                            {item.equipmentInstanceName || "Standard Unit"}
+                          </span>
                         </div>
                       </td>
 
-                      <td>{item.allocatedEquipmentTypeName || "Thiết bị tiêu chuẩn"}</td>
-
                       <td>
-                        <div className="eq-experiment-tag">
-                          {item.experimentName || `Allocation #${item.allocationPlanId}`}
-                        </div>
-                        {item.phaseName && (
-                          <div className="eq-phase-tag">
-                            <Layers size={11} style={{ display: "inline", verticalAlign: "middle", marginRight: 3 }} />
-                            {item.phaseName}
-                          </div>
+                        <span className="eq-asset-code">
+                          {item.assetCode || `EQ-${item.allocationEquipmentDetailId}`}
+                        </span>
+                        {item.serialNumber && (
+                          <span className="eq-serial-sub">SN: {item.serialNumber}</span>
                         )}
                       </td>
 
                       <td>
-                        {formatDate(item.startDate)} → {formatDate(item.endDate)}
+                        <div className="eq-exp-info">
+                          <strong>{item.experimentName || "Assigned Experiment"}</strong>
+                          <span>{item.phaseName || "Active Phase"}</span>
+                        </div>
                       </td>
 
                       <td>
-                        {isInUse ? (
-                          <span className="eq-badge eq-badge-inuse">
-                            <Sparkles size={11} /> Đang sử dụng
-                          </span>
-                        ) : isCompleted ? (
-                          <span className="eq-badge eq-badge-completed">
-                            <CheckCircle2 size={11} /> {isManager ? "Đã nhập kho" : "Đã hoàn trả"}
-                          </span>
-                        ) : (
-                          <span className="eq-badge eq-badge-allocated">
-                            <Truck size={11} /> Chờ nhận máy
-                          </span>
-                        )}
+                        <div className="eq-date-range">
+                          <span>{formatDate(item.startDate)}</span>
+                          <small>→</small>
+                          <span>{formatDate(item.endDate)}</span>
+                        </div>
                       </td>
 
-                      <td style={{ textAlign: "right" }}>
-                        {/* Allocating State */}
-                        {isAllocated && (
-                          isManager ? (
-                            <span style={{ fontSize: "11.5px", color: "#64748b" }}>
-                              Chờ nhân viên nhận
-                            </span>
-                          ) : (
+                      <td>
+                        <span className="eq-efficiency-pill">
+                          {Math.round((item.efficiencyRate ?? 1) * 100)}% Eff.
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className={`eq-status-badge eq-status-${status.toLowerCase()}`}>
+                          {status === "InUse"
+                            ? "In Use"
+                            : status === "Allocated"
+                            ? "Awaiting Handover"
+                            : status === "Completed"
+                            ? "Returned"
+                            : status}
+                        </span>
+                      </td>
+
+                      <td style={{ textAlign: "center" }}>
+                        <div className="eq-action-buttons">
+                          {canHandover && (
                             <button
                               type="button"
                               className="eq-btn-handover"
                               onClick={() => setHandoverModalItem(item)}
-                              title="Xác nhận tiếp nhận thiết bị vào ca làm việc"
+                              title="Accept equipment into active use"
                             >
-                              <ArrowDownRight size={13} /> Nhận thiết bị
+                              <ArrowDownRight size={13} />
+                              <span>Accept Handover</span>
                             </button>
-                          )
-                        )}
+                          )}
 
-                        {/* In Use State: Differentiated by Role */}
-                        {isInUse && (
-                          isManager ? (
-                            <button
-                              type="button"
-                              className="eq-btn-confirm-return"
-                              onClick={() => {
-                                setReturnModalItem(item);
-                                setReturnCondition("Good");
-                                setReturnNotes("");
-                              }}
-                              title="Manager xác nhận nghiệm thu và tiếp nhận máy về kho"
-                            >
-                              <PackageCheck size={13} /> Xác nhận trả thiết bị
-                            </button>
-                          ) : (
+                          {canReturn && (
                             <button
                               type="button"
                               className="eq-btn-return"
-                              onClick={() => {
-                                setReturnModalItem(item);
-                                setReturnCondition("Good");
-                                setReturnNotes("");
-                              }}
-                              title="Nhân viên gửi trả thiết bị về kho sau ca làm việc"
+                              onClick={() => setReturnModalItem(item)}
+                              title={
+                                isManager
+                                  ? "Confirm equipment inventory acceptance"
+                                  : "Submit return request to Lead Researcher"
+                              }
                             >
-                              <RotateCcw size={13} /> Trả thiết bị
+                              <RotateCcw size={13} />
+                              <span>
+                                {isManager ? "Confirm Acceptance" : "Request Return"}
+                              </span>
                             </button>
-                          )
-                        )}
+                          )}
 
-                        {/* Completed State */}
-                        {isCompleted && (
-                          <span style={{ fontSize: "11.5px", color: "#94a3b8" }}>
-                            {isManager ? "Đã nhập kho" : "Hoàn tất"}
-                          </span>
-                        )}
+                          {!canHandover && !canReturn && (
+                            <span style={{ fontSize: "12px", color: "#94a3b8" }}>—</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          )}
+                })
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {/* Modal: Nhận thiết bị (Field Staff) */}
+        {/* Modal: Handover Confirmation (Accept Equipment) */}
         {handoverModalItem && (
-          <div className="eq-modal-backdrop" onClick={() => !actionLoading && setHandoverModalItem(null)}>
-            <div className="eq-modal-card" onClick={(e) => e.stopPropagation()}>
-              <div className="eq-modal-header">
-                <h3>
-                  <PackageCheck size={18} color="#16a34a" /> Tiếp nhận thiết bị vào ca làm việc
-                </h3>
+          <div className="eq-modal-overlay" onClick={() => setHandoverModalItem(null)}>
+            <div className="eq-modal-container" onClick={(e) => e.stopPropagation()}>
+              <div className="eq-modal-head">
+                <div className="eq-modal-title">
+                  <ArrowDownRight size={18} color="#2563eb" />
+                  <h2>Confirm Equipment Handover</h2>
+                </div>
                 <button
                   type="button"
                   className="eq-modal-close-btn"
-                  onClick={() => !actionLoading && setHandoverModalItem(null)}
+                  onClick={() => setHandoverModalItem(null)}
                 >
-                  <XCircle size={18} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="eq-modal-body">
-                <p style={{ margin: "0 0 10px", color: "#334155" }}>
-                  Bạn đang xác nhận tiếp nhận máy móc để phục vụ nhiệm vụ thực địa:
+              <div className="eq-modal-content">
+                <p style={{ margin: "0 0 14px", fontSize: "13px", color: "#64748b", lineHeight: 1.5 }}>
+                  You are about to accept and begin using the following field equipment:
                 </p>
 
-                <div className="eq-modal-info-box">
-                  <div className="eq-modal-info-row">
-                    <span>Tên thiết bị:</span>
-                    <strong>{handoverModalItem.equipmentInstanceName || "Máy thực địa"}</strong>
+                <div className="eq-modal-info-card">
+                  <div className="eq-modal-info-title">
+                    {handoverModalItem.allocatedEquipmentTypeName || "Field Machine"} (
+                    {handoverModalItem.assetCode || "N/A"})
                   </div>
-                  <div className="eq-modal-info-row">
-                    <span>Mã tài sản:</span>
-                    <strong>{handoverModalItem.assetCode || "N/A"}</strong>
-                  </div>
-                  <div className="eq-modal-info-row">
-                    <span>Đề tài / Giai đoạn:</span>
-                    <strong>{handoverModalItem.experimentName || `Plan #${handoverModalItem.allocationPlanId}`}</strong>
-                  </div>
-                  <div className="eq-modal-info-row">
-                    <span>Thời hạn phân bổ:</span>
-                    <strong>{formatDate(handoverModalItem.startDate)} → {formatDate(handoverModalItem.endDate)}</strong>
+                  <div className="eq-modal-info-sub">
+                    Experiment: {handoverModalItem.experimentName || "Assigned Experiment"}
                   </div>
                 </div>
 
-                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "10px 12px", borderRadius: "8px", fontSize: "12.5px", color: "#166534" }}>
-                  💡 Sau khi nhận máy, trạng thái thiết bị sẽ chuyển sang <strong>In Use (Đang sử dụng)</strong>.
+                <div className="eq-modal-actions">
+                  <button
+                    type="button"
+                    className="audit-secondary-btn"
+                    onClick={() => setHandoverModalItem(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="audit-primary-btn"
+                    disabled={actionLoading}
+                    onClick={handleConfirmHandover}
+                  >
+                    <CheckCircle2 size={15} />
+                    <span>{actionLoading ? "Processing..." : "Confirm & Accept into Use"}</span>
+                  </button>
                 </div>
-              </div>
-
-              <div className="eq-modal-footer">
-                <button
-                  type="button"
-                  className="eq-modal-btn-cancel"
-                  onClick={() => setHandoverModalItem(null)}
-                  disabled={actionLoading}
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  className="eq-modal-btn-handover"
-                  onClick={() => void handleConfirmHandover()}
-                  disabled={actionLoading}
-                >
-                  {actionLoading ? "Đang xử lý..." : "Xác nhận nhận thiết bị"}
-                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Modal: Trả thiết bị / Xác nhận trả thiết bị */}
+        {/* Modal: Submit Return Request */}
         {returnModalItem && (
-          <div className="eq-modal-backdrop" onClick={() => !actionLoading && setReturnModalItem(null)}>
-            <div className="eq-modal-card" onClick={(e) => e.stopPropagation()}>
-              <div className="eq-modal-header">
-                <h3>
-                  {isManager ? (
-                    <>
-                      <PackageCheck size={18} color="#16a34a" /> Xác nhận Nghiệm thu & Nhận trả thiết bị về kho
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw size={18} color="#dc2626" /> Bàn giao trả thiết bị sau khi sử dụng
-                    </>
-                  )}
-                </h3>
+          <div className="eq-modal-overlay" onClick={() => setReturnModalItem(null)}>
+            <div className="eq-modal-container" onClick={(e) => e.stopPropagation()}>
+              <div className="eq-modal-head">
+                <div className="eq-modal-title">
+                  <RotateCcw size={18} color="#16a34a" />
+                  <h2>
+                    {isManager
+                      ? "Confirm Equipment Return to Inventory"
+                      : "Submit Equipment Return Request"}
+                  </h2>
+                </div>
                 <button
                   type="button"
                   className="eq-modal-close-btn"
-                  onClick={() => !actionLoading && setReturnModalItem(null)}
+                  onClick={() => setReturnModalItem(null)}
                 >
-                  <XCircle size={18} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="eq-modal-body">
-                <p style={{ margin: "0 0 10px", color: "#334155" }}>
-                  {isManager
-                    ? "Quản lý / Thủ kho thực hiện kiểm tra nghiệm thu tình trạng máy khi thu hồi về kho:"
-                    : "Bàn giao hoàn trả thiết bị từ thực địa về lại cho Quản lý / Kho thiết bị:"}
-                </p>
-
-                <div className="eq-modal-info-box">
-                  <div className="eq-modal-info-row">
-                    <span>Tên thiết bị:</span>
-                    <strong>{returnModalItem.equipmentInstanceName || "Máy thực địa"}</strong>
+              <div className="eq-modal-content">
+                <div className="eq-modal-info-card">
+                  <div className="eq-modal-info-title">
+                    {returnModalItem.allocatedEquipmentTypeName || "Field Machine"} (
+                    {returnModalItem.assetCode || "N/A"})
                   </div>
-                  <div className="eq-modal-info-row">
-                    <span>Mã tài sản:</span>
-                    <strong>{returnModalItem.assetCode || "N/A"}</strong>
-                  </div>
-                  <div className="eq-modal-info-row">
-                    <span>Trạng thái hiện tại:</span>
-                    <strong style={{ color: "#059669" }}>In Use (Đang sử dụng)</strong>
+                  <div className="eq-modal-info-sub">
+                    Experiment: {returnModalItem.experimentName || "Assigned Experiment"}
                   </div>
                 </div>
 
-                <div className="eq-modal-field">
-                  <label>Tình trạng thiết bị khi nghiệm thu thu hồi:</label>
-                  <select
-                    value={returnCondition}
-                    onChange={(e) => setReturnCondition(e.target.value as EquipmentConditionLevel)}
-                  >
-                    <option value="Good">Hoạt động tốt (Good)</option>
-                    <option value="Normal">Bình thường (Normal)</option>
-                    <option value="NeedMaintenance">Cần bảo dưỡng định kỳ (Need Maintenance)</option>
-                    <option value="Broken">Hỏng hóc / Cần sửa chữa (Broken)</option>
-                  </select>
-                </div>
+                {!isManager && (
+                  <div className="eq-form-group">
+                    <label>Current Equipment Condition</label>
+                    <select
+                      value={returnCondition}
+                      onChange={(e) => setReturnCondition(e.target.value as EquipmentConditionLevel)}
+                    >
+                      <option value="Good">Good (Working normally, no defects)</option>
+                      <option value="Fair">Fair (Operational, normal wear and tear)</option>
+                      <option value="Poor">Poor (Degraded efficiency, needs service)</option>
+                      <option value="Critical">Critical / Damaged (Requires repair)</option>
+                    </select>
+                  </div>
+                )}
 
-                <div className="eq-modal-field">
-                  <label>Ghi chú kiểm tra & Biên bản bàn giao trả:</label>
+                <div className="eq-form-group">
+                  <label>
+                    {isManager ? "Inventory Acceptance Remarks" : "Return Notes for Lead Researcher"}
+                  </label>
                   <textarea
-                    rows={3}
-                    placeholder="Ghi nhận tình trạng pin, phụ kiện, vệ sinh máy, sự cố phát sinh..."
+                    rows={4}
+                    placeholder={
+                      isManager
+                        ? "Enter inventory check-in remarks..."
+                        : "Describe field condition, completed trials, or notes for the Researcher..."
+                    }
                     value={returnNotes}
                     onChange={(e) => setReturnNotes(e.target.value)}
                   />
                 </div>
 
-                <div style={{ background: isManager ? "#f0fdf4" : "#fef2f2", border: `1px solid ${isManager ? "#bbf7d0" : "#fecaca"}`, padding: "10px 12px", borderRadius: "8px", fontSize: "12.5px", color: isManager ? "#166534" : "#991b1b" }}>
-                  {isManager ? (
-                    <>
-                      💡 Thiết bị sau khi xác nhận sẽ được thu hồi về kho và chuyển sang trạng thái <strong>Available (Sẵn sàng)</strong> để phân bổ cho các đề tài khác.
-                    </>
-                  ) : (
-                    <>
-                      ⚠️ Thiết bị sẽ hoàn tất phân bổ (Completed) và trạng thái trong kho sẽ chuyển thành <strong>Available (Sẵn sàng)</strong>.
-                    </>
-                  )}
+                <div className="eq-modal-actions">
+                  <button
+                    type="button"
+                    className="audit-secondary-btn"
+                    onClick={() => setReturnModalItem(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="audit-primary-btn"
+                    disabled={actionLoading}
+                    onClick={handleConfirmReturn}
+                  >
+                    <Send size={15} />
+                    <span>
+                      {actionLoading
+                        ? "Submitting..."
+                        : isManager
+                        ? "Confirm Acceptance (Available)"
+                        : "Submit Return Request"}
+                    </span>
+                  </button>
                 </div>
-              </div>
-
-              <div className="eq-modal-footer">
-                <button
-                  type="button"
-                  className="eq-modal-btn-cancel"
-                  onClick={() => setReturnModalItem(null)}
-                  disabled={actionLoading}
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  className={isManager ? "eq-modal-btn-handover" : "eq-modal-btn-confirm"}
-                  onClick={() => void handleConfirmReturn()}
-                  disabled={actionLoading}
-                >
-                  {actionLoading ? (
-                    "Đang xử lý..."
-                  ) : isManager ? (
-                    <>
-                      <CheckCircle2 size={15} /> Xác nhận trả thiết bị
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw size={15} /> Gửi trả thiết bị
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           </div>
         )}
-
-        {/* Global Toast */}
-        <ToastPopup
-          visible={toast.visible}
-          type={toast.type}
-          title={toast.title}
-          message={toast.message}
-          onClose={() => setToast((prev) => ({ ...prev, visible: false }))}
-        />
       </div>
     </DashboardLayout>
   );

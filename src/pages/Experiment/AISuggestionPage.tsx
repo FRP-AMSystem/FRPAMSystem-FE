@@ -16,26 +16,41 @@ import type { ExperimentLandRequirement } from "../../types/experimentLandRequir
 import {
   getExperimentById,
   getExperiments,
-  submitExperiment,
 } from "../../services/experimentService";
 import {
-  createExperimentPhase,
-  deleteExperimentPhase,
   getExperimentPhases,
 } from "../../services/experimentPhaseService";
 import {
-  createExperimentEquipmentRequirement,
   getExperimentEquipmentRequirements,
 } from "../../services/experimentEquipmentRequirementService";
 import {
-  createExperimentHumanRequirement,
   getExperimentHumanRequirements,
 } from "../../services/experimentHumanRequirementService";
 import {
-  createExperimentLandRequirement,
   getExperimentLandRequirements,
 } from "../../services/experimentLandRequirementService";
-import { createAllocationPlan } from "../../services/allocationPlanService";
+import {
+  createAllocationPlan,
+  getAllocationPlans,
+  submitAllocationPlan,
+  updateAllocationPlan,
+} from "../../services/allocationPlanService";
+import {
+  createAllocationEquipmentDetail,
+  createAllocationHumanDetail,
+  createAllocationLandDetail,
+  deleteAllocationEquipmentDetail,
+  deleteAllocationHumanDetail,
+  deleteAllocationLandDetail,
+  getAllocationEquipmentDetails,
+  getAllocationHumanDetails,
+  getAllocationLandDetails,
+} from "../../services/allocationDetailService";
+import {
+  createSchedule,
+  deleteSchedule,
+  getSchedules,
+} from "../../services/scheduleService";
 import {
   generateAISuggestions,
   DEFAULT_OPTIMIZATION_SETTINGS,
@@ -60,16 +75,72 @@ function formatDate(dateStr?: string | null): string {
   }).format(d);
 }
 
-function formatToUtcIso(dateStr?: string | null): string {
-  if (!dateStr) return new Date().toISOString();
-  if (dateStr.includes("T")) return dateStr;
+function normalizeDatePart(dateStr?: string | null): string {
+  if (!dateStr) return new Date().toISOString().slice(0, 10);
+
+  if (dateStr.includes("T")) {
+    return dateStr.slice(0, 10);
+  }
+
   if (dateStr.includes("/")) {
     const parts = dateStr.split("/");
     if (parts.length === 3) {
-      return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}T00:00:00.000Z`;
+      return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
     }
   }
-  return `${dateStr}T00:00:00.000Z`;
+
+  return dateStr.slice(0, 10);
+}
+
+function toAllocationDateTime(
+  dateStr?: string | null,
+  endOfDay = false
+): string {
+  if (!dateStr) {
+    const today = new Date().toISOString().slice(0, 10);
+    return `${today}T${endOfDay ? "23:59:59" : "00:00:00"}`;
+  }
+
+  if (dateStr.includes("T")) {
+    return dateStr;
+  }
+
+  const datePart = normalizeDatePart(dateStr);
+  return `${datePart}T${endOfDay ? "23:59:59" : "00:00:00"}`;
+}
+
+function normalizeEfficiency(value?: number | null): number {
+  const numeric = Number(value ?? 1);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 1;
+  return numeric > 1 ? numeric / 100 : numeric;
+}
+
+function dateKeysBetween(start?: string | null, end?: string | null): string[] {
+  const startKey = normalizeDatePart(start);
+  const endKey = normalizeDatePart(end || start);
+  const startDate = new Date(`${startKey}T00:00:00`);
+  const endDate = new Date(`${endKey}T00:00:00`);
+
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    endDate < startDate
+  ) {
+    return [startKey];
+  }
+
+  const result: string[] = [];
+  const cursor = new Date(startDate);
+
+  while (cursor <= endDate && result.length < 366) {
+    const year = cursor.getFullYear();
+    const month = String(cursor.getMonth() + 1).padStart(2, "0");
+    const day = String(cursor.getDate()).padStart(2, "0");
+    result.push(`${year}-${month}-${day}`);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return result;
 }
 
 export default function AISuggestionPage() {
@@ -239,122 +310,591 @@ export default function AISuggestionPage() {
 
   const selectedPlan = suggestions.find((s) => s.id === selectedPlanId);
 
-  // Apply Selected AI Plan
+  // Resolve or create the single Draft Allocation Plan used by the selected AI option.
+  const ensureDraftAllocationPlan = async (): Promise<number> => {
+    if (!experiment) {
+      throw new Error("Experiment is not loaded.");
+    }
+
+    const plans = await getAllocationPlans({
+      experimentId: experiment.experimentId,
+      page: 1,
+      size: 100,
+    });
+
+    const existingDraft = [...plans]
+      .filter(
+        (plan) =>
+          Number(plan.experimentId) === Number(experiment.experimentId) &&
+          String(plan.approveStatus || "").toLowerCase() === "draft"
+      )
+      .sort(
+        (first, second) =>
+          new Date(second.updatedAt || second.createdAt || 0).getTime() -
+          new Date(first.updatedAt || first.createdAt || 0).getTime()
+      )[0];
+
+    if (existingDraft?.allocationPlanId) {
+      return existingDraft.allocationPlanId;
+    }
+
+    const created = await createAllocationPlan({
+      experimentId: experiment.experimentId,
+      fitnessScore: null,
+      approveStatus: "Draft",
+    });
+
+    const planId = Number(created?.allocationPlanId || 0);
+
+    if (!Number.isInteger(planId) || planId <= 0) {
+      throw new Error("Unable to create Draft Allocation Plan for the AI suggestion.");
+    }
+
+    return planId;
+  };
+
+  const resolvePhase = (phaseId?: number, phaseName?: string) => {
+    if (phaseId) {
+      const byId = phases.find(
+        (phase) => Number(phase.experimentPhaseId) === Number(phaseId)
+      );
+      if (byId) return byId;
+    }
+
+    if (phaseName) {
+      const normalizedName = phaseName.trim().toLowerCase();
+      const byName = phases.find(
+        (phase) =>
+          String(phase.phaseName || "").trim().toLowerCase() === normalizedName
+      );
+      if (byName) return byName;
+    }
+
+    return phases[0];
+  };
+
+  const findEquipmentRequirement = (
+    requiredTypeId?: number,
+    allocatedTypeId?: number
+  ): ExperimentEquipmentRequirement | undefined => {
+    if (requiredTypeId) {
+      const requested = equipReqs.find(
+        (requirement) =>
+          Number(requirement.equipmentTypeId) === Number(requiredTypeId)
+      );
+      if (requested) return requested;
+    }
+
+    if (allocatedTypeId) {
+      return equipReqs.find(
+        (requirement) =>
+          Number(requirement.equipmentTypeId) === Number(allocatedTypeId)
+      );
+    }
+
+    return undefined;
+  };
+
+  const findHumanRequirement = (
+    roleId?: number
+  ): ExperimentHumanRequirement | undefined => {
+    if (!roleId) return humanReqs[0];
+
+    return (
+      humanReqs.find(
+        (requirement) => Number(requirement.roleId) === Number(roleId)
+      ) || humanReqs[0]
+    );
+  };
+
+  const findLandRequirement = (
+    soilType?: string,
+    areaSize?: number
+  ): ExperimentLandRequirement | undefined => {
+    const normalizedSoil = String(soilType || "").trim().toLowerCase();
+
+    if (normalizedSoil) {
+      const soilMatch = landReqs.find(
+        (requirement) =>
+          String(requirement.requiredSoilType || "").trim().toLowerCase() ===
+            normalizedSoil &&
+          Number(areaSize || 0) >= Number(requirement.requiredArea || 0)
+      );
+
+      if (soilMatch) return soilMatch;
+    }
+
+    return landReqs[0];
+  };
+
+  // When a Researcher chooses an AI candidate, replace only the Allocation
+  // resources belonging to the Draft. Experiment phases and requirements are
+  // source requirements and must never be deleted/recreated by the AI flow.
+  const clearDraftAllocationResources = async (planId: number) => {
+    const [equipmentDetails, humanDetails, landDetails, schedules] =
+      await Promise.all([
+        getAllocationEquipmentDetails({ allocationPlanId: planId, page: 1, size: 500 }),
+        getAllocationHumanDetails({ allocationPlanId: planId, page: 1, size: 500 }),
+        getAllocationLandDetails({ allocationPlanId: planId, page: 1, size: 500 }),
+        getSchedules({ allocationPlanId: planId, page: 1, size: 500 }),
+      ]);
+
+    for (const schedule of schedules) {
+      if (schedule.scheduleId > 0) {
+        await deleteSchedule(schedule.scheduleId);
+      }
+    }
+
+    for (const detail of equipmentDetails) {
+      if (detail.allocationEquipmentDetailId > 0) {
+        await deleteAllocationEquipmentDetail(detail.allocationEquipmentDetailId);
+      }
+    }
+
+    for (const detail of humanDetails) {
+      if (detail.allocationHumanDetailId > 0) {
+        await deleteAllocationHumanDetail(detail.allocationHumanDetailId);
+      }
+    }
+
+    for (const detail of landDetails) {
+      if (detail.allocationLandDetailId > 0) {
+        await deleteAllocationLandDetail(detail.allocationLandDetailId);
+      }
+    }
+  };
+
+  const persistSelectedAIResources = async (planId: number) => {
+    if (!experiment || !selectedPlan) {
+      throw new Error("No AI allocation option is selected.");
+    }
+
+    if (!Array.isArray(selectedPlan.allocatedEquipment)) {
+      throw new Error("The selected AI option does not contain equipment allocation data.");
+    }
+
+    if (!Array.isArray(selectedPlan.allocatedHumans)) {
+      throw new Error("The selected AI option does not contain personnel allocation data.");
+    }
+
+    if (!Array.isArray(selectedPlan.allocatedLands)) {
+      throw new Error("The selected AI option does not contain land allocation data.");
+    }
+
+    // Equipment selected by the AI solver.
+    for (const item of selectedPlan.allocatedEquipment) {
+      const equipmentInstanceId = Number(item.equipmentInstanceId || 0);
+      const allocatedEquipmentTypeId = Number(
+        item.allocatedEquipmentTypeId || item.requiredEquipmentTypeId || 0
+      );
+
+      if (!Number.isInteger(equipmentInstanceId) || equipmentInstanceId <= 0) {
+        throw new Error(
+          `AI candidate contains an invalid equipment instance (${item.assetCode || "unknown"}).`
+        );
+      }
+
+      if (
+        !Number.isInteger(allocatedEquipmentTypeId) ||
+        allocatedEquipmentTypeId <= 0
+      ) {
+        throw new Error(
+          `AI candidate contains an invalid equipment type for ${item.assetCode || `equipment #${equipmentInstanceId}`}.`
+        );
+      }
+
+      const requirement = findEquipmentRequirement(
+        item.requiredEquipmentTypeId,
+        item.allocatedEquipmentTypeId
+      );
+
+      if (!requirement?.expEquipmentReqId) {
+        throw new Error(
+          `Unable to match ${item.assetCode || `equipment #${equipmentInstanceId}`} to an Experiment Equipment Requirement.`
+        );
+      }
+
+      const phase = resolvePhase(item.phaseId, item.phaseName);
+      const startDate = toAllocationDateTime(
+        item.startDate || phase?.expectedStartDate || experiment.expectStartDate
+      );
+      const endDate = toAllocationDateTime(
+        item.endDate || phase?.expectedEndDate || experiment.expectEndDate,
+        true
+      );
+
+      await createAllocationEquipmentDetail({
+        allocationPlanId: planId,
+        expEquipmentReqId: requirement.expEquipmentReqId,
+        phaseEquipmentReqId: null,
+        allocatedEquipmentTypeId,
+        equipmentInstanceId,
+        quantity: 1,
+        efficiencyRate: normalizeEfficiency(item.efficiencyRate),
+        isSubstitute: Boolean(item.isSubstitute),
+        startDate,
+        endDate,
+        status: "Allocated",
+      });
+    }
+
+    // Personnel selected by the AI solver.
+    //
+    // IMPORTANT:
+    // The same human can legitimately appear more than once in the AI result
+    // (for example, the same Technician is reused in multiple phases).
+    // AllocationHumanDetail represents the PERSON/REQUIREMENT assignment,
+    // while Schedule represents the concrete phase/day working windows.
+    //
+    // Therefore we must create only ONE AllocationHumanDetail for each
+    // (Experiment Human Requirement + Human Resource) pair and then create
+    // the schedules for every AI assignment. Without this grouping, the
+    // backend can reject the second duplicate AllocationHumanDetail with 500.
+    type PreparedHumanAssignment = {
+      item: AISuggestionPlan["allocatedHumans"][number];
+      humanResourceId: number;
+      requirement: ExperimentHumanRequirement;
+      requiredHours: number;
+      phase: ExperimentPhase | undefined;
+      startSource: string;
+      endSource: string;
+      firstDate: string;
+      lastDate: string;
+    };
+
+    const preparedHumanAssignments: PreparedHumanAssignment[] = [];
+
+    for (const item of selectedPlan.allocatedHumans) {
+      const humanResourceId = Number(item.humanResourceId || 0);
+
+      if (!Number.isInteger(humanResourceId) || humanResourceId <= 0) {
+        throw new Error(
+          `AI candidate contains an invalid human resource (${item.fullName || "unknown"}).`
+        );
+      }
+
+      const requirement = findHumanRequirement(item.roleId);
+
+      if (!requirement?.expHumanReqId) {
+        throw new Error(
+          `Unable to match ${item.fullName || `human resource #${humanResourceId}`} to an Experiment Human Requirement.`
+        );
+      }
+
+      const requiredHours = Math.min(
+        9,
+        Math.max(1, Number(requirement.workingHoursPerDay || 8))
+      );
+
+      const phase = resolvePhase(item.phaseId, item.phaseName);
+
+      const startSource =
+        item.startDate ||
+        phase?.expectedStartDate ||
+        experiment.expectStartDate ||
+        new Date().toISOString();
+
+      const endSource =
+        item.endDate ||
+        phase?.expectedEndDate ||
+        experiment.expectEndDate ||
+        startSource;
+
+      const firstDate = normalizeDatePart(startSource);
+      const lastDate = normalizeDatePart(endSource);
+
+      if (!firstDate || !lastDate) {
+        throw new Error(
+          `AI candidate contains an invalid schedule range for ${
+            item.fullName || `Human Resource #${humanResourceId}`
+          }.`
+        );
+      }
+
+      preparedHumanAssignments.push({
+        item,
+        humanResourceId,
+        requirement,
+        requiredHours,
+        phase,
+        startSource,
+        endSource,
+        firstDate,
+        lastDate,
+      });
+    }
+
+    // Group duplicate AI assignments that point to the same Human Detail row.
+    const groupedHumanAssignments = new Map<
+      string,
+      PreparedHumanAssignment[]
+    >();
+
+    for (const assignment of preparedHumanAssignments) {
+      const key = `${assignment.requirement.expHumanReqId}:${assignment.humanResourceId}`;
+      const group = groupedHumanAssignments.get(key) || [];
+      group.push(assignment);
+      groupedHumanAssignments.set(key, group);
+    }
+
+    // Create exactly one AllocationHumanDetail per requirement/person pair.
+    for (const assignments of groupedHumanAssignments.values()) {
+      const firstAssignment = assignments[0];
+
+      const allDateKeys = assignments
+        .flatMap((assignment) =>
+          dateKeysBetween(
+            assignment.startSource,
+            assignment.endSource
+          )
+        )
+        .filter(Boolean)
+        .sort();
+
+      const firstWorkingDate = allDateKeys[0];
+      const lastWorkingDate = allDateKeys[allDateKeys.length - 1];
+
+      if (!firstWorkingDate || !lastWorkingDate) {
+        throw new Error(
+          `${
+            firstAssignment.item.fullName ||
+            `Human Resource #${firstAssignment.humanResourceId}`
+          } does not have a valid AI working date.`
+        );
+      }
+
+      const humanPayload = {
+        allocationPlanId: planId,
+        expHumanReqId:
+          firstAssignment.requirement.expHumanReqId,
+        phaseHumanReqId: null,
+        humanResourceId:
+          firstAssignment.humanResourceId,
+        workingHours:
+          firstAssignment.requiredHours,
+        startDate:
+          `${firstWorkingDate}T08:00:00`,
+        endDate:
+          `${lastWorkingDate}T17:00:00`,
+        status: "Allocated" as const,
+      };
+
+      console.log(
+        "AI AllocationHumanDetail payload:",
+        humanPayload
+      );
+
+      try {
+        await createAllocationHumanDetail(
+          humanPayload
+        );
+      } catch (humanDetailError: any) {
+        console.error(
+          "Create AI AllocationHumanDetail failed:",
+          {
+            payload: humanPayload,
+            status:
+              humanDetailError?.response?.status,
+            response:
+              humanDetailError?.response?.data,
+            message:
+              humanDetailError?.message,
+          }
+        );
+
+        throw new Error(
+          humanDetailError?.response?.data?.message ||
+          humanDetailError?.response?.data?.title ||
+          humanDetailError?.response?.data?.error ||
+          `Unable to allocate ${
+            firstAssignment.item.fullName ||
+            `Human Resource #${firstAssignment.humanResourceId}`
+          }. The person may already be allocated during this period.`
+        );
+      }
+    }
+
+    // Create concrete schedules separately for each AI phase assignment.
+    // The Human Detail above is intentionally NOT recreated here.
+    const createdScheduleKeys = new Set<string>();
+
+    for (const assignment of preparedHumanAssignments) {
+      for (const dateKey of dateKeysBetween(
+        assignment.startSource,
+        assignment.endSource
+      )) {
+        const scheduleKey =
+          `${assignment.humanResourceId}:${assignment.phase?.experimentPhaseId || 0}:${dateKey}`;
+
+        if (createdScheduleKeys.has(scheduleKey)) {
+          continue;
+        }
+
+        createdScheduleKeys.add(scheduleKey);
+
+        const endHour = Math.min(
+          17,
+          8 + assignment.requiredHours
+        );
+
+        const endHourText = String(
+          Math.floor(endHour)
+        ).padStart(2, "0");
+
+        const endMinuteText =
+          endHour % 1 === 0 ? "00" : "30";
+
+        await createSchedule({
+          allocationPlanId: planId,
+          phaseId:
+            assignment.phase?.experimentPhaseId ||
+            null,
+
+          title:
+            `${experiment.experimentName} - ${
+              assignment.phase?.phaseName ||
+              assignment.item.phaseName ||
+              "AI Allocation"
+            }`,
+
+          description:
+            `AI-selected schedule for ${
+              assignment.item.fullName ||
+              `Human Resource #${assignment.humanResourceId}`
+            }.`,
+
+          startDate:
+            `${dateKey}T08:00:00`,
+
+          endDate:
+            `${dateKey}T${endHourText}:${endMinuteText}:00`,
+
+          status: "Planned",
+
+          createdBy:
+            getCurrentUserTokenInfo().userId ||
+            null,
+
+          assignedHumanResourceId:
+            assignment.humanResourceId,
+
+          notes:
+            `AI allocation candidate #${selectedPlan.rank}; required ${assignment.requiredHours} hour(s) within office hours 08:00-17:00.`,
+
+          priority: 1,
+        });
+      }
+    }
+
+    // Project rule: one experiment uses at most one land plot. Keep the first
+    // valid AI-selected plot and persist it against the existing land requirement.
+    const selectedLand = selectedPlan.allocatedLands.find(
+      (item) => Number(item.landId || 0) > 0
+    );
+
+    if (selectedLand) {
+      const landId = Number(selectedLand.landId);
+      const requirement = findLandRequirement(
+        selectedLand.soilType,
+        selectedLand.areaSize
+      );
+
+      if (!requirement?.expLandReqId) {
+        throw new Error(
+          `Unable to match ${selectedLand.landCode || `land #${landId}`} to an Experiment Land Requirement.`
+        );
+      }
+
+      await createAllocationLandDetail({
+        allocationPlanId: planId,
+        landId,
+        expLandReqId: requirement.expLandReqId,
+        startDate: toAllocationDateTime(
+          selectedLand.startDate || experiment.expectStartDate
+        ),
+        endDate: toAllocationDateTime(
+          selectedLand.endDate || experiment.expectEndDate,
+          true
+        ),
+        status: "Allocated",
+      });
+    } else if (landReqs.length > 0) {
+      throw new Error("The selected AI option does not contain a valid land plot.");
+    }
+  };
+
+  // Apply the Researcher's chosen AI candidate to a Draft Allocation Plan,
+  // persist its exact Fitness Score, then submit Draft -> Pending for Manager.
   const handleApplySelectedPlan = async () => {
     if (!experiment || !selectedPlan) return;
+
+    const fitnessScore = Number(selectedPlan.fitnessScore);
+
+    if (!Number.isFinite(fitnessScore)) {
+      sendLocalNotification({
+        title: "Invalid AI Fitness Score",
+        message: "The selected AI candidate does not contain a valid Fitness Score.",
+        notificationType: "Error",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Submit AI Candidate #${selectedPlan.rank} with Fitness Score ${fitnessScore.toFixed(2)} for Manager review?`
+    );
+
+    if (!confirmed) return;
+
     try {
       setApplying(true);
+      setError(null);
 
-      // 1. Delete old draft phases & recreate from selected AI plan
-      for (const p of phases) {
-        if (p.experimentPhaseId) {
-          try {
-            await deleteExperimentPhase(p.experimentPhaseId);
-          } catch (e) {
-            // ignore cleanup errors
-          }
-        }
-      }
+      const planId = await ensureDraftAllocationPlan();
 
-      for (const p of selectedPlan.experimentPhases) {
-        try {
-          await createExperimentPhase({
-            experimentId: experiment.experimentId,
-            phaseName: p.phaseName,
-            phaseDescription: p.phaseDescription || null,
-            phaseOrder: p.phaseOrder,
-            expectedStartDate: formatToUtcIso(p.expectedStartDate),
-            expectedEndDate: formatToUtcIso(p.expectedEndDate),
-            status: "Planned",
-          });
-        } catch (phaseErr) {
-          console.warn("AI Plan phase creation notice:", phaseErr);
-        }
-      }
+      // If this experiment already had a Manual/AI Draft, replace only the
+      // Draft's allocation resources. Never modify the Experiment requirements.
+      await clearDraftAllocationResources(planId);
+      await persistSelectedAIResources(planId);
 
-      // 2. Create attached Equipment Requirements from AI plan
-      for (const e of selectedPlan.equipmentRequirements) {
-        try {
-          await createExperimentEquipmentRequirement({
-            experimentId: experiment.experimentId,
-            equipmentTypeId: e.equipmentTypeId,
-            quantity: e.quantity,
-            allowSubstitute: e.allowSubstitute,
-            minAcceptableEfficiency: e.minAcceptableEfficiency,
-            note: e.note || undefined,
-          });
-        } catch (equipErr) {
-          console.warn("AI Plan equipment requirement creation notice:", equipErr);
-        }
-      }
+      // Persist the exact score the Researcher reviewed. No hard-coded fallback.
+      await updateAllocationPlan(planId, {
+        experimentId: experiment.experimentId,
+        fitnessScore,
+        approveStatus: "Draft",
+      });
 
-      // 3. Create attached Human Requirements from AI plan
-      for (const h of selectedPlan.humanRequirements) {
-        try {
-          await createExperimentHumanRequirement({
-            experimentId: experiment.experimentId,
-            roleId: h.roleId,
-            quantity: h.quantity,
-            requiredSkillId: h.requiredSkillId,
-            workingHoursPerDay: h.workingHoursPerDay,
-            note: h.note || null,
-          });
-        } catch (humanErr) {
-          console.warn("AI Plan human requirement creation notice:", humanErr);
-        }
-      }
-
-      // 4. Create attached Land Requirements from AI plan
-      for (const l of selectedPlan.landRequirements) {
-        try {
-          await createExperimentLandRequirement({
-            experimentId: experiment.experimentId,
-            requiredArea: l.requiredArea,
-            requiredSoilType: l.requiredSoilType || null,
-            note: l.note || null,
-          });
-        } catch (landErr) {
-          console.warn("AI Plan land requirement creation notice:", landErr);
-        }
-      }
-
-      // 5. Submit experiment to Manager for review
-      try {
-        await submitExperiment(experiment.experimentId);
-      } catch (subErr) {
-        console.warn("Submit experiment notice:", subErr);
-      }
-
-      // 6. Create Pending Allocation Plan
-      try {
-        await createAllocationPlan({
-          experimentId: experiment.experimentId,
-          fitnessScore: Math.round(selectedPlan.fitnessScore) || 85,
-          approveStatus: "Pending",
-        });
-      } catch (allocErr) {
-        console.warn("Auto allocation plan creation failed:", allocErr);
-      }
+      // Use the exact same state transition as Manual Allocation.
+      await submitAllocationPlan(planId);
 
       sendLocalNotification({
-        title: "AI Plan Applied & Submitted",
-        message: `Candidate #${selectedPlan.rank} was applied and Allocation Plan for Experiment #${experiment.experimentId} has been submitted for Manager review!`,
+        title: "AI Allocation Plan Submitted",
+        message: `Candidate #${selectedPlan.rank} for "${experiment.experimentName}" was submitted with Fitness Score ${fitnessScore.toFixed(2)} for Manager review.`,
         notificationType: "Success",
         referenceType: "AllocationPlan",
-        referenceId: experiment.experimentId,
+        referenceId: planId,
       });
       void fetchUnreadCount();
 
-      navigate("/allocation", {
+      navigate(`/allocation/${planId}`, {
         state: {
-          message: `Allocation plan for Experiment "${experiment.experimentName}" applied and submitted for Manager approval!`,
+          message: `AI Candidate #${selectedPlan.rank} submitted successfully. Fitness Score: ${fitnessScore.toFixed(2)}.`,
+          planningMethod: "AI",
         },
       });
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error("Failed to apply AI Plan:", err);
+
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.title ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to apply AI suggestion.";
+
+      setError(message);
       sendLocalNotification({
-        title: "Error Applying Plan",
-        message: err instanceof Error ? err.message : "Failed to apply AI suggestion.",
+        title: "Error Applying AI Plan",
+        message,
         notificationType: "Error",
       });
     } finally {
