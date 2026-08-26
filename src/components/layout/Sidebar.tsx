@@ -44,6 +44,7 @@ import {
   UserRoundCheck,
   Users,
   RotateCcw,
+  PackageCheck,
 } from "lucide-react";
 
 import {
@@ -297,6 +298,29 @@ const managerMenuGroups: MenuGroup[] = [
   },
 ];
 
+const researcherOperations: MenuItem[] = [
+  {
+    name: "Schedules",
+    path: "/schedules",
+    icon: Calendar,
+  },
+  {
+    name: "Equipment Control",
+    path: "/equipment-control",
+    icon: PackageCheck,
+  },
+  {
+    name: "Reports",
+    path: "/reports",
+    icon: BarChart3,
+  },
+  {
+    name: "Notifications",
+    path: "/notifications",
+    icon: Bell,
+  },
+];
+
 const researcherMenuGroups: MenuGroup[] = [
   {
     id: "planning",
@@ -324,7 +348,8 @@ const researcherMenuGroups: MenuGroup[] = [
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: standardOperations,
+    defaultOpen: true,
+    items: researcherOperations,
   },
 ];
 
