@@ -12,6 +12,9 @@ export interface AuditLog {
   description?: string | null;
   metadata?: string | null;
   createdAt: string;
+  normalizedAction?: "DELETE" | "CREATE" | "UPDATE" | "SUBMIT" | "APPROVE" | "REJECT" | "CANCEL" | "LOGIN" | "EXECUTE" | string;
+  httpMethod?: string | null;
+  httpStatusCode?: number | null;
 }
 
 export interface AuditLogQuery {
@@ -32,4 +35,10 @@ export interface AuditLogListResult {
   size: number;
   total: number;
   totalPages: number;
+}
+
+export interface AuditRetentionConfig {
+  autoDeleteEnabled: boolean;
+  retentionDays: number;
+  lastPurgedAt?: string | null;
 }

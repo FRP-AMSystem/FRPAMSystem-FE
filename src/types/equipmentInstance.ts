@@ -3,6 +3,9 @@ export type EquipmentInstanceStatus =
   | "Reserved"
   | "InUse"
   | "Maintenance"
+  | "Damaged"
+  | "Missing"
+  | "Returned"
   | "Broken"
   | "Unavailable";
 
@@ -11,6 +14,7 @@ export type EquipmentConditionLevel =
   | "Good"
   | "Fair"
   | "Poor"
+  | "Critical"
   | "Damaged";
 
 export interface EquipmentInstance {
@@ -51,6 +55,19 @@ export interface EquipmentInstance {
 export interface ConfirmReceiptRequest {
   receivedCondition: EquipmentConditionLevel;
   receiptNotes?: string;
+}
+
+export interface ReportEquipmentRequest {
+  allocationPlanId?: number;
+  equipmentInstanceIds?: number[];
+  reportType?: string; // "Return", "Handover", "Damage", "Maintenance"
+  note?: string;
+}
+
+export interface ConfirmEquipmentRequest {
+  equipmentInstanceIds?: number[];
+  confirmAction?: string; // "VerifyReturn", "AcceptReturn", "Approve", "Reject"
+  note?: string;
 }
 
 export interface EquipmentInstanceRequest {

@@ -94,6 +94,7 @@ import EquipmentList from "../pages/Equipment/EquipmentList";
 import EquipmentCategoryList from "../pages/Equipment/EquipmentCategoryList";
 import EquipmentInstanceList from "../pages/Equipment/EquipmentInstanceList";
 import EquipmentReturnPage from "../pages/EquipmentReturn/EquipmentReturnPage";
+import EquipmentControlPage from "../pages/EquipmentControl/EquipmentControlPage";
 
 import EquipmentSubstitutionList from "../pages/EquipmentSubstitution/EquipmentSubstitutionList";
 import EquipmentShortageLogList from "../pages/EquipmentShortageLog/EquipmentShortageLogList";
@@ -834,6 +835,17 @@ export default function AppRoutes() {
             allowedRoles={operationalViewRoles}
           >
             <EquipmentReturnPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/equipment-control"
+        element={
+          <ProtectedRoute
+            allowedRoles={["Admin", "Manager", "Researcher"]}
+          >
+            <EquipmentControlPage />
           </ProtectedRoute>
         }
       />
