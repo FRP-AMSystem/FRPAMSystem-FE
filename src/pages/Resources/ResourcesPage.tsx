@@ -40,6 +40,8 @@ import type {
 } from "../../types/resource";
 import "./ResourcesPage.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type TabType = "land" | "equipment" | "tools";
 
 interface ToastState {
@@ -49,6 +51,7 @@ interface ToastState {
 }
 
 export default function ResourcesPage() {
+  const { showConfirm } = usePopup();
   const [activeTab, setActiveTab] = useState<TabType>("land");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -250,7 +253,7 @@ export default function ResourcesPage() {
   // Delete Handlers
   const handleDeleteArea = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this Area? This might affect land resources inside it.")) return;
+    if (!await showConfirm("Are you sure you want to delete this Area? This might affect land resources inside it.")) return;
     try {
       await deleteArea(id);
       showToast("Area deleted successfully!");
@@ -264,7 +267,7 @@ export default function ResourcesPage() {
   };
 
   const handleDeleteLand = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this Land resource?")) return;
+    if (!await showConfirm("Are you sure you want to delete this Land resource?")) return;
     try {
       await deleteLandResource(id);
       showToast("Land resource deleted successfully!");
@@ -275,7 +278,7 @@ export default function ResourcesPage() {
   };
 
   const handleDeleteEquipment = async (id: number) => {
-    if (!window.confirm("Are you sure you want to retire/delete this Equipment instance?")) return;
+    if (!await showConfirm("Are you sure you want to retire/delete this Equipment instance?")) return;
     try {
       await deleteEquipmentInstance(id);
       showToast("Equipment instance removed successfully!");
@@ -286,7 +289,7 @@ export default function ResourcesPage() {
   };
 
   const handleDeleteTool = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this Tool type?")) return;
+    if (!await showConfirm("Are you sure you want to delete this Tool type?")) return;
     try {
       await deleteEquipmentType(id);
       showToast("Tool type deleted successfully!");
@@ -1058,14 +1061,23 @@ export default function ResourcesPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label htmlFor="landSoil" style={{ color: "var(--text)" }}>Soil Type</label>
-                  <input
-                    type="text"
+                  <label htmlFor="landSoil" style={{ color: "var(--text)" }}>
+                    Soil Type
+                  </label>
+                  <select
                     id="landSoil"
-                    placeholder="E.g., Clay, Sandy loam"
                     value={landSoilType}
                     onChange={(e) => setLandSoilType(e.target.value)}
-                  />
+                  >
+                    <option value="">Select soil type</option>
+                    <option value="Clay">Clay</option>
+                    <option value="Sandy">Sandy</option>
+                    <option value="Sandy Loam">Sandy Loam</option>
+                    <option value="Loam">Loam</option>
+                    <option value="Silt">Silt</option>
+                    <option value="Silty Loam">Silty Loam</option>
+                    <option value="Clay Loam">Clay Loam</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label htmlFor="landLoc" style={{ color: "var(--text)" }}>Location</label>

@@ -30,6 +30,8 @@ import type {
 
 import "./EquipmentCategoryList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
     | "Admin"
     | "Manager"
@@ -125,6 +127,7 @@ function getCurrentRole(): Role {
 }
 
 export default function EquipmentCategoryList() {
+  const { showConfirm } = usePopup();
     const role =
         getCurrentRole();
 
@@ -350,7 +353,7 @@ export default function EquipmentCategoryList() {
         item: EquipmentCategory
     ) => {
         const confirmed =
-            window.confirm(
+            await showConfirm(
                 `Delete category "${item.equipmentCategoryName}"?`
             );
 

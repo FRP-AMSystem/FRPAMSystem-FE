@@ -15,10 +15,17 @@ export interface HumanResourceProfile {
   updatedAt?: string | null;
 }
 
+export interface HumanResourceProfileRequest {
+  userId: number;
+  maxWorkingHoursPerDay: number;
+  currentWorkload: number;
+  status: HumanResourceStatus;
+}
+
 export interface Skill {
   skillId: number;
   skillName: string;
-  description?: string;
+  description?: string | null;
 }
 
 export type SkillLevel = "Beginner" | "Intermediate" | "Advanced" | "Expert";
@@ -32,6 +39,12 @@ export interface HumanResourceSkill {
   email: string;
   skillId: number;
   skillName: string;
-  skillDescription?: string;
+  skillDescription?: string | null;
+  skillLevel: SkillLevel;
+}
+
+export interface HumanResourceSkillRequest {
+  humanResourceId: number;
+  skillId: number;
   skillLevel: SkillLevel;
 }

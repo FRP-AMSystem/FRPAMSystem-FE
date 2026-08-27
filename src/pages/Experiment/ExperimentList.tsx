@@ -33,6 +33,8 @@ import {
 
 import "./ExperimentList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -161,6 +163,7 @@ function getErrorMessage(
 }
 
 export default function ExperimentList() {
+  const { showConfirm, showAlert } = usePopup();
   const navigate =
     useNavigate();
 
@@ -238,18 +241,7 @@ export default function ExperimentList() {
     setLoading,
   ] = useState(true);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
 
-  const [
-    successMessage,
-    setSuccessMessage,
-  ] = useState(
-    navigationState?.message ||
-      ""
-  );
 
   const [
     deletingId,
@@ -265,8 +257,6 @@ export default function ExperimentList() {
       ) => {
         try {
           setLoading(true);
-          setError("");
-
           const user =
             getCurrentUserTokenInfo();
 
@@ -369,16 +359,26 @@ export default function ExperimentList() {
             []
           );
 
-          setError(
-            getErrorMessage(
-              loadError
-            )
-          );
+          showAlert({
+            title:
+              "Unable to Load Experiments",
+
+            message:
+              getErrorMessage(
+                loadError
+              ),
+
+            confirmText:
+              "OK",
+
+            tone:
+              "danger",
+          });
         } finally {
           setLoading(false);
         }
       },
-      []
+      [showAlert]
     );
 
   useEffect(() => {
@@ -403,9 +403,19 @@ export default function ExperimentList() {
       navigationState
         ?.message
     ) {
-      setSuccessMessage(
-        navigationState.message
-      );
+      showAlert({
+        title:
+          "Success",
+
+        message:
+          navigationState.message,
+
+        confirmText:
+          "OK",
+
+        tone:
+          "success",
+      });
     }
 
     /*
@@ -421,32 +431,8 @@ export default function ExperimentList() {
   }, [
     location.state,
     navigationState,
+    showAlert,
   ]);
-
-  /*
-   * Auto hide success message.
-   */
-  useEffect(() => {
-    if (!successMessage) {
-      return;
-    }
-
-    const timer =
-      window.setTimeout(
-        () => {
-          setSuccessMessage(
-            ""
-          );
-        },
-        4000
-      );
-
-    return () => {
-      window.clearTimeout(
-        timer
-      );
-    };
-  }, [successMessage]);
 
   const handleSearch = () => {
     void loadExperiments(
@@ -466,9 +452,22 @@ export default function ExperimentList() {
       }
 
       const confirmed =
-        window.confirm(
-          `Are you sure you want to delete "${experiment.experimentName}"?`
-        );
+        await showConfirm({
+          title:
+            "Delete Experiment",
+
+          message:
+            `Are you sure you want to delete "${experiment.experimentName}"?`,
+
+          confirmText:
+            "Delete",
+
+          cancelText:
+            "Cancel",
+
+          tone:
+            "danger",
+        });
 
       if (!confirmed) {
         return;
@@ -479,11 +478,6 @@ export default function ExperimentList() {
           experiment.experimentId
         );
 
-        setError("");
-        setSuccessMessage(
-          ""
-        );
-
         await deleteExperiment(
           experiment.experimentId
         );
@@ -492,9 +486,19 @@ export default function ExperimentList() {
           keyword
         );
 
-        setSuccessMessage(
-          `Experiment "${experiment.experimentName}" was deleted successfully.`
-        );
+        showAlert({
+          title:
+            "Deleted Successfully",
+
+          message:
+            `Experiment "${experiment.experimentName}" was deleted successfully.`,
+
+          confirmText:
+            "OK",
+
+          tone:
+            "success",
+        });
       } catch (
         deleteError
       ) {
@@ -503,11 +507,21 @@ export default function ExperimentList() {
           deleteError
         );
 
-        setError(
-          getErrorMessage(
-            deleteError
-          )
-        );
+        showAlert({
+          title:
+            "Delete Failed",
+
+          message:
+            getErrorMessage(
+              deleteError
+            ),
+
+          confirmText:
+            "OK",
+
+          tone:
+            "danger",
+        });
       } finally {
         setDeletingId(
           null
@@ -655,47 +669,6 @@ export default function ExperimentList() {
           )}
         </div>
 
-        {/* Success */}
-        {successMessage && (
-          <div
-            style={{
-              marginBottom:
-                "16px",
-
-              padding:
-                "12px 16px",
-
-              border:
-                "1px solid #bbf7d0",
-
-              background:
-                "#f0fdf4",
-
-              color:
-                "#166534",
-
-              borderRadius:
-                "8px",
-
-              fontSize:
-                "14px",
-
-              fontWeight:
-                500,
-            }}
-          >
-            {
-              successMessage
-            }
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="experiment-error">
-            {error}
-          </div>
-        )}
 
         <div className="experiment-table-card">
           <h3>

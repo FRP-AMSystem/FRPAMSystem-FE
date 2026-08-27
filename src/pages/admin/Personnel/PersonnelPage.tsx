@@ -28,9 +28,12 @@ import type {
   HumanResourceProfile,
   Skill,
   HumanResourceSkill,
+  HumanResourceStatus,
   SkillLevel,
 } from "../../../types/personnel";
 import "./PersonnelPage.css";
+
+import { usePopup } from "../../../context/PopupContext";
 
 interface ToastState {
   message: string;
@@ -38,99 +41,89 @@ interface ToastState {
   visible: boolean;
 }
 
-// Dynamic role badge colors matching UserTable
 const getRoleBadgeStyles = (role: string) => {
-  const normRole = (role || "").toLowerCase().trim();
-  switch (normRole) {
-    case "admin":
-      return {
-        backgroundColor: "#FCE7F3",
-        color: "#9D174D",
-      };
-    case "manager":
-      return {
-        backgroundColor: "#DBEAFE",
-        color: "#1E40AF",
-      };
-    case "researcher":
-      return {
-        backgroundColor: "#D1FAE5",
-        color: "#065F46",
-      };
-    case "technician":
-      return {
-        backgroundColor: "#FEF3C7",
-        color: "#92400E",
-      };
-    case "student":
-    case "seasonal":
-      return {
-        backgroundColor: "#CCFBF1",
-        color: "#115E59",
-      };
-    default:
-      return {
-        backgroundColor: "#F3F4F6",
-        color: "#374151",
-      };
+  const normalizedRole = (role || "").toLowerCase().trim();
+
+  if (normalizedRole === "technician") {
+    return {
+      backgroundColor: "#FEF3C7",
+      color: "#92400E",
+    };
   }
+
+  if (normalizedRole === "seasonal") {
+    return {
+      backgroundColor: "#CCFBF1",
+      color: "#115E59",
+    };
+  }
+
+  return {
+    backgroundColor: "#F3F4F6",
+    color: "#374151",
+  };
 };
 
-const ALLOWED_HR_ROLES = ["researcher", "seasonal", "student", "technician"];
+const ALLOWED_HR_ROLES = new Set(["technician", "seasonal"]);
 
-function isAllowedHrRole(roleName?: string | null, roleId?: number | null): boolean {
-  if (roleId === 3 || roleId === 4 || roleId === 5) return true;
+function isAllowedHrRole(roleName?: string | null): boolean {
   if (!roleName) return false;
-  const norm = roleName.toLowerCase().trim();
-  if (norm === "admin" || norm === "manager") return false;
-  return ALLOWED_HR_ROLES.some((r) => norm.includes(r));
+  return ALLOWED_HR_ROLES.has(roleName.toLowerCase().trim());
 }
 
-function getNormalizedHrRoleName(roleName?: string | null, roleId?: number | null): string {
-  if (roleId === 5) return "Seasonal";
-  if (roleId === 4) return "Technician";
-  if (roleId === 3) return "Researcher";
-  const norm = (roleName || "").toLowerCase().trim();
-  if (norm === "student" || norm === "seasonal" || norm.includes("student") || norm.includes("seasonal")) return "Seasonal";
-  if (norm === "technician" || norm.includes("technician") || norm.includes("tech")) return "Technician";
-  if (norm === "researcher" || norm.includes("researcher")) return "Researcher";
+function getNormalizedHrRoleName(roleName?: string | null): string {
+  const normalizedRole = (roleName || "").toLowerCase().trim();
+
+  if (normalizedRole === "technician") return "Technician";
+  if (normalizedRole === "seasonal") return "Seasonal";
+
   return roleName || "Staff";
 }
 
+function getUserId(user: User): number {
+  const value = user.userId ?? Number(user.id);
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+function getUserRoleName(user?: User | null): string {
+  if (!user) return "";
+
+  if (typeof user.role === "string") {
+    return user.role;
+  }
+
+  return user.role?.roleName || user.role?.name || user.roleName || "";
+}
+
 export default function PersonnelPage() {
+  const { showConfirm } = usePopup();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Data states
   const [profiles, setProfiles] = useState<HumanResourceProfile[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [assignedSkills, setAssignedSkills] = useState<HumanResourceSkill[]>([]);
   const [users, setUsers] = useState<User[]>([]);
 
-  // Search state
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Searchable user dropdown state for Activate Personnel modal
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
-  // Toast state
   const [toast, setToast] = useState<ToastState>({
     message: "",
     type: "success",
     visible: false,
   });
 
-  // Modal active states
   const [modalType, setModalType] = useState<"add" | "edit" | "skills" | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<HumanResourceProfile | null>(null);
 
-  // Form states (Add/Edit Profile)
   const [formUserId, setFormUserId] = useState<number>(0);
   const [formMaxHours, setFormMaxHours] = useState<number>(8);
-  const [formStatus, setFormStatus] = useState<string>("Available");
+  const [formCurrentWorkload, setFormCurrentWorkload] = useState<number>(0);
+  const [formStatus, setFormStatus] = useState<HumanResourceStatus>("Available");
 
-  // Form states (Assign Skill)
   const [formSkillId, setFormSkillId] = useState<number>(0);
   const [formSkillLevel, setFormSkillLevel] = useState<SkillLevel>("Intermediate");
 
@@ -138,7 +131,6 @@ export default function PersonnelPage() {
     setToast({ message, type, visible: true });
   }, []);
 
-  // Dismiss toast auto
   useEffect(() => {
     if (toast.visible) {
       const timer = setTimeout(() => {
@@ -148,12 +140,13 @@ export default function PersonnelPage() {
     }
   }, [toast.visible]);
 
-  // Load all data
   const loadData = useCallback(async (showSpinner = true) => {
     if (showSpinner) {
       setIsLoading(true);
     }
+
     setError("");
+
     try {
       const [profilesData, skillsData, assignedSkillsData, usersData] = await Promise.all([
         getHumanResourceProfiles().catch(() => [] as HumanResourceProfile[]),
@@ -162,79 +155,56 @@ export default function PersonnelPage() {
         getUsers().catch(() => [] as User[]),
       ]);
 
-      const allowedUsers = (usersData || []).filter((u: any) =>
-        isAllowedHrRole(u.role || u.roleName, u.roleId)
+      const allowedUsers = (usersData || []).filter((user) =>
+        isAllowedHrRole(getUserRoleName(user))
       );
 
-      const mergedProfiles: HumanResourceProfile[] = [];
-      const visitedUserIds = new Set<number>();
+      const normalizedProfiles: HumanResourceProfile[] = (profilesData || []).flatMap(
+        (profile): HumanResourceProfile[] => {
+          const matchedUser = allowedUsers.find(
+            (user) => getUserId(user) === profile.userId
+          );
 
-      for (const p of profilesData) {
-        const uId = p.userId;
-        const matchedUser = allowedUsers.find((u: any) => (u.userId ?? Number(u.id)) === uId);
-        const effectiveRole = p.roleName || (matchedUser ? matchedUser.role : "");
-        const effectiveRoleId = (p as any).roleId || (matchedUser ? (matchedUser as any).roleId : null);
+          const effectiveRoleName = profile.roleName || getUserRoleName(matchedUser);
+          if (!isAllowedHrRole(effectiveRoleName)) {
+            return [];
+          }
 
-        if (isAllowedHrRole(effectiveRole, effectiveRoleId)) {
-          const normRole = getNormalizedHrRoleName(effectiveRole, effectiveRoleId);
-          const computedRoleId =
-            effectiveRoleId ||
-            (normRole === "Seasonal" ? 5 : normRole === "Technician" ? 4 : normRole === "Researcher" ? 3 : 0);
-          mergedProfiles.push({
-            ...p,
-            fullName: p.fullName || (matchedUser ? matchedUser.fullName : ""),
-            username: p.username || (matchedUser ? matchedUser.username || "" : ""),
-            email: p.email || (matchedUser ? matchedUser.email : ""),
-            roleName: normRole,
-            roleId: computedRoleId,
-          });
-          visitedUserIds.add(uId);
+          const normalizedProfile: HumanResourceProfile = {
+            ...profile,
+            fullName: profile.fullName || matchedUser?.fullName || "",
+            username: profile.username || matchedUser?.username || "",
+            email: profile.email || matchedUser?.email || "",
+            roleId: profile.roleId ?? null,
+            roleName: getNormalizedHrRoleName(effectiveRoleName),
+          };
+
+          return [normalizedProfile];
         }
-      }
+      );
 
-      for (const u of allowedUsers) {
-        const uId = (u as any).userId ?? Number(u.id);
-        if (Number.isInteger(uId) && uId > 0 && !visitedUserIds.has(uId)) {
-          const normRole = getNormalizedHrRoleName(u.role, (u as any).roleId);
-          const computedRoleId =
-            (u as any).roleId ||
-            (normRole === "Seasonal" ? 5 : normRole === "Technician" ? 4 : normRole === "Researcher" ? 3 : 0);
-          mergedProfiles.push({
-            humanResourceId: 0,
-            userId: uId,
-            fullName: u.fullName,
-            username: u.username || "",
-            email: u.email || "",
-            roleId: computedRoleId,
-            roleName: normRole,
-            maxWorkingHoursPerDay: 8,
-            currentWorkload: 0,
-            status: "Available",
-            createdAt: u.createdDate || "",
-            updatedAt: null,
-          });
-          visitedUserIds.add(uId);
-        }
-      }
-
-      setProfiles(mergedProfiles);
-      setSkills(skillsData);
-      setAssignedSkills(assignedSkillsData);
+      setProfiles(normalizedProfiles);
+      setSkills(Array.isArray(skillsData) ? skillsData : []);
+      setAssignedSkills(Array.isArray(assignedSkillsData) ? assignedSkillsData : []);
       setUsers(allowedUsers);
-    } catch (err: any) {
-      console.error(err);
-      setError("Failed to load personnel data from backend APIs.");
-      showToast("Error retrieving data", "error");
+    } catch (err) {
+      console.error("Failed to load Personnel & Skills data:", err);
+      setError("Unable to load personnel data. Please try again.");
+      setProfiles([]);
+      setSkills([]);
+      setAssignedSkills([]);
+      setUsers([]);
     } finally {
-      setIsLoading(false);
+      if (showSpinner) {
+        setIsLoading(false);
+      }
     }
-  }, [showToast]);
-
-  useEffect(() => {
-    loadData();
   }, []);
 
-  // Close searchable dropdown on outside click
+  useEffect(() => {
+    void loadData(true);
+  }, [loadData]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -251,6 +221,7 @@ export default function PersonnelPage() {
     setSelectedProfile(null);
     setFormUserId(0);
     setFormMaxHours(8);
+    setFormCurrentWorkload(0);
     setFormStatus("Available");
     setFormSkillId(0);
     setFormSkillLevel("Intermediate");
@@ -258,72 +229,90 @@ export default function PersonnelPage() {
     setIsUserDropdownOpen(false);
   };
 
-  // Open Edit Profile Modal
   const openEditProfile = (profile: HumanResourceProfile) => {
     setSelectedProfile(profile);
     setFormUserId(profile.userId);
     setFormMaxHours(profile.maxWorkingHoursPerDay);
+    setFormCurrentWorkload(profile.currentWorkload);
     setFormStatus(profile.status);
     setModalType("edit");
   };
 
-  // Open Skills Manager Modal
   const openManageSkills = (profile: HumanResourceProfile) => {
     setSelectedProfile(profile);
-    // Pre-select first skill
     if (skills.length > 0) {
       setFormSkillId(skills[0].skillId);
     }
     setModalType("skills");
   };
 
-  // Handlers for Profile Submit
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!Number.isFinite(formMaxHours) || formMaxHours <= 0 || formMaxHours > 8) {
+      showToast("Max Work Hours / Day must be greater than 0 and no more than 8.", "error");
+      return;
+    }
+
+    if (!Number.isFinite(formCurrentWorkload) || formCurrentWorkload < 0) {
+      showToast("Current Workload must be 0 or greater.", "error");
+      return;
+    }
+
     if (modalType === "add") {
-      if (!formUserId) return showToast("Please select a User.", "error");
+      if (!formUserId) {
+        showToast("Please select a staff member.", "error");
+        return;
+      }
+
       try {
         await createHumanResourceProfile({
           userId: formUserId,
           maxWorkingHoursPerDay: Number(formMaxHours),
-          currentWorkload: 0,
+          currentWorkload: Number(formCurrentWorkload),
           status: formStatus,
         });
-        showToast("Human resource profile activated!");
+
+        showToast("Human resource profile created!");
         closeModal();
-        loadData(false);
+        await loadData(false);
       } catch (err: any) {
-        showToast(err.response?.data?.message || "Failed to activate profile.", "error");
+        showToast(
+          err.response?.data?.message ||
+            err.response?.data?.error ||
+            "Failed to create Human Resource Profile.",
+          "error"
+        );
       }
-    } else if (modalType === "edit" && selectedProfile) {
+
+      return;
+    }
+
+    if (modalType === "edit" && selectedProfile) {
       try {
-        if (selectedProfile.humanResourceId > 0) {
-          await updateHumanResourceProfile(selectedProfile.humanResourceId, {
-            userId: selectedProfile.userId,
-            maxWorkingHoursPerDay: Number(formMaxHours),
-            currentWorkload: selectedProfile.currentWorkload,
-            status: formStatus,
-          });
-        } else {
-          await createHumanResourceProfile({
-            userId: selectedProfile.userId,
-            maxWorkingHoursPerDay: Number(formMaxHours),
-            currentWorkload: selectedProfile.currentWorkload || 0,
-            status: formStatus,
-          });
-        }
+        await updateHumanResourceProfile(selectedProfile.humanResourceId, {
+          userId: selectedProfile.userId,
+          maxWorkingHoursPerDay: Number(formMaxHours),
+          currentWorkload: selectedProfile.currentWorkload,
+          status: formStatus,
+        });
+
         showToast("Human resource profile updated!");
         closeModal();
-        loadData(false);
+        await loadData(false);
       } catch (err: any) {
-        showToast(err.response?.data?.message || "Failed to update profile.", "error");
+        showToast(
+          err.response?.data?.message ||
+            err.response?.data?.error ||
+            "Failed to update Human Resource Profile.",
+          "error"
+        );
       }
     }
   };
 
   const handleDeleteProfile = async (id: number) => {
-    if (!window.confirm("Are you sure you want to deactivate/delete this Human Resource profile?")) return;
+    if (!await showConfirm("Are you sure you want to deactivate/delete this Human Resource profile?")) return;
     try {
       if (id > 0) {
         await deleteHumanResourceProfile(id);
@@ -335,13 +324,11 @@ export default function PersonnelPage() {
     }
   };
 
-  // Handlers for Skill allocation
   const handleAssignSkillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProfile) return;
     if (!formSkillId) return showToast("Please select a skill.", "error");
 
-    // Check if skill already assigned
     const exists = assignedSkills.some(
       (as) => as.humanResourceId === selectedProfile.humanResourceId && as.skillId === formSkillId
     );
@@ -354,7 +341,6 @@ export default function PersonnelPage() {
         skillLevel: formSkillLevel,
       });
       showToast("Skill assigned successfully!");
-      // reload assigned skills list
       const updatedAssigned = await getHumanResourceSkills();
       setAssignedSkills(updatedAssigned);
     } catch (err: any) {
@@ -363,11 +349,10 @@ export default function PersonnelPage() {
   };
 
   const handleRemoveSkill = async (assignedSkillId: number) => {
-    if (!window.confirm("Remove this skill from user?")) return;
+    if (!await showConfirm("Remove this skill from user?")) return;
     try {
       await removeHumanResourceSkill(assignedSkillId);
       showToast("Skill removed.");
-      // reload assigned skills list
       const updatedAssigned = await getHumanResourceSkills();
       setAssignedSkills(updatedAssigned);
     } catch (err: any) {
@@ -375,7 +360,6 @@ export default function PersonnelPage() {
     }
   };
 
-  // Filter profiles based on search query
   const filteredProfiles = profiles.filter(
     (p) =>
       p.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -383,19 +367,17 @@ export default function PersonnelPage() {
       p.roleName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Filter users that are NOT yet in HumanResourceProfiles
-  const availableUsers = users.filter(
-    (u) => {
-      const uId = (u as any).userId ?? u.id;
-      return !!uId && !profiles.some((p) => p.userId === Number(uId));
-    }
-  );
+  const existingProfileUserIds = new Set(profiles.map((profile) => profile.userId));
+
+  const availableUsers = users.filter((user) => {
+    const userId = getUserId(user);
+    return userId > 0 && !existingProfileUserIds.has(userId);
+  });
 
   return (
     <DashboardLayout>
       <div className="personnel-page-container">
-        {/* Header Block */}
-        <div className="personnel-header-panel">
+<div className="personnel-header-panel">
           <div>
             <h2>Personnel & Skills</h2>
             <p>Configure workloads, daily working limits and expertise skills for forestry staff.</p>
@@ -428,9 +410,7 @@ export default function PersonnelPage() {
             </button>
           </div>
         </div>
-
-        {/* Content Block */}
-        <div className="personnel-content-panel">
+<div className="personnel-content-panel">
           {isLoading && (
             <div className="skeleton-loading-wrapper" style={{ padding: "40px 0" }}>
               <div className="skeleton-row header"></div>
@@ -622,43 +602,50 @@ export default function PersonnelPage() {
           )}
         </div>
 
-        {/* ==========================================================
-            MODAL DIALOGS
-           ========================================================== */}
-
-        {/* 1. Modal Add/Edit Profile */}
-        {(modalType === "add" || modalType === "edit") && (
+{modalType === "add" && (
           <div className="modal-overlay">
             <div className="modal-container">
               <div className="modal-header">
-                <h3>
-                  {modalType === "add" ? "Activate Personnel Profile" : "Edit Profile configuration"}
-                </h3>
+                <h3>Create Human Resource Profile</h3>
                 <button type="button" className="modal-close-btn" onClick={closeModal}>
                   &times;
                 </button>
               </div>
 
               <form onSubmit={handleProfileSubmit} className="modal-form">
-                {modalType === "add" ? (
-                  <div className="form-group">
-                    <label>Select Staff Member <span className="required">*</span></label>
+                <div className="form-group">
+                  <label>
+                    Select Staff Member <span className="required">*</span>
+                  </label>
 
-                    <div className="searchable-select-container">
+                  <div className="searchable-select-container">
+                    <div
+                      className="searchable-select-input-wrapper"
+                      onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                    >
                       <div
-                        className="searchable-select-input-wrapper"
-                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          flex: 1,
+                          overflow: "hidden",
+                        }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, overflow: "hidden" }}>
-                          {(() => {
-                            const selectedUser = availableUsers.find(
-                              (u) => Number((u as any).userId ?? u.id) === formUserId
+                        {(() => {
+                          const selectedUser = availableUsers.find(
+                            (u) => Number((u as any).userId ?? u.id) === formUserId
+                          );
+
+                          if (selectedUser) {
+                            const roleDisplay = getNormalizedHrRoleName(
+                              getUserRoleName(selectedUser)
                             );
-                            if (selectedUser) {
-                              const roleDisplay = selectedUser.role ?? (selectedUser as any).roleName ?? 'User';
-                              return (
-                                <>
-                                  <div style={{
+
+                            return (
+                              <>
+                                <div
+                                  style={{
                                     width: "26px",
                                     height: "26px",
                                     borderRadius: "50%",
@@ -669,95 +656,132 @@ export default function PersonnelPage() {
                                     justifyContent: "center",
                                     fontSize: "12px",
                                     fontWeight: 700,
-                                    flexShrink: 0
-                                  }}>
-                                    {selectedUser.fullName.trim().charAt(0).toUpperCase()}
-                                  </div>
-                                  <span style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text-h)" }}>
-                                    {selectedUser.fullName}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: "11px",
-                                      fontWeight: 700,
-                                      padding: "2px 8px",
-                                      borderRadius: "12px",
-                                      textTransform: "uppercase",
-                                      ...getRoleBadgeStyles(roleDisplay),
-                                    }}
-                                  >
-                                    {roleDisplay}
-                                  </span>
-                                </>
-                              );
-                            }
-                            return (
-                              <span style={{ fontSize: "13.5px", color: "var(--text)", opacity: 0.6 }}>
-                                Choose staff member (Type to search)...
-                              </span>
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {selectedUser.fullName.trim().charAt(0).toUpperCase()}
+                                </div>
+
+                                <span
+                                  style={{
+                                    fontSize: "13.5px",
+                                    fontWeight: 600,
+                                    color: "var(--text-h)",
+                                  }}
+                                >
+                                  {selectedUser.fullName}
+                                </span>
+
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: "12px",
+                                    textTransform: "uppercase",
+                                    ...getRoleBadgeStyles(roleDisplay),
+                                  }}
+                                >
+                                  {roleDisplay}
+                                </span>
+                              </>
                             );
-                          })()}
-                        </div>
-                        <ChevronDown size={16} style={{ color: "var(--text)", opacity: 0.6, flexShrink: 0 }} />
+                          }
+
+                          return (
+                            <span
+                              style={{
+                                fontSize: "13.5px",
+                                color: "var(--text)",
+                                opacity: 0.6,
+                              }}
+                            >
+                              Choose staff member (Type to search)...
+                            </span>
+                          );
+                        })()}
                       </div>
 
-                      {/* Dropdown Menu Overlay */}
-                      {isUserDropdownOpen && (
-                        <div className="searchable-select-dropdown">
-                          <div className="searchable-select-search">
-                            <Search size={14} className="searchable-select-search-icon" />
-                            <input
-                              type="text"
-                              placeholder="Search by name, email, or role..."
-                              value={userSearchQuery}
-                              onChange={(e) => setUserSearchQuery(e.target.value)}
-                              autoFocus
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
+                      <ChevronDown
+                        size={16}
+                        style={{
+                          color: "var(--text)",
+                          opacity: 0.6,
+                          flexShrink: 0,
+                        }}
+                      />
+                    </div>
 
-                          {availableUsers
-                            .filter((u) => {
-                              const q = userSearchQuery.trim().toLowerCase();
-                              if (!q) return true;
-                              const roleName = u.role ?? (u as any).roleName ?? '';
-                              return (
-                                u.fullName.toLowerCase().includes(q) ||
-                                u.email.toLowerCase().includes(q) ||
-                                roleName.toLowerCase().includes(q)
-                              );
-                            })
-                            .map((u) => {
-                              const uId = Number((u as any).userId ?? u.id);
-                              const isSelected = formUserId === uId;
-                              const roleDisplay = u.role ?? (u as any).roleName ?? 'User';
-                              return (
+                    {isUserDropdownOpen && (
+                      <div className="searchable-select-dropdown">
+                        <div className="searchable-select-search">
+                          <Search size={14} className="searchable-select-search-icon" />
+                          <input
+                            type="text"
+                            placeholder="Search by name, email, or role..."
+                            value={userSearchQuery}
+                            onChange={(e) => setUserSearchQuery(e.target.value)}
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+
+                        {availableUsers
+                          .filter((u) => {
+                            const q = userSearchQuery.trim().toLowerCase();
+                            if (!q) return true;
+                            const roleName = getUserRoleName(u);
+                            return (
+                              u.fullName.toLowerCase().includes(q) ||
+                              u.email.toLowerCase().includes(q) ||
+                              roleName.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((u) => {
+                            const uId = getUserId(u);
+                            const isSelected = formUserId === uId;
+                            const roleDisplay = getNormalizedHrRoleName(getUserRoleName(u));
+
+                            return (
+                              <div
+                                key={uId}
+                                onClick={() => {
+                                  setFormUserId(uId);
+                                  setIsUserDropdownOpen(false);
+                                  setUserSearchQuery("");
+                                }}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  padding: "8px 10px",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  backgroundColor: isSelected
+                                    ? "var(--border)"
+                                    : "transparent",
+                                  transition: "background 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor = "var(--bg)";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                  }
+                                }}
+                              >
                                 <div
-                                  key={uId}
-                                  onClick={() => {
-                                    setFormUserId(uId);
-                                    setIsUserDropdownOpen(false);
-                                    setUserSearchQuery("");
-                                  }}
                                   style={{
                                     display: "flex",
                                     alignItems: "center",
-                                    justifyContent: "space-between",
-                                    padding: "8px 10px",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    backgroundColor: isSelected ? "var(--border)" : "transparent",
-                                    transition: "background 0.15s ease",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (!isSelected) e.currentTarget.style.backgroundColor = "var(--bg)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
+                                    gap: "10px",
                                   }}
                                 >
-                                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                    <div style={{
+                                  <div
+                                    style={{
                                       width: "28px",
                                       height: "28px",
                                       borderRadius: "50%",
@@ -768,68 +792,89 @@ export default function PersonnelPage() {
                                       justifyContent: "center",
                                       fontSize: "12px",
                                       fontWeight: 700,
-                                      flexShrink: 0
-                                    }}>
-                                      {u.fullName.trim().charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                      <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-h)" }}>
-                                        {u.fullName}
-                                      </div>
-                                      <div style={{ fontSize: "11px", color: "var(--text)", opacity: 0.7 }}>
-                                        {u.email}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <span
-                                    style={{
-                                      fontSize: "10px",
-                                      fontWeight: 700,
-                                      padding: "2px 8px",
-                                      borderRadius: "12px",
-                                      textTransform: "uppercase",
-                                      ...getRoleBadgeStyles(roleDisplay),
+                                      flexShrink: 0,
                                     }}
                                   >
-                                    {roleDisplay}
-                                  </span>
+                                    {u.fullName.trim().charAt(0).toUpperCase()}
+                                  </div>
+
+                                  <div>
+                                    <div
+                                      style={{
+                                        fontSize: "13px",
+                                        fontWeight: 600,
+                                        color: "var(--text-h)",
+                                      }}
+                                    >
+                                      {u.fullName}
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        fontSize: "11px",
+                                        color: "var(--text)",
+                                        opacity: 0.7,
+                                      }}
+                                    >
+                                      {u.email}
+                                    </div>
+                                  </div>
                                 </div>
-                              );
-                            })}
 
-                          {availableUsers.filter((u) => {
-                            const q = userSearchQuery.trim().toLowerCase();
-                            if (!q) return true;
-                            const roleName = u.role ?? (u as any).roleName ?? '';
-                            return (
-                              u.fullName.toLowerCase().includes(q) ||
-                              u.email.toLowerCase().includes(q) ||
-                              roleName.toLowerCase().includes(q)
+                                <span
+                                  style={{
+                                    fontSize: "10px",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: "12px",
+                                    textTransform: "uppercase",
+                                    ...getRoleBadgeStyles(roleDisplay),
+                                  }}
+                                >
+                                  {roleDisplay}
+                                </span>
+                              </div>
                             );
-                          }).length === 0 && (
-                            <div style={{ padding: "12px", textAlign: "center", fontSize: "12.5px", color: "var(--text)", opacity: 0.6 }}>
-                              No matching staff members found
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                          })}
 
-                    {availableUsers.length === 0 && (
-                      <p style={{ fontSize: "12px", color: "#DC2626", marginTop: "6px" }}>
-                        All existing system users already have personnel profiles active.
-                      </p>
+                        {availableUsers.filter((u) => {
+                          const q = userSearchQuery.trim().toLowerCase();
+                          if (!q) return true;
+                          const roleName = getUserRoleName(u);
+                          return (
+                            u.fullName.toLowerCase().includes(q) ||
+                            u.email.toLowerCase().includes(q) ||
+                            roleName.toLowerCase().includes(q)
+                          );
+                        }).length === 0 && (
+                          <div
+                            style={{
+                              padding: "12px",
+                              textAlign: "center",
+                              fontSize: "12.5px",
+                              color: "var(--text)",
+                              opacity: 0.6,
+                            }}
+                          >
+                            No matching staff members found
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                ) : (
-                  <div className="form-group">
-                    <label>Staff Member</label>
-                    <div className="personnel-staff-readonly">
-                      {selectedProfile?.fullName} ({selectedProfile?.roleName})
-                    </div>
-                  </div>
-                )}
+
+                  {availableUsers.length === 0 && (
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "#DC2626",
+                        marginTop: "6px",
+                      }}
+                    >
+                      No eligible user without a Human Resource Profile is available.
+                    </p>
+                  )}
+                </div>
 
                 <div className="form-group">
                   <label htmlFor="maxHours">
@@ -840,7 +885,7 @@ export default function PersonnelPage() {
                     id="maxHours"
                     placeholder="E.g., 8"
                     min={1}
-                    max={24}
+                    max={8}
                     value={formMaxHours}
                     onChange={(e) => setFormMaxHours(Number(e.target.value))}
                     required
@@ -848,11 +893,31 @@ export default function PersonnelPage() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="hrStatus">HR Allocation Status</label>
+                  <label htmlFor="currentWorkload">
+                    Current Workload <span className="required">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="currentWorkload"
+                    placeholder="E.g., 0"
+                    min={0}
+                    step={0.5}
+                    value={formCurrentWorkload}
+                    onChange={(e) => setFormCurrentWorkload(Number(e.target.value))}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="hrStatus">
+                    HR Allocation Status <span className="required">*</span>
+                  </label>
                   <select
                     id="hrStatus"
                     value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value)}
+                    onChange={(e) =>
+                      setFormStatus(e.target.value as HumanResourceStatus)
+                    }
                   >
                     <option value="Available">Available</option>
                     <option value="Busy">Busy</option>
@@ -861,19 +926,15 @@ export default function PersonnelPage() {
                 </div>
 
                 <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={closeModal}
-                  >
+                  <button type="button" className="btn-secondary" onClick={closeModal}>
                     Cancel
                   </button>
                   <button
                     type="submit"
                     className="btn-primary"
-                    disabled={modalType === "add" && availableUsers.length === 0}
+                    disabled={availableUsers.length === 0 || formUserId <= 0}
                   >
-                    {modalType === "add" ? "Activate Profile" : "Save Changes"}
+                    Create Profile
                   </button>
                 </div>
               </form>
@@ -881,8 +942,286 @@ export default function PersonnelPage() {
           </div>
         )}
 
-        {/* 2. Modal Manage Skills */}
-        {modalType === "skills" && selectedProfile && (
+        {modalType === "edit" && selectedProfile && (
+          <div
+            className="modal-overlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                closeModal();
+              }
+            }}
+          >
+            <div
+              className="modal-container"
+              style={{ width: "min(520px, calc(100vw - 32px))" }}
+            >
+              <div className="modal-header">
+                <div>
+                  <h3 style={{ margin: 0 }}>Edit Personnel Profile</h3>
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      color: "var(--text)",
+                      fontSize: "12px",
+                      opacity: 0.75,
+                    }}
+                  >
+                    Update working capacity and allocation availability.
+                  </p>
+                </div>
+
+                <button type="button" className="modal-close-btn" onClick={closeModal}>
+                  &times;
+                </button>
+              </div>
+
+              <form onSubmit={handleProfileSubmit}>
+                <div className="modal-form">
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "14px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "10px",
+                      background: "var(--bg)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "42px",
+                        height: "42px",
+                        flex: "0 0 42px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: "50%",
+                        background: "#DCFCE7",
+                        color: "#15803D",
+                        fontSize: "14px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {selectedProfile.fullName.trim().charAt(0).toUpperCase() || "P"}
+                    </div>
+
+                    <div
+                      style={{
+                        minWidth: 0,
+                        flex: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "3px",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          overflow: "hidden",
+                          color: "var(--text-h)",
+                          fontSize: "13.5px",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {selectedProfile.fullName}
+                      </strong>
+
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          color: "var(--text)",
+                          fontSize: "11.5px",
+                          opacity: 0.75,
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {selectedProfile.email}
+                      </span>
+                    </div>
+
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        padding: "3px 9px",
+                        borderRadius: "999px",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        ...getRoleBadgeStyles(selectedProfile.roleName),
+                      }}
+                    >
+                      {selectedProfile.roleName}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "22px",
+                      marginBottom: "14px",
+                      color: "var(--text)",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Work Configuration
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="editMaxHours">
+                      Max Work Hours / Day <span className="required">*</span>
+                    </label>
+                    <input
+                      id="editMaxHours"
+                      type="number"
+                      min={0.5}
+                      max={8}
+                      step={0.5}
+                      value={formMaxHours}
+                      onChange={(event) =>
+                        setFormMaxHours(Number(event.target.value))
+                      }
+                      required
+                    />
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "6px",
+                        color: "var(--text)",
+                        fontSize: "11px",
+                        opacity: 0.7,
+                      }}
+                    >
+                      Maximum working capacity is 8 hours per day.
+                    </span>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: "18px" }}>
+                    <label htmlFor="editStatus">
+                      HR Allocation Status <span className="required">*</span>
+                    </label>
+                    <select
+                      id="editStatus"
+                      value={formStatus}
+                      onChange={(event) =>
+                        setFormStatus(event.target.value as HumanResourceStatus)
+                      }
+                      required
+                    >
+                      <option value="Available">Available</option>
+                      <option value="Busy">Busy</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "6px",
+                        color: "var(--text)",
+                        fontSize: "11px",
+                        opacity: 0.7,
+                      }}
+                    >
+                      Controls whether this personnel can be considered for allocation.
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "20px",
+                      padding: "14px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "10px",
+                      background: "var(--bg)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "var(--text)",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Current Workload
+                      </span>
+
+                      <strong
+                        style={{
+                          color: "var(--text-h)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {selectedProfile.currentWorkload} / {formMaxHours} hrs
+                      </strong>
+                    </div>
+
+                    <div
+                      style={{
+                        height: "6px",
+                        marginTop: "10px",
+                        overflow: "hidden",
+                        borderRadius: "999px",
+                        background: "var(--border)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            formMaxHours > 0
+                              ? (selectedProfile.currentWorkload / formMaxHours) * 100
+                              : 0
+                          )}%`,
+                          height: "100%",
+                          borderRadius: "999px",
+                          background:
+                            selectedProfile.currentWorkload > formMaxHours
+                              ? "#DC2626"
+                              : "var(--accent)",
+                          transition: "width 0.2s ease",
+                        }}
+                      />
+                    </div>
+
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "8px",
+                        color: "var(--text)",
+                        fontSize: "10.5px",
+                        lineHeight: 1.45,
+                        opacity: 0.7,
+                      }}
+                    >
+                      Current workload is calculated from resource allocations and cannot be
+                      edited manually.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn-secondary" onClick={closeModal}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+{modalType === "skills" && selectedProfile && (
           <div className="modal-overlay">
             <div className="modal-container detail-modal" style={{ border: "1px solid var(--border)", background: "var(--card-bg)" }}>
               <div className="modal-header" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -898,9 +1237,7 @@ export default function PersonnelPage() {
                 <label style={{ color: "var(--text-h)", fontWeight: 700, display: "block", marginBottom: "10px", fontSize: "14px" }}>
                   Assigned Skills ({assignedSkills.filter((as) => as.humanResourceId === selectedProfile.humanResourceId).length})
                 </label>
-
-                {/* List of currently assigned skills */}
-                <div className="skills-manager-list">
+<div className="skills-manager-list">
                   {assignedSkills.filter((as) => as.humanResourceId === selectedProfile.humanResourceId).length === 0 ? (
                     <div style={{ textAlign: "center", padding: "24px", color: "var(--text)", opacity: 0.6, fontSize: "13px" }}>
                       No skills currently assigned to this personnel.
@@ -933,9 +1270,7 @@ export default function PersonnelPage() {
                       ))
                   )}
                 </div>
-
-                {/* Assign New Skill Section */}
-                <h4 className="add-skill-section-title">Assign New Specialty Skill</h4>
+<h4 className="add-skill-section-title">Assign New Specialty Skill</h4>
                 <form onSubmit={handleAssignSkillSubmit} className="add-skill-inline-form">
                   <div className="inline-form-group">
                     <label htmlFor="skillSelect">Skill Type <span className="required">*</span></label>
@@ -989,9 +1324,7 @@ export default function PersonnelPage() {
             </div>
           </div>
         )}
-
-        {/* Floating Toast Notification */}
-        {toast.visible && (
+{toast.visible && (
           <div className={`floating-toast ${toast.type}`}>
             <span className="toast-message">{toast.message}</span>
           </div>

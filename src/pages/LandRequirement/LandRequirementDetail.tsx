@@ -33,6 +33,8 @@ import type {
 
 import "./LandRequirementDetail.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -134,6 +136,7 @@ function formatArea(
 }
 
 export default function LandRequirementDetail() {
+  const { showConfirm } = usePopup();
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -227,7 +230,7 @@ export default function LandRequirementDetail() {
     }
 
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete Land Requirement #${requirement.expLandReqId}?`
       );
 

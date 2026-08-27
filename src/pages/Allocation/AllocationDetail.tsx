@@ -16,10 +16,6 @@ import {
   ShieldCheck,
   CalendarPlus,
   Plus,
-  ArrowDownRight,
-  RotateCcw,
-  PackageCheck,
-  AlertTriangle,
 } from "lucide-react";
 import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
 
@@ -35,8 +31,6 @@ import {
   getAllocationEquipmentDetails,
   getAllocationHumanDetails,
   getAllocationLandDetails,
-  handoverEquipmentDetail,
-  returnEquipmentDetail,
 } from "../../services/allocationDetailService";
 
 import type { AllocationPlan, AllocationPlanStatus } from "../../types/allocationPlan";
@@ -48,6 +42,8 @@ import type { ExperimentPhase } from "../../types/experimentPhase";
 import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./AllocationDetail.css";
+
+import { usePopup } from "../../context/PopupContext";
 
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 type ResourceTab = "equipment" | "human" | "land" | "phases";
@@ -89,6 +85,7 @@ function getPriorityLabel(priority?: number | null): string {
 }
 
 export default function AllocationDetail() {
+  const { showConfirm, showAlert } = usePopup();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const allocationPlanId = Number(id);
@@ -137,58 +134,14 @@ export default function AllocationDetail() {
     });
   };
 
-  // Equipment Handover & Return State
-  const [handoverModalItem, setHandoverModalItem] = useState<AllocationEquipmentDetail | null>(null);
-  const [returnModalItem, setReturnModalItem] = useState<AllocationEquipmentDetail | null>(null);
-  const [returnCondition, setReturnCondition] = useState<"Good" | "Normal" | "NeedMaintenance" | "Broken">("Good");
-  const [returnNotes, setReturnNotes] = useState("");
-  const [equipmentActionLoading, setEquipmentActionLoading] = useState(false);
-
-  const handleConfirmHandover = async () => {
-    if (!handoverModalItem) return;
-    try {
-      setEquipmentActionLoading(true);
-      await handoverEquipmentDetail(handoverModalItem.allocationEquipmentDetailId);
-      showToast(
-        `Đã xác nhận bàn giao và tiếp nhận thiết bị "${handoverModalItem.equipmentInstanceName || handoverModalItem.assetCode || "thiết bị"}" vào sử dụng (InUse)!`,
-        "success",
-        "Bàn giao thành công"
-      );
-      setHandoverModalItem(null);
-      await loadAllocationDetail();
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Không thể thực hiện bàn giao thiết bị.", "error", "Bàn giao thất bại");
-    } finally {
-      setEquipmentActionLoading(false);
-    }
-  };
-
-  const handleConfirmReturn = async () => {
-    if (!returnModalItem) return;
-    try {
-      setEquipmentActionLoading(true);
-      await returnEquipmentDetail(returnModalItem.allocationEquipmentDetailId, returnNotes);
-      const isFieldStaff = role === "Seasonal" || role === "Technician";
-      showToast(
-        isFieldStaff
-          ? `Đã hoàn tất trả thiết bị "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "thiết bị"}" sau khi sử dụng!`
-          : `Đã xác nhận nghiệm thu và đưa thiết bị "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "thiết bị"}" về kho (Available) thành công!`,
-        "success",
-        isFieldStaff ? "Trả thiết bị thành công" : "Xác nhận trả thiết bị thành công"
-      );
-      setReturnModalItem(null);
-      setReturnNotes("");
-      await loadAllocationDetail();
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Không thể thực hiện hoàn trả thiết bị.", "error", "Hoàn trả thất bại");
-    } finally {
-      setEquipmentActionLoading(false);
-    }
-  };
-
   const loadAllocationDetail = useCallback(async () => {
     if (!Number.isInteger(allocationPlanId) || allocationPlanId <= 0) {
-      setError("Invalid Allocation Plan.");
+      showAlert({
+        title: "Invalid Allocation Plan",
+        message: "The allocation plan ID is invalid.",
+        confirmText: "OK",
+        tone: "danger",
+      });
       setLoading(false);
       return;
     }
@@ -197,228 +150,99 @@ export default function AllocationDetail() {
       setLoading(true);
       setError("");
 
-      const [
-        planRes,
-        equipData,
-        humanData,
-        landData,
-        allEquipRes,
-        allHumanRes,
-        allLandRes,
-        expEquipReqRes,
-        expHumanReqRes,
-        expLandReqRes,
-        liveEquipRes,
-        liveHumanRes,
-        liveLandRes,
-      ] = await Promise.all([
+      const [planRes, equipData, humanData, landData] = await Promise.all([
         getAllocationPlanById(allocationPlanId),
-        getAllocationEquipmentDetails({ allocationPlanId, size: 200 }).catch(() => []),
-        getAllocationHumanDetails({ allocationPlanId, size: 200 }).catch(() => []),
-        getAllocationLandDetails({ allocationPlanId, size: 200 }).catch(() => []),
-        api.get("/AllocationEquipmentDetails?size=300").catch(() => ({ data: [] })),
-        api.get("/AllocationHumanDetails?size=300").catch(() => ({ data: [] })),
-        api.get("/AllocationLandDetails?size=300").catch(() => ({ data: [] })),
-        api.get("/ExperimentEquipmentRequirements?size=300").catch(() => ({ data: [] })),
-        api.get("/ExperimentHumanRequirements?size=300").catch(() => ({ data: [] })),
-        api.get("/ExperimentLandRequirements?size=300").catch(() => ({ data: [] })),
-        api.get("/EquipmentInstances?size=100").catch(() => ({ data: [] })),
-        api.get("/HumanResourceProfiles?size=100").catch(() => ({ data: [] })),
-        api.get("/LandResources?size=100").catch(() => ({ data: [] })),
+        getAllocationEquipmentDetails({
+          allocationPlanId,
+          size: 300,
+        }),
+        getAllocationHumanDetails({
+          allocationPlanId,
+          size: 300,
+        }),
+        getAllocationLandDetails({
+          allocationPlanId,
+          size: 300,
+        }),
       ]);
 
       setPlan(planRes);
+      setEquipmentDetails(Array.isArray(equipData) ? equipData : []);
+      setHumanDetails(Array.isArray(humanData) ? humanData : []);
+      setLandDetails(Array.isArray(landData) ? landData : []);
 
-      const unwrap = (r: any): any[] => {
-        if (!r) return [];
-        if (Array.isArray(r)) return r;
-        const d = r.data || r;
-        if (Array.isArray(d)) return d;
-        if (d && Array.isArray(d.items)) return d.items;
-        if (d && Array.isArray(d.data)) return d.data;
-        if (d && Array.isArray(d.result)) return d.result;
-        return [];
-      };
-
-      const allEquips = unwrap(allEquipRes);
-      const allHumans = unwrap(allHumanRes);
-      const allLands = unwrap(allLandRes);
-      const expEquipReqs = unwrap(expEquipReqRes);
-      const expHumanReqs = unwrap(expHumanReqRes);
-      const expLandReqs = unwrap(expLandReqRes);
-      const liveEquips = unwrap(liveEquipRes);
-      const liveHumans = unwrap(liveHumanRes);
-      const liveLands = unwrap(liveLandRes);
-
-      // 1. Equipment Details Resolution
-      let equips: any[] = Array.isArray(equipData) && equipData.length > 0 ? equipData : [];
-      if (equips.length === 0) {
-        equips = allEquips.filter(
-          (e: any) =>
-            Number(e.allocationPlanId) === allocationPlanId ||
-            (planRes.experimentId && (Number(e.experimentId) === planRes.experimentId || e.expEquipmentReqId))
-        );
-      }
-      if (equips.length === 0 && (planRes.equipmentDetailCount > 0 || planRes.experimentId)) {
-        const matchedReqs = expEquipReqs.filter((er: any) => er.experimentId === planRes.experimentId);
-        if (matchedReqs.length > 0) {
-          equips = matchedReqs.map((er: any, idx: number) => {
-            const inst = liveEquips.find((i: any) => i.equipmentTypeId === er.equipmentTypeId) || liveEquips[idx % (liveEquips.length || 1)];
-            return {
-              allocationEquipmentDetailId: er.expEquipmentReqId || idx + 1,
-              allocationPlanId: planRes.allocationPlanId,
-              equipmentInstanceName: inst?.assetCode || `Equipment Type #${er.equipmentTypeId}`,
-              assetCode: inst?.assetCode || `EQ-${er.equipmentTypeId || idx + 1}`,
-              allocatedEquipmentTypeName: inst?.equipmentTypeName || `Type #${er.equipmentTypeId}`,
-              quantity: er.quantity || 1,
-              efficiencyRate: inst?.efficiencyRate ?? 0.95,
-              startDate: planRes.createdAt || new Date().toISOString(),
-              endDate: new Date().toISOString(),
-              status: "Allocated",
-            };
-          });
-        } else if (liveEquips.length > 0 || planRes.equipmentDetailCount > 0) {
-          const firstEq = liveEquips[0];
-          equips = [
-            {
-              allocationEquipmentDetailId: 1,
-              allocationPlanId: planRes.allocationPlanId,
-              equipmentInstanceName: firstEq?.assetCode || "Mower / Tractor A1",
-              assetCode: firstEq?.assetCode || "EQ-001",
-              allocatedEquipmentTypeName: firstEq?.equipmentTypeName || "Máy kéo & Thiết bị nông nghiệp",
-              quantity: 1,
-              efficiencyRate: firstEq?.efficiencyRate ?? 0.95,
-              startDate: planRes.createdAt || new Date().toISOString(),
-              endDate: new Date().toISOString(),
-              status: "Allocated",
-            },
-          ];
-        }
-      }
-      setEquipmentDetails(equips);
-
-      // 2. Personnel Details Resolution
-      let humans: any[] = Array.isArray(humanData) && humanData.length > 0 ? humanData : [];
-      if (humans.length === 0) {
-        humans = allHumans.filter(
-          (h: any) =>
-            Number(h.allocationPlanId) === allocationPlanId ||
-            (planRes.experimentId && (Number(h.experimentId) === planRes.experimentId || h.expHumanReqId))
-        );
-      }
-      if (humans.length === 0 && (planRes.humanDetailCount > 0 || planRes.experimentId)) {
-        const matchedReqs = expHumanReqs.filter((hr: any) => hr.experimentId === planRes.experimentId);
-        if (matchedReqs.length > 0) {
-          humans = matchedReqs.map((hr: any, idx: number) => {
-            const fieldStaff = liveHumans.filter(
-              (hp: any) =>
-                (hp.roleName || "").toLowerCase().includes("seasonal") ||
-                (hp.roleName || "").toLowerCase().includes("technician")
-            );
-            const staff = fieldStaff[idx % (fieldStaff.length || 1)] || liveHumans[0];
-            return {
-              allocationHumanDetailId: hr.expHumanReqId || idx + 1,
-              allocationPlanId: planRes.allocationPlanId,
-              fullName: staff?.fullName || `Field Personnel (${hr.roleName || "Technician"})`,
-              roleName: hr.roleName || staff?.roleName || "Technician",
-              skillName: hr.skillRequired || "Forestry Survey",
-              workingHours: hr.workingHoursPerDay || staff?.workingHoursPerDay || 8,
-              allocatedHoursPerDay: hr.workingHoursPerDay || staff?.workingHoursPerDay || 8,
-              startDate: planRes.createdAt || new Date().toISOString(),
-              endDate: new Date().toISOString(),
-              status: "Assigned",
-            };
-          });
-        } else if (liveHumans.length > 0 || planRes.humanDetailCount > 0) {
-          const firstStaff = liveHumans.find((hp: any) => (hp.roleName || "").toLowerCase().includes("seasonal") || (hp.roleName || "").toLowerCase().includes("technician")) || liveHumans[0];
-          humans = [
-            {
-              allocationHumanDetailId: 1,
-              allocationPlanId: planRes.allocationPlanId,
-              fullName: firstStaff?.fullName || "Nhân viên kỹ thuật thực địa",
-              roleName: firstStaff?.roleName || "Technician",
-              skillName: "Thực địa & Khảo nghiệm",
-              workingHours: 8,
-              allocatedHoursPerDay: 8,
-              startDate: planRes.createdAt || new Date().toISOString(),
-              endDate: new Date().toISOString(),
-              status: "Assigned",
-            },
-          ];
-        }
-      }
-      setHumanDetails(humans);
-
-      // 3. Land Details Resolution
-      let lands: any[] = Array.isArray(landData) && landData.length > 0 ? landData : [];
-      if (lands.length === 0) {
-        lands = allLands.filter(
-          (l: any) =>
-            Number(l.allocationPlanId) === allocationPlanId ||
-            (planRes.experimentId && (Number(l.experimentId) === planRes.experimentId || l.expLandReqId))
-        );
-      }
-      if (lands.length === 0 && (planRes.landDetailCount > 0 || planRes.experimentId)) {
-        const matchedReqs = expLandReqs.filter((lr: any) => lr.experimentId === planRes.experimentId);
-        if (matchedReqs.length > 0) {
-          lands = matchedReqs.map((lr: any, idx: number) => {
-            const plot = liveLands.find((p: any) => p.landId === lr.landId) || liveLands[0];
-            return {
-              allocationLandDetailId: lr.expLandReqId || idx + 1,
-              allocationPlanId: planRes.allocationPlanId,
-              landCode: plot?.landCode || `Plot #${lr.landId || 1}`,
-              soilType: lr.soilType || plot?.soilType || "Standard Soil",
-              areaSize: lr.areaSize || plot?.areaSize || 1000,
-              startDate: planRes.createdAt || new Date().toISOString(),
-              endDate: new Date().toISOString(),
-              status: "Allocated",
-            };
-          });
-        } else if (liveLands.length > 0 || planRes.landDetailCount > 0) {
-          const firstPlot = liveLands[0];
-          lands = [
-            {
-              allocationLandDetailId: 1,
-              allocationPlanId: planRes.allocationPlanId,
-              landCode: firstPlot?.landCode || "Lô A1 - Khu rừng khảo nghiệm",
-              soilType: firstPlot?.soilType || "Đất Feralit đỏ vàng",
-              areaSize: firstPlot?.areaSize || 5000,
-              startDate: planRes.createdAt || new Date().toISOString(),
-              endDate: new Date().toISOString(),
-              status: "Allocated",
-            },
-          ];
-        }
-      }
-      setLandDetails(lands);
-
-      // Load related experiment details and phases if experimentId exists
       if (planRes.experimentId) {
-        try {
-          const [expRes, phaseRes] = await Promise.all([
-            api.get(`/Experiments/${planRes.experimentId}`).catch(() => null),
-            api.get(`/ExperimentPhases?ExperimentId=${planRes.experimentId}&size=100`).catch(() => null),
-          ]);
-          if (expRes?.data) {
-            setExperiment(expRes.data?.data || expRes.data?.result || expRes.data);
-          }
-          if (phaseRes?.data) {
-            const rawPhases = unwrap(phaseRes.data);
-            if (Array.isArray(rawPhases)) {
-              setPhases(rawPhases.filter((p: any) => p.experimentId === planRes.experimentId));
-            }
-          }
-        } catch (expErr) {
-          console.warn("Could not load associated experiment context:", expErr);
+        const [expRes, phaseRes] = await Promise.all([
+          api
+            .get(`/Experiments/${planRes.experimentId}`)
+            .catch(() => null),
+          api
+            .get(
+              `/ExperimentPhases?ExperimentId=${planRes.experimentId}&size=100`
+            )
+            .catch(() => null),
+        ]);
+
+        if (expRes?.data) {
+          setExperiment(
+            expRes.data?.data ||
+              expRes.data?.result ||
+              expRes.data
+          );
+        } else {
+          setExperiment(null);
         }
+
+        const phasePayload = phaseRes?.data;
+        const rawPhases = Array.isArray(phasePayload)
+          ? phasePayload
+          : Array.isArray(phasePayload?.items)
+            ? phasePayload.items
+            : Array.isArray(phasePayload?.data)
+              ? phasePayload.data
+              : Array.isArray(phasePayload?.result)
+                ? phasePayload.result
+                : Array.isArray(phasePayload?.data?.items)
+                  ? phasePayload.data.items
+                  : [];
+
+        setPhases(
+          rawPhases.filter(
+            (phase: ExperimentPhase) =>
+              Number(phase.experimentId) ===
+              Number(planRes.experimentId)
+          )
+        );
+      } else {
+        setExperiment(null);
+        setPhases([]);
       }
     } catch (loadErr: any) {
-      console.error("Failed to load allocation details:", loadErr);
-      setError(loadErr?.response?.data?.message || "Failed to load allocation plan.");
+      console.error(
+        "Failed to load allocation details:",
+        loadErr
+      );
+
+      const message =
+        loadErr?.response?.data?.message ||
+        loadErr?.response?.data?.error ||
+        "Failed to load allocation plan.";
+
+      setError(message);
+
+      showAlert({
+        title: "Unable to Load Allocation Plan",
+        message,
+        confirmText: "OK",
+        tone: "danger",
+      });
     } finally {
       setLoading(false);
     }
-  }, [allocationPlanId]);
+  }, [
+    allocationPlanId,
+    showAlert,
+  ]);
 
   useEffect(() => {
     void loadAllocationDetail();
@@ -434,7 +258,7 @@ export default function AllocationDetail() {
 
   const handleApprove = async () => {
     if (!plan || !canApprove || actionLoading) return;
-    if (!window.confirm("Approve this Resource Allocation Plan?")) return;
+    if (!await showConfirm("Approve this Resource Allocation Plan?")) return;
 
     try {
       setActionLoading(true);
@@ -451,7 +275,7 @@ export default function AllocationDetail() {
 
   const handleReject = async () => {
     if (!plan || !canReject || actionLoading) return;
-    if (!window.confirm("Reject this Resource Allocation Plan?")) return;
+    if (!await showConfirm("Reject this Resource Allocation Plan?")) return;
 
     try {
       setActionLoading(true);
@@ -468,7 +292,7 @@ export default function AllocationDetail() {
 
   const handleCancel = async () => {
     if (!plan || !canCancel || actionLoading) return;
-    if (!window.confirm("Cancel this allocation plan?")) return;
+    if (!await showConfirm("Cancel this allocation plan?")) return;
 
     try {
       setActionLoading(true);
@@ -514,9 +338,9 @@ export default function AllocationDetail() {
     );
   }
 
-  const equipCount = equipmentDetails.length > 0 ? equipmentDetails.length : (plan.equipmentDetailCount || 0);
-  const humanCount = humanDetails.length > 0 ? humanDetails.length : (plan.humanDetailCount || 0);
-  const landCount = landDetails.length > 0 ? landDetails.length : (plan.landDetailCount || (landDetails.length > 0 ? 1 : 0));
+  const equipCount = equipmentDetails.length;
+  const humanCount = humanDetails.length;
+  const landCount = landDetails.length;
   const phaseCount = phases.length || 1;
 
   const statusKey = (plan.approveStatus || "Pending").toLowerCase();
@@ -605,6 +429,75 @@ export default function AllocationDetail() {
                       : "-"}
                   </div>
                 </div>
+
+                <div className="alloc-metric-item">
+                  <span className="alloc-metric-label">Schedules</span>
+                  <div className="alloc-metric-value">
+                    {plan.scheduleCount ?? 0}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="alloc-card">
+              <div className="alloc-card-header">
+                <div>
+                  <span className="alloc-card-header-eyebrow">
+                    Plan Information
+                  </span>
+                  <h3>Allocation Plan Details</h3>
+                </div>
+              </div>
+
+              <div className="alloc-detail-field-grid alloc-plan-detail-grid">
+                <div>
+                  <span>Allocation Plan ID</span>
+                  <strong>#{plan.allocationPlanId}</strong>
+                </div>
+
+                <div>
+                  <span>Experiment ID</span>
+                  <strong>#{plan.experimentId}</strong>
+                </div>
+
+                <div>
+                  <span>Approval Status</span>
+                  <strong>{plan.approveStatus || "-"}</strong>
+                </div>
+
+                <div>
+                  <span>Fitness Score</span>
+                  <strong>
+                    {plan.fitnessScore != null
+                      ? Number(plan.fitnessScore).toFixed(2)
+                      : "Not evaluated"}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Created By</span>
+                  <strong>{plan.createdByName || `User #${plan.createdBy}`}</strong>
+                </div>
+
+                <div>
+                  <span>Created At</span>
+                  <strong>{formatDateTime(plan.createdAt)}</strong>
+                </div>
+
+                <div>
+                  <span>Last Updated</span>
+                  <strong>{formatDateTime(plan.updatedAt)}</strong>
+                </div>
+
+                <div>
+                  <span>Approved By</span>
+                  <strong>{plan.approveByName || "-"}</strong>
+                </div>
+
+                <div>
+                  <span>Approved At</span>
+                  <strong>{formatDateTime(plan.approvedAt)}</strong>
+                </div>
               </div>
             </div>
 
@@ -660,62 +553,100 @@ export default function AllocationDetail() {
               {activeTab === "equipment" && (
                 <div className="alloc-table-wrapper">
                   {equipmentDetails.length === 0 ? (
-                    <div className="alloc-empty-box">No equipment assigned to this allocation plan.</div>
+                    <div className="alloc-empty-box">
+                      No persisted equipment allocation details were found for this plan.
+                    </div>
                   ) : (
-                    <table className="alloc-resource-table">
+                    <table className="alloc-resource-table alloc-resource-table-detailed">
                       <thead>
                         <tr>
-                          <th>Equipment Name & Asset Code</th>
-                          <th>Equipment Type</th>
+                          <th>Asset</th>
+                          <th>Requested Type</th>
+                          <th>Allocated Type</th>
+                          <th>Phase</th>
+                          <th>Quantity</th>
                           <th>Assigned Period</th>
                           <th>Efficiency</th>
+                          <th>Substitute</th>
                           <th>Status</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {equipmentDetails.map((eq, idx) => {
-                          const isInUse = eq.status === "InUse";
-                          const isCompleted = eq.status === "Completed";
 
-                          return (
-                            <tr key={eq.allocationEquipmentDetailId || idx}>
-                              <td>
-                                <div style={{ fontWeight: 550, color: "#0f172a" }}>
-                                  {eq.equipmentInstanceName || eq.assetCode || "Assigned Machine"}
+                      <tbody>
+                        {equipmentDetails.map((eq, idx) => (
+                          <tr key={eq.allocationEquipmentDetailId || idx}>
+                            <td>
+                              <div className="alloc-primary-text">
+                                {eq.equipmentInstanceName ||
+                                  eq.assetCode ||
+                                  `Equipment #${eq.equipmentInstanceId || "-"}`}
+                              </div>
+
+                              <div className="alloc-secondary-text">
+                                Asset Code: {eq.assetCode || "-"}
+                              </div>
+
+                              <div className="alloc-secondary-text">
+                                Serial: {eq.serialNumber || "-"}
+                              </div>
+                            </td>
+
+                            <td>
+                              {eq.requestedEquipmentTypeName ||
+                                (eq.requestedEquipmentTypeId
+                                  ? `Type #${eq.requestedEquipmentTypeId}`
+                                  : "-")}
+                            </td>
+
+                            <td>
+                              {eq.allocatedEquipmentTypeName ||
+                                (eq.allocatedEquipmentTypeId
+                                  ? `Type #${eq.allocatedEquipmentTypeId}`
+                                  : "-")}
+                            </td>
+
+                            <td>
+                              <div>{eq.phaseName || "-"}</div>
+                              {eq.phaseId && (
+                                <div className="alloc-secondary-text">
+                                  Phase ID: {eq.phaseId}
                                 </div>
-                                {eq.assetCode && (
-                                  <div style={{ fontSize: "11px", color: "#64748b" }}>
-                                    Asset Code: {eq.assetCode}
-                                  </div>
-                                )}
-                              </td>
-                              <td>{eq.allocatedEquipmentTypeName || "Standard Equipment"}</td>
-                              <td>
-                                {formatDate(eq.startDate)} → {formatDate(eq.endDate)}
-                              </td>
-                              <td>
-                                <span style={{ fontSize: "11.5px", fontWeight: 500, color: "#16a34a" }}>
-                                  {Math.round((eq.efficiencyRate ?? 1) * 100)}% Eff.
-                                </span>
-                              </td>
-                              <td>
-                                {isInUse ? (
-                                  <span className="badge-inuse">
-                                    <Sparkles size={11} /> In Use
-                                  </span>
-                                ) : isCompleted ? (
-                                  <span className="badge-completed">
-                                    <CheckCircle2 size={11} /> Completed
-                                  </span>
-                                ) : (
-                                  <span className="badge-available">
-                                    {eq.status || "Allocated"}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                              )}
+                            </td>
+
+                            <td>{eq.quantity ?? 1}</td>
+
+                            <td>
+                              <div>{formatDate(eq.startDate)}</div>
+                              <div className="alloc-period-arrow">→</div>
+                              <div>{formatDate(eq.endDate)}</div>
+                            </td>
+
+                            <td>
+                              <span className="alloc-efficiency-badge">
+                                {Math.round((eq.efficiencyRate ?? 0) * 100)}%
+                              </span>
+                            </td>
+
+                            <td>
+                              <span
+                                className={
+                                  eq.isSubstitute
+                                    ? "alloc-yes-badge"
+                                    : "alloc-no-badge"
+                                }
+                              >
+                                {eq.isSubstitute ? "Yes" : "No"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="badge-available">
+                                {eq.status || "Allocated"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   )}
@@ -726,79 +657,120 @@ export default function AllocationDetail() {
               {activeTab === "human" && (
                 <div className="alloc-table-wrapper">
                   {humanDetails.length === 0 ? (
-                    <div className="alloc-empty-box">No personnel assigned to this allocation plan.</div>
+                    <div className="alloc-empty-box">
+                      No persisted personnel allocation details were found for this plan.
+                    </div>
                   ) : (
-                    <table className="alloc-resource-table">
+                    <table className="alloc-resource-table alloc-resource-table-detailed">
                       <thead>
                         <tr>
-                          <th>Full Name</th>
+                          <th>Personnel</th>
                           <th>Role</th>
-                          <th>Assigned Period</th>
+                          <th>Required Skill</th>
+                          <th>Phase</th>
                           <th>Working Hours</th>
+                          <th>Current Capacity</th>
+                          <th>Assigned Period</th>
                           <th>Status</th>
-                          {canAssignSchedule && <th style={{ textAlign: "right" }}>Schedule Action</th>}
+                          {canAssignSchedule && <th>Schedule</th>}
                         </tr>
                       </thead>
+
                       <tbody>
-                        {humanDetails.map((h, idx) => {
-                          const normRole = (h.roleName || "").toLowerCase();
-                          const isSeasonal = normRole.includes("seasonal");
-                          return (
-                            <tr key={h.allocationHumanDetailId || idx}>
-                              <td>
-                                <div style={{ fontWeight: 550, color: "#0f172a" }}>
-                                  {h.fullName || "Field Staff"}
+                        {humanDetails.map((h, idx) => (
+                          <tr key={h.allocationHumanDetailId || idx}>
+                            <td>
+                              <div className="alloc-primary-text">
+                                {h.fullName ||
+                                  h.humanResourceName ||
+                                  `Personnel #${h.humanResourceId}`}
+                              </div>
+
+                              <div className="alloc-secondary-text">
+                                {h.email || h.username || "-"}
+                              </div>
+
+                              <div className="alloc-secondary-text">
+                                HR ID: {h.humanResourceId || "-"}
+                              </div>
+                            </td>
+
+                            <td>
+                              <span className="alloc-role-badge">
+                                {h.roleName ||
+                                  h.humanResourceRoleName ||
+                                  "-"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <div>
+                                {h.requiredSkillName ||
+                                  h.skillName ||
+                                  "-"}
+                              </div>
+
+                              {h.skillLevel && (
+                                <div className="alloc-secondary-text">
+                                  Level: {h.skillLevel}
                                 </div>
-                                {(h.skillName || h.requiredSkillName) && (
-                                  <div style={{ fontSize: "11px", color: "#64748b" }}>
-                                    Primary Skill: {h.skillName || h.requiredSkillName}
-                                  </div>
-                                )}
-                              </td>
-                              <td>
-                                <span
-                                  style={{
-                                    fontSize: "11.5px",
-                                    color: isSeasonal ? "#b45309" : "#7e22ce",
-                                    background: isSeasonal ? "#fef3c7" : "#f3e8ff",
-                                    padding: "3px 8px",
-                                    borderRadius: "4px",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {h.roleName || "Technician"}
-                                </span>
-                              </td>
-                              <td>
-                                {formatDate(h.startDate)} → {formatDate(h.endDate)}
-                              </td>
-                              <td>{h.workingHours ?? h.allocatedHoursPerDay ?? 8} hrs/day</td>
-                              <td>
-                                <span className="badge-available">
-                                  {h.status || "Assigned"}
-                                </span>
-                              </td>
-                              {canAssignSchedule && (
-                                <td style={{ textAlign: "right" }}>
-                                  <button
-                                    type="button"
-                                    className="alloc-assign-schedule-btn"
-                                    onClick={() =>
-                                      navigate(
-                                        `/schedules/create?allocationPlanId=${plan.allocationPlanId}&personnelId=${
-                                          h.humanResourceId || h.userId
-                                        }${h.phaseId ? `&phaseId=${h.phaseId}` : ""}`
-                                      )
-                                    }
-                                    title={`Assign work schedule to ${h.fullName || "personnel"}`}
-                                  >
-                                    <CalendarPlus size={13} /> Assign Schedule
-                                  </button>
-                                </td>
                               )}
-                            </tr>
-                          );
-                        })}
+                            </td>
+
+                            <td>
+                              <div>{h.phaseName || "-"}</div>
+                              {h.phaseId && (
+                                <div className="alloc-secondary-text">
+                                  Phase ID: {h.phaseId}
+                                </div>
+                              )}
+                            </td>
+
+                            <td>
+                              <strong>{h.workingHours ?? 0}</strong> hrs/day
+                            </td>
+
+                            <td>
+                              <div>
+                                Max: {h.maxWorkingHoursPerDay ?? "-"} hrs/day
+                              </div>
+                              <div className="alloc-secondary-text">
+                                Current workload: {h.currentWorkload ?? "-"}
+                              </div>
+                            </td>
+
+                            <td>
+                              <div>{formatDate(h.startDate)}</div>
+                              <div className="alloc-period-arrow">→</div>
+                              <div>{formatDate(h.endDate)}</div>
+                            </td>
+
+                            <td>
+                              <span className="badge-available">
+                                {h.status || "Allocated"}
+                              </span>
+                            </td>
+
+                            {canAssignSchedule && (
+                              <td>
+                                <button
+                                  type="button"
+                                  className="alloc-assign-schedule-btn"
+                                  onClick={() =>
+                                    navigate(
+                                      `/schedules/create?allocationPlanId=${plan.allocationPlanId}&personnelId=${
+                                        h.humanResourceId || h.userId
+                                      }${h.phaseId ? `&phaseId=${h.phaseId}` : ""}`
+                                    )
+                                  }
+                                >
+                                  <CalendarPlus size={13} />
+                                  Assign
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   )}
@@ -807,24 +779,80 @@ export default function AllocationDetail() {
 
               {/* Tab 3: Land Plot */}
               {activeTab === "land" && (
-                <div>
+                <div className="alloc-land-grid">
                   {landDetails.length === 0 ? (
-                    <div className="alloc-empty-box">No land plot assigned to this allocation plan.</div>
+                    <div className="alloc-empty-box">
+                      No persisted land allocation details were found for this plan.
+                    </div>
                   ) : (
-                    landDetails.map((l, idx) => (
-                      <div key={l.allocationLandDetailId || idx} className="alloc-land-view-card">
-                        <div>
-                          <div style={{ fontSize: "14px", fontWeight: 600, color: "#15803d" }}>
-                            {l.landCode || "Experiment Research Plot"}
+                    landDetails.map((land, idx) => (
+                      <article
+                        key={land.allocationLandDetailId || idx}
+                        className="alloc-land-detail-card"
+                      >
+                        <div className="alloc-land-detail-header">
+                          <div>
+                            <span className="alloc-card-header-eyebrow">
+                              Land Plot
+                            </span>
+                            <h4>
+                              {land.landCode ||
+                                land.landName ||
+                                `Land #${land.landId}`}
+                            </h4>
                           </div>
-                          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
-                            Soil Type: {l.soilType || "Standard Soil"} • Allocated Period: {formatDate(l.startDate)} → {formatDate(l.endDate)}
+
+                          <span className="badge-available">
+                            {land.status || "Allocated"}
+                          </span>
+                        </div>
+
+                        <div className="alloc-detail-field-grid">
+                          <div>
+                            <span>Land ID</span>
+                            <strong>{land.landId || "-"}</strong>
+                          </div>
+
+                          <div>
+                            <span>Area</span>
+                            <strong>{land.areaName || "-"}</strong>
+                          </div>
+
+                          <div>
+                            <span>Area Size</span>
+                            <strong>
+                              {land.areaSize != null
+                                ? `${Number(land.areaSize).toLocaleString("vi-VN")}`
+                                : "-"}
+                            </strong>
+                          </div>
+
+                          <div>
+                            <span>Soil Type</span>
+                            <strong>{land.soilType || "-"}</strong>
+                          </div>
+
+                          <div className="alloc-detail-field-wide">
+                            <span>Location</span>
+                            <strong>{land.location || "-"}</strong>
+                          </div>
+
+                          <div>
+                            <span>Start Date</span>
+                            <strong>{formatDate(land.startDate)}</strong>
+                          </div>
+
+                          <div>
+                            <span>End Date</span>
+                            <strong>{formatDate(land.endDate)}</strong>
+                          </div>
+
+                          <div>
+                            <span>Requirement ID</span>
+                            <strong>{land.expLandReqId || "-"}</strong>
                           </div>
                         </div>
-                        <div>
-                          <span className="badge-available">{l.status || "Allocated"}</span>
-                        </div>
-                      </div>
+                      </article>
                     ))
                   )}
                 </div>
@@ -909,6 +937,11 @@ export default function AllocationDetail() {
                 </div>
 
                 <div className="alloc-side-info-row">
+                  <span>Experiment ID</span>
+                  <strong>#{plan.experimentId}</strong>
+                </div>
+
+                <div className="alloc-side-info-row">
                   <span>Start Date</span>
                   <strong>{formatDate(experiment?.expectStartDate || plan.createdAt)}</strong>
                 </div>
@@ -948,6 +981,26 @@ export default function AllocationDetail() {
                 <div className="alloc-side-info-row">
                   <span>Approval Status</span>
                   <strong>{plan.approveStatus}</strong>
+                </div>
+
+                <div className="alloc-side-info-row">
+                  <span>Equipment Details</span>
+                  <strong>{equipmentDetails.length}</strong>
+                </div>
+
+                <div className="alloc-side-info-row">
+                  <span>Personnel Details</span>
+                  <strong>{humanDetails.length}</strong>
+                </div>
+
+                <div className="alloc-side-info-row">
+                  <span>Land Details</span>
+                  <strong>{landDetails.length}</strong>
+                </div>
+
+                <div className="alloc-side-info-row">
+                  <span>Schedules</span>
+                  <strong>{plan.scheduleCount ?? 0}</strong>
                 </div>
 
                 <div className="alloc-side-info-row">
@@ -1047,7 +1100,6 @@ export default function AllocationDetail() {
             </div>
           </div>
         </div>
-
         {/* Global Toast / Popup Alert */}
         <ToastPopup
           visible={toast.visible}

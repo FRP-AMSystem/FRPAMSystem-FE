@@ -21,6 +21,8 @@ import type { ExperimentEquipmentRequirement } from "../../types/experimentEquip
 
 import "./RequirementList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 function formatMinEfficiency(
@@ -36,6 +38,7 @@ function formatMinEfficiency(
 }
 
 export default function RequirementList() {
+  const { showConfirm } = usePopup();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -140,7 +143,7 @@ export default function RequirementList() {
       return;
     }
 
-    const confirmed = window.confirm(
+    const confirmed = await showConfirm(
       "Are you sure you want to delete this requirement?"
     );
 

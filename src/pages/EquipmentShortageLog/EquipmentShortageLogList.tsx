@@ -32,6 +32,8 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./EquipmentShortageLogList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type RequirementType =
   | "Experiment"
   | "Phase";
@@ -187,6 +189,7 @@ function getQuantityValue(
 }
 
 export default function EquipmentShortageLogList() {
+  const { showConfirm } = usePopup();
   const { role } = getCurrentUserTokenInfo();
 
   const canManage =
@@ -610,7 +613,7 @@ export default function EquipmentShortageLogList() {
     item: EquipmentShortageLog
   ) => {
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete equipment shortage log #${item.equipmentShortageLogId}?`
       );
 

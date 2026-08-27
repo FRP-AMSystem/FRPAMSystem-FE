@@ -5,6 +5,7 @@ import type {
   HumanResourceProfileQuery,
   HumanResourceProfileRequest,
   HumanResourceStatus,
+  SyncHumanResourceProfileSkillsRequest,
 } from "../types/humanResourceProfile";
 
 function isRecord(
@@ -121,7 +122,6 @@ function normalizeStatus(
 ): HumanResourceStatus {
   switch (value) {
     case "Busy":
-    case "Unavailable":
     case "Inactive":
       return value;
 
@@ -262,7 +262,7 @@ export async function getHumanResourceProfiles(
             query.page ?? 1,
 
           Size:
-            query.size ?? 200,
+            query.size ?? 300,
         }),
       }
     );
@@ -329,6 +329,21 @@ export async function updateHumanResourceProfile(
     unwrapResponse<unknown>(
       response.data
     )
+  );
+}
+
+export async function syncHumanResourceProfileSkills(
+  id: number,
+  payload: SyncHumanResourceProfileSkillsRequest
+): Promise<void> {
+  validateId(
+    id,
+    "Human resource profile ID"
+  );
+
+  await api.put(
+    `/HumanResourceProfiles/${id}/skills`,
+    payload
   );
 }
 

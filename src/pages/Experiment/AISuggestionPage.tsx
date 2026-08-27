@@ -64,6 +64,8 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./AISuggestionPage.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return "-";
   const d = new Date(dateStr);
@@ -144,6 +146,7 @@ function dateKeysBetween(start?: string | null, end?: string | null): string[] {
 }
 
 export default function AISuggestionPage() {
+  const { showConfirm } = usePopup();
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const { sendLocalNotification, fetchUnreadCount } = useNotification();
@@ -839,7 +842,7 @@ export default function AISuggestionPage() {
       return;
     }
 
-    const confirmed = window.confirm(
+    const confirmed = await showConfirm(
       `Submit AI Candidate #${selectedPlan.rank} with Fitness Score ${fitnessScore.toFixed(2)} for Manager review?`
     );
 

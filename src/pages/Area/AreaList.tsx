@@ -31,6 +31,8 @@ import type {
 
 import "./AreaList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -124,6 +126,7 @@ function formatDate(
 }
 
 export default function AreaList() {
+  const { showConfirm } = usePopup();
   const role =
     getCurrentRole();
 
@@ -345,7 +348,7 @@ export default function AreaList() {
     area: Area
   ) => {
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete area "${area.areaName}"?`
       );
 

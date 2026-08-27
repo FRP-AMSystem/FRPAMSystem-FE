@@ -40,6 +40,8 @@ import type {
 
 import "./ScheduleDetail.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -254,6 +256,7 @@ function getPriorityClassName(
 }
 
 export default function ScheduleDetail() {
+  const { showConfirm } = usePopup();
   const navigate = useNavigate();
 
   const { id } =
@@ -408,7 +411,7 @@ export default function ScheduleDetail() {
     }
 
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete schedule "${schedule.title ||
         `#${schedule.scheduleId}`
         }"?`

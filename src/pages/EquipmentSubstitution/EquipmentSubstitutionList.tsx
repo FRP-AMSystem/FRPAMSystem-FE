@@ -40,6 +40,8 @@ import type {
 
 import "./EquipmentSubstitutionList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -199,6 +201,7 @@ function getEfficiencyClassName(
 }
 
 export default function EquipmentSubstitutionList() {
+  const { showConfirm } = usePopup();
   const role =
     getCurrentRole();
 
@@ -670,7 +673,7 @@ export default function EquipmentSubstitutionList() {
       `Equipment type #${item.subEquipmentTypeId}`;
 
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete substitution "${primaryName}" → "${substituteName}"?`
       );
 

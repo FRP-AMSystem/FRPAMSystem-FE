@@ -6,6 +6,8 @@ import {
     type FormEvent,
 } from "react";
 
+import { createPortal } from "react-dom";
+
 import {
     CheckCircle,
     Cpu,
@@ -46,6 +48,8 @@ import type {
 } from "../../types/equipmentInstance";
 
 import "./EquipmentInstanceList.css";
+
+import { usePopup } from "../../context/PopupContext";
 
 type Role =
     | "Admin"
@@ -266,6 +270,7 @@ function getStatusClassName(
 }
 
 export default function EquipmentInstanceList() {
+  const { showConfirm, showAlert } = usePopup();
     const role =
         getCurrentRole();
 
@@ -357,7 +362,6 @@ export default function EquipmentInstanceList() {
     );
 
     const [receiptConfirmItem, setReceiptConfirmItem] = useState<EquipmentInstance | null>(null);
-    const [confirmCondition, setConfirmCondition] = useState<EquipmentConditionLevel>("Good");
     const [confirmNotes, setConfirmNotes] = useState("");
     const [confirming, setConfirming] = useState(false);
 
@@ -391,40 +395,75 @@ export default function EquipmentInstanceList() {
 
     const openConfirmReceipt = (item: EquipmentInstance) => {
         setReceiptConfirmItem(item);
-        setConfirmCondition(item.conditionLevel || "Good");
         setConfirmNotes("");
         setError("");
     };
 
-    const handleConfirmReceiptSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    const handleConfirmReceiptSubmit = async (
+        e: FormEvent<HTMLFormElement>
+    ) => {
         e.preventDefault();
-        if (!receiptConfirmItem) return;
+
+        if (
+            !receiptConfirmItem ||
+            confirming
+        ) {
+            return;
+        }
+
+        const currentItem =
+            receiptConfirmItem;
+
         try {
             setConfirming(true);
             setError("");
-            await confirmEquipmentReceipt(receiptConfirmItem.equipmentInstanceId, {
-                receivedCondition: confirmCondition,
-                receiptNotes: confirmNotes.trim(),
-            });
-            setItems((prev) =>
-                prev.map((inst) =>
-                    inst.equipmentInstanceId === receiptConfirmItem.equipmentInstanceId
-                        ? {
-                            ...inst,
-                            receiptConfirmed: true,
-                            receiptConfirmedAt: new Date().toISOString(),
-                            receiptNotes: confirmNotes.trim() || null,
-                            receivedCondition: confirmCondition,
-                            conditionLevel: confirmCondition,
-                            status: "InUse",
-                        }
-                        : inst
-                )
+
+            await confirmEquipmentReceipt(
+                currentItem.equipmentInstanceId,
+                {
+                    note:
+                        confirmNotes.trim() ||
+                        undefined,
+                }
             );
-            showToast(`Đã xác nhận tiếp nhận thiết bị ${receiptConfirmItem.assetCode}!`, "success", "Tiếp nhận thiết bị");
+
             setReceiptConfirmItem(null);
-        } catch (err: any) {
-            showToast(getErrorMessage(err), "error");
+            setConfirmNotes("");
+
+            await loadData();
+
+            showAlert({
+                title:
+                    "Receipt Confirmed",
+
+                message:
+                    `Equipment "${currentItem.assetCode}" was confirmed successfully.`,
+
+                confirmText:
+                    "OK",
+
+                tone:
+                    "success",
+            });
+        } catch (err: unknown) {
+            console.error(
+                "Confirm equipment receipt failed:",
+                err
+            );
+
+            showAlert({
+                title:
+                    "Unable to Confirm Receipt",
+
+                message:
+                    getErrorMessage(err),
+
+                confirmText:
+                    "OK",
+
+                tone:
+                    "danger",
+            });
         } finally {
             setConfirming(false);
         }
@@ -801,7 +840,7 @@ export default function EquipmentInstanceList() {
         item: EquipmentInstance
     ) => {
         const confirmed =
-            window.confirm(
+            await showConfirm(
                 `Delete equipment instance "${item.assetCode}"?`
             );
 
@@ -1156,7 +1195,11 @@ export default function EquipmentInstanceList() {
                                                                 type="button"
                                                                 className="action-btn-pill confirm-btn"
                                                                 title="Confirm Receipt"
-                                                                onClick={() => openConfirmReceipt(item)}
+                                                                onClick={(event) => {
+                                                                    event.preventDefault();
+                                                                    event.stopPropagation();
+                                                                    openConfirmReceipt(item);
+                                                                }}
                                                             >
                                                                 <CheckCircle size={12} />
                                                                 <span>Confirm Receipt</span>
@@ -1579,10 +1622,270 @@ export default function EquipmentInstanceList() {
                     </div>
                 )}
 
-                {receiptConfirmItem && (
+                {receiptConfirmItem &&
+                    createPortal(
+                        <div
+                            onMouseDown={(event) => {
+                                if (
+                                    event.target === event.currentTarget &&
+                                    !confirming
+                                ) {
+                                    setReceiptConfirmItem(null);
+                                }
+                            }}
+                            style={{
+                                position: "fixed",
+                                inset: 0,
+                                zIndex: 50000,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: "24px",
+                                background: "rgba(15, 23, 42, 0.48)",
+                                backdropFilter: "blur(2px)",
+                            }}
+                        >
+                            <div
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="confirm-receipt-title"
+                                onMouseDown={(event) =>
+                                    event.stopPropagation()
+                                }
+                                style={{
+                                    width:
+                                        "min(520px, calc(100vw - 32px))",
+                                    overflow: "hidden",
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: "14px",
+                                    background: "#ffffff",
+                                    boxShadow:
+                                        "0 24px 60px rgba(15, 23, 42, 0.22)",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        justifyContent: "space-between",
+                                        gap: "16px",
+                                        padding: "20px 22px",
+                                        borderBottom:
+                                            "1px solid #e2e8f0",
+                                    }}
+                                >
+                                    <div>
+                                        <h2
+                                            id="confirm-receipt-title"
+                                            style={{
+                                                margin: 0,
+                                                color: "#0f172a",
+                                                fontSize: "18px",
+                                                fontWeight: 700,
+                                                lineHeight: 1.4,
+                                            }}
+                                        >
+                                            Confirm Equipment Receipt
+                                        </h2>
+
+                                        <p
+                                            style={{
+                                                margin: "6px 0 0",
+                                                color: "#64748b",
+                                                fontSize: "13px",
+                                                lineHeight: 1.5,
+                                            }}
+                                        >
+                                            Confirm receipt for asset{" "}
+                                            <strong
+                                                style={{
+                                                    color: "#334155",
+                                                    fontWeight: 700,
+                                                }}
+                                            >
+                                                {receiptConfirmItem.assetCode}
+                                            </strong>
+                                            .
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled={confirming}
+                                        onClick={() =>
+                                            setReceiptConfirmItem(null)
+                                        }
+                                        aria-label="Close"
+                                        style={{
+                                            width: "34px",
+                                            height: "34px",
+                                            flex: "0 0 34px",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            padding: 0,
+                                            border: "none",
+                                            borderRadius: "8px",
+                                            background: "transparent",
+                                            color: "#64748b",
+                                            cursor: confirming
+                                                ? "not-allowed"
+                                                : "pointer",
+                                        }}
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                <form
+                                    onSubmit={
+                                        handleConfirmReceiptSubmit
+                                    }
+                                >
+                                    <div
+                                        style={{
+                                            padding: "22px",
+                                            background: "#ffffff",
+                                        }}
+                                    >
+                                        <label
+                                            htmlFor="confirmReceiptNotes"
+                                            style={{
+                                                display: "block",
+                                                marginBottom: "8px",
+                                                color: "#475569",
+                                                fontSize: "13px",
+                                                fontWeight: 600,
+                                            }}
+                                        >
+                                            Receipt Notes / Remarks
+                                        </label>
+
+                                        <textarea
+                                            id="confirmReceiptNotes"
+                                            rows={4}
+                                            value={confirmNotes}
+                                            onChange={(event) =>
+                                                setConfirmNotes(
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={confirming}
+                                            placeholder="Enter receipt notes or handover remarks..."
+                                            style={{
+                                                display: "block",
+                                                width: "100%",
+                                                minHeight: "110px",
+                                                boxSizing: "border-box",
+                                                resize: "vertical",
+                                                padding: "12px 14px",
+                                                border:
+                                                    "1px solid #cbd5e1",
+                                                borderRadius: "8px",
+                                                backgroundColor: "#ffffff",
+                                                color: "#0f172a",
+                                                fontFamily: "inherit",
+                                                fontSize: "14px",
+                                                fontWeight: 400,
+                                                lineHeight: 1.5,
+                                                outline: "none",
+                                                transition:
+                                                    "border-color 0.15s ease, box-shadow 0.15s ease",
+                                            }}
+                                            onFocus={(event) => {
+                                                event.currentTarget.style.borderColor =
+                                                    "#22c55e";
+
+                                                event.currentTarget.style.boxShadow =
+                                                    "0 0 0 3px rgba(34, 197, 94, 0.12)";
+                                            }}
+                                            onBlur={(event) => {
+                                                event.currentTarget.style.borderColor =
+                                                    "#cbd5e1";
+
+                                                event.currentTarget.style.boxShadow =
+                                                    "none";
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            justifyContent: "flex-end",
+                                            alignItems: "center",
+                                            gap: "10px",
+                                            padding: "15px 22px",
+                                            borderTop:
+                                                "1px solid #e2e8f0",
+                                            background: "#f8fafc",
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            disabled={confirming}
+                                            onClick={() =>
+                                                setReceiptConfirmItem(
+                                                    null
+                                                )
+                                            }
+                                            style={{
+                                                height: "40px",
+                                                minWidth: "92px",
+                                                padding: "0 18px",
+                                                border:
+                                                    "1px solid #cbd5e1",
+                                                borderRadius: "8px",
+                                                background: "#ffffff",
+                                                color: "#334155",
+                                                fontSize: "13px",
+                                                fontWeight: 600,
+                                                cursor: confirming
+                                                    ? "not-allowed"
+                                                    : "pointer",
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+
+                                        <button
+                                            type="submit"
+                                            disabled={confirming}
+                                            style={{
+                                                height: "40px",
+                                                minWidth: "150px",
+                                                padding: "0 20px",
+                                                border: "none",
+                                                borderRadius: "8px",
+                                                background: confirming
+                                                    ? "#86efac"
+                                                    : "#16a34a",
+                                                color: "#ffffff",
+                                                fontSize: "13px",
+                                                fontWeight: 700,
+                                                cursor: confirming
+                                                    ? "not-allowed"
+                                                    : "pointer",
+                                                boxShadow: confirming
+                                                    ? "none"
+                                                    : "0 2px 5px rgba(22, 163, 74, 0.20)",
+                                            }}
+                                        >
+                                            {confirming
+                                                ? "Confirming..."
+                                                : "Confirm Receipt"}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>,
+                        document.body
+                    )}
+
+                {returnModalItem && (
                     <div
                         className="equipment-instance-dialog-backdrop"
-                        onClick={() => !confirming && setReceiptConfirmItem(null)}
+                        onClick={() => !returning && setReturnModalItem(null)}
                     >
                         <div
                             className="equipment-instance-dialog"
@@ -1591,29 +1894,29 @@ export default function EquipmentInstanceList() {
                         >
                             <div className="equipment-instance-dialog-title">
                                 <div>
-                                    <h2>Confirm Equipment Receipt</h2>
-                                    <p>Confirm inspection and handover for Asset: <strong>{receiptConfirmItem.assetCode}</strong></p>
+                                    <h2>Confirm Equipment Return</h2>
+                                    <p>Return Asset: <strong>{returnModalItem.assetCode}</strong> to warehouse</p>
                                 </div>
                                 <button
                                     type="button"
                                     className="dialog-close-btn"
-                                    onClick={() => !confirming && setReceiptConfirmItem(null)}
+                                    onClick={() => !returning && setReturnModalItem(null)}
                                 >
                                     <X size={18} />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleConfirmReceiptSubmit}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "16px 0" }}>
+                            <form onSubmit={handleConfirmReturnSubmit}>
+                                <div className="equipment-instance-form-grid" style={{ gridTemplateColumns: "1fr", gap: "18px" }}>
                                     <div>
                                         <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px", display: "block" }}>
-                                            Inspected Condition Level <span style={{ color: "#ef4444" }}>*</span>
+                                            Return Condition Level <span style={{ color: "#ef4444" }}>*</span>
                                         </label>
                                         <select
-                                            value={confirmCondition}
-                                            onChange={(e) => setConfirmCondition(e.target.value as EquipmentConditionLevel)}
+                                            value={returnCondition}
+                                            onChange={(e) => setReturnCondition(e.target.value as EquipmentConditionLevel)}
                                             style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db" }}
-                                            disabled={confirming}
+                                            disabled={returning}
                                         >
                                             {conditionLevels.map((lvl) => (
                                                 <option key={lvl} value={lvl}>
@@ -1625,15 +1928,30 @@ export default function EquipmentInstanceList() {
 
                                     <div>
                                         <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px", display: "block" }}>
-                                            Receipt Inspection Notes / Remarks
+                                            Usage Hours Added
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            value={usageHoursInc}
+                                            onChange={(e) => setUsageHoursInc(e.target.value)}
+                                            style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db" }}
+                                            disabled={returning}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label style={{ fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px", display: "block" }}>
+                                            Return Notes / Damage Remarks
                                         </label>
                                         <textarea
                                             rows={3}
-                                            value={confirmNotes}
-                                            onChange={(e) => setConfirmNotes(e.target.value)}
-                                            placeholder="Enter any initial condition notes, battery levels, or accessories inspected..."
+                                            value={returnNotes}
+                                            onChange={(e) => setReturnNotes(e.target.value)}
+                                            placeholder="Enter damage notes, missing accessories, or general remarks..."
                                             style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db" }}
-                                            disabled={confirming}
+                                            disabled={returning}
                                         />
                                     </div>
                                 </div>
@@ -1642,18 +1960,18 @@ export default function EquipmentInstanceList() {
                                     <button
                                         type="button"
                                         className="secondary"
-                                        disabled={confirming}
-                                        onClick={() => setReceiptConfirmItem(null)}
+                                        disabled={returning}
+                                        onClick={() => setReturnModalItem(null)}
                                     >
                                         Cancel
                                     </button>
 
                                     <button
                                         type="submit"
-                                        disabled={confirming}
-                                        style={{ background: "linear-gradient(135deg, #16a34a, #15803d)", color: "#ffffff", border: "none" }}
+                                        disabled={returning}
+                                        style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#ffffff", border: "none" }}
                                     >
-                                        {confirming ? "Confirming..." : "Confirm Equipment Receipt"}
+                                        {returning ? "Returning..." : "Confirm Return"}
                                     </button>
                                 </div>
                             </form>

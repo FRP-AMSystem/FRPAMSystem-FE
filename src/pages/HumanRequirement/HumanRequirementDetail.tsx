@@ -31,6 +31,8 @@ import type {
 
 import "./HumanRequirementDetail.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -107,6 +109,7 @@ function formatDate(
 }
 
 export default function HumanRequirementDetail() {
+  const { showConfirm } = usePopup();
   const navigate =
     useNavigate();
 
@@ -200,7 +203,7 @@ export default function HumanRequirementDetail() {
     }
 
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete Human Requirement #${requirement.expHumanReqId}?`
       );
 

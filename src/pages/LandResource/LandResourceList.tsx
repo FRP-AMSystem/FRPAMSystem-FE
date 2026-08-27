@@ -39,6 +39,8 @@ import type {
 
 import "./LandResourceList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 interface LandFormState {
@@ -73,6 +75,7 @@ function statusClass(status: LandResourceStatus): string {
 }
 
 export default function LandResourceList() {
+  const { showConfirm } = usePopup();
     const role = (localStorage.getItem("role") || "Seasonal") as Role;
     const canManage = role === "Admin" || role === "Manager";
     const [items, setItems] = useState<LandResource[]>([]);
@@ -179,7 +182,7 @@ export default function LandResourceList() {
     };
 
     const handleDelete = async (item: LandResource) => {
-        if (!window.confirm(`Delete land resource "${item.landCode}"?`)) return;
+        if (!await showConfirm(`Delete land resource "${item.landCode}"?`)) return;
         try {
             setDeletingId(item.landId);
             setError("");

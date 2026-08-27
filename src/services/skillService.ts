@@ -148,6 +148,28 @@ function validateId(
   }
 }
 
+function validatePayload(
+  payload: SkillRequest
+): SkillRequest {
+  const skillName =
+    payload.skillName.trim();
+
+  const description =
+    payload.description?.trim() ||
+    null;
+
+  if (!skillName) {
+    throw new Error(
+      "Skill name is required."
+    );
+  }
+
+  return {
+    skillName,
+    description,
+  };
+}
+
 export async function getSkills(
   query: SkillQuery = {}
 ): Promise<Skill[]> {
@@ -198,7 +220,9 @@ export async function createSkill(
   const response =
     await api.post(
       "/Skills",
-      payload
+      validatePayload(
+        payload
+      )
     );
 
   return normalizeSkill(
@@ -217,7 +241,9 @@ export async function updateSkill(
   const response =
     await api.put(
       `/Skills/${id}`,
-      payload
+      validatePayload(
+        payload
+      )
     );
 
   return normalizeSkill(

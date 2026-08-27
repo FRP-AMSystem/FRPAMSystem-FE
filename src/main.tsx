@@ -6,13 +6,16 @@ import "./index.css";
 import App from "./App";
 import { ThemeProvider } from "./context/ThemeContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import { PopupProvider } from "./context/PopupContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider>
         <NotificationProvider>
-          <App />
+          <PopupProvider>
+            <App />
+          </PopupProvider>
         </NotificationProvider>
       </ThemeProvider>
     </BrowserRouter>

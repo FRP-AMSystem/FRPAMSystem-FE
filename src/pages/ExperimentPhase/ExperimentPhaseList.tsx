@@ -34,6 +34,8 @@ import type {
 
 import "./ExperimentPhaseList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -171,6 +173,7 @@ function getStatusClassName(
 }
 
 export default function ExperimentPhaseList() {
+  const { showConfirm } = usePopup();
   const navigate =
     useNavigate();
 
@@ -343,7 +346,7 @@ export default function ExperimentPhaseList() {
     }
 
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete phase "${phase.phaseName}"?`
       );
 

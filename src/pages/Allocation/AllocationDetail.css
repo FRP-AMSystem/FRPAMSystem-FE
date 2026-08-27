@@ -744,3 +744,160 @@
     opacity: 1;
   }
 }
+
+.alloc-resource-table-detailed {
+  min-width: 1180px;
+}
+
+.alloc-primary-text {
+  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.alloc-secondary-text {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.alloc-period-arrow {
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.alloc-efficiency-badge,
+.alloc-role-badge,
+.alloc-yes-badge,
+.alloc-no-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.alloc-efficiency-badge {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.alloc-role-badge {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.alloc-yes-badge {
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.alloc-no-badge {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.alloc-detail-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.alloc-detail-field-grid > div {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.alloc-detail-field-grid span {
+  display: block;
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.alloc-detail-field-grid strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.alloc-detail-field-wide {
+  grid-column: span 2;
+}
+
+.alloc-plan-detail-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.alloc-land-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.alloc-land-detail-card {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.alloc-land-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.alloc-land-detail-header h4 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.alloc-land-detail-card .alloc-detail-field-grid {
+  padding: 16px;
+}
+
+@media (max-width: 900px) {
+  .alloc-detail-field-grid,
+  .alloc-plan-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .alloc-detail-field-grid,
+  .alloc-plan-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .alloc-detail-field-wide {
+    grid-column: auto;
+  }
+
+  .allocation-detail-page {
+    padding: 18px 14px 36px;
+  }
+}

@@ -11,10 +11,7 @@ import type {
 function isRecord(
   value: unknown
 ): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null
-  );
+  return typeof value === "object" && value !== null;
 }
 
 function unwrapResponse<T>(
@@ -24,22 +21,12 @@ function unwrapResponse<T>(
     return payload as T;
   }
 
-  if (
-    "data" in payload &&
-    payload.data !== undefined
-  ) {
-    return unwrapResponse<T>(
-      payload.data
-    );
+  if ("data" in payload && payload.data !== undefined) {
+    return unwrapResponse<T>(payload.data);
   }
 
-  if (
-    "result" in payload &&
-    payload.result !== undefined
-  ) {
-    return unwrapResponse<T>(
-      payload.result
-    );
+  if ("result" in payload && payload.result !== undefined) {
+    return unwrapResponse<T>(payload.result);
   }
 
   return payload as T;
@@ -56,24 +43,16 @@ function normalizeList(
     return [];
   }
 
-  if (
-    Array.isArray(
-      payload.items
-    )
-  ) {
+  if (Array.isArray(payload.items)) {
     return payload.items;
   }
 
   if ("data" in payload) {
-    return normalizeList(
-      payload.data
-    );
+    return normalizeList(payload.data);
   }
 
   if ("result" in payload) {
-    return normalizeList(
-      payload.result
-    );
+    return normalizeList(payload.result);
   }
 
   return [];
@@ -94,6 +73,9 @@ function normalizeStatus(
     case "Reserved":
     case "InUse":
     case "Maintenance":
+    case "Damaged":
+    case "Missing":
+    case "Returned":
     case "Broken":
     case "Unavailable":
       return value;
@@ -108,9 +90,10 @@ function normalizeCondition(
   value: unknown
 ): EquipmentConditionLevel {
   switch (value) {
-    case "New":
     case "Fair":
     case "Poor":
+    case "Critical":
+    case "New":
     case "Damaged":
       return value;
 
@@ -123,25 +106,25 @@ function normalizeCondition(
 function normalizeEquipmentInstance(
   value: unknown
 ): EquipmentInstance {
-  const item =
-    isRecord(value)
-      ? value
-      : {};
+  const item = isRecord(value) ? value : {};
+
+  const totalUsageHours = Number(
+    item.totalUsageHours ??
+      item.usageHours ??
+      0
+  );
 
   return {
-    equipmentInstanceId:
-      Number(
-        item.equipmentInstanceId ??
-          item.instanceId ??
-          item.id ??
-          0
-      ),
+    equipmentInstanceId: Number(
+      item.equipmentInstanceId ??
+        item.instanceId ??
+        item.id ??
+        0
+    ),
 
-    equipmentTypeId:
-      Number(
-        item.equipmentTypeId ??
-          0
-      ),
+    equipmentTypeId: Number(
+      item.equipmentTypeId ?? 0
+    ),
 
     equipmentTypeName:
       normalizeNullableString(
@@ -149,8 +132,7 @@ function normalizeEquipmentInstance(
       ),
 
     assetCode:
-      typeof item.assetCode ===
-      "string"
+      typeof item.assetCode === "string"
         ? item.assetCode
         : "",
 
@@ -159,9 +141,23 @@ function normalizeEquipmentInstance(
         item.serialNumber
       ),
 
-    status:
-      normalizeStatus(
-        item.status
+    totalUsageHours,
+    usageHours: totalUsageHours,
+
+    lastMaintenanceDate:
+      normalizeNullableString(
+        item.lastMaintenanceDate
+      ),
+
+    usageHoursSinceMaintenance:
+      Number(
+        item.usageHoursSinceMaintenance ??
+          0
+      ),
+
+    nextMaintenanceDate:
+      normalizeNullableString(
+        item.nextMaintenanceDate
       ),
 
     conditionLevel:
@@ -170,21 +166,22 @@ function normalizeEquipmentInstance(
           item.condition
       ),
 
-    usageHours:
+    status:
+      normalizeStatus(
+        item.status
+      ),
+
+    effectiveMaintenanceIntervalHours:
+      item.effectiveMaintenanceIntervalHours === null ||
+      item.effectiveMaintenanceIntervalHours === undefined
+        ? null
+        : Number(
+            item.effectiveMaintenanceIntervalHours
+          ),
+
+    maintenanceCount:
       Number(
-        item.usageHours ??
-          item.totalUsageHours ??
-          0
-      ),
-
-    lastMaintenanceDate:
-      normalizeNullableString(
-        item.lastMaintenanceDate
-      ),
-
-    nextMaintenanceDate:
-      normalizeNullableString(
-        item.nextMaintenanceDate
+        item.maintenanceCount ?? 0
       ),
 
     note:
@@ -193,7 +190,12 @@ function normalizeEquipmentInstance(
       ),
 
     assignedToUserId:
-      item.assignedToUserId ? Number(item.assignedToUserId) : null,
+      item.assignedToUserId === null ||
+      item.assignedToUserId === undefined
+        ? null
+        : Number(
+            item.assignedToUserId
+          ),
 
     assignedToUserName:
       normalizeNullableString(
@@ -201,7 +203,9 @@ function normalizeEquipmentInstance(
       ),
 
     receiptConfirmed:
-      Boolean(item.receiptConfirmed),
+      Boolean(
+        item.receiptConfirmed
+      ),
 
     receiptConfirmedAt:
       normalizeNullableString(
@@ -214,7 +218,11 @@ function normalizeEquipmentInstance(
       ),
 
     receivedCondition:
-      item.receivedCondition ? normalizeCondition(item.receivedCondition) : null,
+      item.receivedCondition
+        ? normalizeCondition(
+            item.receivedCondition
+          )
+        : null,
 
     createdAt:
       normalizeNullableString(
@@ -243,7 +251,7 @@ function cleanParams(
 
 function validateId(
   id: number,
-  fieldName: string = "Equipment instance ID"
+  fieldName = "Equipment instance ID"
 ): void {
   if (
     !Number.isInteger(id) ||
@@ -270,37 +278,98 @@ function validateEquipmentTypeId(
   }
 }
 
+function toApiPayload(
+  payload: EquipmentInstanceRequest
+) {
+  validateEquipmentTypeId(
+    payload.equipmentTypeId
+  );
+
+  return {
+    equipmentTypeId:
+      payload.equipmentTypeId,
+
+    assetCode:
+      payload.assetCode.trim() ||
+      null,
+
+    serialNumber:
+      payload.serialNumber?.trim() ||
+      null,
+
+    totalUsageHours:
+      Number(
+        payload.totalUsageHours ??
+          payload.usageHours ??
+          0
+      ),
+
+    lastMaintenanceDate:
+      payload.lastMaintenanceDate ||
+      null,
+
+    usageHoursSinceMaintenance:
+      Number(
+        payload.usageHoursSinceMaintenance ??
+          0
+      ),
+
+    nextMaintenanceDate:
+      payload.nextMaintenanceDate ||
+      null,
+
+    conditionLevel:
+      payload.conditionLevel,
+
+    status:
+      payload.status,
+
+    effectiveMaintenanceIntervalHours:
+      payload.effectiveMaintenanceIntervalHours ??
+      null,
+
+    maintenanceCount:
+      Number(
+        payload.maintenanceCount ??
+          0
+      ),
+
+    note:
+      payload.note?.trim() ||
+      null,
+  };
+}
+
 export async function getEquipmentInstances(
   query: EquipmentInstanceQuery = {}
 ): Promise<EquipmentInstance[]> {
-  const response =
-    await api.get(
-      "/EquipmentInstances",
-      {
-        params: cleanParams({
-          Keyword:
-            query.keyword,
+  const response = await api.get(
+    "/EquipmentInstances",
+    {
+      params: cleanParams({
+        Keyword:
+          query.keyword,
 
-          EquipmentTypeId:
-            query.equipmentTypeId,
+        EquipmentTypeId:
+          query.equipmentTypeId,
 
-          EquipmentCategoryId:
-            undefined,
+        EquipmentCategoryId:
+          query.equipmentCategoryId,
 
-          Status:
-            query.status,
+        Status:
+          query.status,
 
-          ConditionLevel:
-            query.conditionLevel,
+        ConditionLevel:
+          query.conditionLevel,
 
-          Page:
-            query.page ?? 1,
+        Page:
+          query.page ?? 1,
 
-          Size:
-            query.size ?? 200,
-        }),
-      }
-    );
+        Size:
+          query.size ?? 200,
+      }),
+    }
+  );
 
   return normalizeList(
     response.data
@@ -338,10 +407,9 @@ export async function getEquipmentInstanceById(
 ): Promise<EquipmentInstance> {
   validateId(id);
 
-  const response =
-    await api.get(
-      `/EquipmentInstances/${id}`
-    );
+  const response = await api.get(
+    `/EquipmentInstances/${id}`
+  );
 
   return normalizeEquipmentInstance(
     unwrapResponse<unknown>(
@@ -353,11 +421,10 @@ export async function getEquipmentInstanceById(
 export async function createEquipmentInstance(
   payload: EquipmentInstanceRequest
 ): Promise<EquipmentInstance> {
-  const response =
-    await api.post(
-      "/EquipmentInstances",
-      payload
-    );
+  const response = await api.post(
+    "/EquipmentInstances",
+    toApiPayload(payload)
+  );
 
   return normalizeEquipmentInstance(
     unwrapResponse<unknown>(
@@ -372,11 +439,10 @@ export async function updateEquipmentInstance(
 ): Promise<EquipmentInstance> {
   validateId(id);
 
-  const response =
-    await api.put(
-      `/EquipmentInstances/${id}`,
-      payload
-    );
+  const response = await api.put(
+    `/EquipmentInstances/${id}`,
+    toApiPayload(payload)
+  );
 
   return normalizeEquipmentInstance(
     unwrapResponse<unknown>(
@@ -398,43 +464,24 @@ export async function deleteEquipmentInstance(
 export async function confirmEquipmentReceipt(
   id: number,
   payload: {
-    receivedCondition: EquipmentConditionLevel;
-    receiptNotes?: string;
-  }
-): Promise<EquipmentInstance> {
+    note?: string;
+  } = {}
+): Promise<void> {
   validateId(id);
 
-  try {
-    const response = await api.post(
-      `/EquipmentInstances/${id}/confirm-receipt`,
-      payload
-    );
-    return normalizeEquipmentInstance(unwrapResponse<unknown>(response.data));
-  } catch {
-    // Fallback: update status and condition if direct receipt API endpoint is not present on backend
-    const instance = await getEquipmentInstanceById(id);
-    const updated = await updateEquipmentInstance(id, {
-      equipmentTypeId: instance.equipmentTypeId,
-      assetCode: instance.assetCode,
-      serialNumber: instance.serialNumber,
-      status: "InUse",
-      conditionLevel: payload.receivedCondition,
-      usageHours: instance.usageHours,
-      lastMaintenanceDate: instance.lastMaintenanceDate,
-      nextMaintenanceDate: instance.nextMaintenanceDate,
-      note: payload.receiptNotes
-        ? `[Receipt Confirmed]: ${payload.receiptNotes}`
-        : instance.note,
-    });
-
-    return {
-      ...updated,
-      receiptConfirmed: true,
-      receiptConfirmedAt: new Date().toISOString(),
-      receiptNotes: payload.receiptNotes || null,
-      receivedCondition: payload.receivedCondition,
-    };
-  }
+  await api.post(
+    "/EquipmentInstances/confirm",
+    {
+      equipmentInstanceIds: [
+        id,
+      ],
+      confirmAction:
+        "Confirm",
+      note:
+        payload.note?.trim() ||
+        null,
+    }
+  );
 }
 
 export async function returnEquipmentInstance(
@@ -445,22 +492,59 @@ export async function returnEquipmentInstance(
     usageHoursIncrement?: number;
   }
 ): Promise<EquipmentInstance> {
-  validateId(id, "Equipment instance ID");
-  const instance = await getEquipmentInstanceById(id);
-  const nextUsage = (instance.usageHours ?? 0) + (payload.usageHoursIncrement ?? 0);
-  const updated = await updateEquipmentInstance(id, {
-    equipmentTypeId: instance.equipmentTypeId,
-    assetCode: instance.assetCode,
-    serialNumber: instance.serialNumber,
-    status: "Available",
-    conditionLevel: payload.returnCondition,
-    usageHours: nextUsage,
-    lastMaintenanceDate: instance.lastMaintenanceDate,
-    nextMaintenanceDate: instance.nextMaintenanceDate,
-    note: payload.returnNotes
-      ? `[Returned]: ${payload.returnNotes}\n${instance.note || ""}`.trim()
-      : instance.note,
-  });
+  validateId(
+    id,
+    "Equipment instance ID"
+  );
 
-  return updated;
+  const instance =
+    await getEquipmentInstanceById(id);
+
+  const nextUsage =
+    instance.totalUsageHours +
+    (payload.usageHoursIncrement ??
+      0);
+
+  return updateEquipmentInstance(
+    id,
+    {
+      equipmentTypeId:
+        instance.equipmentTypeId,
+
+      assetCode:
+        instance.assetCode,
+
+      serialNumber:
+        instance.serialNumber,
+
+      totalUsageHours:
+        nextUsage,
+
+      lastMaintenanceDate:
+        instance.lastMaintenanceDate,
+
+      usageHoursSinceMaintenance:
+        instance.usageHoursSinceMaintenance,
+
+      nextMaintenanceDate:
+        instance.nextMaintenanceDate,
+
+      conditionLevel:
+        payload.returnCondition,
+
+      status:
+        "Available",
+
+      effectiveMaintenanceIntervalHours:
+        instance.effectiveMaintenanceIntervalHours,
+
+      maintenanceCount:
+        instance.maintenanceCount,
+
+      note:
+        payload.returnNotes
+          ? `[Returned]: ${payload.returnNotes}\n${instance.note || ""}`.trim()
+          : instance.note,
+    }
+  );
 }

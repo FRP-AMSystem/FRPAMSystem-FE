@@ -1,7 +1,6 @@
 export type HumanResourceStatus =
   | "Available"
   | "Busy"
-  | "Unavailable"
   | "Inactive";
 
 export interface HumanResourceProfile {
@@ -53,4 +52,19 @@ export interface HumanResourceProfileQuery {
 
   page?: number;
   size?: number;
+}
+
+export type HumanResourceProfileSkillLevel =
+  | "Beginner"
+  | "Intermediate"
+  | "Advanced"
+  | "Expert";
+
+export interface HumanResourceProfileSkillSyncItem {
+  skillId: number;
+  skillLevel: HumanResourceProfileSkillLevel;
+}
+
+export interface SyncHumanResourceProfileSkillsRequest {
+  skills: HumanResourceProfileSkillSyncItem[];
 }

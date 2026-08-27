@@ -31,8 +31,9 @@ import type {
 
 import "./SkillList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
-  | "Admin"
   | "Manager"
   | "Researcher"
   | "Technician"
@@ -54,7 +55,6 @@ function getCurrentRole(): Role {
     localStorage.getItem("role");
 
   if (
-    storedRole === "Admin" ||
     storedRole === "Manager" ||
     storedRole === "Researcher" ||
     storedRole === "Technician" ||
@@ -137,11 +137,12 @@ function formatDate(
 }
 
 export default function SkillList() {
+  const { showConfirm } = usePopup();
   const role =
     getCurrentRole();
 
   const canManage =
-    role === "Admin" || role === "Manager";
+    role === "Manager";
 
   const [
     items,
@@ -297,9 +298,53 @@ export default function SkillList() {
     const normalizedName =
       form.skillName.trim();
 
+    const normalizedDescription =
+      form.description.trim();
+
     if (!normalizedName) {
       setError(
         "Skill name is required."
+      );
+
+      return;
+    }
+
+    if (
+      normalizedName.length >
+      150
+    ) {
+      setError(
+        "Skill name cannot exceed 150 characters."
+      );
+
+      return;
+    }
+
+    if (
+      normalizedDescription.length >
+      1000
+    ) {
+      setError(
+        "Description cannot exceed 1000 characters."
+      );
+
+      return;
+    }
+
+    const duplicateSkill =
+      items.find(
+        (item) =>
+          item.skillId !==
+            editing?.skillId &&
+          item.skillName
+            .trim()
+            .toLowerCase() ===
+            normalizedName.toLowerCase()
+      );
+
+    if (duplicateSkill) {
+      setError(
+        `Skill "${normalizedName}" already exists.`
       );
 
       return;
@@ -311,7 +356,7 @@ export default function SkillList() {
         normalizedName,
 
       description:
-        form.description.trim() ||
+        normalizedDescription ||
         null,
     };
 
@@ -354,7 +399,7 @@ export default function SkillList() {
     item: Skill
   ) => {
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Delete skill "${item.skillName}"?`
       );
 
@@ -654,13 +699,24 @@ export default function SkillList() {
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        skillName: event.target.value,
+                        skillName:
+                          event.target.value,
                       }))
                     }
                     disabled={saving}
                     maxLength={150}
                     required
                   />
+
+                  <div className="skill-field-meta">
+                    <span>
+                      Use a unique, reusable skill name.
+                    </span>
+
+                    <span>
+                      {form.skillName.length}/150
+                    </span>
+                  </div>
                 </div>
 
                 <div className="skill-form-group">
@@ -672,12 +728,24 @@ export default function SkillList() {
                     onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        description: event.target.value,
+                        description:
+                          event.target.value,
                       }))
                     }
                     disabled={saving}
                     rows={4}
+                    maxLength={1000}
                   />
+
+                  <div className="skill-field-meta">
+                    <span>
+                      Optional
+                    </span>
+
+                    <span>
+                      {form.description.length}/1000
+                    </span>
+                  </div>
                 </div>
               </div>
 

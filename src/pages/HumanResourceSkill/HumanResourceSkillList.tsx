@@ -48,6 +48,8 @@ import type {
 
 import "./HumanResourceSkillList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -175,6 +177,7 @@ function getSkillName(
 }
 
 export default function HumanResourceSkillList() {
+  const { showConfirm } = usePopup();
   const role = getCurrentRole();
   const canManage = role === "Admin" || role === "Manager";
 
@@ -507,7 +510,7 @@ export default function HumanResourceSkillList() {
     item: HumanResourceSkill
   ) => {
     const confirmed =
-      window.confirm(
+      await showConfirm(
         `Remove "${getSkillName(
           item,
           skillMap

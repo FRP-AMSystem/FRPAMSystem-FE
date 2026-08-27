@@ -37,6 +37,8 @@ import type {
 
 import "./NotificationDetail.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 function getErrorMessage(
   error: unknown
 ): string {
@@ -273,6 +275,7 @@ function notifyNotificationChanged(): void {
 }
 
 export default function NotificationDetail() {
+  const { showConfirm } = usePopup();
   const navigate = useNavigate();
 
   const { id } = useParams<{
@@ -414,7 +417,7 @@ export default function NotificationDetail() {
       }
 
       const confirmed =
-        window.confirm(
+        await showConfirm(
           `Delete notification "${notification.title}"?`
         );
 

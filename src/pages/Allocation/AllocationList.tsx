@@ -20,6 +20,8 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./AllocationList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 type StatusFilter = "All" | AllocationPlanStatus;
 
@@ -142,6 +144,7 @@ function getPageDescription(role: Role): string {
 }
 
 export default function AllocationList() {
+  const { showConfirm } = usePopup();
   const navigate = useNavigate();
 
   const currentUser = useMemo(() => getCurrentUserTokenInfo(), []);
@@ -239,7 +242,7 @@ export default function AllocationList() {
 
     if (!canDeletePlan) return;
 
-    const confirmed = window.confirm(
+    const confirmed = await showConfirm(
       "Are you sure you want to delete this draft allocation plan?"
     );
 
@@ -278,7 +281,7 @@ export default function AllocationList() {
   const handleCancel = async (plan: AllocationPlan) => {
     if (!permission.canCancel || plan.approveStatus !== "Pending") return;
 
-    const confirmed = window.confirm(
+    const confirmed = await showConfirm(
       "Are you sure you want to cancel this allocation plan?"
     );
 

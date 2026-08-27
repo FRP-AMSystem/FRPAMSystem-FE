@@ -12,6 +12,8 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import "./ExperimentList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
 const priorityLabels: Record<number, string> = {
@@ -81,6 +83,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 export default function MyExperimentList() {
+  const { showConfirm } = usePopup();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -157,7 +160,7 @@ export default function MyExperimentList() {
   const handleDelete = async (experiment: ExperimentResponse) => {
     if (!isResearcher || deletingId !== null) return;
 
-    const confirmed = window.confirm(
+    const confirmed = await showConfirm(
       `Are you sure you want to delete "${experiment.experimentName}"?`
     );
 

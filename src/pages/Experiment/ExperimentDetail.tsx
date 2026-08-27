@@ -92,6 +92,8 @@ import "./ExperimentDetail.css";
 import "./ExperimentPhaseSection.css";
 import "./PlanningWizard.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type Role =
   | "Admin"
   | "Manager"
@@ -402,6 +404,7 @@ function canSubmitExperimentStatus(
 }
 
 export default function ExperimentDetail() {
+  const { showConfirm } = usePopup();
   const {
     id,
   } = useParams<{
@@ -851,7 +854,7 @@ export default function ExperimentDetail() {
       }
 
       const confirmed =
-        window.confirm(
+        await showConfirm(
           `Submit experiment "${experiment.experimentName}" for planning?`
         );
 
@@ -900,7 +903,7 @@ export default function ExperimentDetail() {
 
   const handleApproveExperiment = async () => {
     if (!experiment || actionProcessing) return;
-    const confirmed = window.confirm(
+    const confirmed = await showConfirm(
       `Approve experiment plan "${experiment.experimentName}"?`
     );
     if (!confirmed) return;
@@ -1062,7 +1065,7 @@ export default function ExperimentDetail() {
       }
 
       const confirmed =
-        window.confirm(
+        await showConfirm(
           `Are you sure you want to delete phase "${phase.phaseName}"?`
         );
 

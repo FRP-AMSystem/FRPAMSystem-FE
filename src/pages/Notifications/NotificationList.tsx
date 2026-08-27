@@ -44,6 +44,8 @@ import type {
 
 import "./NotificationList.css";
 
+import { usePopup } from "../../context/PopupContext";
+
 type ReadFilter =
   | "all"
   | "unread"
@@ -384,6 +386,7 @@ function notifyNotificationChanged(): void {
 }
 
 export default function NotificationList() {
+  const { showConfirm } = usePopup();
   const navigate =
     useNavigate();
 
@@ -777,7 +780,7 @@ export default function NotificationList() {
       notification: Notification
     ) => {
       const confirmed =
-        window.confirm(
+        await showConfirm(
           `Delete notification "${notification.title}"?`
         );
 

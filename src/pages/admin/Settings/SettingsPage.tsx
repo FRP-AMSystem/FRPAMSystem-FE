@@ -283,36 +283,8 @@ export default function SettingsPage() {
               </label>
             </div>
           </div>
-
-          {/* Card 4: Security & Access Policy */}
-          <div className="settings-card">
-            <div className="settings-card-header">
-              <div className="settings-card-icon-badge">
-                <Shield size={20} />
-              </div>
-              <div>
-                <h3>Security & Access Control</h3>
-                <p>System access policy and token authentication configuration.</p>
-              </div>
-            </div>
-
-            <div className="setting-row">
-              <div className="setting-row-info">
-                <span className="setting-row-title">JWT Token Expiry</span>
-                <span className="setting-row-desc">Active token session duration configured on backend server.</span>
-              </div>
-              <span style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--accent)" }}>24 Hours</span>
-            </div>
-
-            <div className="setting-row">
-              <div className="setting-row-info">
-                <span className="setting-row-title">Role Based Access Control (RBAC)</span>
-                <span className="setting-row-desc">Enforce strict Admin edit privileges for user profiles and roles.</span>
-              </div>
-              <span style={{ fontSize: "13.5px", fontWeight: 700, color: "#16A34A" }}>Active</span>
-            </div>
-          </div>
-        </div>
+</div>
+          
 
         {/* Floating Toast Notification */}
         {toast.visible && (
