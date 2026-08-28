@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { useNotification } from "../../context/NotificationContext";
+import api from "../../services/api";
 
 import { getExperiments } from "../../services/experimentService";
 import { getEquipmentInstances } from "../../services/equipmentInstanceService";
@@ -223,6 +224,230 @@ function hourToDateTime(dateKey: string, hourValue: number): string {
   return `${dateKey}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
 }
 
+
+const AI_DEFAULT_EVALUATION_SETTINGS = {
+  populationSize: 50,
+  generationCount: 50,
+  mutationRate: 0.1,
+  initialMutationRate: 0.15,
+  finalMutationRate: 0.05,
+  crossoverRate: 0.8,
+  eliteCount: 5,
+  tournamentSize: 3,
+  topSuggestionCount: 5,
+  maxScheduleShiftDays: 7,
+  equipmentWeight: 25,
+  humanWeight: 25,
+  landWeight: 25,
+  scheduleWeight: 25,
+  penaltyWeight: 1,
+  bonusWeight: 1,
+  hardConstraintPenalty: 1000,
+  softConstraintPenalty: 100,
+} as const;
+
+type EvaluationWeightPlan = {
+  equipmentWeight: number;
+  humanWeight: number;
+  landWeight: number;
+  scheduleWeight: number;
+};
+
+type PhaseEquipmentRequirementRuntime = {
+  phaseEquipmentReqId: number;
+  phaseId: number;
+  experimentId?: number | null;
+  equipmentTypeId: number;
+  quantity?: number;
+  note?: string | null;
+};
+
+type PhaseHumanRequirementRuntime = {
+  phaseHumanReqId: number;
+  phaseId: number;
+  experimentId?: number | null;
+  roleId: number;
+  quantity?: number;
+  requiredSkillId?: number | null;
+  note?: string | null;
+};
+
+type FitnessComponentKey =
+  | "equipment"
+  | "human"
+  | "land"
+  | "schedule";
+
+type FitnessComponentResult = {
+  score: number | null;
+  weight: number;
+  contribution: number | null;
+};
+
+type FitnessBreakdown = Record<
+  FitnessComponentKey,
+  FitnessComponentResult
+>;
+
+function readNumber(
+  source: Record<string, unknown>,
+  keys: string[]
+): number | null {
+  for (const key of keys) {
+    const value = source[key];
+
+    if (
+      typeof value === "number" &&
+      Number.isFinite(value)
+    ) {
+      return value;
+    }
+
+    if (
+      typeof value === "string" &&
+      value.trim() !== ""
+    ) {
+      const parsed = Number(value);
+
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalizeEvaluationScore(
+  value: number | null
+): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  if (value >= 0 && value <= 1) {
+    return value * 100;
+  }
+
+  return Math.max(
+    0,
+    Math.min(100, value)
+  );
+}
+
+function createFitnessComponent(
+  score: number | null,
+  weight: number
+): FitnessComponentResult {
+  const normalizedScore =
+    normalizeEvaluationScore(score);
+
+  return {
+    score: normalizedScore,
+    weight,
+    contribution:
+      normalizedScore === null
+        ? null
+        : (normalizedScore * weight) /
+          100,
+  };
+}
+
+function parseFitnessBreakdown(
+  evaluation: unknown,
+  weights: EvaluationWeightPlan
+): FitnessBreakdown {
+  const root =
+    evaluation &&
+    typeof evaluation === "object"
+      ? (evaluation as Record<
+          string,
+          unknown
+        >)
+      : {};
+
+  const nestedCandidate =
+    root.breakdown ??
+    root.details ??
+    root.componentScores ??
+    root.scores;
+
+  const nested =
+    nestedCandidate &&
+    typeof nestedCandidate === "object"
+      ? (nestedCandidate as Record<
+          string,
+          unknown
+        >)
+      : {};
+
+  const source = {
+    ...root,
+    ...nested,
+  };
+
+  const equipmentScore = readNumber(
+    source,
+    [
+      "equipmentScore",
+      "equipmentFitnessScore",
+      "equipmentMatchScore",
+      "equipment",
+    ]
+  );
+
+  const humanScore = readNumber(
+    source,
+    [
+      "humanScore",
+      "personnelScore",
+      "humanFitnessScore",
+      "personnelFitnessScore",
+      "human",
+      "personnel",
+    ]
+  );
+
+  const landScore = readNumber(
+    source,
+    [
+      "landScore",
+      "landFitnessScore",
+      "landMatchScore",
+      "land",
+    ]
+  );
+
+  const scheduleScore = readNumber(
+    source,
+    [
+      "scheduleScore",
+      "scheduleFitnessScore",
+      "scheduleMatchScore",
+      "schedule",
+    ]
+  );
+
+  return {
+    equipment: createFitnessComponent(
+      equipmentScore,
+      weights.equipmentWeight
+    ),
+    human: createFitnessComponent(
+      humanScore,
+      weights.humanWeight
+    ),
+    land: createFitnessComponent(
+      landScore,
+      weights.landWeight
+    ),
+    schedule: createFitnessComponent(
+      scheduleScore,
+      weights.scheduleWeight
+    ),
+  };
+}
+
 export default function CreateAllocation() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -246,6 +471,10 @@ export default function CreateAllocation() {
   const [equipmentReqs, setEquipmentReqs] = useState<ExperimentEquipmentRequirement[]>([]);
   const [humanReqs, setHumanReqs] = useState<ExperimentHumanRequirement[]>([]);
   const [landReqs, setLandReqs] = useState<ExperimentLandRequirement[]>([]);
+  const [phaseEquipmentReqs, setPhaseEquipmentReqs] =
+    useState<PhaseEquipmentRequirementRuntime[]>([]);
+  const [phaseHumanReqs, setPhaseHumanReqs] =
+    useState<PhaseHumanRequirementRuntime[]>([]);
 
   // Selection state per phase: phaseId -> Array of chosen item IDs
   const [selectedEquipByPhase, setSelectedEquipByPhase] = useState<Record<number, number[]>>({});
@@ -258,6 +487,19 @@ export default function CreateAllocation() {
     Record<number, Record<number, string[]>>
   >({});
 
+  const [scheduledHumanMeta, setScheduledHumanMeta] = useState<
+    Record<
+      number,
+      Record<
+        number,
+        {
+          title: string;
+          description: string;
+        }
+      >
+    >
+  >({});
+
   // Land Plot selection: Strictly 1 land plot for the experiment!
   const [selectedLandId, setSelectedLandId] = useState<number | null>(null);
 
@@ -267,6 +509,20 @@ export default function CreateAllocation() {
   const [evaluatingFitness, setEvaluatingFitness] = useState(false);
   const [fitnessScore, setFitnessScore] = useState<number | null>(null);
   const [fitnessEvaluationMessage, setFitnessEvaluationMessage] = useState("");
+  const [fitnessBreakdown, setFitnessBreakdown] =
+    useState<FitnessBreakdown | null>(null);
+
+  const [weightMode, setWeightMode] =
+    useState<"ai" | "custom">("ai");
+
+  const [evaluationWeights, setEvaluationWeights] =
+    useState<EvaluationWeightPlan>({
+      equipmentWeight: 25,
+      humanWeight: 25,
+      landWeight: 25,
+      scheduleWeight: 25,
+    });
+
   const [allocationDetailsSaved, setAllocationDetailsSaved] = useState(false);
   const [error, setError] = useState("");
 
@@ -366,11 +622,38 @@ export default function CreateAllocation() {
 
     async function loadExperimentDetails(id: number) {
       try {
-        const [phasesRes, eReqRes, hReqRes, lReqRes] = await Promise.all([
+        const [
+          phasesRes,
+          eReqRes,
+          hReqRes,
+          lReqRes,
+          phaseEquipmentReqRes,
+          phaseHumanReqRes,
+        ] = await Promise.all([
           getExperimentPhases({ experimentId: id, size: 100 }).catch(() => []),
           getExperimentEquipmentRequirements({ experimentId: id, size: 100 }).catch(() => []),
           getExperimentHumanRequirements({ experimentId: id, size: 100 }).catch(() => []),
           getExperimentLandRequirements({ experimentId: id, size: 100 }).catch(() => []),
+          api
+            .get("/PhaseEquipmentRequirements", {
+              params: {
+                ExperimentId: id,
+                Page: 1,
+                Size: 500,
+              },
+            })
+            .then((response) => response.data)
+            .catch(() => []),
+          api
+            .get("/PhaseHumanRequirements", {
+              params: {
+                ExperimentId: id,
+                Page: 1,
+                Size: 500,
+              },
+            })
+            .then((response) => response.data)
+            .catch(() => []),
         ]);
 
         // Filter strictly to this experiment
@@ -394,15 +677,100 @@ export default function CreateAllocation() {
         const allL = Array.isArray(lReqRes) ? lReqRes : [];
         setLandReqs(allL.filter((l) => l.experimentId === id));
 
+        const normalizeApiArray = <T,>(
+          payload: unknown
+        ): T[] => {
+          if (Array.isArray(payload)) {
+            return payload as T[];
+          }
+
+          if (
+            payload &&
+            typeof payload === "object"
+          ) {
+            const record =
+              payload as Record<
+                string,
+                unknown
+              >;
+
+            if (Array.isArray(record.items)) {
+              return record.items as T[];
+            }
+
+            if (Array.isArray(record.data)) {
+              return record.data as T[];
+            }
+
+            if (Array.isArray(record.result)) {
+              return record.result as T[];
+            }
+
+            if (
+              record.data &&
+              typeof record.data === "object"
+            ) {
+              const nested =
+                record.data as Record<
+                  string,
+                  unknown
+                >;
+
+              if (Array.isArray(nested.items)) {
+                return nested.items as T[];
+              }
+            }
+          }
+
+          return [];
+        };
+
+        setPhaseEquipmentReqs(
+          normalizeApiArray<PhaseEquipmentRequirementRuntime>(
+            phaseEquipmentReqRes
+          ).filter((requirement) =>
+            matchedPhases.some(
+              (phase) =>
+                Number(
+                  phase.experimentPhaseId
+                ) ===
+                Number(requirement.phaseId)
+            )
+          )
+        );
+
+        setPhaseHumanReqs(
+          normalizeApiArray<PhaseHumanRequirementRuntime>(
+            phaseHumanReqRes
+          ).filter((requirement) =>
+            matchedPhases.some(
+              (phase) =>
+                Number(
+                  phase.experimentPhaseId
+                ) ===
+                Number(requirement.phaseId)
+            )
+          )
+        );
+
         // Reset phase selections
         setSelectedEquipByPhase({});
         setSelectedHumansByPhase({});
         setScheduledHumanDates({});
+        setScheduledHumanMeta({});
         setScheduleHumanId(null);
         setDraftPlanId(null);
         setSelectedLandId(null);
         setFitnessScore(null);
         setFitnessEvaluationMessage("");
+        setFitnessBreakdown(null);
+        setWeightMode("ai");
+        setEvaluationWeights({
+          equipmentWeight: 25,
+          humanWeight: 25,
+          landWeight: 25,
+          scheduleWeight: 25,
+        });
         setAllocationDetailsSaved(false);
       } catch (detailErr) {
         console.warn("Could not load experiment requirements for allocation hub:", detailErr);
@@ -600,6 +968,7 @@ export default function CreateAllocation() {
 
     setFitnessScore(null);
     setFitnessEvaluationMessage("");
+    setFitnessBreakdown(null);
 
     setSelectedEquipByPhase((prev) => {
       const currentList = prev[activePhaseId] || [];
@@ -835,6 +1204,8 @@ export default function CreateAllocation() {
     humanResourceId: number;
     phaseId: number;
     dates: string[];
+    title: string;
+    description: string;
   }) => {
     const normalizedDates = Array.from(new Set(payload.dates)).sort();
 
@@ -843,6 +1214,17 @@ export default function CreateAllocation() {
       [payload.phaseId]: {
         ...(prev[payload.phaseId] || {}),
         [payload.humanResourceId]: normalizedDates,
+      },
+    }));
+
+    setScheduledHumanMeta((prev) => ({
+      ...prev,
+      [payload.phaseId]: {
+        ...(prev[payload.phaseId] || {}),
+        [payload.humanResourceId]: {
+          title: payload.title.trim(),
+          description: payload.description.trim(),
+        },
       },
     }));
 
@@ -871,6 +1253,7 @@ export default function CreateAllocation() {
 
     setFitnessScore(null);
     setFitnessEvaluationMessage("");
+    setFitnessBreakdown(null);
     setError("");
     setScheduleHumanId(null);
   };
@@ -931,6 +1314,7 @@ export default function CreateAllocation() {
 
     setFitnessScore(null);
     setFitnessEvaluationMessage("");
+    setFitnessBreakdown(null);
     setSelectedLandId((prev) => (prev === landId ? null : landId));
   };
 
@@ -957,6 +1341,58 @@ export default function CreateAllocation() {
    * succeeds, resource editing is locked for this draft so the score shown to
    * the Researcher always matches the details stored on the backend.
    */
+
+  const findPhaseEquipmentRequirementId = (
+    phaseId: number,
+    requestedEquipmentTypeId: number
+  ): number | null => {
+    const match =
+      phaseEquipmentReqs.find(
+        (requirement) =>
+          Number(requirement.phaseId) ===
+            Number(phaseId) &&
+          Number(
+            requirement.equipmentTypeId
+          ) ===
+            Number(
+              requestedEquipmentTypeId
+            )
+      );
+
+    return match?.phaseEquipmentReqId
+      ? Number(
+          match.phaseEquipmentReqId
+        )
+      : null;
+  };
+
+  const findPhaseHumanRequirementId = (
+    phaseId: number,
+    roleId?: number | null
+  ): number | null => {
+    const candidates =
+      phaseHumanReqs.filter(
+        (requirement) =>
+          Number(requirement.phaseId) ===
+          Number(phaseId)
+      );
+
+    const match =
+      roleId != null
+        ? candidates.find(
+            (requirement) =>
+              Number(
+                requirement.roleId
+              ) === Number(roleId)
+          )
+        : candidates[0];
+
+    return match?.phaseHumanReqId
+      ? Number(
+          match.phaseHumanReqId
+        )
+      : null;
+  };
 
   const persistAllocationDetails = async (planId: number) => {
     if (allocationDetailsSaved) return;
@@ -1041,23 +1477,55 @@ export default function CreateAllocation() {
           continue;
         }
 
-        const createdEquipmentDetail = await createAllocationEquipmentDetail({
+        const phaseEquipmentReqId =
+          findPhaseEquipmentRequirementId(
+            phaseIdNum,
+            match.requirement.equipmentTypeId
+          );
+
+        const equipmentPayload = {
           allocationPlanId: planId,
           expEquipmentReqId: expEqReqId,
-          phaseEquipmentReqId: null,
-          allocatedEquipmentTypeId: eqObj.equipmentTypeId,
+          phaseEquipmentReqId,
+          allocatedEquipmentTypeId:
+            eqObj.equipmentTypeId,
           equipmentInstanceId: eqId,
           quantity: 1,
-          efficiencyRate: match.effectiveEfficiency,
-          isSubstitute: match.isSubstitute,
+          efficiencyRate:
+            match.effectiveEfficiency,
+          isSubstitute:
+            match.isSubstitute,
           startDate: sDate,
           endDate: eDate,
-          status: "Allocated",
-        });
+          status: "Proposed" as const,
+        };
 
-        // Keep the local snapshot in sync so another selected entry in this same
-        // persist pass cannot create the exact same detail again.
-        existingEquipmentDetails.push(createdEquipmentDetail);
+        try {
+          const createdEquipmentDetail =
+            await createAllocationEquipmentDetail(
+              equipmentPayload
+            );
+
+          existingEquipmentDetails.push(
+            createdEquipmentDetail
+          );
+        } catch (equipmentError: any) {
+          console.error(
+            "Allocation equipment detail POST failed.",
+            {
+              payload:
+                equipmentPayload,
+              response:
+                equipmentError?.response
+                  ?.data,
+              status:
+                equipmentError?.response
+                  ?.status,
+            }
+          );
+
+          throw equipmentError;
+        }
       }
     }
 
@@ -1136,12 +1604,17 @@ export default function CreateAllocation() {
         const createdHumanDetail = await createAllocationHumanDetail({
           allocationPlanId: planId,
           expHumanReqId: expHReqId,
-          phaseHumanReqId: null,
+          phaseHumanReqId:
+            findPhaseHumanRequirementId(
+              phaseIdNum,
+              requirement?.roleId ??
+                hObj.roleId
+            ),
           humanResourceId: hId,
           workingHours: requiredWorkingHours,
           startDate: `${firstWorkingDate}T08:00:00`,
           endDate: `${lastWorkingDate}T17:00:00`,
-          status: "Allocated",
+          status: "Proposed",
         });
 
         existingHumanDetails.push(createdHumanDetail);
@@ -1202,7 +1675,7 @@ export default function CreateAllocation() {
           expLandReqId: resolvedExpLandReqId,
           startDate: sDate,
           endDate: eDate,
-          status: "Allocated",
+          status: "Proposed",
         });
 
         existingLandDetails.push(createdLandDetail);
@@ -1292,8 +1765,31 @@ export default function CreateAllocation() {
           }
         }
 
-        const titleBase = selectedExp?.experimentName?.trim() || "Experiment";
-        const phaseLabel = phase.phaseName?.trim() || `Phase #${phaseId}`;
+        const scheduleMeta =
+          scheduledHumanMeta[phaseId]?.[humanId];
+
+        const fallbackTitle = [
+          selectedExp?.experimentName?.trim(),
+          phase.phaseName?.trim(),
+        ]
+          .filter(Boolean)
+          .join(" - ");
+
+        const titleBase =
+          scheduleMeta?.title?.trim() ||
+          fallbackTitle ||
+          "Personnel Work Schedule";
+
+        const phaseLabel =
+          phase.phaseName?.trim() ||
+          `Phase #${phaseId}`;
+
+        const description =
+          scheduleMeta?.description?.trim() ||
+          `Scheduled from Resource Allocation Hub for ${
+            human.fullName ||
+            `Human Resource #${humanId}`
+          }.`;
 
         for (const preparedDay of preparedDays) {
           for (let index = 0; index < preparedDay.segments.length; index += 1) {
@@ -1306,9 +1802,7 @@ export default function CreateAllocation() {
                 preparedDay.segments.length > 1
                   ? `${titleBase} - ${phaseLabel} (${index + 1}/${preparedDay.segments.length})`
                   : `${titleBase} - ${phaseLabel}`,
-              description: `Scheduled from Resource Allocation Hub for ${
-                human.fullName || `Human Resource #${humanId}`
-              }.`,
+              description,
               startDate: hourToDateTime(preparedDay.dateKey, segment.start),
               endDate: hourToDateTime(preparedDay.dateKey, segment.end),
               status: "Planned",
@@ -1321,6 +1815,58 @@ export default function CreateAllocation() {
         }
       }
     }
+  };
+
+  const evaluationWeightTotal =
+    evaluationWeights.equipmentWeight +
+    evaluationWeights.humanWeight +
+    evaluationWeights.landWeight +
+    evaluationWeights.scheduleWeight;
+
+  const applyAIDefaultWeights = () => {
+    setWeightMode("ai");
+    setEvaluationWeights({
+      equipmentWeight: 25,
+      humanWeight: 25,
+      landWeight: 25,
+      scheduleWeight: 25,
+    });
+    setFitnessScore(null);
+    setFitnessBreakdown(null);
+    setFitnessEvaluationMessage("");
+    setAllocationDetailsSaved(false);
+    setError("");
+  };
+
+  const enableCustomWeights = () => {
+    setWeightMode("custom");
+    setFitnessScore(null);
+    setFitnessBreakdown(null);
+    setFitnessEvaluationMessage("");
+    setAllocationDetailsSaved(false);
+    setError("");
+  };
+
+  const updateEvaluationWeight = (
+    key: keyof EvaluationWeightPlan,
+    rawValue: string
+  ) => {
+    const parsed = Number(rawValue);
+
+    const nextValue = Number.isFinite(parsed)
+      ? Math.min(100, Math.max(0, parsed))
+      : 0;
+
+    setEvaluationWeights((current) => ({
+      ...current,
+      [key]: nextValue,
+    }));
+
+    setFitnessScore(null);
+    setFitnessBreakdown(null);
+    setFitnessEvaluationMessage("");
+    setAllocationDetailsSaved(false);
+    setError("");
   };
 
   const handleEvaluateFitnessScore = async () => {
@@ -1344,17 +1890,43 @@ export default function CreateAllocation() {
       return;
     }
 
+    if (Math.abs(evaluationWeightTotal - 100) > 0.001) {
+      setError(
+        `Evaluation weights must total exactly 100%. Current total: ${evaluationWeightTotal.toFixed(
+          0
+        )}%.`
+      );
+      return;
+    }
+
     try {
       setEvaluatingFitness(true);
       setError("");
       setFitnessEvaluationMessage("");
 
       const planId = await ensureDraftAllocationPlan();
+
       await persistAllocationDetails(planId);
+      await persistHumanSchedules(planId);
 
-      const evaluation = await evaluateAllocationPlan(planId);
+      const evaluation =
+        await evaluateAllocationPlan(
+          planId,
+          {
+            ...AI_DEFAULT_EVALUATION_SETTINGS,
+            ...evaluationWeights,
+          }
+        );
 
-      let evaluatedScore = evaluation.fitnessScore;
+      setFitnessBreakdown(
+        parseFitnessBreakdown(
+          evaluation,
+          evaluationWeights
+        )
+      );
+
+      let evaluatedScore =
+        evaluation.fitnessScore;
 
       // Some backend versions update the AllocationPlan but return only a
       // generic success response. Reload the plan to obtain the persisted score.
@@ -1371,12 +1943,29 @@ export default function CreateAllocation() {
 
       setFitnessScore(Number(evaluatedScore));
       setFitnessEvaluationMessage(
-        "Fitness Score was calculated by the backend allocation evaluation engine."
+        weightMode === "ai"
+          ? "Fitness Score was calculated by the backend using the AI default weight plan: Equipment 25%, Personnel 25%, Land 25%, Schedule 25%."
+          : `Fitness Score was calculated by the backend using your custom weight plan: Equipment ${evaluationWeights.equipmentWeight}%, Personnel ${evaluationWeights.humanWeight}%, Land ${evaluationWeights.landWeight}%, Schedule ${evaluationWeights.scheduleWeight}%.`
       );
     } catch (evaluationError: any) {
-      console.error("Evaluate allocation fitness failed:", evaluationError);
+      console.error(
+        "Evaluate allocation fitness failed:",
+        evaluationError
+      );
+
+      const responseData =
+        evaluationError?.response?.data;
+
+      const backendMessage =
+        responseData?.message ||
+        responseData?.error ||
+        responseData?.title ||
+        (typeof responseData === "string"
+          ? responseData
+          : null);
+
       setError(
-        evaluationError?.response?.data?.message ||
+        backendMessage ||
           evaluationError?.message ||
           "Failed to evaluate Fitness Score."
       );
@@ -2446,7 +3035,8 @@ export default function CreateAllocation() {
                 evaluatingFitness ||
                 submitting ||
                 initializingDraftPlan ||
-                fitnessScore !== null
+                fitnessScore !== null ||
+                Math.abs(evaluationWeightTotal - 100) > 0.001
               }
               className="alloc-btn-manual"
               style={{ whiteSpace: "nowrap" }}
@@ -2457,6 +3047,356 @@ export default function CreateAllocation() {
                   ? "Evaluation Complete"
                   : "Evaluate Fitness Score"}
             </button>
+          </div>
+
+          <div
+            style={{
+              marginTop: "16px",
+              padding: "14px",
+              border: "1px solid #dbeafe",
+              borderRadius: "10px",
+              background: "#f8fbff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: "14px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    color: "#0f172a",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                  }}
+                >
+                  Evaluation Weight Plan
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "3px",
+                    color: "#64748b",
+                    fontSize: "11.5px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Use the AI default weight plan (25% for each factor), or switch
+                  to Custom to define how important Equipment, Personnel, Land,
+                  and Schedule are for this Allocation Plan. The total must equal
+                  100%.
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "6px 10px",
+                  border:
+                    Math.abs(evaluationWeightTotal - 100) <= 0.001
+                      ? "1px solid #86efac"
+                      : "1px solid #fca5a5",
+                  borderRadius: "999px",
+                  background:
+                    Math.abs(evaluationWeightTotal - 100) <= 0.001
+                      ? "#f0fdf4"
+                      : "#fef2f2",
+                  color:
+                    Math.abs(evaluationWeightTotal - 100) <= 0.001
+                      ? "#15803d"
+                      : "#b91c1c",
+                  fontSize: "11.5px",
+                  fontWeight: 700,
+                }}
+              >
+                Total Weight: {evaluationWeightTotal.toFixed(0)}%
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "12px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={applyAIDefaultWeights}
+                disabled={
+                  evaluatingFitness ||
+                  submitting ||
+                  initializingDraftPlan ||
+                  fitnessScore !== null
+                }
+                style={{
+                  height: "36px",
+                  padding: "0 14px",
+                  border:
+                    weightMode === "ai"
+                      ? "1px solid #16a34a"
+                      : "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  background:
+                    weightMode === "ai"
+                      ? "#f0fdf4"
+                      : "#ffffff",
+                  color:
+                    weightMode === "ai"
+                      ? "#15803d"
+                      : "#475569",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                AI Default · 25% Each
+              </button>
+
+              <button
+                type="button"
+                onClick={enableCustomWeights}
+                disabled={
+                  evaluatingFitness ||
+                  submitting ||
+                  initializingDraftPlan ||
+                  fitnessScore !== null
+                }
+                style={{
+                  height: "36px",
+                  padding: "0 14px",
+                  border:
+                    weightMode === "custom"
+                      ? "1px solid #7c3aed"
+                      : "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  background:
+                    weightMode === "custom"
+                      ? "#faf5ff"
+                      : "#ffffff",
+                  color:
+                    weightMode === "custom"
+                      ? "#7c3aed"
+                      : "#475569",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Custom Weights
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                gap: "10px",
+                marginTop: "12px",
+              }}
+            >
+              {[
+                {
+                  key: "equipmentWeight" as const,
+                  componentKey: "equipment" as const,
+                  label: "Equipment",
+                  description: "Equipment requirement & efficiency",
+                },
+                {
+                  key: "humanWeight" as const,
+                  componentKey: "human" as const,
+                  label: "Personnel",
+                  description: "Role, skills & workforce suitability",
+                },
+                {
+                  key: "landWeight" as const,
+                  componentKey: "land" as const,
+                  label: "Land",
+                  description: "Soil type, area & availability",
+                },
+                {
+                  key: "scheduleWeight" as const,
+                  componentKey: "schedule" as const,
+                  label: "Schedule",
+                  description: "Schedule feasibility & conflicts",
+                },
+              ].map((item) => {
+                const component =
+                  fitnessBreakdown?.[item.componentKey];
+
+                return (
+                  <div
+                    key={item.key}
+                    style={{
+                      padding: "11px 12px",
+                      border: "1px solid #dbe3ee",
+                      borderRadius: "8px",
+                      background: "#ffffff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "8px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "#334155",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {item.label}
+                      </span>
+
+                      <span
+                        style={{
+                          color:
+                            weightMode === "custom"
+                              ? "#7c3aed"
+                              : "#16a34a",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Weight {evaluationWeights[item.key]}%
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        position: "relative",
+                        marginTop: "9px",
+                      }}
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={evaluationWeights[item.key]}
+                        disabled={
+                          weightMode === "ai" ||
+                          evaluatingFitness ||
+                          submitting ||
+                          initializingDraftPlan ||
+                          fitnessScore !== null
+                        }
+                        onChange={(event) =>
+                          updateEvaluationWeight(
+                            item.key,
+                            event.target.value
+                          )
+                        }
+                        style={{
+                          width: "100%",
+                          height: "38px",
+                          boxSizing: "border-box",
+                          padding: "0 34px 0 11px",
+                          border:
+                            weightMode === "custom"
+                              ? "1px solid #c4b5fd"
+                              : "1px solid #dbe3ee",
+                          borderRadius: "7px",
+                          background:
+                            weightMode === "custom"
+                              ? "#ffffff"
+                              : "#f8fafc",
+                          color: "#0f172a",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          outline: "none",
+                        }}
+                      />
+
+                      <span
+                        style={{
+                          position: "absolute",
+                          right: "11px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          color: "#64748b",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          pointerEvents: "none",
+                        }}
+                      >
+                        %
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        color: "#0f172a",
+                        fontSize: "18px",
+                        fontWeight: 750,
+                      }}
+                    >
+                      {component?.score !== null &&
+                      component?.score !== undefined
+                        ? `${component.score.toFixed(1)} / 100`
+                        : "--"}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        color: "#64748b",
+                        fontSize: "10.5px",
+                        minHeight: "16px",
+                      }}
+                    >
+                      {component?.contribution !== null &&
+                      component?.contribution !== undefined
+                        ? `Contribution: ${component.contribution.toFixed(
+                            2
+                          )} / ${evaluationWeights[item.key]}`
+                        : "Component score is provided by backend after evaluation."}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "5px",
+                        color: "#94a3b8",
+                        fontSize: "10px",
+                      }}
+                    >
+                      {item.description}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {Math.abs(evaluationWeightTotal - 100) > 0.001 && (
+              <div
+                style={{
+                  marginTop: "10px",
+                  padding: "8px 10px",
+                  border: "1px solid #fecaca",
+                  borderRadius: "7px",
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  fontSize: "11.5px",
+                  fontWeight: 600,
+                }}
+              >
+                The four evaluation weights must total exactly 100% before the
+                Fitness Score can be calculated.
+              </div>
+            )}
           </div>
 
           <div
@@ -2650,6 +3590,16 @@ export default function CreateAllocation() {
           activePhaseId && scheduleHumanId !== null
             ? scheduledHumanDates[activePhaseId]?.[scheduleHumanId] || []
             : []
+        }
+        selectedScheduleTitle={
+          activePhaseId && scheduleHumanId !== null
+            ? scheduledHumanMeta[activePhaseId]?.[scheduleHumanId]?.title || ""
+            : ""
+        }
+        selectedScheduleDescription={
+          activePhaseId && scheduleHumanId !== null
+            ? scheduledHumanMeta[activePhaseId]?.[scheduleHumanId]?.description || ""
+            : ""
         }
         requiredWorkingHours={(() => {
           if (!activePhaseId || scheduleHumanId === null) return 0;

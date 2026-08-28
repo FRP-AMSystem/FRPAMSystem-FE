@@ -29,11 +29,15 @@ interface HumanScheduleCalendarProps {
   experimentName?: string | null;
   requiredWorkingHours: number;
   selectedWorkingDates?: string[];
+  selectedScheduleTitle?: string;
+  selectedScheduleDescription?: string;
   onClose: () => void;
   onScheduled: (payload: {
     humanResourceId: number;
     phaseId: number;
     dates: string[];
+    title: string;
+    description: string;
   }) => void;
 }
 
@@ -259,6 +263,8 @@ export default function HumanScheduleCalendar({
   experimentName,
   requiredWorkingHours,
   selectedWorkingDates = [],
+  selectedScheduleTitle = "",
+  selectedScheduleDescription = "",
   onClose,
   onScheduled,
 }: HumanScheduleCalendarProps) {
@@ -280,6 +286,8 @@ export default function HumanScheduleCalendar({
   const [visibleMonth, setVisibleMonth] = useState(initialMonth);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [scheduleTitle, setScheduleTitle] = useState("");
+  const [scheduleDescription, setScheduleDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -316,10 +324,32 @@ export default function HumanScheduleCalendar({
   useEffect(() => {
     if (!open) return;
 
+    const defaultTitle = [
+      experimentName?.trim(),
+      phaseName?.trim(),
+    ]
+      .filter(Boolean)
+      .join(" - ");
+
     setVisibleMonth(initialMonth);
     setSelectedDates(Array.from(new Set(selectedWorkingDates)).sort());
+    setScheduleTitle(
+      selectedScheduleTitle.trim() ||
+        defaultTitle ||
+        "Personnel Work Schedule"
+    );
+    setScheduleDescription(selectedScheduleDescription);
     void loadSchedules();
-  }, [open, initialMonth, loadSchedules, selectedWorkingDates]);
+  }, [
+    open,
+    initialMonth,
+    loadSchedules,
+    selectedWorkingDates,
+    selectedScheduleTitle,
+    selectedScheduleDescription,
+    experimentName,
+    phaseName,
+  ]);
 
   const selectedDateSet = useMemo(
     () => new Set(selectedDates),
@@ -457,10 +487,41 @@ export default function HumanScheduleCalendar({
     return next <= phaseMonth;
   }, [visibleMonth, phaseEnd]);
 
-  /*
-   * Chỉ toggle ở FE. Chưa POST ngay để Researcher có thể chọn nhiều ngày.
-   * Confirm chỉ lưu ngày đã chọn vào state của CreateAllocation. Schedule chỉ được POST khi Submit Allocation Plan.
-   */
+  const getWeeklyDatesFrom = useCallback(
+    (startDate: Date): string[] => {
+      if (!phaseEnd) {
+        return [];
+      }
+
+      const result: string[] = [];
+      const end = startOfDay(phaseEnd);
+
+      for (
+        let cursor = startOfDay(startDate);
+        cursor <= end;
+        cursor = addDays(cursor, 7)
+      ) {
+        const dateKey = toLocalDateKey(cursor);
+        const metrics = dayMetrics(dateKey);
+
+        if (
+          normalizedRequiredHours > 0 &&
+          normalizedRequiredHours <= TOTAL_WORK_HOURS &&
+          metrics.freeHours + 0.0001 >= normalizedRequiredHours
+        ) {
+          result.push(dateKey);
+        }
+      }
+
+      return result;
+    },
+    [
+      phaseEnd,
+      dayMetrics,
+      normalizedRequiredHours,
+    ]
+  );
+
   const handleToggleDate = (day: CalendarDay) => {
     if (
       loading ||
@@ -472,12 +533,41 @@ export default function HumanScheduleCalendar({
 
     setError("");
 
+    const repeatedDates =
+      getWeeklyDatesFrom(day.date);
+
+    if (repeatedDates.length === 0) {
+      setError(
+        "No available recurring working dates were found for this weekday."
+      );
+      return;
+    }
+
     setSelectedDates((current) => {
-      if (current.includes(day.key)) {
-        return current.filter((date) => date !== day.key);
+      const currentSet =
+        new Set(current);
+
+      if (currentSet.has(day.key)) {
+        repeatedDates.forEach(
+          (dateKey) => {
+            currentSet.delete(
+              dateKey
+            );
+          }
+        );
+      } else {
+        repeatedDates.forEach(
+          (dateKey) => {
+            currentSet.add(
+              dateKey
+            );
+          }
+        );
       }
 
-      return [...current, day.key].sort();
+      return Array.from(
+        currentSet
+      ).sort();
     });
   };
 
@@ -501,6 +591,13 @@ export default function HumanScheduleCalendar({
       return;
     }
 
+    const normalizedTitle = scheduleTitle.trim();
+
+    if (!normalizedTitle) {
+      setError("Schedule title is required.");
+      return;
+    }
+
     const invalidDate = selectedDates.find((dateKey) => {
       const metrics = dayMetrics(dateKey);
       return metrics.freeHours + 0.0001 < requiredHours;
@@ -520,6 +617,8 @@ export default function HumanScheduleCalendar({
       humanResourceId: human.humanResourceId,
       phaseId,
       dates: [...selectedDates].sort(),
+      title: normalizedTitle,
+      description: scheduleDescription.trim(),
     });
   };
 
@@ -579,6 +678,143 @@ export default function HumanScheduleCalendar({
               {phaseStartDate?.slice(0, 10) || "-"} → {" "}
               {phaseEndDate?.slice(0, 10) || "-"}
             </strong>
+          </div>
+        </div>
+
+        <div
+          style={{
+            margin: "14px 0 4px",
+            padding: "14px",
+            border: "1px solid #dbe3ee",
+            borderRadius: "10px",
+            background: "#f8fafc",
+          }}
+        >
+          <div
+            style={{
+              marginBottom: "12px",
+            }}
+          >
+            <div
+              style={{
+                color: "#15803d",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              Schedule Assignment
+            </div>
+
+            <div
+              style={{
+                marginTop: "3px",
+                color: "#64748b",
+                fontSize: "11.5px",
+                lineHeight: 1.5,
+              }}
+            >
+              The title and description below will be applied to every selected
+              working date in this recurring schedule.
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: "12px",
+            }}
+          >
+            <label
+              style={{
+                display: "block",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  marginBottom: "6px",
+                  color: "#475569",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                }}
+              >
+                Schedule Title{" "}
+                <span style={{ color: "#dc2626" }}>*</span>
+              </span>
+
+              <input
+                type="text"
+                value={scheduleTitle}
+                maxLength={200}
+                disabled={loading}
+                onChange={(event) => {
+                  setScheduleTitle(event.target.value);
+                  if (error === "Schedule title is required.") {
+                    setError("");
+                  }
+                }}
+                placeholder="E.g., Field work - Phase 1"
+                style={{
+                  width: "100%",
+                  height: "40px",
+                  boxSizing: "border-box",
+                  padding: "0 12px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  font: "inherit",
+                  fontSize: "13px",
+                  outline: "none",
+                }}
+              />
+            </label>
+
+            <label
+              style={{
+                display: "block",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  marginBottom: "6px",
+                  color: "#475569",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                }}
+              >
+                Description / Work Note
+              </span>
+
+              <textarea
+                rows={3}
+                value={scheduleDescription}
+                maxLength={1000}
+                disabled={loading}
+                onChange={(event) =>
+                  setScheduleDescription(event.target.value)
+                }
+                placeholder="Describe the work assigned for these working dates..."
+                style={{
+                  width: "100%",
+                  minHeight: "72px",
+                  boxSizing: "border-box",
+                  resize: "vertical",
+                  padding: "10px 12px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  font: "inherit",
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                  outline: "none",
+                }}
+              />
+            </label>
           </div>
         </div>
 
@@ -662,10 +898,10 @@ export default function HumanScheduleCalendar({
                           normalizedRequiredHours
                         )}h required`
                       : day.state === "selected"
-                        ? "Selected. Click again to remove this date."
+                        ? "Selected. Click again to remove this weekday from this date onward."
                         : `${formatHours(
                             day.freeHours
-                          )}h free in 08:00-17:00`
+                          )}h free. Click to select this weekday for every following week until the phase ends.`
                 }
               >
                 <span className="human-schedule-day-number">
@@ -705,7 +941,7 @@ export default function HumanScheduleCalendar({
 
         <div className="human-schedule-footer-note">
           <Clock3 size={15} />
-          Availability is calculated only inside 08:00-17:00. Selected dates are temporary and are saved to the backend only when the Allocation Plan is submitted.
+          Availability is calculated only inside 08:00-17:00. When you select a date, the same weekday is automatically selected for each following week until the phase ends. Busy dates are skipped. Selected dates are temporary and are saved to the backend only when the Allocation Plan is submitted.
         </div>
 
         <div className="human-schedule-selection-panel">
@@ -715,7 +951,7 @@ export default function HumanScheduleCalendar({
             </strong>
 
             <span>
-              Click an available date to add it. Click a green date again to remove it.
+              Click an available date to repeat that weekday weekly until the phase ends. Click a green date again to remove that weekday from that date onward.
             </span>
           </div>
 
