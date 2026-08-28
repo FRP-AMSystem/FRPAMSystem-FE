@@ -24,6 +24,7 @@ import {
 import {
     createLandResource,
     deleteLandResource,
+    getAllSoilTypes,
     getLandResources,
     updateLandResource,
 } from "../../services/landResourceService";
@@ -80,9 +81,13 @@ export default function LandResourceList() {
     const canManage = role === "Admin" || role === "Manager";
     const [items, setItems] = useState<LandResource[]>([]);
     const [areas, setAreas] = useState<Area[]>([]);
+    const [soilTypes, setSoilTypes] = useState<string[]>([]);
+    const [loadingSoilTypes, setLoadingSoilTypes] = useState(false);
+    const [soilTypeError, setSoilTypeError] = useState("");
     const [keyword, setKeyword] = useState("");
     const [appliedKeyword, setAppliedKeyword] = useState("");
     const [areaFilter, setAreaFilter] = useState("");
+    const [soilTypeFilter, setSoilTypeFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -106,7 +111,19 @@ export default function LandResourceList() {
                 }),
                 getAreas({ page: 1, size: 300 }),
             ]);
-            setItems(landData);
+            const filteredLandData = soilTypeFilter
+                ? landData.filter(
+                    (item) =>
+                        (item.soilType || "")
+                            .trim()
+                            .toLowerCase() ===
+                        soilTypeFilter
+                            .trim()
+                            .toLowerCase()
+                )
+                : landData;
+
+            setItems(filteredLandData);
             setAreas(areaData);
         } catch (loadError) {
             setError(getErrorMessage(loadError));
@@ -114,9 +131,35 @@ export default function LandResourceList() {
         } finally {
             setLoading(false);
         }
-    }, [appliedKeyword, areaFilter, statusFilter]);
+    }, [appliedKeyword, areaFilter, soilTypeFilter, statusFilter]);
 
     useEffect(() => { void loadData(); }, [loadData]);
+
+    useEffect(() => {
+        const loadSoilTypes = async () => {
+            try {
+                setLoadingSoilTypes(true);
+                setSoilTypeError("");
+
+                const data = await getAllSoilTypes();
+                setSoilTypes(Array.isArray(data) ? data : []);
+            } catch (soilError) {
+                console.error(
+                    "Failed to load soil types:",
+                    soilError
+                );
+
+                setSoilTypes([]);
+                setSoilTypeError(
+                    "Unable to load soil types."
+                );
+            } finally {
+                setLoadingSoilTypes(false);
+            }
+        };
+
+        void loadSoilTypes();
+    }, []);
 
     const selectedArea = useMemo(() => areas.find((area) => area.areaId === Number(form.areaId)), [areas, form.areaId]);
 
@@ -204,11 +247,98 @@ export default function LandResourceList() {
                 </header>
 
                 <section className="land-resource-filter">
-                    <div className="land-resource-search"><Search size={18} /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} onKeyDown={(event) => event.key === "Enter" && setAppliedKeyword(keyword.trim())} placeholder="Search code, location or soil type..." /></div>
-                    <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}><option value="">All areas</option>{areas.map((area) => <option key={area.areaId} value={area.areaId}>{area.areaName}</option>)}</select>
-                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">All statuses</option><option value="Available">Available</option><option value="Reserved">Reserved</option><option value="InUse">In Use</option><option value="Maintenance">Maintenance</option><option value="Unavailable">Unavailable</option></select>
-                    <button onClick={() => setAppliedKeyword(keyword.trim())}>Search</button>
-                    {(keyword || appliedKeyword || areaFilter || statusFilter) && <button className="secondary" onClick={() => { setKeyword(""); setAppliedKeyword(""); setAreaFilter(""); setStatusFilter(""); }}>Clear</button>}
+                    <div className="land-resource-search">
+                        <Search size={18} />
+                        <input
+                            value={keyword}
+                            onChange={(event) => setKeyword(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    setAppliedKeyword(keyword.trim());
+                                }
+                            }}
+                            placeholder="Search code, location or soil type..."
+                        />
+                    </div>
+
+                    <select
+                        value={areaFilter}
+                        onChange={(event) => setAreaFilter(event.target.value)}
+                    >
+                        <option value="">All areas</option>
+                        {areas.map((area) => (
+                            <option
+                                key={area.areaId}
+                                value={area.areaId}
+                            >
+                                {area.areaName}
+                            </option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={soilTypeFilter}
+                        onChange={(event) =>
+                            setSoilTypeFilter(event.target.value)
+                        }
+                        disabled={loadingSoilTypes}
+                    >
+                        <option value="">
+                            {loadingSoilTypes
+                                ? "Loading soil types..."
+                                : "All soil types"}
+                        </option>
+
+                        {soilTypes.map((soilType) => (
+                            <option
+                                key={soilType}
+                                value={soilType}
+                            >
+                                {soilType}
+                            </option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={statusFilter}
+                        onChange={(event) =>
+                            setStatusFilter(event.target.value)
+                        }
+                    >
+                        <option value="">All statuses</option>
+                        <option value="Available">Available</option>
+                        <option value="Reserved">Reserved</option>
+                        <option value="InUse">In Use</option>
+                        <option value="Maintenance">Maintenance</option>
+                        <option value="Unavailable">Unavailable</option>
+                    </select>
+
+                    <button
+                        type="button"
+                        onClick={() => setAppliedKeyword(keyword.trim())}
+                    >
+                        Search
+                    </button>
+
+                    {(keyword ||
+                        appliedKeyword ||
+                        areaFilter ||
+                        soilTypeFilter ||
+                        statusFilter) && (
+                        <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => {
+                                setKeyword("");
+                                setAppliedKeyword("");
+                                setAreaFilter("");
+                                setSoilTypeFilter("");
+                                setStatusFilter("");
+                            }}
+                        >
+                            Clear
+                        </button>
+                    )}
                 </section>
 
                 {error && <div className="land-resource-error">{error}</div>}
@@ -228,7 +358,22 @@ export default function LandResourceList() {
                         <label>Area<select value={form.areaId} onChange={(event) => setForm((current) => ({ ...current, areaId: event.target.value }))} disabled={saving} required><option value="">Select area</option>{areas.map((area) => <option key={area.areaId} value={area.areaId}>{area.areaName}</option>)}</select></label>
                         <label>Land code<input value={form.landCode} onChange={(event) => setForm((current) => ({ ...current, landCode: event.target.value }))} disabled={saving} required /></label>
                         <label>Area size (ha)<input type="number" min="0.01" step="0.01" value={form.areaSize} onChange={(event) => setForm((current) => ({ ...current, areaSize: event.target.value }))} disabled={saving} required /></label>
-                        <label>Soil type<input value={form.soilType} onChange={(event) => setForm((current) => ({ ...current, soilType: event.target.value }))} disabled={saving} required /></label>
+                        <label>
+                            Soil type
+                            <input
+                                type="text"
+                                value={form.soilType}
+                                onChange={(event) =>
+                                    setForm((current) => ({
+                                        ...current,
+                                        soilType: event.target.value,
+                                    }))
+                                }
+                                placeholder="E.g., Clay Soil, Sandy Soil, Loam..."
+                                disabled={saving}
+                                required
+                            />
+                        </label>
                         <label>Location<input value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} disabled={saving} /></label>
                         <label>Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as LandResourceStatus }))} disabled={saving}><option value="Available">Available</option><option value="Reserved">Reserved</option><option value="InUse">In Use</option><option value="Maintenance">Maintenance</option><option value="Unavailable">Unavailable</option></select></label>
                     </div>

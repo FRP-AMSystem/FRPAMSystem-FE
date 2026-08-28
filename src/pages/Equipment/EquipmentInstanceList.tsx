@@ -71,7 +71,6 @@ interface FormState {
     nextMaintenanceDate: string;
 
     conditionLevel: EquipmentConditionLevel;
-    status: EquipmentInstanceStatus;
 
     note: string;
 }
@@ -105,7 +104,6 @@ const emptyForm: FormState = {
     nextMaintenanceDate: "",
 
     conditionLevel: "Good",
-    status: "Available",
 
     note: "",
 };
@@ -666,10 +664,6 @@ export default function EquipmentInstanceList() {
                 item.conditionLevel ||
                 "Good",
 
-            status:
-                item.status ||
-                "Available",
-
             note:
                 item.note || "",
         });
@@ -793,7 +787,8 @@ export default function EquipmentInstanceList() {
                 form.conditionLevel,
 
             status:
-                form.status,
+                editing?.status ||
+                "Available",
 
             note:
                 form.note.trim() ||
@@ -1400,46 +1395,6 @@ export default function EquipmentInstanceList() {
                                     />
                                 </label>
 
-                                <label htmlFor="status">
-                                    Status
-
-                                    <select
-                                        id="status"
-                                        value={
-                                            form.status
-                                        }
-                                        onChange={(
-                                            event
-                                        ) =>
-                                            updateForm(
-                                                "status",
-                                                event.target
-                                                    .value as EquipmentInstanceStatus
-                                            )
-                                        }
-                                        disabled={
-                                            saving
-                                        }
-                                    >
-                                        {equipmentStatuses.map(
-                                            (status) => (
-                                                <option
-                                                    key={
-                                                        status
-                                                    }
-                                                    value={
-                                                        status
-                                                    }
-                                                >
-                                                    {getStatusLabel(
-                                                        status
-                                                    )}
-                                                </option>
-                                            )
-                                        )}
-                                    </select>
-                                </label>
-
                                 <label htmlFor="conditionLevel">
                                     Condition
 
@@ -1518,15 +1473,32 @@ export default function EquipmentInstanceList() {
                                         value={
                                             form.lastMaintenanceDate
                                         }
-                                        onChange={(
-                                            event
-                                        ) =>
-                                            updateForm(
-                                                "lastMaintenanceDate",
-                                                event.target
-                                                    .value
-                                            )
+                                        max={
+                                            form.nextMaintenanceDate ||
+                                            undefined
                                         }
+                                        onClick={(event) => {
+                                            if (!saving) {
+                                                event.currentTarget.showPicker?.();
+                                            }
+                                        }}
+                                        onChange={(event) => {
+                                            const value =
+                                                event.target.value;
+
+                                            setForm((current) => ({
+                                                ...current,
+                                                lastMaintenanceDate:
+                                                    value,
+                                                nextMaintenanceDate:
+                                                    current.nextMaintenanceDate &&
+                                                    value &&
+                                                    current.nextMaintenanceDate <
+                                                        value
+                                                        ? ""
+                                                        : current.nextMaintenanceDate,
+                                            }));
+                                        }}
                                         disabled={
                                             saving
                                         }
@@ -1546,13 +1518,15 @@ export default function EquipmentInstanceList() {
                                         value={
                                             form.nextMaintenanceDate
                                         }
-                                        onChange={(
-                                            event
-                                        ) =>
+                                        onClick={(event) => {
+                                            if (!saving) {
+                                                event.currentTarget.showPicker?.();
+                                            }
+                                        }}
+                                        onChange={(event) =>
                                             updateForm(
                                                 "nextMaintenanceDate",
-                                                event.target
-                                                    .value
+                                                event.target.value
                                             )
                                         }
                                         disabled={

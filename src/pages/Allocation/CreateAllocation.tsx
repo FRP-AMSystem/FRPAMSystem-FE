@@ -36,6 +36,7 @@ import {
   createAllocationEquipmentDetail,
   createAllocationHumanDetail,
   createAllocationLandDetail,
+  deleteAllocationHumanDetail,
   getAllocationEquipmentDetails,
   getAllocationHumanDetails,
   getAllocationLandDetails,
@@ -226,24 +227,24 @@ function hourToDateTime(dateKey: string, hourValue: number): string {
 
 
 const AI_DEFAULT_EVALUATION_SETTINGS = {
-  populationSize: 50,
-  generationCount: 50,
-  mutationRate: 0.1,
-  initialMutationRate: 0.15,
-  finalMutationRate: 0.05,
+  populationSize: 100,
+  generationCount: 120,
+  mutationRate: 0.08,
+  initialMutationRate: 0.25,
+  finalMutationRate: 0.03,
   crossoverRate: 0.8,
   eliteCount: 5,
-  tournamentSize: 3,
+  tournamentSize: 4,
   topSuggestionCount: 5,
-  maxScheduleShiftDays: 7,
+  maxScheduleShiftDays: 2,
   equipmentWeight: 25,
   humanWeight: 25,
   landWeight: 25,
   scheduleWeight: 25,
   penaltyWeight: 1,
   bonusWeight: 1,
-  hardConstraintPenalty: 1000,
-  softConstraintPenalty: 100,
+  hardConstraintPenalty: 25,
+  softConstraintPenalty: 5,
 } as const;
 
 type EvaluationWeightPlan = {
@@ -512,16 +513,22 @@ export default function CreateAllocation() {
   const [fitnessBreakdown, setFitnessBreakdown] =
     useState<FitnessBreakdown | null>(null);
 
-  const [weightMode, setWeightMode] =
-    useState<"ai" | "custom">("ai");
-
   const [evaluationWeights, setEvaluationWeights] =
     useState<EvaluationWeightPlan>({
-      equipmentWeight: 25,
-      humanWeight: 25,
-      landWeight: 25,
-      scheduleWeight: 25,
+      equipmentWeight: 0,
+      humanWeight: 0,
+      landWeight: 0,
+      scheduleWeight: 0,
     });
+
+  const [weightInputs, setWeightInputs] = useState<
+    Record<keyof EvaluationWeightPlan, string>
+  >({
+    equipmentWeight: "0",
+    humanWeight: "0",
+    landWeight: "0",
+    scheduleWeight: "0",
+  });
 
   const [allocationDetailsSaved, setAllocationDetailsSaved] = useState(false);
   const [error, setError] = useState("");
@@ -764,12 +771,17 @@ export default function CreateAllocation() {
         setFitnessScore(null);
         setFitnessEvaluationMessage("");
         setFitnessBreakdown(null);
-        setWeightMode("ai");
         setEvaluationWeights({
-          equipmentWeight: 25,
-          humanWeight: 25,
-          landWeight: 25,
-          scheduleWeight: 25,
+          equipmentWeight: 0,
+          humanWeight: 0,
+          landWeight: 0,
+          scheduleWeight: 0,
+        });
+        setWeightInputs({
+          equipmentWeight: "0",
+          humanWeight: "0",
+          landWeight: "0",
+          scheduleWeight: "0",
         });
         setAllocationDetailsSaved(false);
       } catch (detailErr) {
@@ -1113,10 +1125,14 @@ export default function CreateAllocation() {
     humanResourceSkills,
   ]);
 
-  // ScheduleRequest needs an allocationPlanId, therefore a Draft plan is
-  // initialized the first time the Researcher opens a personnel calendar.
+  // Reuse the Researcher's existing Draft for this experiment whenever possible.
+  // Creating a brand-new Draft on every page reload leaves orphan Drafts behind.
+  // Those old Drafts may already hold Equipment/Land allocation details and the
+  // backend then rejects the same resource in the new Draft with HTTP 500.
   const ensureDraftAllocationPlan = async (): Promise<number> => {
-    if (draftPlanId) return draftPlanId;
+    if (draftPlanId) {
+      return draftPlanId;
+    }
 
     if (!selectedExpId) {
       throw new Error("Please select an experiment first.");
@@ -1125,18 +1141,137 @@ export default function CreateAllocation() {
     try {
       setInitializingDraftPlan(true);
 
-      const createdPlan = await createAllocationPlan({
-        experimentId: selectedExpId,
-        fitnessScore: null,
-        approveStatus: "Draft",
-      });
+      const currentUser =
+        getCurrentUserTokenInfo();
+
+      try {
+        const existingDraftResponse =
+          await api.get("/AllocationPlans", {
+            params: {
+              ExperimentId:
+                selectedExpId,
+              ApproveStatus:
+                "Draft",
+              CreatedBy:
+                currentUser.userId ||
+                undefined,
+              Page: 1,
+              Size: 100,
+            },
+          });
+
+        const responseData =
+          existingDraftResponse.data;
+
+        const draftItems: any[] =
+          Array.isArray(responseData)
+            ? responseData
+            : Array.isArray(
+                responseData?.items
+              )
+              ? responseData.items
+              : Array.isArray(
+                    responseData?.data
+                  )
+                ? responseData.data
+                : Array.isArray(
+                      responseData?.result
+                    )
+                  ? responseData.result
+                  : Array.isArray(
+                        responseData
+                          ?.data?.items
+                      )
+                    ? responseData
+                        .data.items
+                    : [];
+
+        const reusableDraft =
+          [...draftItems]
+            .filter(
+              (plan) =>
+                Number(
+                  plan?.experimentId
+                ) ===
+                  Number(
+                    selectedExpId
+                  ) &&
+                String(
+                  plan?.approveStatus ||
+                    plan?.status ||
+                    ""
+                ).toLowerCase() ===
+                  "draft" &&
+                Number(
+                  plan?.allocationPlanId ||
+                    plan?.id ||
+                    0
+                ) > 0
+            )
+            .sort(
+              (a, b) =>
+                Number(
+                  b?.allocationPlanId ||
+                    b?.id ||
+                    0
+                ) -
+                Number(
+                  a?.allocationPlanId ||
+                    a?.id ||
+                    0
+                )
+            )[0];
+
+        const reusablePlanId =
+          Number(
+            reusableDraft
+              ?.allocationPlanId ||
+              reusableDraft?.id ||
+              0
+          );
+
+        if (reusablePlanId > 0) {
+          console.info(
+            `Reusing existing Allocation Draft #${reusablePlanId} for experiment #${selectedExpId}.`
+          );
+
+          setDraftPlanId(
+            reusablePlanId
+          );
+
+          return reusablePlanId;
+        }
+      } catch (draftLookupError) {
+        console.warn(
+          "Unable to look up an existing Allocation Draft. A new Draft will be created.",
+          draftLookupError
+        );
+      }
+
+      const createdPlan =
+        await createAllocationPlan({
+          experimentId:
+            selectedExpId,
+          fitnessScore: null,
+          approveStatus: "Draft",
+        });
 
       const newPlanId =
-        createdPlan?.allocationPlanId ||
-        Number((createdPlan as unknown as { id?: number })?.id || 0);
+        Number(
+          createdPlan
+            ?.allocationPlanId ||
+            (
+              createdPlan as unknown as {
+                id?: number;
+              }
+            )?.id ||
+            0
+        );
 
-      if (!newPlanId) {
-        throw new Error("Failed to initialize Allocation Draft.");
+      if (newPlanId <= 0) {
+        throw new Error(
+          "Failed to initialize Allocation Draft."
+        );
       }
 
       setDraftPlanId(newPlanId);
@@ -1328,19 +1463,7 @@ export default function CreateAllocation() {
     0
   );
 
-  /*
-   * ============================================================
-   * BACKEND FITNESS EVALUATION
-   * ============================================================
-   *
-   * The backend owns the Fitness Score calculation through:
-   * POST /api/AllocationPlans/{id}/evaluate
-   *
-   * To evaluate a manual plan, the current Equipment/Human/Land selections
-   * must first be persisted into the Draft Allocation Plan. After evaluation
-   * succeeds, resource editing is locked for this draft so the score shown to
-   * the Researcher always matches the details stored on the backend.
-   */
+
 
   const findPhaseEquipmentRequirementId = (
     phaseId: number,
@@ -1392,6 +1515,189 @@ export default function CreateAllocation() {
           match.phaseHumanReqId
         )
       : null;
+  };
+
+  const hasDateRangeOverlap = (
+    startA: string,
+    endA: string,
+    startB: string,
+    endB: string
+  ): boolean => {
+    const aStart = new Date(startA).getTime();
+    const aEnd = new Date(endA).getTime();
+    const bStart = new Date(startB).getTime();
+    const bEnd = new Date(endB).getTime();
+
+    if (
+      Number.isNaN(aStart) ||
+      Number.isNaN(aEnd) ||
+      Number.isNaN(bStart) ||
+      Number.isNaN(bEnd)
+    ) {
+      return false;
+    }
+
+    return aStart <= bEnd && bStart <= aEnd;
+  };
+
+  const clearStaleHumanDraftConflicts = async (
+    currentPlanId: number,
+    humanResourceId: number,
+    startDate: string,
+    endDate: string
+  ) => {
+    if (!selectedExpId) {
+      return;
+    }
+
+    const currentUser =
+      getCurrentUserTokenInfo();
+
+    const response = await api.get(
+      "/AllocationHumanDetails",
+      {
+        params: {
+          HumanResourceId:
+            humanResourceId,
+          Page: 1,
+          Size: 500,
+        },
+      }
+    );
+
+    const data = response.data;
+
+    const allHumanDetails: any[] =
+      Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.result)
+              ? data.result
+              : Array.isArray(
+                    data?.data?.items
+                  )
+                ? data.data.items
+                : [];
+
+    const conflicts =
+      allHumanDetails.filter(
+        (detail) => {
+          const detailPlanId =
+            Number(
+              detail?.allocationPlanId ||
+                0
+            );
+
+          if (
+            detailPlanId <= 0 ||
+            detailPlanId ===
+              Number(currentPlanId)
+          ) {
+            return false;
+          }
+
+          if (
+            String(
+              detail?.status || ""
+            ).toLowerCase() ===
+            "cancelled"
+          ) {
+            return false;
+          }
+
+          return hasDateRangeOverlap(
+            startDate,
+            endDate,
+            detail?.startDate || "",
+            detail?.endDate || ""
+          );
+        }
+      );
+
+    for (const conflict of conflicts) {
+      const conflictPlanId =
+        Number(
+          conflict?.allocationPlanId ||
+            0
+        );
+
+      let conflictPlan: any = null;
+
+      try {
+        conflictPlan =
+          await getAllocationPlanById(
+            conflictPlanId
+          );
+      } catch {
+        conflictPlan = null;
+      }
+
+      const conflictStatus =
+        String(
+          conflictPlan?.approveStatus ||
+            conflictPlan?.status ||
+            ""
+        ).toLowerCase();
+
+      const conflictExperimentId =
+        Number(
+          conflictPlan?.experimentId ||
+            0
+        );
+
+      const conflictCreatedBy =
+        Number(
+          conflictPlan?.createdBy ||
+            conflictPlan?.createdByUserId ||
+            0
+        );
+
+      const isSameResearcher =
+        !currentUser.userId ||
+        !conflictCreatedBy ||
+        conflictCreatedBy ===
+          Number(currentUser.userId);
+
+      const isStaleDraft =
+        conflictStatus === "draft" &&
+        conflictExperimentId ===
+          Number(selectedExpId) &&
+        isSameResearcher;
+
+      const detailId =
+        Number(
+          conflict
+            ?.allocationHumanDetailId ||
+            conflict?.id ||
+            0
+        );
+
+      if (
+        isStaleDraft &&
+        detailId > 0
+      ) {
+        console.info(
+          `Removing stale human allocation detail #${detailId} from Draft #${conflictPlanId} before reusing human #${humanResourceId}.`
+        );
+
+        await deleteAllocationHumanDetail(
+          detailId
+        );
+
+        continue;
+      }
+
+      throw new Error(
+        `This personnel is already allocated from ${formatDate(
+          conflict?.startDate
+        )} to ${formatDate(
+          conflict?.endDate
+        )} in Allocation Plan #${conflictPlanId}. Please choose another available personnel or change the working dates.`
+      );
+    }
   };
 
   const persistAllocationDetails = async (planId: number) => {
@@ -1463,41 +1769,40 @@ export default function CreateAllocation() {
           continue;
         }
 
-        const equipmentAlreadyExists = existingEquipmentDetails.some(
-          (detail) =>
-            detail.allocationPlanId === planId &&
-            detail.expEquipmentReqId === expEqReqId &&
-            detail.equipmentInstanceId === eqId
-        );
+        const existingEquipmentForPlan =
+          existingEquipmentDetails.find(
+            (detail) =>
+              Number(
+                detail.equipmentInstanceId
+              ) === Number(eqId) &&
+              detail.status !==
+                "Cancelled"
+          );
 
-        if (equipmentAlreadyExists) {
+        if (existingEquipmentForPlan) {
           console.info(
-            `Skipping duplicate equipment allocation detail: plan=${planId}, requirement=${expEqReqId}, equipment=${eqId}.`
+            `Reusing existing equipment allocation detail: plan=${planId}, equipment=${eqId}, existingRequirement=${existingEquipmentForPlan.expEquipmentReqId ?? "unknown"}.`
           );
           continue;
         }
 
-        const phaseEquipmentReqId =
-          findPhaseEquipmentRequirementId(
-            phaseIdNum,
-            match.requirement.equipmentTypeId
-          );
-
         const equipmentPayload = {
-          allocationPlanId: planId,
-          expEquipmentReqId: expEqReqId,
-          phaseEquipmentReqId,
+          allocationPlanId: Number(planId),
+          expEquipmentReqId: Number(expEqReqId),
+          phaseEquipmentReqId: null,
           allocatedEquipmentTypeId:
-            eqObj.equipmentTypeId,
-          equipmentInstanceId: eqId,
+            Number(eqObj.equipmentTypeId),
+          equipmentInstanceId: Number(eqId),
           quantity: 1,
           efficiencyRate:
-            match.effectiveEfficiency,
+            normalizeEfficiency(
+              match.effectiveEfficiency
+            ),
           isSubstitute:
-            match.isSubstitute,
+            Boolean(match.isSubstitute),
           startDate: sDate,
           endDate: eDate,
-          status: "Proposed" as const,
+          status: "Allocated" as const,
         };
 
         try {
@@ -1524,7 +1829,28 @@ export default function CreateAllocation() {
             }
           );
 
-          throw equipmentError;
+          const responseData =
+            equipmentError?.response?.data;
+
+          const backendMessage =
+            responseData?.message ||
+            responseData?.error ||
+            responseData?.title ||
+            (typeof responseData === "string" &&
+            responseData.trim()
+              ? responseData.trim()
+              : null);
+
+          throw new Error(
+            backendMessage ||
+              `Unable to save equipment ${
+                eqObj.assetCode ||
+                `#${eqId}`
+              } for this allocation plan. Backend returned HTTP ${
+                equipmentError?.response?.status ||
+                500
+              }.`
+          );
         }
       }
     }
@@ -1585,100 +1911,293 @@ export default function CreateAllocation() {
           );
         }
 
-        const humanAlreadyExists = existingHumanDetails.some(
-          (detail) =>
-            detail.allocationPlanId === planId &&
-            detail.expHumanReqId === expHReqId &&
-            detail.humanResourceId === hId
-        );
+        const existingHumanForPlan =
+          existingHumanDetails.find(
+            (detail) =>
+              Number(
+                detail.humanResourceId
+              ) === Number(hId) &&
+              Number(
+                detail.expHumanReqId
+              ) === Number(expHReqId) &&
+              detail.status !==
+                "Cancelled"
+          );
 
-        if (humanAlreadyExists) {
+        if (existingHumanForPlan) {
           console.info(
-            `Skipping duplicate human allocation detail: plan=${planId}, requirement=${expHReqId}, human=${hId}.`
+            `Reusing existing human allocation detail: plan=${planId}, requirement=${expHReqId}, human=${hId}.`
           );
           continue;
         }
 
-        // AllocationHumanDetail represents one assignment of this person. The
-        // exact selected work-day/time segments remain FE-only until Submit.
-        const createdHumanDetail = await createAllocationHumanDetail({
-          allocationPlanId: planId,
-          expHumanReqId: expHReqId,
-          phaseHumanReqId:
-            findPhaseHumanRequirementId(
-              phaseIdNum,
-              requirement?.roleId ??
-                hObj.roleId
-            ),
-          humanResourceId: hId,
-          workingHours: requiredWorkingHours,
-          startDate: `${firstWorkingDate}T08:00:00`,
-          endDate: `${lastWorkingDate}T17:00:00`,
-          status: "Proposed",
-        });
+        const humanStartDate =
+          `${firstWorkingDate}T08:00:00`;
+        const humanEndDate =
+          `${lastWorkingDate}T17:00:00`;
 
-        existingHumanDetails.push(createdHumanDetail);
+        await clearStaleHumanDraftConflicts(
+          planId,
+          hId,
+          humanStartDate,
+          humanEndDate
+        );
+
+        const humanPayload = {
+          allocationPlanId:
+            Number(planId),
+          expHumanReqId:
+            Number(expHReqId),
+          phaseHumanReqId: null,
+          humanResourceId:
+            Number(hId),
+          workingHours:
+            Number(requiredWorkingHours),
+          startDate:
+            humanStartDate,
+          endDate:
+            humanEndDate,
+          status: "Allocated" as const,
+        };
+
+        try {
+          const createdHumanDetail =
+            await createAllocationHumanDetail(
+              humanPayload
+            );
+
+          existingHumanDetails.push(
+            createdHumanDetail
+          );
+        } catch (humanError: any) {
+          console.error(
+            "Allocation human detail POST failed.",
+            {
+              payload:
+                humanPayload,
+              response:
+                humanError?.response?.data,
+              status:
+                humanError?.response?.status,
+            }
+          );
+
+          const responseData =
+            humanError?.response?.data;
+
+          const backendMessage =
+            responseData?.message ||
+            responseData?.error ||
+            responseData?.title ||
+            (typeof responseData === "string" &&
+            responseData.trim()
+              ? responseData.trim()
+              : null);
+
+          throw new Error(
+            backendMessage ||
+              `Unable to save personnel ${
+                hObj.fullName ||
+                `#${hId}`
+              } for this allocation plan. Backend returned HTTP ${
+                humanError?.response?.status ||
+                500
+              }.`
+          );
+        }
       }
     }
 
     // One land plot for the experiment
     if (selectedLandId) {
-      const sDate = convertDateToIso(selectedExp?.expectStartDate);
-      const eDate = convertDateToIso(selectedExp?.expectEndDate, true);
-      const selLandObj = landResources.find(
-        (l) => l.landId === selectedLandId
+      const selectedLand = landResources.find(
+        (land) => Number(land.landId) === Number(selectedLandId)
       );
 
-      let expLandReqId: number | undefined = landReqs[0]?.expLandReqId;
+      if (!selectedLand || !selectedLand.landId || selectedLand.landId <= 0) {
+        throw new Error(
+          "The selected land plot is invalid or no longer exists."
+        );
+      }
 
-      if (expLandReqId == null) {
+      const normalizeSoilType = (value?: string | null) =>
+        (value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
+
+      const selectedSoilType =
+        normalizeSoilType(selectedLand.soilType);
+
+      const selectedArea =
+        Number(selectedLand.areaSize) || 0;
+
+      const landRequirement =
+        landReqs.find((requirement) => {
+          const requirementId =
+            Number(requirement.expLandReqId || 0);
+
+          if (requirementId <= 0) {
+            return false;
+          }
+
+          const sameExperiment =
+            requirement.experimentId == null ||
+            Number(requirement.experimentId) ===
+              Number(selectedExpId);
+
+          if (!sameExperiment) {
+            return false;
+          }
+
+          const requiredSoilType =
+            normalizeSoilType(
+              requirement.requiredSoilType
+            );
+
+          const requiredArea =
+            Number(requirement.requiredArea) || 0;
+
+          const soilMatches =
+            !requiredSoilType ||
+            !selectedSoilType ||
+            requiredSoilType ===
+              selectedSoilType;
+
+          const areaMatches =
+            requiredArea <= 0 ||
+            selectedArea <= 0 ||
+            selectedArea >= requiredArea;
+
+          return soilMatches && areaMatches;
+        }) ||
+        activeLandRequirement;
+
+      let expLandReqId = Number(
+        landRequirement?.expLandReqId || 0
+      );
+
+      if (expLandReqId <= 0) {
         const createdReq = await createExperimentLandRequirement({
           experimentId: selectedExpId,
-          requiredArea: selLandObj?.areaSize || 1000,
-          requiredSoilType: selLandObj?.soilType || "Standard Soil",
-          note: "Allocated Land Plot",
+          requiredArea:
+            Number(activeLandRequirement?.requiredArea) ||
+            Number(selectedLand.areaSize) ||
+            1000,
+          requiredSoilType:
+            activeLandRequirement?.requiredSoilType ||
+            selectedLand.soilType ||
+            "Standard Soil",
+          note:
+            activeLandRequirement?.note ||
+            "Allocated Land Plot",
         });
 
-        const createdLandReqId =
-          (createdReq as { expLandReqId?: number; id?: number })
-            ?.expLandReqId ??
-          (createdReq as { expLandReqId?: number; id?: number })?.id;
-
-        if (createdLandReqId == null) {
-          throw new Error("Failed to create land requirement ID.");
-        }
-
-        expLandReqId = createdLandReqId;
+        expLandReqId = Number(
+          (createdReq as {
+            expLandReqId?: number;
+            id?: number;
+          })?.expLandReqId ??
+            (createdReq as {
+              expLandReqId?: number;
+              id?: number;
+            })?.id ??
+            0
+        );
       }
 
-      const resolvedExpLandReqId = expLandReqId;
-
-      if (resolvedExpLandReqId == null) {
-        throw new Error("Land requirement ID is missing.");
+      if (expLandReqId <= 0) {
+        throw new Error(
+          "Land requirement ID is invalid. Reload the experiment requirements and try again."
+        );
       }
 
-      const landAlreadyExists = existingLandDetails.some(
-        (detail) =>
-          detail.allocationPlanId === planId &&
-          detail.landId === selectedLandId &&
-          detail.expLandReqId === resolvedExpLandReqId
+      const sDate = convertDateToIso(
+        selectedExp?.expectStartDate
       );
+      const eDate = convertDateToIso(
+        selectedExp?.expectEndDate,
+        true
+      );
+
+      const startMs = new Date(sDate).getTime();
+      const endMs = new Date(eDate).getTime();
+
+      if (
+        Number.isNaN(startMs) ||
+        Number.isNaN(endMs) ||
+        endMs <= startMs
+      ) {
+        throw new Error(
+          "The experiment date range is invalid for land allocation."
+        );
+      }
+
+      // A plan can only use the same land plot once.
+      // Do NOT include expLandReqId in this duplicate check because older
+      // retries/drafts may already have persisted the same land with a
+      // different requirement id. Posting it again causes the backend to
+      // return HTTP 500 before /evaluate can run.
+      const existingLandForPlan =
+        existingLandDetails.find(
+          (detail) =>
+            Number(detail.landId) ===
+              Number(selectedLandId) &&
+            detail.status !==
+              "Cancelled"
+        );
+
+      const landAlreadyExists =
+        Boolean(existingLandForPlan);
 
       if (landAlreadyExists) {
         console.info(
-          `Skipping duplicate land allocation detail: plan=${planId}, requirement=${resolvedExpLandReqId}, land=${selectedLandId}.`
+          `Reusing existing land allocation detail: plan=${planId}, land=${selectedLandId}, existingRequirement=${existingLandForPlan?.expLandReqId ?? "unknown"}.`
         );
       } else {
-        const createdLandDetail = await createAllocationLandDetail({
-          allocationPlanId: planId,
-          landId: selectedLandId,
-          expLandReqId: resolvedExpLandReqId,
+        const landPayload = {
+          allocationPlanId: Number(planId),
+          landId: Number(selectedLand.landId),
+          expLandReqId: Number(expLandReqId),
           startDate: sDate,
           endDate: eDate,
-          status: "Proposed",
-        });
+          status: "Proposed" as const,
+        };
 
-        existingLandDetails.push(createdLandDetail);
+        try {
+          const createdLandDetail =
+            await createAllocationLandDetail(
+              landPayload
+            );
+
+          existingLandDetails.push(
+            createdLandDetail
+          );
+        } catch (landError: any) {
+          console.error(
+            "Allocation land detail POST failed.",
+            {
+              payload: landPayload,
+              response:
+                landError?.response?.data,
+              status:
+                landError?.response?.status,
+            }
+          );
+
+          const backendMessage =
+            landError?.response?.data?.message ||
+            landError?.response?.data?.error ||
+            landError?.response?.data?.title ||
+            (typeof landError?.response?.data === "string"
+              ? landError.response.data
+              : null);
+
+          throw new Error(
+            backendMessage ||
+              `Unable to save land plot ${selectedLand.landCode || selectedLand.landId}. The selected plot must match the experiment land requirement and be allocatable for the experiment period. Backend returned HTTP ${landError?.response?.status || 500}.`
+          );
+        }
       }
     }
 
@@ -1823,23 +2342,25 @@ export default function CreateAllocation() {
     evaluationWeights.landWeight +
     evaluationWeights.scheduleWeight;
 
-  const applyAIDefaultWeights = () => {
-    setWeightMode("ai");
-    setEvaluationWeights({
-      equipmentWeight: 25,
-      humanWeight: 25,
-      landWeight: 25,
-      scheduleWeight: 25,
-    });
-    setFitnessScore(null);
-    setFitnessBreakdown(null);
-    setFitnessEvaluationMessage("");
-    setAllocationDetailsSaved(false);
-    setError("");
+  const getRemainingWeightFor = (
+    key: keyof EvaluationWeightPlan
+  ): number => {
+    const otherTotal = (
+      Object.entries(evaluationWeights) as Array<
+        [keyof EvaluationWeightPlan, number]
+      >
+    ).reduce(
+      (total, [currentKey, value]) =>
+        currentKey === key
+          ? total
+          : total + value,
+      0
+    );
+
+    return Math.max(0, 100 - otherTotal);
   };
 
-  const enableCustomWeights = () => {
-    setWeightMode("custom");
+  const resetFitnessEvaluationState = () => {
     setFitnessScore(null);
     setFitnessBreakdown(null);
     setFitnessEvaluationMessage("");
@@ -1851,22 +2372,77 @@ export default function CreateAllocation() {
     key: keyof EvaluationWeightPlan,
     rawValue: string
   ) => {
+    if (rawValue === "") {
+      setWeightInputs((current) => ({
+        ...current,
+        [key]: "",
+      }));
+
+      setEvaluationWeights((current) => ({
+        ...current,
+        [key]: 0,
+      }));
+
+      resetFitnessEvaluationState();
+      return;
+    }
+
     const parsed = Number(rawValue);
 
-    const nextValue = Number.isFinite(parsed)
-      ? Math.min(100, Math.max(0, parsed))
-      : 0;
+    if (!Number.isFinite(parsed)) {
+      return;
+    }
 
-    setEvaluationWeights((current) => ({
-      ...current,
-      [key]: nextValue,
-    }));
+    setEvaluationWeights((current) => {
+      const otherTotal = (
+        Object.entries(current) as Array<
+          [keyof EvaluationWeightPlan, number]
+        >
+      ).reduce(
+        (total, [currentKey, value]) =>
+          currentKey === key
+            ? total
+            : total + value,
+        0
+      );
 
-    setFitnessScore(null);
-    setFitnessBreakdown(null);
-    setFitnessEvaluationMessage("");
-    setAllocationDetailsSaved(false);
-    setError("");
+      const maxAllowed = Math.max(
+        0,
+        100 - otherTotal
+      );
+
+      const nextValue = Math.min(
+        maxAllowed,
+        Math.max(0, parsed)
+      );
+
+      setWeightInputs((inputCurrent) => ({
+        ...inputCurrent,
+        [key]: String(nextValue),
+      }));
+
+      return {
+        ...current,
+        [key]: nextValue,
+      };
+    });
+
+    resetFitnessEvaluationState();
+  };
+
+  const handleEvaluationWeightBlur = (
+    key: keyof EvaluationWeightPlan
+  ) => {
+    setWeightInputs((current) => {
+      if (current[key] !== "") {
+        return current;
+      }
+
+      return {
+        ...current,
+        [key]: "0",
+      };
+    });
   };
 
   const handleEvaluateFitnessScore = async () => {
@@ -1943,9 +2519,7 @@ export default function CreateAllocation() {
 
       setFitnessScore(Number(evaluatedScore));
       setFitnessEvaluationMessage(
-        weightMode === "ai"
-          ? "Fitness Score was calculated by the backend using the AI default weight plan: Equipment 25%, Personnel 25%, Land 25%, Schedule 25%."
-          : `Fitness Score was calculated by the backend using your custom weight plan: Equipment ${evaluationWeights.equipmentWeight}%, Personnel ${evaluationWeights.humanWeight}%, Land ${evaluationWeights.landWeight}%, Schedule ${evaluationWeights.scheduleWeight}%.`
+        `Fitness Score was calculated by the backend using: Equipment ${evaluationWeights.equipmentWeight}%, Personnel ${evaluationWeights.humanWeight}%, Land ${evaluationWeights.landWeight}%, Schedule ${evaluationWeights.scheduleWeight}%.`
       );
     } catch (evaluationError: any) {
       console.error(
@@ -2051,6 +2625,177 @@ export default function CreateAllocation() {
   return (
     <DashboardLayout>
       <div className="create-allocation-page">
+        {error && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="allocation-error-title"
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "24px",
+              background: "rgba(15, 23, 42, 0.48)",
+              backdropFilter: "blur(2px)",
+            }}
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) {
+                setError("");
+              }
+            }}
+          >
+            <div
+              style={{
+                width: "min(520px, 100%)",
+                borderRadius: "16px",
+                background: "#ffffff",
+                border: "1px solid #fecaca",
+                boxShadow:
+                  "0 24px 70px rgba(15, 23, 42, 0.24)",
+                overflow: "hidden",
+              }}
+              onMouseDown={(event) =>
+                event.stopPropagation()
+              }
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: "16px",
+                  padding: "20px 22px 16px",
+                  borderBottom: "1px solid #fee2e2",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      flex: "0 0 36px",
+                      borderRadius: "999px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#fef2f2",
+                      color: "#dc2626",
+                      fontSize: "20px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    !
+                  </div>
+
+                  <div>
+                    <h3
+                      id="allocation-error-title"
+                      style={{
+                        margin: 0,
+                        color: "#0f172a",
+                        fontSize: "18px",
+                        lineHeight: 1.3,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Unable to complete request
+                    </h3>
+
+                    <p
+                      style={{
+                        margin: "6px 0 0",
+                        color: "#64748b",
+                        fontSize: "13px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Please review the message below and try
+                      again.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Close error popup"
+                  onClick={() => setError("")}
+                  style={{
+                    border: 0,
+                    background: "transparent",
+                    color: "#64748b",
+                    cursor: "pointer",
+                    fontSize: "24px",
+                    lineHeight: 1,
+                    padding: "0 2px",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div
+                style={{
+                  padding: "18px 22px",
+                }}
+              >
+                <div
+                  style={{
+                    borderRadius: "10px",
+                    border: "1px solid #fecaca",
+                    background: "#fff7f7",
+                    color: "#b91c1c",
+                    padding: "13px 14px",
+                    fontSize: "13.5px",
+                    lineHeight: 1.6,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {error}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  padding: "0 22px 20px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setError("")}
+                  autoFocus
+                  style={{
+                    minWidth: "96px",
+                    height: "38px",
+                    border: 0,
+                    borderRadius: "9px",
+                    background: "#16a34a",
+                    color: "#ffffff",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow:
+                      "0 4px 12px rgba(22, 163, 74, 0.2)",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="create-header">
           <div>
@@ -2065,8 +2810,6 @@ export default function CreateAllocation() {
             <ArrowLeft size={16} /> Back to Allocations
           </button>
         </div>
-
-        {error && <div className="form-error">{error}</div>}
 
         {/* Experiment Context Selector Card */}
         <div className="alloc-exp-picker-card">
@@ -3075,7 +3818,7 @@ export default function CreateAllocation() {
                     fontWeight: 700,
                   }}
                 >
-                  Evaluation Weight Plan
+                  Evaluation Weights
                 </div>
 
                 <div
@@ -3086,10 +3829,7 @@ export default function CreateAllocation() {
                     lineHeight: 1.5,
                   }}
                 >
-                  Use the AI default weight plan (25% for each factor), or switch
-                  to Custom to define how important Equipment, Personnel, Land,
-                  and Schedule are for this Allocation Plan. The total must equal
-                  100%.
+                  Enter the weight for each factor. Each field can be cleared and re-entered directly; the remaining columns are automatically limited so the total cannot exceed 100%.
                 </div>
               </div>
 
@@ -3115,83 +3855,8 @@ export default function CreateAllocation() {
                   fontWeight: 700,
                 }}
               >
-                Total Weight: {evaluationWeightTotal.toFixed(0)}%
+                Total: {evaluationWeightTotal.toFixed(0)}%
               </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginTop: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={applyAIDefaultWeights}
-                disabled={
-                  evaluatingFitness ||
-                  submitting ||
-                  initializingDraftPlan ||
-                  fitnessScore !== null
-                }
-                style={{
-                  height: "36px",
-                  padding: "0 14px",
-                  border:
-                    weightMode === "ai"
-                      ? "1px solid #16a34a"
-                      : "1px solid #cbd5e1",
-                  borderRadius: "8px",
-                  background:
-                    weightMode === "ai"
-                      ? "#f0fdf4"
-                      : "#ffffff",
-                  color:
-                    weightMode === "ai"
-                      ? "#15803d"
-                      : "#475569",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                AI Default · 25% Each
-              </button>
-
-              <button
-                type="button"
-                onClick={enableCustomWeights}
-                disabled={
-                  evaluatingFitness ||
-                  submitting ||
-                  initializingDraftPlan ||
-                  fitnessScore !== null
-                }
-                style={{
-                  height: "36px",
-                  padding: "0 14px",
-                  border:
-                    weightMode === "custom"
-                      ? "1px solid #7c3aed"
-                      : "1px solid #cbd5e1",
-                  borderRadius: "8px",
-                  background:
-                    weightMode === "custom"
-                      ? "#faf5ff"
-                      : "#ffffff",
-                  color:
-                    weightMode === "custom"
-                      ? "#7c3aed"
-                      : "#475569",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Custom Weights
-              </button>
             </div>
 
             <div
@@ -3205,32 +3870,25 @@ export default function CreateAllocation() {
               {[
                 {
                   key: "equipmentWeight" as const,
-                  componentKey: "equipment" as const,
                   label: "Equipment",
                   description: "Equipment requirement & efficiency",
                 },
                 {
                   key: "humanWeight" as const,
-                  componentKey: "human" as const,
                   label: "Personnel",
                   description: "Role, skills & workforce suitability",
                 },
                 {
                   key: "landWeight" as const,
-                  componentKey: "land" as const,
                   label: "Land",
                   description: "Soil type, area & availability",
                 },
                 {
                   key: "scheduleWeight" as const,
-                  componentKey: "schedule" as const,
                   label: "Schedule",
                   description: "Schedule feasibility & conflicts",
                 },
               ].map((item) => {
-                const component =
-                  fitnessBreakdown?.[item.componentKey];
-
                 return (
                   <div
                     key={item.key}
@@ -3262,15 +3920,12 @@ export default function CreateAllocation() {
 
                       <span
                         style={{
-                          color:
-                            weightMode === "custom"
-                              ? "#7c3aed"
-                              : "#16a34a",
+                          color: "#7c3aed",
                           fontSize: "11px",
                           fontWeight: 700,
                         }}
                       >
-                        Weight {evaluationWeights[item.key]}%
+                        {evaluationWeights[item.key]}%
                       </span>
                     </div>
 
@@ -3283,11 +3938,10 @@ export default function CreateAllocation() {
                       <input
                         type="number"
                         min={0}
-                        max={100}
+                        max={getRemainingWeightFor(item.key)}
                         step={1}
-                        value={evaluationWeights[item.key]}
+                        value={weightInputs[item.key]}
                         disabled={
-                          weightMode === "ai" ||
                           evaluatingFitness ||
                           submitting ||
                           initializingDraftPlan ||
@@ -3299,20 +3953,19 @@ export default function CreateAllocation() {
                             event.target.value
                           )
                         }
+                        onBlur={() =>
+                          handleEvaluationWeightBlur(
+                            item.key
+                          )
+                        }
                         style={{
                           width: "100%",
                           height: "38px",
                           boxSizing: "border-box",
                           padding: "0 34px 0 11px",
-                          border:
-                            weightMode === "custom"
-                              ? "1px solid #c4b5fd"
-                              : "1px solid #dbe3ee",
+                          border: "1px solid #c4b5fd",
                           borderRadius: "7px",
-                          background:
-                            weightMode === "custom"
-                              ? "#ffffff"
-                              : "#f8fafc",
+                          background: "#ffffff",
                           color: "#0f172a",
                           fontSize: "13px",
                           fontWeight: 700,
@@ -3334,36 +3987,6 @@ export default function CreateAllocation() {
                       >
                         %
                       </span>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "8px",
-                        color: "#0f172a",
-                        fontSize: "18px",
-                        fontWeight: 750,
-                      }}
-                    >
-                      {component?.score !== null &&
-                      component?.score !== undefined
-                        ? `${component.score.toFixed(1)} / 100`
-                        : "--"}
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "4px",
-                        color: "#64748b",
-                        fontSize: "10.5px",
-                        minHeight: "16px",
-                      }}
-                    >
-                      {component?.contribution !== null &&
-                      component?.contribution !== undefined
-                        ? `Contribution: ${component.contribution.toFixed(
-                            2
-                          )} / ${evaluationWeights[item.key]}`
-                        : "Component score is provided by backend after evaluation."}
                     </div>
 
                     <div
@@ -3393,8 +4016,8 @@ export default function CreateAllocation() {
                   fontWeight: 600,
                 }}
               >
-                The four evaluation weights must total exactly 100% before the
-                Fitness Score can be calculated.
+                The four weights must total exactly 100%. Current total:{" "}
+                {evaluationWeightTotal.toFixed(0)}%.
               </div>
             )}
           </div>

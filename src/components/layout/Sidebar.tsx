@@ -124,19 +124,14 @@ const planningItems: MenuItem[] = [
 
 const humanResourceItems: MenuItem[] = [
   {
-    name: "Human Resources",
-    path: "/human-resource-profiles",
-    icon: UserRound,
+    name: "Personnel & Skills",
+    path: "/admin/personnel",
+    icon: UserRoundCheck,
   },
   {
     name: "Skills",
     path: "/skills",
     icon: BadgeCheck,
-  },
-  {
-    name: "Personnel & Skills",
-    path: "/admin/personnel",
-    icon: UserRoundCheck,
   },
 ];
 

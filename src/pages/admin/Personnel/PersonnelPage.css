@@ -337,8 +337,9 @@
   display: flex;
   overflow: hidden;
   flex-direction: column;
-  width: 100%;
-  max-width: 480px;
+  width: min(760px, calc(100vw - 48px));
+  max-width: 760px;
+  max-height: calc(100vh - 40px);
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #ffffff;
@@ -347,29 +348,31 @@
 }
 
 .personnel-page-container .modal-container.detail-modal {
-  max-width: 560px;
+  max-width: 760px;
 }
 
 .personnel-page-container .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px 0;
+  gap: 22px;
+  padding: 24px 28px 0;
+  overflow-y: auto;
 }
 
 .personnel-page-container .modal-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
+  gap: 12px;
+  padding: 18px 28px;
   border-top: 1px solid #e5e7eb;
   background: #f9fafb;
+  flex-shrink: 0;
 }
 
 .personnel-page-container .modal-form .modal-footer {
-  margin: 4px -24px 0;
-  padding: 16px 24px;
+  margin: 4px -28px 0;
+  padding: 18px 28px;
 }
 
 .personnel-page-container .form-group {
@@ -544,6 +547,14 @@
 .personnel-page-container .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .personnel-page-container .modal-container,
+  .personnel-page-container .modal-container.detail-modal {
+    width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
+  }
 }
 
 @media (max-width: 540px) {

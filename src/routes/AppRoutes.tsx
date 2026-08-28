@@ -82,7 +82,6 @@ import AllocationAnalytics from "../pages/Allocation/AllocationAnalytics";
    HUMAN RESOURCE
 ===================================================== */
 
-import HumanResourceProfileList from "../pages/HumanResourceProfile/HumanResourceProfileList";
 import SkillList from "../pages/Skill/SkillList";
 import HumanResourceSkillList from "../pages/HumanResourceSkill/HumanResourceSkillList";
 
@@ -739,9 +738,9 @@ export default function AppRoutes() {
         path="/human-resource-profiles"
         element={
           <ProtectedRoute
-            allowedRoles={operationalViewRoles}
+            allowedRoles={["Admin", "Manager"]}
           >
-            <HumanResourceProfileList />
+            <PersonnelPage />
           </ProtectedRoute>
         }
       />

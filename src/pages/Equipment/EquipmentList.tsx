@@ -897,7 +897,10 @@ export default function EquipmentList() {
           form.conditionLevel,
 
         status:
-          form.status,
+          dialogMode === "edit" &&
+          selectedInstance
+            ? selectedInstance.status
+            : "Available",
 
         effectiveMaintenanceIntervalHours,
 
@@ -2092,59 +2095,6 @@ export default function EquipmentList() {
                     </div>
 
                     <div className="equipment-form-group">
-                      <label htmlFor="status">
-                        Status
-                        <span>
-                          *
-                        </span>
-                      </label>
-
-                      <select
-                        id="status"
-                        value={
-                          form.status
-                        }
-                        onChange={(event) =>
-                          setForm(
-                            (
-                              current
-                            ) => ({
-                              ...current,
-
-                              status:
-                                event
-                                  .target
-                                  .value as EquipmentInstanceStatus,
-                            })
-                          )
-                        }
-                        disabled={
-                          saving
-                        }
-                        required
-                      >
-                        {EQUIPMENT_STATUSES.map(
-                          (
-                            status
-                          ) => (
-                            <option
-                              key={
-                                status
-                              }
-                              value={
-                                status
-                              }
-                            >
-                              {statusLabel(
-                                status
-                              )}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="equipment-form-group">
                       <label htmlFor="totalUsageHours">
                         Total Usage Hours
                         <span>
@@ -2260,20 +2210,36 @@ export default function EquipmentList() {
                         value={
                           form.lastMaintenanceDate
                         }
-                        onChange={(event) =>
+                        max={
+                          form.nextMaintenanceDate ||
+                          undefined
+                        }
+                        onClick={(event) => {
+                          if (!saving) {
+                            event.currentTarget.showPicker?.();
+                          }
+                        }}
+                        onChange={(event) => {
+                          const value =
+                            event.target.value;
+
                           setForm(
                             (
                               current
                             ) => ({
                               ...current,
-
                               lastMaintenanceDate:
-                                event
-                                  .target
-                                  .value,
+                                value,
+                              nextMaintenanceDate:
+                                current.nextMaintenanceDate &&
+                                value &&
+                                current.nextMaintenanceDate <
+                                  value
+                                  ? ""
+                                  : current.nextMaintenanceDate,
                             })
-                          )
-                        }
+                          );
+                        }}
                         disabled={
                           saving
                         }
@@ -2288,20 +2254,26 @@ export default function EquipmentList() {
                       <input
                         id="nextMaintenanceDate"
                         type="date"
+                        min={
+                          form.lastMaintenanceDate ||
+                          undefined
+                        }
                         value={
                           form.nextMaintenanceDate
                         }
+                        onClick={(event) => {
+                          if (!saving) {
+                            event.currentTarget.showPicker?.();
+                          }
+                        }}
                         onChange={(event) =>
                           setForm(
                             (
                               current
                             ) => ({
                               ...current,
-
                               nextMaintenanceDate:
-                                event
-                                  .target
-                                  .value,
+                                event.target.value,
                             })
                           )
                         }

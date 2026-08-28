@@ -77,8 +77,23 @@ export async function updateHumanResourceProfile(
   return unwrapData(response.data) as HumanResourceProfile;
 }
 
-export async function deleteHumanResourceProfile(id: number): Promise<void> {
-  await apiClient.delete(`/HumanResourceProfiles/${id}`);
+export async function deleteHumanResourceProfile(
+  id: number
+): Promise<void> {
+  const humanResourceId = Number(id);
+
+  if (
+    !Number.isInteger(humanResourceId) ||
+    humanResourceId <= 0
+  ) {
+    throw new Error(
+      "Human Resource Profile ID must be a positive integer."
+    );
+  }
+
+  await apiClient.delete(
+    `/HumanResourceProfiles/${humanResourceId}`
+  );
 }
 
 export async function getSkills(): Promise<Skill[]> {

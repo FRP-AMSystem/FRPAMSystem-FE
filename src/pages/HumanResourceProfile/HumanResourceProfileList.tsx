@@ -87,7 +87,6 @@ type SelectedSkill = {
 interface FormState {
   userId: string;
   maxWorkingHoursPerDay: string;
-  currentWorkload: string;
   status: HumanResourceStatus;
 }
 
@@ -114,7 +113,6 @@ const skillLevels: SkillLevel[] = [
 const emptyForm: FormState = {
   userId: "",
   maxWorkingHoursPerDay: "8",
-  currentWorkload: "0",
   status: "Available",
 };
 
@@ -1150,12 +1148,6 @@ export default function HumanResourceProfileList() {
           8
         ),
 
-      currentWorkload:
-        String(
-          item.currentWorkload ??
-          0
-        ),
-
       status:
         item.status ||
         "Available",
@@ -1360,11 +1352,6 @@ export default function HumanResourceProfileList() {
           form.maxWorkingHoursPerDay
         );
 
-      const currentWorkload =
-        Number(
-          form.currentWorkload
-        );
-
       if (
         !Number.isInteger(
           userId
@@ -1395,19 +1382,6 @@ export default function HumanResourceProfileList() {
       }
 
       if (
-        !Number.isFinite(
-          currentWorkload
-        ) ||
-        currentWorkload < 0
-      ) {
-        setError(
-          "Current workload must be zero or greater."
-        );
-
-        return;
-      }
-
-      if (
         selectedSkills.length ===
         0
       ) {
@@ -1422,7 +1396,9 @@ export default function HumanResourceProfileList() {
         HumanResourceProfileRequest = {
         userId,
         maxWorkingHoursPerDay,
-        currentWorkload,
+        currentWorkload:
+          editing?.currentWorkload ??
+          0,
         status:
           form.status,
       };
@@ -2218,38 +2194,6 @@ export default function HumanResourceProfileList() {
                       />
                     </div>
 
-                    <div className="profile-form-group">
-                      <label htmlFor="humanProfileWorkload">
-                        Current Workload{" "}
-                        <span className="required">
-                          *
-                        </span>
-                      </label>
-
-                      <input
-                        id="humanProfileWorkload"
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        placeholder="e.g. 0"
-                        value={
-                          form.currentWorkload
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          updateForm(
-                            "currentWorkload",
-                            event.target
-                              .value
-                          )
-                        }
-                        disabled={
-                          saving
-                        }
-                        required
-                      />
-                    </div>
                   </div>
                 </section>
 
