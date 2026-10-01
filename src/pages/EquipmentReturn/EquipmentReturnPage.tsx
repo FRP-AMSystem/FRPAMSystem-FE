@@ -6,62 +6,244 @@ import {
 } from "react";
 
 import {
-  ArrowDownRight,
   CheckCircle2,
   Cpu,
-  Layers,
   PackageCheck,
   RotateCcw,
   Search,
-  Sparkles,
   Truck,
   XCircle,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
+
+import ToastPopup, {
+  type ToastType,
+} from "../../components/common/ToastPopup";
+
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 import {
-  getMyAllocationEquipmentDetails,
+  createEquipmentHandover,
   getAllocationEquipmentDetails,
+  getEquipmentHandovers,
+  getMyAllocationEquipmentDetails,
   handoverEquipmentDetail,
-  returnEquipmentDetail,
+  type EquipmentHandoverRecord,
 } from "../../services/allocationDetailService";
+import { getAllocationPlanById } from "../../services/allocationPlanService";
+import { getExperimentById } from "../../services/experimentService";
+import { getExperimentPhases } from "../../services/experimentPhaseService";
+
+import {
+  confirmEquipmentReturn,
+  getEquipmentReturns,
+  rejectEquipmentReturn,
+  submitMyEquipmentReturn,
+} from "../../services/equipmentReturnService";
 
 import { getStoredRole } from "../../config/rolePermissions";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 
 import type { AllocationEquipmentDetail } from "../../types/allocationDetail";
 import type { EquipmentConditionLevel } from "../../types/equipmentInstance";
+import type { EquipmentReturn } from "../../types/equipmentReturn";
 
 import "./EquipmentReturnPage.css";
 
-type TabFilter = "all" | "inuse" | "allocated" | "completed";
+/* =========================================================
+   TYPES
+========================================================= */
 
-function formatDate(val?: string | null): string {
-  if (!val) return "-";
-  const d = new Date(val);
-  return Number.isNaN(d.getTime()) ? val : d.toLocaleDateString("vi-VN");
+type TabFilter =
+  | "all"
+  | "inuse"
+  | "allocated"
+  | "completed";
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function formatDate(
+  value?: string | null
+): string {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("vi-VN");
 }
+
+function normalizeStatus(
+  value?: string | null
+): string {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function getEquipmentDisplayName(
+  item: AllocationEquipmentDetail
+): string {
+  return (
+    item.equipmentInstanceName ||
+    item.allocatedEquipmentTypeName ||
+    item.requestedEquipmentTypeName ||
+    item.assetCode ||
+    `Equipment #${item.allocationEquipmentDetailId}`
+  );
+}
+
+function getPhaseDisplayName(
+  phaseName?: string | null,
+  phaseId?: number | null,
+  experimentPhaseNames: string[] = []
+): string {
+  const trimmed = (phaseName ?? "").trim();
+
+  if (trimmed) {
+    return trimmed;
+  }
+
+  if (experimentPhaseNames.length > 0) {
+    const firstPhase = experimentPhaseNames[0]?.trim();
+    if (firstPhase) {
+      return firstPhase;
+    }
+  }
+
+  if (typeof phaseId === "number" && Number.isFinite(phaseId)) {
+    return `Phase #${phaseId}`;
+  }
+
+  return "Không có phase";
+}
+
+/* =========================================================
+   COMPONENT
+========================================================= */
 
 export default function EquipmentReturnPage() {
   const role = getStoredRole();
-  const isManager = role === "Manager" || role === "Admin";
-  const isFieldStaff = role === "Seasonal" || role === "Technician" || role === "Student";
 
-  const [items, setItems] = useState<AllocationEquipmentDetail[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [tabFilter, setTabFilter] = useState<TabFilter>("all");
+  const isManager =
+    role === "Manager" ||
+    role === "Admin";
 
-  // Action Modals
-  const [returnModalItem, setReturnModalItem] = useState<AllocationEquipmentDetail | null>(null);
-  const [handoverModalItem, setHandoverModalItem] = useState<AllocationEquipmentDetail | null>(null);
-  const [returnCondition, setReturnCondition] = useState<EquipmentConditionLevel>("Good");
-  const [returnNotes, setReturnNotes] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
+  /* =======================================================
+     DATA
+  ======================================================= */
 
-  // Toast
-  const [toast, setToast] = useState<{
+  const [items, setItems] = useState<
+    AllocationEquipmentDetail[]
+  >([]);
+
+  const [
+    returnRecords,
+    setReturnRecords,
+  ] = useState<
+    EquipmentReturn[]
+  >([]);
+
+  const [handoverRecords, setHandoverRecords] = useState<
+    EquipmentHandoverRecord[]
+  >([]);
+
+  const [experimentPhaseNamesMap, setExperimentPhaseNamesMap] = useState<
+    Record<number, string[]>
+  >({});
+
+  const [
+    submittedReturnIds,
+    setSubmittedReturnIds,
+  ] = useState<number[]>([]);
+
+  const [loading, setLoading] =
+    useState<boolean>(true);
+
+  const [
+    actionLoading,
+    setActionLoading,
+  ] = useState<boolean>(false);
+
+  /* =======================================================
+     SEARCH / FILTER
+  ======================================================= */
+
+  const [
+    searchTerm,
+    setSearchTerm,
+  ] = useState<string>("");
+
+  const [
+    tabFilter,
+    setTabFilter,
+  ] =
+    useState<TabFilter>("all");
+
+  /* =======================================================
+     HANDOVER MODAL
+  ======================================================= */
+
+  const [
+    handoverModalItem,
+    setHandoverModalItem,
+  ] =
+    useState<AllocationEquipmentDetail | null>(
+      null
+    );
+
+  /* =======================================================
+     RETURN MODAL
+  ======================================================= */
+
+  const [
+    returnModalItem,
+    setReturnModalItem,
+  ] =
+    useState<AllocationEquipmentDetail | null>(
+      null
+    );
+
+  const [
+    returnCondition,
+    setReturnCondition,
+  ] =
+    useState<EquipmentConditionLevel>(
+      "Good"
+    );
+
+  const [
+    returnNotes,
+    setReturnNotes,
+  ] = useState<string>("");
+
+  const [
+    damageDescription,
+    setDamageDescription,
+  ] = useState<string>("");
+
+  const [
+    rejectReason,
+    setRejectReason,
+  ] = useState<string>("");
+
+  /* =======================================================
+     TOAST
+  ======================================================= */
+
+  const [
+    toast,
+    setToast,
+  ] = useState<{
     visible: boolean;
     type: ToastType;
     title?: string;
@@ -72,156 +254,1457 @@ export default function EquipmentReturnPage() {
     message: "",
   });
 
-  const showToast = (message: string, type: ToastType = "error", title?: string) => {
+  const showToast = (
+    message: string,
+    type: ToastType = "error",
+    title?: string
+  ) => {
     setToast({
       visible: true,
       type,
       title:
         title ||
-        (type === "error"
-          ? "Lỗi xử lý"
-          : type === "success"
+        (type === "success"
           ? "Thành công"
-          : "Thông báo"),
+          : type === "error"
+            ? "Lỗi xử lý"
+            : "Thông báo"),
       message,
     });
   };
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      let list: AllocationEquipmentDetail[] = [];
-      
-      if (isManager) {
-        // Manager loads all allocated equipment across plans to inspect and confirm returns
-        list = await getAllocationEquipmentDetails({ size: 400 });
-      } else {
-        // Field staff loads equipment assigned to their experiments
-        try {
-          list = await getMyAllocationEquipmentDetails({ size: 400 });
-        } catch {
-          list = await getAllocationEquipmentDetails({ size: 400 });
+  /* =======================================================
+     LOAD DATA
+  ======================================================= */
+
+  const loadData =
+    useCallback(async () => {
+      try {
+        setLoading(true);
+
+        /* =================================================
+           MANAGER / ADMIN
+        ================================================= */
+
+        if (isManager) {
+          const [
+            allocationList,
+            returns,
+            handovers,
+          ] = await Promise.all([
+            getAllocationEquipmentDetails({
+              size: 400,
+            }),
+
+            getEquipmentReturns({
+              size: 400,
+            }),
+
+            getEquipmentHandovers({
+              size: 400,
+            }).catch(() => []),
+          ]);
+
+          setItems(
+            allocationList || []
+          );
+
+          setReturnRecords(
+            returns || []
+          );
+          setHandoverRecords(handovers || []);
+
+          return;
         }
 
-        if (!Array.isArray(list) || list.length === 0) {
-          const allList = await getAllocationEquipmentDetails({ size: 400 }).catch(() => []);
-          if (allList.length > 0) {
-            list = allList;
-          }
-        }
+        /* =================================================
+           FIELD USER
+        ================================================= */
+
+        const currentUser = getCurrentUserTokenInfo();
+        const [allocationList, handovers, returns] = await Promise.all([
+          getMyAllocationEquipmentDetails({
+            size: 400,
+          }),
+          getEquipmentHandovers({
+            receivedBy: currentUser.userId,
+            size: 400,
+          }).catch(() => []),
+          getEquipmentReturns({
+            returnedBy: currentUser.userId,
+            size: 400,
+          }),
+        ]);
+
+        const safeList =
+          allocationList || [];
+        const safeReturns = returns || [];
+
+        setItems(safeList);
+        setHandoverRecords(handovers || []);
+        setReturnRecords(safeReturns);
+        setSubmittedReturnIds(
+          safeReturns
+            .filter((record) => normalizeStatus(record.status) === "pending")
+            .map((record) => record.allocationEquipmentDetailId)
+        );
+      } catch (error: any) {
+        showToast(
+          error?.response?.data
+            ?.message ||
+            error?.message ||
+            "Không thể tải danh sách thiết bị.",
+          "error"
+        );
+      } finally {
+        setLoading(false);
       }
-
-      setItems(list || []);
-    } catch (err: any) {
-      showToast(err?.message || "Không thể tải danh sách thiết bị.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [isManager]);
+    }, [
+      isManager,
+    ]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  // Calculations
-  const stats = useMemo(() => {
-    const total = items.length;
-    const inUse = items.filter((i) => i.status === "InUse").length;
-    const allocated = items.filter(
-      (i) => i.status === "Allocated" || i.status === "Reserved" || !i.status
-    ).length;
-    const completed = items.filter((i) => i.status === "Completed").length;
-    return { total, inUse, allocated, completed };
+  useEffect(() => {
+    const experimentIds = [...new Set(
+      items
+        .map((item) => Number(item.experimentId))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    )];
+
+    if (experimentIds.length === 0) {
+      setExperimentPhaseNamesMap({});
+      return;
+    }
+
+    let cancelled = false;
+
+    void Promise.all(
+      experimentIds.map(async (experimentId) => {
+        const phases = await getExperimentPhases({
+          experimentId,
+          size: 200,
+        }).catch(() => []);
+
+        return {
+          experimentId,
+          phaseNames: phases
+            .map((phase) => (phase.phaseName || "").trim())
+            .filter(Boolean),
+        };
+      })
+    ).then((results) => {
+      if (cancelled) return;
+
+      const nextMap: Record<number, string[]> = {};
+      results.forEach(({ experimentId, phaseNames }) => {
+        nextMap[experimentId] = phaseNames;
+      });
+      setExperimentPhaseNamesMap(nextMap);
+    }).catch(() => {
+      if (!cancelled) {
+        setExperimentPhaseNamesMap({});
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [items]);
 
-  // Filtering
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const status = item.status || "Allocated";
-      const matchesTab =
-        tabFilter === "all" ||
-        (tabFilter === "inuse" && status === "InUse") ||
-        (tabFilter === "allocated" && (status === "Allocated" || status === "Reserved")) ||
-        (tabFilter === "completed" && status === "Completed");
+  /* =======================================================
+     FIND LATEST RETURN RECORD
+  ======================================================= */
 
-      if (!matchesTab) return false;
+  const getReturnForAllocation =
+    useCallback(
+      (
+        allocationEquipmentDetailId:
+          number
+      ):
+        | EquipmentReturn
+        | undefined => {
+        const records =
+          returnRecords.filter(
+            (record) =>
+              record.allocationEquipmentDetailId ===
+              allocationEquipmentDetailId
+          );
 
-      if (!searchTerm.trim()) return true;
+        if (
+          records.length === 0
+        ) {
+          return undefined;
+        }
 
-      const q = searchTerm.toLowerCase();
-      const name = (item.allocatedEquipmentTypeName || "").toLowerCase();
-      const instName = (item.equipmentInstanceName || "").toLowerCase();
-      const code = (item.assetCode || "").toLowerCase();
-      const serial = (item.serialNumber || "").toLowerCase();
-      const exp = (item.experimentName || "").toLowerCase();
-      const phase = (item.phaseName || "").toLowerCase();
+        return [...records].sort(
+          (a, b) => {
+            const aDate =
+              a.returnDate
+                ? new Date(
+                    a.returnDate
+                  ).getTime()
+                : 0;
 
-      return (
-        name.includes(q) ||
-        instName.includes(q) ||
-        code.includes(q) ||
-        serial.includes(q) ||
-        exp.includes(q) ||
-        phase.includes(q)
+            const bDate =
+              b.returnDate
+                ? new Date(
+                    b.returnDate
+                  ).getTime()
+                : 0;
+
+            if (
+              aDate !== bDate
+            ) {
+              return (
+                bDate - aDate
+              );
+            }
+
+            return (
+              b.id -
+              a.id
+            );
+          }
+        )[0];
+      },
+      [returnRecords]
+    );
+
+  const getHandoverForAllocation = useCallback(
+    (allocationEquipmentDetailId: number) => {
+      const records = handoverRecords.filter(
+        (record) =>
+          record.allocationEquipmentDetailId === allocationEquipmentDetailId
       );
-    });
-  }, [items, tabFilter, searchTerm]);
 
-  // Handover Execution (Seasonal / Technician)
-  const handleConfirmHandover = async () => {
-    if (!handoverModalItem) return;
-    try {
-      setActionLoading(true);
-      await handoverEquipmentDetail(handoverModalItem.allocationEquipmentDetailId);
-      showToast(
-        `Đã tiếp nhận thiết bị "${handoverModalItem.equipmentInstanceName || handoverModalItem.assetCode || "thiết bị"}" vào sử dụng (InUse)!`,
-        "success",
-        "Tiếp nhận thiết bị thành công"
-      );
-      setHandoverModalItem(null);
-      await loadData();
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Không thể tiếp nhận thiết bị.", "error");
-    } finally {
-      setActionLoading(false);
+      return [...records].sort(
+        (a, b) =>
+          new Date(b.handoverDate).getTime() -
+          new Date(a.handoverDate).getTime()
+      )[0];
+    },
+    [handoverRecords]
+  );
+
+  /* =======================================================
+     STATISTICS
+  ======================================================= */
+
+  const stats = useMemo(() => {
+    const total =
+      items.length;
+
+    /* =====================================================
+       MANAGER
+    ===================================================== */
+
+    if (isManager) {
+      const pendingIds =
+        new Set(
+          returnRecords
+            .filter(
+              (record) =>
+                normalizeStatus(
+                  record.status
+                ) === "pending"
+            )
+            .map(
+              (record) =>
+                record.allocationEquipmentDetailId
+            )
+        );
+
+      const confirmedIds =
+        new Set(
+          returnRecords
+            .filter(
+              (record) =>
+                normalizeStatus(
+                  record.status
+                ) ===
+                "confirmed"
+            )
+            .map(
+              (record) =>
+                record.allocationEquipmentDetailId
+            )
+        );
+
+      const allocated =
+        items.filter(
+          (item) =>
+            item.status ===
+              "Allocated" ||
+            item.status ===
+              "Reserved"
+        ).length;
+
+      return {
+        total,
+        inUse:
+          pendingIds.size,
+        allocated,
+        completed:
+          confirmedIds.size,
+      };
     }
+
+    /* =====================================================
+       FIELD USER
+    ===================================================== */
+
+    const inUse =
+      items.filter(
+        (item) =>
+          item.status ===
+            "InUse" &&
+          !submittedReturnIds.includes(
+            item.allocationEquipmentDetailId
+          )
+      ).length;
+
+    const allocated =
+      items.filter(
+        (item) =>
+          item.status ===
+            "Allocated" ||
+          item.status ===
+            "Reserved"
+      ).length;
+
+    const completed =
+      items.filter(
+        (item) =>
+          item.status ===
+          "Completed"
+      ).length;
+
+    return {
+      total,
+      inUse,
+      allocated,
+      completed,
+    };
+  }, [
+    items,
+    isManager,
+    returnRecords,
+    submittedReturnIds,
+  ]);
+
+  /* =======================================================
+     FILTER
+  ======================================================= */
+
+  const filteredItems =
+    useMemo(() => {
+      return items.filter(
+        (item) => {
+          const returnRecord =
+            getReturnForAllocation(
+              item.allocationEquipmentDetailId
+            );
+
+          const returnStatus =
+            normalizeStatus(
+              returnRecord?.status
+            );
+
+          const submittedLocally =
+            submittedReturnIds.includes(
+              item.allocationEquipmentDetailId
+            );
+
+          let matchesTab =
+            false;
+
+          /* ===============================================
+             ALL
+          =============================================== */
+
+          if (
+            tabFilter === "all"
+          ) {
+            matchesTab = true;
+          }
+
+          /* ===============================================
+             ALLOCATED
+          =============================================== */
+
+          if (
+            tabFilter ===
+            "allocated"
+          ) {
+            matchesTab =
+              item.status ===
+                "Allocated" ||
+              item.status ===
+                "Reserved";
+          }
+
+          /* ===============================================
+             IN USE / PENDING
+          =============================================== */
+
+          if (
+            tabFilter ===
+            "inuse"
+          ) {
+            if (isManager) {
+              matchesTab =
+                returnStatus ===
+                "pending";
+            } else {
+              matchesTab =
+                item.status ===
+                  "InUse" &&
+                !submittedLocally;
+            }
+          }
+
+          /* ===============================================
+             COMPLETED
+          =============================================== */
+
+          if (
+            tabFilter ===
+            "completed"
+          ) {
+            if (isManager) {
+              matchesTab =
+                returnStatus ===
+                "confirmed";
+            } else {
+              matchesTab =
+                item.status ===
+                "Completed";
+            }
+          }
+
+          if (!matchesTab) {
+            return false;
+          }
+
+          /* ===============================================
+             SEARCH
+          =============================================== */
+
+          const keyword =
+            searchTerm
+              .trim()
+              .toLowerCase();
+
+          if (!keyword) {
+            return true;
+          }
+
+          const searchable =
+            [
+              item.allocatedEquipmentTypeName,
+              item.requestedEquipmentTypeName,
+              item.equipmentInstanceName,
+              item.assetCode,
+              item.serialNumber,
+              item.experimentName,
+              item.phaseName,
+              returnRecord?.returnedByUser?.fullName ?? returnRecord?.returnedByUser?.username,
+              returnRecord?.returnedBy,
+              returnRecord?.receivedByUser?.fullName ?? returnRecord?.receivedByUser?.username,
+              returnRecord?.note,
+              returnRecord?.damageDescription,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
+
+          return searchable.includes(
+            keyword
+          );
+        }
+      );
+    }, [
+      items,
+      tabFilter,
+      searchTerm,
+      isManager,
+      submittedReturnIds,
+      getReturnForAllocation,
+    ]);
+
+  /* =======================================================
+     PAGINATION
+  ======================================================= */
+
+  const {
+    currentPage,
+    pageSize,
+    paginatedItems,
+    setCurrentPage,
+    setPageSize,
+  } = usePagination(
+    filteredItems,
+    10
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm,
+    tabFilter,
+    setCurrentPage,
+  ]);
+
+  /* =======================================================
+     HANDOVER MODAL
+  ======================================================= */
+
+  const openHandoverModal = (
+    item: AllocationEquipmentDetail
+  ) => {
+    setHandoverModalItem(
+      item
+    );
   };
 
-  // Return / Confirmation Execution
-  const handleConfirmReturn = async () => {
-    if (!returnModalItem) return;
-    try {
-      setActionLoading(true);
-      await returnEquipmentDetail(returnModalItem.allocationEquipmentDetailId, returnNotes);
-      
-      if (isManager) {
-        showToast(
-          `Đã xác nhận nghiệm thu và nhận thiết bị "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "thiết bị"}" về kho (Available)!`,
-          "success",
-          "Xác nhận trả thiết bị thành công"
+  const closeHandoverModal =
+    () => {
+      if (actionLoading) {
+        return;
+      }
+
+      setHandoverModalItem(
+        null
+      );
+    };
+
+  /* =======================================================
+     CONFIRM HANDOVER
+  ======================================================= */
+
+  const handleConfirmHandover =
+    async () => {
+      if (!handoverModalItem) {
+        return;
+      }
+
+      try {
+        setActionLoading(true);
+
+        await handoverEquipmentDetail(
+          handoverModalItem.allocationEquipmentDetailId,
+          {
+            conditionBefore:
+              "Good",
+            note: null,
+          }
         );
-      } else {
+
         showToast(
-          `Đã bàn giao trả thiết bị "${returnModalItem.equipmentInstanceName || returnModalItem.assetCode || "thiết bị"}" về kho thành công!`,
+          `Đã tiếp nhận thiết bị "${getEquipmentDisplayName(
+            handoverModalItem
+          )}" vào sử dụng.`,
           "success",
-          "Trả thiết bị thành công"
+          "Tiếp nhận thiết bị thành công"
+        );
+
+        /*
+         * Không dùng closeHandoverModal()
+         * vì actionLoading đang true.
+         */
+        setHandoverModalItem(
+          null
+        );
+
+        await loadData();
+      } catch (error: any) {
+        showToast(
+          error?.response?.data
+            ?.message ||
+            error?.message ||
+            "Không thể tiếp nhận thiết bị.",
+          "error"
+        );
+      } finally {
+        setActionLoading(false);
+      }
+    };
+
+  /* =======================================================
+     OPEN RETURN MODAL
+  ======================================================= */
+
+  const openReturnModal = (
+    item: AllocationEquipmentDetail
+  ) => {
+    const returnRecord =
+      getReturnForAllocation(
+        item.allocationEquipmentDetailId
+      );
+
+    setReturnModalItem(
+      item
+    );
+
+    const condition =
+      returnRecord?.conditionAfter;
+
+    if (
+      condition === "Good" ||
+      condition === "Fair" ||
+      condition === "Poor" ||
+      condition === "Critical"
+    ) {
+      setReturnCondition(
+        condition
+      );
+    } else {
+      setReturnCondition(
+        "Good"
+      );
+    }
+
+    setReturnNotes(
+      returnRecord?.note ||
+        ""
+    );
+
+    setDamageDescription(
+      returnRecord?.damageDescription ||
+        ""
+    );
+
+    setRejectReason(
+      returnRecord?.note ||
+        ""
+    );
+  };
+
+  /* =======================================================
+     CLOSE RETURN MODAL
+  ======================================================= */
+
+  const closeReturnModal =
+    () => {
+      if (actionLoading) {
+        return;
+      }
+
+      setReturnModalItem(
+        null
+      );
+
+      setReturnCondition(
+        "Good"
+      );
+
+      setReturnNotes("");
+
+      setDamageDescription(
+        ""
+      );
+
+      setRejectReason("");
+    };
+
+  /* =======================================================
+     CONFIRM / SUBMIT RETURN
+  ======================================================= */
+
+  const handleConfirmReturn =
+    async () => {
+      if (!returnModalItem) {
+        return;
+      }
+
+      try {
+        setActionLoading(true);
+
+        /* =================================================
+           MANAGER CONFIRM RETURN
+        ================================================= */
+
+        if (isManager) {
+          const returnRecord =
+            getReturnForAllocation(
+              returnModalItem.allocationEquipmentDetailId
+            );
+
+          if (
+            !returnRecord?.id
+          ) {
+            throw new Error(
+              "Không tìm thấy yêu cầu trả thiết bị."
+            );
+          }
+
+          if (
+            normalizeStatus(
+              returnRecord.status
+            ) !== "pending"
+          ) {
+            throw new Error(
+              "Yêu cầu trả thiết bị không còn ở trạng thái chờ xác nhận."
+            );
+          }
+
+          await confirmEquipmentReturn(
+            returnRecord.id
+          );
+
+          showToast(
+            `Đã xác nhận nhận lại thiết bị "${getEquipmentDisplayName(
+              returnModalItem
+            )}".`,
+            "success",
+            "Xác nhận trả thiết bị thành công"
+          );
+        } else {
+          /* =================================================
+             FIELD USER SUBMIT RETURN
+          ================================================= */
+
+          if (
+            returnModalItem.status !==
+            "InUse"
+          ) {
+            throw new Error(
+              "Chỉ thiết bị đang sử dụng mới có thể gửi yêu cầu trả."
+            );
+          }
+
+          if (
+            submittedReturnIds.includes(
+              returnModalItem.allocationEquipmentDetailId
+            )
+          ) {
+            throw new Error(
+              "Bạn đã gửi yêu cầu trả thiết bị này."
+            );
+          }
+
+          /*
+           * EquipmentConditionLevel thực tế:
+           *
+           * Good
+           * Fair
+           * Poor
+           * Critical
+           * Swagger: Good / Fair / Poor / Critical
+           */
+
+          const isDamaged =
+            returnCondition ===
+              "Poor" ||
+            returnCondition ===
+              "Critical";
+
+          if (
+            isDamaged &&
+            !damageDescription.trim()
+          ) {
+            throw new Error(
+              "Vui lòng mô tả tình trạng hư hỏng hoặc vấn đề của thiết bị."
+            );
+          }
+
+          const createdReturn =
+            await submitMyEquipmentReturn(
+              returnModalItem.allocationEquipmentDetailId,
+              {
+                conditionAfter:
+                  returnCondition,
+
+                isDamaged,
+
+                damageDescription:
+                  isDamaged
+                    ? damageDescription.trim()
+                    : null,
+
+                note:
+                  returnNotes.trim() ||
+                  null,
+              }
+            );
+
+          /*
+           * Submit return:
+           *
+           * InUse
+           *   ↓
+           * Pending
+           *
+           * KHÔNG chuyển thẳng Completed.
+           */
+
+          if (createdReturn) {
+            setReturnRecords(
+              (previous) => [
+                createdReturn,
+
+                ...previous.filter(
+                  (record) =>
+                    record.id !==
+                    createdReturn.id
+                ),
+              ]
+            );
+          }
+
+          /*
+           * Giữ Pending trong session.
+           */
+          setSubmittedReturnIds(
+            (previous) => {
+              const id =
+                returnModalItem.allocationEquipmentDetailId;
+
+              if (
+                previous.includes(
+                  id
+                )
+              ) {
+                return previous;
+              }
+
+              return [
+                ...previous,
+                id,
+              ];
+            }
+          );
+
+          showToast(
+            `Đã gửi yêu cầu trả thiết bị "${getEquipmentDisplayName(
+              returnModalItem
+            )}". Yêu cầu đang chờ quản lý xác nhận.`,
+            "success",
+            "Gửi yêu cầu trả thành công"
+          );
+        }
+
+        /*
+         * RESET MODAL TRỰC TIẾP.
+         *
+         * Không gọi closeReturnModal()
+         * vì actionLoading đang true.
+         */
+        setReturnModalItem(
+          null
+        );
+
+        setReturnCondition(
+          "Good"
+        );
+
+        setReturnNotes("");
+
+        setDamageDescription(
+          ""
+        );
+
+        setRejectReason("");
+
+        await loadData();
+      } catch (error: any) {
+        showToast(
+          error?.response?.data
+            ?.message ||
+            error?.message ||
+            "Không thể thực hiện thao tác trả thiết bị.",
+          "error"
+        );
+      } finally {
+        setActionLoading(false);
+      }
+    };
+
+  /* =======================================================
+     MANAGER REJECT RETURN
+  ======================================================= */
+
+  const handleRejectReturn =
+    async () => {
+      if (
+        !isManager ||
+        !returnModalItem
+      ) {
+        return;
+      }
+
+      const returnRecord =
+        getReturnForAllocation(
+          returnModalItem.allocationEquipmentDetailId
+        );
+
+      if (
+        !returnRecord?.id
+      ) {
+        showToast(
+          "Không tìm thấy yêu cầu trả thiết bị.",
+          "error"
+        );
+
+        return;
+      }
+
+      if (
+        normalizeStatus(
+          returnRecord.status
+        ) !== "pending"
+      ) {
+        showToast(
+          "Yêu cầu này không còn ở trạng thái chờ xử lý.",
+          "error"
+        );
+
+        return;
+      }
+
+      if (
+        !rejectReason.trim()
+      ) {
+        showToast(
+          "Vui lòng nhập lý do từ chối.",
+          "error"
+        );
+
+        return;
+      }
+
+      try {
+        setActionLoading(true);
+
+        await rejectEquipmentReturn(
+          returnRecord.id,
+          {
+            reason:
+              rejectReason.trim(),
+          }
+        );
+
+        showToast(
+          `Đã từ chối yêu cầu trả thiết bị "${getEquipmentDisplayName(
+            returnModalItem
+          )}".`,
+          "success",
+          "Đã từ chối yêu cầu"
+        );
+
+        /*
+         * Reset modal trực tiếp.
+         */
+        setReturnModalItem(
+          null
+        );
+
+        setReturnCondition(
+          "Good"
+        );
+
+        setReturnNotes("");
+
+        setDamageDescription(
+          ""
+        );
+
+        setRejectReason("");
+
+        await loadData();
+      } catch (error: any) {
+        showToast(
+          error?.response?.data
+            ?.message ||
+            error?.message ||
+            "Không thể từ chối yêu cầu trả thiết bị.",
+          "error"
+        );
+      } finally {
+        setActionLoading(false);
+      }
+    };
+
+  /* =======================================================
+     STATUS BADGE
+  ======================================================= */
+
+  const renderStatus = (
+    item: AllocationEquipmentDetail
+  ) => {
+    const returnRecord =
+      getReturnForAllocation(
+        item.allocationEquipmentDetailId
+      );
+
+    const returnStatus =
+      normalizeStatus(
+        returnRecord?.status
+      );
+    const handoverRecord = getHandoverForAllocation(
+      item.allocationEquipmentDetailId
+    );
+    const handoverStatus = normalizeStatus(handoverRecord?.status);
+
+    const submittedLocally =
+      submittedReturnIds.includes(
+        item.allocationEquipmentDetailId
+      );
+
+    /*
+     * EquipmentReturn status
+     * ưu tiên hơn Allocation status.
+     */
+
+    if (
+      returnStatus ===
+        "pending" ||
+      submittedLocally
+    ) {
+      return (
+        <span className="eq-status-badge eq-status-pending">
+          Chờ xác nhận trả
+        </span>
+      );
+    }
+
+    if (
+      returnStatus ===
+      "confirmed"
+    ) {
+      return (
+        <span className="eq-status-badge eq-status-completed">
+          Đã xác nhận trả
+        </span>
+      );
+    }
+
+    if (
+      returnStatus ===
+      "rejected"
+    ) {
+      return (
+        <span className="eq-status-badge eq-status-rejected">
+          Yêu cầu trả bị từ chối
+        </span>
+      );
+    }
+
+    const normalizedStatus = normalizeStatus(item.status);
+
+    if (
+      normalizedStatus === "allocated" ||
+      normalizedStatus === "reserved"
+    ) {
+      if (handoverStatus === "pending") {
+        return (
+          <span className="eq-status-badge eq-status-pending">
+            {isManager
+              ? "Bước 2: Chờ Researcher tiếp nhận"
+              : "Bước 2: Đã bàn giao - chờ tiếp nhận"}
+          </span>
         );
       }
 
-      setReturnModalItem(null);
-      setReturnNotes("");
+      if (handoverStatus === "rejected") {
+        return (
+          <span className="eq-status-badge eq-status-rejected">
+            Chờ bàn giao lại
+          </span>
+        );
+      }
+
+      return (
+        <span className="eq-status-badge eq-status-allocated">
+          {isManager ? "Bước 1: Chờ bàn giao" : "Bước 1: Chờ Manager bàn giao"}
+        </span>
+      );
+    }
+
+    switch (normalizedStatus) {
+      case "allocated":
+      case "reserved":
+        return (
+          <span className="eq-status-badge eq-status-allocated">
+            Chờ tiếp nhận
+          </span>
+        );
+
+      case "InUse":
+        return (
+          <span className="eq-status-badge eq-status-inuse">
+            Đang sử dụng
+          </span>
+        );
+
+      case "Completed":
+        return (
+          <span className="eq-status-badge eq-status-completed">
+            Đã hoàn trả
+          </span>
+        );
+
+      case "Cancelled":
+        return (
+          <span className="eq-status-badge eq-status-rejected">
+            Đã hủy
+          </span>
+        );
+
+      default:
+        return (
+          <span className="eq-status-badge">
+            {item.status ||
+              "-"}
+          </span>
+        );
+    }
+  };
+
+  /* =======================================================
+     ACTION CELL
+  ======================================================= */
+
+  const handleManagerHandover = async (
+    item: AllocationEquipmentDetail
+  ) => {
+    try {
+      setActionLoading(true);
+
+      const currentUser = getCurrentUserTokenInfo();
+      const currentUserId = Number(currentUser?.userId || 0);
+
+      if (!currentUserId) {
+        showToast(
+          "Không xác định được người dùng hiện tại.",
+          "error",
+          "Bàn giao thiết bị"
+        );
+        return;
+      }
+
+      const candidateResearcherIds: number[] = [];
+
+      if (item.experimentId) {
+        try {
+          const experiment = await getExperimentById(item.experimentId);
+          const resolvedResearcherId = Number(experiment?.researcherId || 0);
+
+          if (resolvedResearcherId > 0) {
+            candidateResearcherIds.push(resolvedResearcherId);
+          }
+        } catch (experimentError) {
+          console.warn("Unable to resolve experiment researcher for handover:", experimentError);
+        }
+      }
+
+      if (item.allocationPlanId) {
+        try {
+          const plan = await getAllocationPlanById(item.allocationPlanId);
+          const planCreatedBy = Number(plan?.createdBy || 0);
+
+          if (planCreatedBy > 0) {
+            candidateResearcherIds.push(planCreatedBy);
+          }
+        } catch (planError) {
+          console.warn("Unable to resolve allocation plan owner for handover:", planError);
+        }
+      }
+
+      const researcherUserId =
+        candidateResearcherIds.find(
+          (id) => id > 0 && id !== currentUserId
+        ) ?? currentUserId;
+
+      await createEquipmentHandover({
+        allocationEquipmentDetailId: item.allocationEquipmentDetailId,
+        equipmentInstanceId: item.equipmentInstanceId ?? null,
+        handedOverBy: currentUserId,
+        receivedBy: researcherUserId,
+        handoverDate: new Date().toISOString(),
+        quantity: Number(item.quantity || 1),
+        conditionBefore: "Good",
+        note: "Manager đã bàn giao thiết bị cho Researcher.",
+        status: "Pending",
+        confirmedAt: null,
+      });
+
+      showToast(
+        `Đã tạo yêu cầu bàn giao cho "${getEquipmentDisplayName(item)}".`,
+        "success",
+        "Bàn giao thiết bị thành công"
+      );
+
       await loadData();
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || "Không thể thực hiện thao tác hoàn trả.", "error");
+    } catch (error: any) {
+      showToast(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Không thể bàn giao thiết bị.",
+        "error",
+        "Bàn giao thiết bị"
+      );
     } finally {
       setActionLoading(false);
     }
   };
+
+  const renderActions = (
+    item: AllocationEquipmentDetail
+  ) => {
+    const returnRecord =
+      getReturnForAllocation(
+        item.allocationEquipmentDetailId
+      );
+
+    const returnStatus =
+      normalizeStatus(
+        returnRecord?.status
+      );
+
+    const handoverRecord =
+      getHandoverForAllocation(
+        item.allocationEquipmentDetailId
+      );
+
+    const handoverStatus =
+      normalizeStatus(
+        handoverRecord?.status
+      );
+
+    const submittedLocally =
+      submittedReturnIds.includes(
+        item.allocationEquipmentDetailId
+      );
+
+    /* =====================================================
+       MANAGER
+    ===================================================== */
+
+    if (isManager) {
+      if (
+        returnStatus ===
+        "pending"
+      ) {
+        return (
+          <button
+            type="button"
+            className="eq-action-btn eq-action-return"
+            onClick={() =>
+              openReturnModal(
+                item
+              )
+            }
+          >
+            <PackageCheck
+              size={15}
+            />
+            Xử lý yêu cầu
+          </button>
+        );
+      }
+
+      if (
+        returnStatus ===
+        "confirmed"
+      ) {
+        return (
+          <span className="eq-action-done">
+            <CheckCircle2
+              size={15}
+            />
+            Đã nghiệm thu
+          </span>
+        );
+      }
+
+      if (
+        returnStatus ===
+        "rejected"
+      ) {
+        return (
+          <button
+            type="button"
+            className="eq-action-btn"
+            onClick={() =>
+              openReturnModal(
+                item
+              )
+            }
+          >
+            Xem chi tiết
+          </button>
+        );
+      }
+
+      if (
+        (item.status === "Allocated" || item.status === "Reserved") &&
+        (!handoverRecord || handoverStatus === "rejected" || handoverStatus === "cancelled")
+      ) {
+        return (
+          <button
+            type="button"
+            className="eq-action-btn eq-action-handover"
+            onClick={() => void handleManagerHandover(item)}
+            disabled={actionLoading}
+          >
+            <Truck size={15} />
+            Bàn giao thiết bị
+          </button>
+        );
+      }
+
+      if (handoverStatus === "pending") {
+        return (
+          <span className="eq-action-pending">
+            <Truck size={15} />
+            Bước 2: chờ Researcher xác nhận
+          </span>
+        );
+      }
+
+      return (
+        <span className="eq-action-muted">
+          -
+        </span>
+      );
+    }
+
+    /* =====================================================
+       FIELD USER
+    ===================================================== */
+
+    if (
+      item.status ===
+        "Allocated" ||
+      item.status ===
+        "Reserved"
+    ) {
+      if (getHandoverForAllocation(item.allocationEquipmentDetailId)?.status === "Pending") {
+        return (
+          <button
+            type="button"
+            className="eq-action-btn eq-action-handover"
+            onClick={() =>
+              openHandoverModal(
+                item
+              )
+            }
+          >
+            <Truck size={15} />
+            Tiếp nhận thiết bị
+          </button>
+        );
+      }
+
+      return (
+        <button
+          type="button"
+          className="eq-action-btn eq-action-handover"
+          onClick={() =>
+            openHandoverModal(
+              item
+            )
+          }
+        >
+          <Truck size={15} />
+          Tiếp nhận thiết bị
+        </button>
+      );
+    }
+
+    if (
+      item.status ===
+        "InUse" &&
+      !submittedLocally &&
+      returnStatus !==
+        "pending"
+    ) {
+      return (
+        <button
+          type="button"
+          className="eq-action-btn eq-action-return"
+          onClick={() =>
+            openReturnModal(
+              item
+            )
+          }
+        >
+          <RotateCcw
+            size={15}
+          />
+          Trả thiết bị
+        </button>
+      );
+    }
+
+    if (
+      submittedLocally ||
+      returnStatus ===
+        "pending"
+    ) {
+      return (
+        <span className="eq-action-pending">
+          <PackageCheck
+            size={15}
+          />
+          Đang chờ xác nhận
+        </span>
+      );
+    }
+
+    if (
+      item.status ===
+      "Completed"
+    ) {
+      return (
+        <span className="eq-action-done">
+          <CheckCircle2
+            size={15}
+          />
+          Đã hoàn trả
+        </span>
+      );
+    }
+
+    return (
+      <span className="eq-action-muted">
+        -
+      </span>
+    );
+  };
+
+  /* =======================================================
+     CURRENT RETURN RECORD
+  ======================================================= */
+
+  const currentReturnRecord =
+    returnModalItem
+      ? getReturnForAllocation(
+          returnModalItem.allocationEquipmentDetailId
+        )
+      : undefined;
+
+  const currentReturnStatus =
+    normalizeStatus(
+      currentReturnRecord?.status
+    );
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <DashboardLayout>
       <div className="equipment-return-page">
-        {/* Header */}
+
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
         <header className="eq-return-header">
           <div>
             <p className="eq-return-breadcrumb">
@@ -229,42 +1712,66 @@ export default function EquipmentReturnPage() {
                 ? "Operations / Equipment Return Confirmation"
                 : "Operations / Equipment Return"}
             </p>
+
             <h1>
               {isManager
                 ? "Equipment Return Confirmation (Xác nhận trả thiết bị)"
                 : "Equipment Handover & Return (Bàn giao & Trả thiết bị)"}
             </h1>
+
             <p className="eq-return-description">
               {isManager
-                ? "Kiểm tra nghiệm thu và xác nhận tiếp nhận hoàn trả máy móc, thiết bị thực địa từ Kỹ thuật viên (Technician) và Thời vụ (Seasonal) về lại kho tài nguyên."
-                : "Danh sách máy móc và trang thiết bị thực địa được phân bổ cho các ca làm việc và đề tài của bạn. Thực hiện tiếp nhận máy và gửi trả thiết bị sau khi hoàn thành nhiệm vụ."}
+                ? "Kiểm tra, nghiệm thu và xác nhận các yêu cầu hoàn trả thiết bị từ nhân sự sử dụng."
+                : "Theo dõi thiết bị được phân bổ, thực hiện tiếp nhận và gửi yêu cầu trả thiết bị sau khi hoàn thành công việc."}
             </p>
           </div>
         </header>
 
-        {/* Stats Grid */}
+        {/* =================================================
+            STATISTICS
+        ================================================= */}
+
         <div className="eq-return-stats-grid">
+
           <div className="eq-return-stat-card">
             <div className="eq-stat-icon-wrapper eq-stat-icon-all">
               <Cpu size={22} />
             </div>
+
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Tổng thiết bị phân bổ" : "Tổng thiết bị được giao"}
+                {isManager
+                  ? "Tổng thiết bị phân bổ"
+                  : "Tổng thiết bị được giao"}
               </span>
-              <span className="eq-stat-value">{stats.total}</span>
+
+              <span className="eq-stat-value">
+                {stats.total}
+              </span>
             </div>
           </div>
 
           <div className="eq-return-stat-card">
             <div className="eq-stat-icon-wrapper eq-stat-icon-inuse">
-              {isManager ? <PackageCheck size={22} /> : <RotateCcw size={22} />}
+              {isManager ? (
+                <PackageCheck
+                  size={22}
+                />
+              ) : (
+                <RotateCcw
+                  size={22}
+                />
+              )}
             </div>
+
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Cần xác nhận trả (In Use)" : "Đang sử dụng (Cần trả)"}
+                {isManager
+                  ? "Yêu cầu trả đang chờ"
+                  : "Đang sử dụng (Cần trả)"}
               </span>
-              <span className="eq-stat-value" style={{ color: isManager ? "#059669" : "#dc2626" }}>
+
+              <span className="eq-stat-value">
                 {stats.inUse}
               </span>
             </div>
@@ -274,11 +1781,15 @@ export default function EquipmentReturnPage() {
             <div className="eq-stat-icon-wrapper eq-stat-icon-allocated">
               <Truck size={22} />
             </div>
+
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Chờ nhân viên nhận máy" : "Chờ tiếp nhận máy"}
+                {isManager
+                  ? "Chờ nhân viên nhận"
+                  : "Chờ tiếp nhận"}
               </span>
-              <span className="eq-stat-value" style={{ color: "#2563eb" }}>
+
+              <span className="eq-stat-value">
                 {stats.allocated}
               </span>
             </div>
@@ -286,402 +1797,1187 @@ export default function EquipmentReturnPage() {
 
           <div className="eq-return-stat-card">
             <div className="eq-stat-icon-wrapper eq-stat-icon-completed">
-              <CheckCircle2 size={22} />
+              <CheckCircle2
+                size={22}
+              />
             </div>
+
             <div className="eq-stat-info">
               <span className="eq-stat-label">
-                {isManager ? "Đã nghiệm thu nhập kho" : "Đã hoàn trả về kho"}
+                {isManager
+                  ? "Đã nghiệm thu"
+                  : "Đã hoàn trả"}
               </span>
-              <span className="eq-stat-value" style={{ color: "#16a34a" }}>
+
+              <span className="eq-stat-value">
                 {stats.completed}
               </span>
             </div>
           </div>
+
         </div>
 
-        {/* Controls & Search */}
-        <div className="eq-return-controls">
-          <div className="eq-return-search-box">
-            <Search className="eq-return-search-icon" size={17} />
-            <input
-              type="text"
-              placeholder="Tìm theo tên máy, mã tài sản, số serial, đề tài, giai đoạn..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="eq-return-search-input"
-            />
+        {/* =================================================
+            CONTENT
+        ================================================= */}
+
+        <section className="eq-return-content-card">
+
+          {/* ===============================================
+              TOOLBAR
+          =============================================== */}
+
+          <div className="eq-return-toolbar">
+
+            <div className="eq-return-search">
+              <Search size={18} />
+
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(event) =>
+                  setSearchTerm(
+                    event.target.value
+                  )
+                }
+                placeholder="Tìm thiết bị, mã tài sản, thí nghiệm..."
+              />
+            </div>
+
+            <button
+              type="button"
+              className="eq-action-btn"
+              onClick={() =>
+                void loadData()
+              }
+              disabled={loading}
+            >
+              <RotateCcw
+                size={15}
+              />
+
+              {loading
+                ? "Đang tải..."
+                : "Làm mới"}
+            </button>
+
           </div>
 
-          <div className="eq-return-filter-tabs">
-            <button
-              type="button"
-              className={`eq-return-tab-btn ${tabFilter === "all" ? "active" : ""}`}
-              onClick={() => setTabFilter("all")}
-            >
-              Tất cả <span className="eq-tab-counter">{stats.total}</span>
-            </button>
-            <button
-              type="button"
-              className={`eq-return-tab-btn ${tabFilter === "inuse" ? "active" : ""}`}
-              onClick={() => setTabFilter("inuse")}
-            >
-              {isManager ? "Cần xác nhận trả" : "Đang sử dụng (Cần trả)"}{" "}
-              <span className="eq-tab-counter">{stats.inUse}</span>
-            </button>
-            <button
-              type="button"
-              className={`eq-return-tab-btn ${tabFilter === "allocated" ? "active" : ""}`}
-              onClick={() => setTabFilter("allocated")}
-            >
-              {isManager ? "Chờ giao máy" : "Chờ nhận máy"}{" "}
-              <span className="eq-tab-counter">{stats.allocated}</span>
-            </button>
-            <button
-              type="button"
-              className={`eq-return-tab-btn ${tabFilter === "completed" ? "active" : ""}`}
-              onClick={() => setTabFilter("completed")}
-            >
-              {isManager ? "Đã nhập kho" : "Đã hoàn trả"}{" "}
-              <span className="eq-tab-counter">{stats.completed}</span>
-            </button>
-          </div>
-        </div>
+          {/* ===============================================
+              TABS
+          =============================================== */}
 
-        {/* Table Card */}
-        <div className="eq-return-table-card">
-          {loading ? (
-            <div className="eq-empty-state">
-              <p>Đang tải danh sách thiết bị...</p>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="eq-empty-state">
-              <Cpu size={40} color="#cbd5e1" style={{ margin: "0 auto 12px" }} />
-              <h3>Không tìm thấy thiết bị nào</h3>
-              <p>Không có trang thiết bị nào phù hợp với bộ lọc hiện tại của bạn.</p>
-            </div>
-          ) : (
+          <div className="eq-return-tabs">
+
+            <button
+              type="button"
+              className={
+                tabFilter === "all"
+                  ? "eq-return-tab active"
+                  : "eq-return-tab"
+              }
+              onClick={() =>
+                setTabFilter(
+                  "all"
+                )
+              }
+            >
+              Tất cả
+
+              <span>
+                {stats.total}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={
+                tabFilter === "inuse"
+                  ? "eq-return-tab active"
+                  : "eq-return-tab"
+              }
+              onClick={() =>
+                setTabFilter(
+                  "inuse"
+                )
+              }
+            >
+              {isManager
+                ? "Chờ xác nhận trả"
+                : "Cần trả"}
+
+              <span>
+                {stats.inUse}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={
+                tabFilter ===
+                "allocated"
+                  ? "eq-return-tab active"
+                  : "eq-return-tab"
+              }
+              onClick={() =>
+                setTabFilter(
+                  "allocated"
+                )
+              }
+            >
+              Chờ tiếp nhận
+
+              <span>
+                {stats.allocated}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={
+                tabFilter ===
+                "completed"
+                  ? "eq-return-tab active"
+                  : "eq-return-tab"
+              }
+              onClick={() =>
+                setTabFilter(
+                  "completed"
+                )
+              }
+            >
+              Đã hoàn trả
+
+              <span>
+                {stats.completed}
+              </span>
+            </button>
+
+          </div>
+
+          {/* ===============================================
+              TABLE
+          =============================================== */}
+
+          <div className="eq-return-table-wrapper">
+
             <table className="eq-return-table">
+
               <thead>
                 <tr>
-                  <th>Tên thiết bị & Mã tài sản</th>
-                  <th>Loại thiết bị</th>
-                  <th>Đề tài & Giai đoạn</th>
-                  <th>Thời hạn phân bổ</th>
-                  <th>Trạng thái</th>
-                  <th style={{ textAlign: "right" }}>
-                    {isManager ? "Thao tác Quản lý" : "Thao tác"}
+                  <th>
+                    Thiết bị
+                  </th>
+
+                  <th>
+                    Mã tài sản
+                  </th>
+
+                  <th>
+                    Thí nghiệm / Phase
+                  </th>
+
+                  <th>
+                    Thời gian sử dụng
+                  </th>
+
+                  {isManager && (
+                    <th>
+                      Người trả
+                    </th>
+                  )}
+
+                  <th>
+                    Trạng thái
+                  </th>
+
+                  <th>
+                    Thao tác
                   </th>
                 </tr>
               </thead>
+
               <tbody>
-                {filteredItems.map((item) => {
-                  const status = item.status || "Allocated";
-                  const isAllocated = status === "Allocated" || status === "Reserved";
-                  const isInUse = status === "InUse";
-                  const isCompleted = status === "Completed";
 
-                  return (
-                    <tr key={item.allocationEquipmentDetailId}>
-                      <td>
-                        <div className="eq-name-title">
-                          {item.equipmentInstanceName || item.assetCode || "Máy thực địa"}
-                        </div>
-                        <div className="eq-asset-code">
-                          Mã tài sản: <strong>{item.assetCode || "Chưa gán mã"}</strong>
-                          {item.serialNumber && ` • S/N: ${item.serialNumber}`}
-                        </div>
-                      </td>
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={
+                        isManager
+                          ? 7
+                          : 6
+                      }
+                      className="eq-table-empty"
+                    >
+                      Đang tải dữ liệu...
+                    </td>
+                  </tr>
+                ) : paginatedItems.length ===
+                  0 ? (
+                  <tr>
+                    <td
+                      colSpan={
+                        isManager
+                          ? 7
+                          : 6
+                      }
+                      className="eq-table-empty"
+                    >
+                      Không có thiết bị phù hợp.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedItems.map(
+                    (item) => {
+                      const returnRecord =
+                        getReturnForAllocation(
+                          item.allocationEquipmentDetailId
+                        );
 
-                      <td>{item.allocatedEquipmentTypeName || "Thiết bị tiêu chuẩn"}</td>
+                      return (
+                        <tr
+                          key={
+                            item.allocationEquipmentDetailId
+                          }
+                        >
 
-                      <td>
-                        <div className="eq-experiment-tag">
-                          {item.experimentName || `Allocation #${item.allocationPlanId}`}
-                        </div>
-                        {item.phaseName && (
-                          <div className="eq-phase-tag">
-                            <Layers size={11} style={{ display: "inline", verticalAlign: "middle", marginRight: 3 }} />
-                            {item.phaseName}
-                          </div>
-                        )}
-                      </td>
+                          {/* DEVICE */}
 
-                      <td>
-                        {formatDate(item.startDate)} → {formatDate(item.endDate)}
-                      </td>
+                          <td>
+                            <div className="eq-device-cell">
 
-                      <td>
-                        {isInUse ? (
-                          <span className="eq-badge eq-badge-inuse">
-                            <Sparkles size={11} /> Đang sử dụng
-                          </span>
-                        ) : isCompleted ? (
-                          <span className="eq-badge eq-badge-completed">
-                            <CheckCircle2 size={11} /> {isManager ? "Đã nhập kho" : "Đã hoàn trả"}
-                          </span>
-                        ) : (
-                          <span className="eq-badge eq-badge-allocated">
-                            <Truck size={11} /> Chờ nhận máy
-                          </span>
-                        )}
-                      </td>
+                              <div className="eq-device-icon">
+                                <Cpu
+                                  size={
+                                    17
+                                  }
+                                />
+                              </div>
 
-                      <td style={{ textAlign: "right" }}>
-                        {/* Allocating State */}
-                        {isAllocated && (
-                          isManager ? (
-                            <span style={{ fontSize: "11.5px", color: "#64748b" }}>
-                              Chờ nhân viên nhận
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="eq-btn-handover"
-                              onClick={() => setHandoverModalItem(item)}
-                              title="Xác nhận tiếp nhận thiết bị vào ca làm việc"
-                            >
-                              <ArrowDownRight size={13} /> Nhận thiết bị
-                            </button>
-                          )
-                        )}
+                              <div>
+                                <strong>
+                                  {getEquipmentDisplayName(
+                                    item
+                                  )}
+                                </strong>
 
-                        {/* In Use State: Differentiated by Role */}
-                        {isInUse && (
-                          isManager ? (
-                            <button
-                              type="button"
-                              className="eq-btn-confirm-return"
-                              onClick={() => {
-                                setReturnModalItem(item);
-                                setReturnCondition("Good");
-                                setReturnNotes("");
-                              }}
-                              title="Manager xác nhận nghiệm thu và tiếp nhận máy về kho"
-                            >
-                              <PackageCheck size={13} /> Xác nhận trả thiết bị
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="eq-btn-return"
-                              onClick={() => {
-                                setReturnModalItem(item);
-                                setReturnCondition("Good");
-                                setReturnNotes("");
-                              }}
-                              title="Nhân viên gửi trả thiết bị về kho sau ca làm việc"
-                            >
-                              <RotateCcw size={13} /> Trả thiết bị
-                            </button>
-                          )
-                        )}
+                                <small>
+                                  {item.allocatedEquipmentTypeName ||
+                                    item.requestedEquipmentTypeName ||
+                                    "-"}
+                                </small>
+                              </div>
 
-                        {/* Completed State */}
-                        {isCompleted && (
-                          <span style={{ fontSize: "11.5px", color: "#94a3b8" }}>
-                            {isManager ? "Đã nhập kho" : "Hoàn tất"}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                            </div>
+                          </td>
+
+                          {/* ASSET CODE */}
+
+                          <td>
+                            <div className="eq-code-cell">
+
+                              <strong>
+                                {item.assetCode ||
+                                  "-"}
+                              </strong>
+
+                              {item.serialNumber && (
+                                <small>
+                                  SN:{" "}
+                                  {
+                                    item.serialNumber
+                                  }
+                                </small>
+                              )}
+
+                            </div>
+                          </td>
+
+                          {/* EXPERIMENT */}
+
+                          <td>
+                            <div className="eq-experiment-cell">
+
+                              <strong>
+                                {item.experimentName ||
+                                  "-"}
+                              </strong>
+
+                              <small>
+                                {getPhaseDisplayName(
+                                  item.phaseName,
+                                  item.phaseId,
+                                  experimentPhaseNamesMap[item.experimentId ?? 0] || []
+                                )}
+                              </small>
+
+                            </div>
+                          </td>
+
+                          {/* DATE */}
+
+                          <td>
+                            <div className="eq-date-cell">
+
+                              <span>
+                                {formatDate(
+                                  item.startDate
+                                )}
+                              </span>
+
+                              <span>
+                                →
+                              </span>
+
+                              <span>
+                                {formatDate(
+                                  item.endDate
+                                )}
+                              </span>
+
+                            </div>
+                          </td>
+
+                          {/* MANAGER RETURNER */}
+
+                          {isManager && (
+                            <td>
+                              <div className="eq-user-cell">
+
+                                <strong>
+                                  {returnRecord?.returnedByUser?.fullName || returnRecord?.returnedByUser?.username  ||
+                                    (returnRecord?.returnedBy
+                                      ? `Người dùng #${returnRecord.returnedBy}`
+                                      : "-")}
+                                </strong>
+
+                                {returnRecord?.returnDate && (
+                                  <small>
+                                    {formatDate(
+                                      returnRecord.returnDate
+                                    )}
+                                  </small>
+                                )}
+
+                              </div>
+                            </td>
+                          )}
+
+                          {/* STATUS */}
+
+                          <td>
+                            {renderStatus(
+                              item
+                            )}
+                          </td>
+
+                          {/* ACTION */}
+
+                          <td>
+                            {renderActions(
+                              item
+                            )}
+                          </td>
+
+                        </tr>
+                      );
+                    }
+                  )
+                )}
+
               </tbody>
-            </table>
-          )}
-        </div>
 
-        {/* Modal: Nhận thiết bị (Field Staff) */}
+            </table>
+
+          </div>
+
+          {/* ===============================================
+              PAGINATION
+          =============================================== */}
+
+          {!loading &&
+            filteredItems.length >
+              0 && (
+              <Pagination
+                currentPage={
+                  currentPage
+                }
+                pageSize={
+                  pageSize
+                }
+                totalItems={
+                  filteredItems.length
+                }
+                onPageChange={
+                  setCurrentPage
+                }
+                onPageSizeChange={
+                  setPageSize
+                }
+              />
+            )}
+
+        </section>
+
+        {/* =================================================
+            HANDOVER MODAL
+        ================================================= */}
+
         {handoverModalItem && (
-          <div className="eq-modal-backdrop" onClick={() => !actionLoading && setHandoverModalItem(null)}>
-            <div className="eq-modal-card" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="eq-modal-overlay"
+            onMouseDown={(
+              event
+            ) => {
+              if (
+                event.target ===
+                event.currentTarget
+              ) {
+                closeHandoverModal();
+              }
+            }}
+          >
+            <div className="eq-modal">
+
               <div className="eq-modal-header">
-                <h3>
-                  <PackageCheck size={18} color="#16a34a" /> Tiếp nhận thiết bị vào ca làm việc
-                </h3>
+
+                <div>
+                  <h2>
+                    Tiếp nhận thiết bị
+                  </h2>
+
+                  <p>
+                    Xác nhận bạn đã nhận
+                    thiết bị và bắt đầu
+                    sử dụng.
+                  </p>
+                </div>
+
                 <button
                   type="button"
-                  className="eq-modal-close-btn"
-                  onClick={() => !actionLoading && setHandoverModalItem(null)}
+                  className="eq-modal-close"
+                  onClick={
+                    closeHandoverModal
+                  }
+                  disabled={
+                    actionLoading
+                  }
                 >
-                  <XCircle size={18} />
+                  ×
                 </button>
+
               </div>
 
               <div className="eq-modal-body">
-                <p style={{ margin: "0 0 10px", color: "#334155" }}>
-                  Bạn đang xác nhận tiếp nhận máy móc để phục vụ nhiệm vụ thực địa:
-                </p>
 
-                <div className="eq-modal-info-box">
-                  <div className="eq-modal-info-row">
-                    <span>Tên thiết bị:</span>
-                    <strong>{handoverModalItem.equipmentInstanceName || "Máy thực địa"}</strong>
+                <div className="eq-modal-device">
+
+                  <div className="eq-device-icon">
+                    <Truck
+                      size={20}
+                    />
                   </div>
-                  <div className="eq-modal-info-row">
-                    <span>Mã tài sản:</span>
-                    <strong>{handoverModalItem.assetCode || "N/A"}</strong>
+
+                  <div>
+                    <strong>
+                      {getEquipmentDisplayName(
+                        handoverModalItem
+                      )}
+                    </strong>
+
+                    <span>
+                      {handoverModalItem.assetCode ||
+                        "Không có mã tài sản"}
+                    </span>
                   </div>
-                  <div className="eq-modal-info-row">
-                    <span>Đề tài / Giai đoạn:</span>
-                    <strong>{handoverModalItem.experimentName || `Plan #${handoverModalItem.allocationPlanId}`}</strong>
-                  </div>
-                  <div className="eq-modal-info-row">
-                    <span>Thời hạn phân bổ:</span>
-                    <strong>{formatDate(handoverModalItem.startDate)} → {formatDate(handoverModalItem.endDate)}</strong>
-                  </div>
+
                 </div>
 
-                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "10px 12px", borderRadius: "8px", fontSize: "12.5px", color: "#166534" }}>
-                  💡 Sau khi nhận máy, trạng thái thiết bị sẽ chuyển sang <strong>In Use (Đang sử dụng)</strong>.
+                <div className="eq-modal-info-grid">
+
+                  <div>
+                    <span>
+                      Experiment
+                    </span>
+
+                    <strong>
+                      {handoverModalItem.experimentName ||
+                        "-"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      Phase
+                    </span>
+
+                    <strong>
+                      {getPhaseDisplayName(
+                        handoverModalItem.phaseName,
+                        handoverModalItem.phaseId,
+                        experimentPhaseNamesMap[handoverModalItem.experimentId ?? 0] || []
+                      )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      Bắt đầu
+                    </span>
+
+                    <strong>
+                      {formatDate(
+                        handoverModalItem.startDate
+                      )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      Kết thúc
+                    </span>
+
+                    <strong>
+                      {formatDate(
+                        handoverModalItem.endDate
+                      )}
+                    </strong>
+                  </div>
+
                 </div>
+
+                <div className="eq-modal-notice">
+                  Sau khi xác nhận tiếp
+                  nhận, trạng thái phân
+                  bổ sẽ chuyển sang{" "}
+                  <strong>
+                    InUse
+                  </strong>
+                  .
+                </div>
+
               </div>
 
               <div className="eq-modal-footer">
+
                 <button
                   type="button"
                   className="eq-modal-btn-cancel"
-                  onClick={() => setHandoverModalItem(null)}
-                  disabled={actionLoading}
+                  onClick={
+                    closeHandoverModal
+                  }
+                  disabled={
+                    actionLoading
+                  }
                 >
                   Hủy
                 </button>
+
                 <button
                   type="button"
                   className="eq-modal-btn-handover"
-                  onClick={() => void handleConfirmHandover()}
-                  disabled={actionLoading}
+                  onClick={() =>
+                    void handleConfirmHandover()
+                  }
+                  disabled={
+                    actionLoading
+                  }
                 >
-                  {actionLoading ? "Đang xử lý..." : "Xác nhận nhận thiết bị"}
+                  <Truck
+                    size={15}
+                  />
+
+                  {actionLoading
+                    ? "Đang xử lý..."
+                    : "Xác nhận tiếp nhận"}
                 </button>
+
               </div>
+
             </div>
           </div>
         )}
 
-        {/* Modal: Trả thiết bị / Xác nhận trả thiết bị */}
+        {/* =================================================
+            RETURN MODAL
+        ================================================= */}
+
         {returnModalItem && (
-          <div className="eq-modal-backdrop" onClick={() => !actionLoading && setReturnModalItem(null)}>
-            <div className="eq-modal-card" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="eq-modal-overlay"
+            onMouseDown={(
+              event
+            ) => {
+              if (
+                event.target ===
+                event.currentTarget
+              ) {
+                closeReturnModal();
+              }
+            }}
+          >
+            <div className="eq-modal eq-return-modal">
+
+              {/* ===========================================
+                  HEADER
+              =========================================== */}
+
               <div className="eq-modal-header">
-                <h3>
-                  {isManager ? (
-                    <>
-                      <PackageCheck size={18} color="#16a34a" /> Xác nhận Nghiệm thu & Nhận trả thiết bị về kho
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw size={18} color="#dc2626" /> Bàn giao trả thiết bị sau khi sử dụng
-                    </>
-                  )}
-                </h3>
+
+                <div>
+                  <h2>
+                    {isManager
+                      ? "Xác nhận trả thiết bị"
+                      : "Trả thiết bị"}
+                  </h2>
+
+                  <p>
+                    {isManager
+                      ? "Kiểm tra thông tin và tình trạng thiết bị trước khi nghiệm thu."
+                      : "Khai báo tình trạng thiết bị trước khi gửi yêu cầu trả."}
+                  </p>
+                </div>
+
                 <button
                   type="button"
-                  className="eq-modal-close-btn"
-                  onClick={() => !actionLoading && setReturnModalItem(null)}
+                  className="eq-modal-close"
+                  onClick={
+                    closeReturnModal
+                  }
+                  disabled={
+                    actionLoading
+                  }
                 >
-                  <XCircle size={18} />
+                  ×
                 </button>
+
               </div>
+
+              {/* ===========================================
+                  BODY
+              =========================================== */}
 
               <div className="eq-modal-body">
-                <p style={{ margin: "0 0 10px", color: "#334155" }}>
-                  {isManager
-                    ? "Quản lý / Thủ kho thực hiện kiểm tra nghiệm thu tình trạng máy khi thu hồi về kho:"
-                    : "Bàn giao hoàn trả thiết bị từ thực địa về lại cho Quản lý / Kho thiết bị:"}
-                </p>
 
-                <div className="eq-modal-info-box">
-                  <div className="eq-modal-info-row">
-                    <span>Tên thiết bị:</span>
-                    <strong>{returnModalItem.equipmentInstanceName || "Máy thực địa"}</strong>
+                {/* DEVICE */}
+
+                <div className="eq-modal-device">
+
+                  <div className="eq-device-icon">
+                    <RotateCcw
+                      size={20}
+                    />
                   </div>
-                  <div className="eq-modal-info-row">
-                    <span>Mã tài sản:</span>
-                    <strong>{returnModalItem.assetCode || "N/A"}</strong>
+
+                  <div>
+                    <strong>
+                      {getEquipmentDisplayName(
+                        returnModalItem
+                      )}
+                    </strong>
+
+                    <span>
+                      {returnModalItem.assetCode ||
+                        "Không có mã tài sản"}
+                    </span>
                   </div>
-                  <div className="eq-modal-info-row">
-                    <span>Trạng thái hiện tại:</span>
-                    <strong style={{ color: "#059669" }}>In Use (Đang sử dụng)</strong>
+
+                </div>
+
+                {/* INFO */}
+
+                <div className="eq-modal-info-grid">
+
+                  <div>
+                    <span>
+                      Experiment
+                    </span>
+
+                    <strong>
+                      {returnModalItem.experimentName ||
+                        "-"}
+                    </strong>
                   </div>
+
+                  <div>
+                    <span>
+                      Phase
+                    </span>
+
+                    <strong>
+                      {getPhaseDisplayName(
+                        returnModalItem.phaseName,
+                        returnModalItem.phaseId,
+                        experimentPhaseNamesMap[returnModalItem.experimentId ?? 0] || []
+                      )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      Serial Number
+                    </span>
+
+                    <strong>
+                      {returnModalItem.serialNumber ||
+                        "-"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      Số lượng
+                    </span>
+
+                    <strong>
+                      {returnModalItem.quantity ||
+                        1}
+                    </strong>
+                  </div>
+
                 </div>
 
-                <div className="eq-modal-field">
-                  <label>Tình trạng thiết bị khi nghiệm thu thu hồi:</label>
-                  <select
-                    value={returnCondition}
-                    onChange={(e) => setReturnCondition(e.target.value as EquipmentConditionLevel)}
-                  >
-                    <option value="Good">Hoạt động tốt (Good)</option>
-                    <option value="Normal">Bình thường (Normal)</option>
-                    <option value="NeedMaintenance">Cần bảo dưỡng định kỳ (Need Maintenance)</option>
-                    <option value="Broken">Hỏng hóc / Cần sửa chữa (Broken)</option>
-                  </select>
-                </div>
+                {/* =========================================
+                    MANAGER
+                ========================================= */}
 
-                <div className="eq-modal-field">
-                  <label>Ghi chú kiểm tra & Biên bản bàn giao trả:</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Ghi nhận tình trạng pin, phụ kiện, vệ sinh máy, sự cố phát sinh..."
-                    value={returnNotes}
-                    onChange={(e) => setReturnNotes(e.target.value)}
-                  />
-                </div>
+                {isManager ? (
+                  <>
 
-                <div style={{ background: isManager ? "#f0fdf4" : "#fef2f2", border: `1px solid ${isManager ? "#bbf7d0" : "#fecaca"}`, padding: "10px 12px", borderRadius: "8px", fontSize: "12.5px", color: isManager ? "#166534" : "#991b1b" }}>
-                  {isManager ? (
-                    <>
-                      💡 Thiết bị sau khi xác nhận sẽ được thu hồi về kho và chuyển sang trạng thái <strong>Available (Sẵn sàng)</strong> để phân bổ cho các đề tài khác.
-                    </>
-                  ) : (
-                    <>
-                      ⚠️ Thiết bị sẽ hoàn tất phân bổ (Completed) và trạng thái trong kho sẽ chuyển thành <strong>Available (Sẵn sàng)</strong>.
-                    </>
-                  )}
-                </div>
+                    <div className="eq-form-group">
+                      <label>
+                        Người gửi trả
+                      </label>
+
+                      <input
+                        type="text"
+                        value={
+                          currentReturnRecord?.returnedByUser?.fullName || currentReturnRecord?.returnedByUser?.username  ||
+                          (currentReturnRecord?.returnedBy
+                            ? `Người dùng #${currentReturnRecord.returnedBy}`
+                            : "-")
+                        }
+                        disabled
+                      />
+                    </div>
+
+                    <div className="eq-form-group">
+                      <label>
+                        Ngày gửi trả
+                      </label>
+
+                      <input
+                        type="text"
+                        value={formatDate(
+                          currentReturnRecord?.returnDate
+                        )}
+                        disabled
+                      />
+                    </div>
+
+                    <div className="eq-form-group">
+                      <label>
+                        Tình trạng sau sử
+                        dụng
+                      </label>
+
+                      <input
+                        type="text"
+                        value={
+                          currentReturnRecord?.conditionAfter ||
+                          "-"
+                        }
+                        disabled
+                      />
+                    </div>
+
+                    <div className="eq-form-group">
+                      <label>
+                        Có hư hỏng
+                      </label>
+
+                      <input
+                        type="text"
+                        value={
+                          currentReturnRecord?.isDamaged
+                            ? "Có"
+                            : "Không"
+                        }
+                        disabled
+                      />
+                    </div>
+
+                    {currentReturnRecord?.damageDescription && (
+                      <div className="eq-form-group">
+
+                        <label>
+                          Mô tả hư hỏng
+                        </label>
+
+                        <textarea
+                          value={
+                            currentReturnRecord.damageDescription
+                          }
+                          disabled
+                          rows={3}
+                        />
+
+                      </div>
+                    )}
+
+                    <div className="eq-form-group">
+
+                      <label>
+                        Ghi chú của người
+                        trả
+                      </label>
+
+                      <textarea
+                        value={
+                          currentReturnRecord?.note ||
+                          ""
+                        }
+                        disabled
+                        rows={3}
+                        placeholder="Không có ghi chú"
+                      />
+
+                    </div>
+
+                    {currentReturnStatus ===
+                      "pending" && (
+                      <div className="eq-form-group">
+
+                        <label>
+                          Lý do từ chối
+                          <span>
+                            {" "}
+                            (bắt buộc nếu
+                            từ chối)
+                          </span>
+                        </label>
+
+                        <textarea
+                          value={
+                            rejectReason
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setRejectReason(
+                              event
+                                .target
+                                .value
+                            )
+                          }
+                          rows={3}
+                          placeholder="Nhập lý do nếu thiết bị chưa đủ điều kiện nghiệm thu..."
+                        />
+
+                      </div>
+                    )}
+
+                    {currentReturnStatus ===
+                      "rejected" &&
+                      currentReturnRecord?.note && (
+                        <div className="eq-form-group">
+
+                          <label>
+                            Lý do đã từ
+                            chối
+                          </label>
+
+                          <textarea
+                            value={
+                              currentReturnRecord.note
+                            }
+                            disabled
+                            rows={3}
+                          />
+
+                        </div>
+                      )}
+
+                    {currentReturnStatus ===
+                      "confirmed" && (
+                      <div className="eq-modal-notice">
+
+                        <CheckCircle2
+                          size={16}
+                        />
+
+                        <span>
+                          Yêu cầu này đã
+                          được xác nhận
+                          nghiệm thu
+                          {currentReturnRecord?.confirmedAt
+                            ? ` ngày ${formatDate(
+                                currentReturnRecord.confirmedAt
+                              )}`
+                            : ""}
+                          .
+                        </span>
+
+                      </div>
+                    )}
+
+                  </>
+                ) : (
+                  <>
+
+                    {/* =====================================
+                        FIELD USER
+                    ===================================== */}
+
+                    <div className="eq-form-group">
+
+                      <label>
+                        Tình trạng thiết bị
+                        sau sử dụng
+                      </label>
+
+                      <select
+                        value={
+                          returnCondition
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setReturnCondition(
+                            event.target
+                              .value as EquipmentConditionLevel
+                          )
+                        }
+                      >
+                        <option value="Good">
+                          Good - Tốt
+                        </option>
+
+                        <option value="Fair">
+                          Fair - Khá
+                        </option>
+
+                        <option value="Poor">
+                          Poor - Kém
+                        </option>
+
+                        <option value="Critical">
+                          Critical - Nghiêm
+                          trọng
+                        </option>
+
+                      </select>
+
+                    </div>
+
+                    {(returnCondition ===
+                      "Poor" ||
+                      returnCondition ===
+                        "Critical") && (
+                      <div className="eq-form-group">
+
+                        <label>
+                          Mô tả vấn đề
+                          <span>
+                            {" "}
+                            *
+                          </span>
+                        </label>
+
+                        <textarea
+                          value={
+                            damageDescription
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setDamageDescription(
+                              event
+                                .target
+                                .value
+                            )
+                          }
+                          rows={4}
+                          placeholder="Mô tả hư hỏng, lỗi hoặc vấn đề cần kiểm tra/bảo dưỡng..."
+                        />
+
+                      </div>
+                    )}
+
+                    <div className="eq-form-group">
+
+                      <label>
+                        Ghi chú
+                      </label>
+
+                      <textarea
+                        value={
+                          returnNotes
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setReturnNotes(
+                            event
+                              .target
+                              .value
+                          )
+                        }
+                        rows={4}
+                        placeholder="Nhập ghi chú về quá trình sử dụng hoặc bàn giao..."
+                      />
+
+                    </div>
+
+                    <div className="eq-modal-notice">
+
+                      <span>
+                        Sau khi gửi yêu
+                        cầu, thiết bị sẽ ở
+                        trạng thái{" "}
+                        <strong>
+                          Chờ xác nhận trả
+                        </strong>
+                        . Thiết bị chỉ được
+                        xem là đã hoàn trả
+                        sau khi Manager
+                        nghiệm thu.
+                      </span>
+
+                    </div>
+
+                  </>
+                )}
+
               </div>
 
+              {/* ===========================================
+                  FOOTER
+              =========================================== */}
+
               <div className="eq-modal-footer">
+
                 <button
                   type="button"
                   className="eq-modal-btn-cancel"
-                  onClick={() => setReturnModalItem(null)}
-                  disabled={actionLoading}
+                  onClick={
+                    closeReturnModal
+                  }
+                  disabled={
+                    actionLoading
+                  }
                 >
-                  Hủy
+                  {isManager &&
+                  currentReturnStatus !==
+                    "pending"
+                    ? "Đóng"
+                    : "Hủy"}
                 </button>
-                <button
-                  type="button"
-                  className={isManager ? "eq-modal-btn-handover" : "eq-modal-btn-confirm"}
-                  onClick={() => void handleConfirmReturn()}
-                  disabled={actionLoading}
-                >
-                  {actionLoading ? (
-                    "Đang xử lý..."
-                  ) : isManager ? (
+
+                {/* MANAGER PENDING */}
+
+                {isManager &&
+                  currentReturnStatus ===
+                    "pending" && (
                     <>
-                      <CheckCircle2 size={15} /> Xác nhận trả thiết bị
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw size={15} /> Gửi trả thiết bị
+
+                      <button
+                        type="button"
+                        className="eq-modal-btn-cancel"
+                        onClick={() =>
+                          void handleRejectReturn()
+                        }
+                        disabled={
+                          actionLoading
+                        }
+                      >
+                        <XCircle
+                          size={15}
+                        />
+
+                        {actionLoading
+                          ? "Đang xử lý..."
+                          : "Từ chối"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="eq-modal-btn-handover"
+                        onClick={() =>
+                          void handleConfirmReturn()
+                        }
+                        disabled={
+                          actionLoading
+                        }
+                      >
+                        <CheckCircle2
+                          size={15}
+                        />
+
+                        {actionLoading
+                          ? "Đang xử lý..."
+                          : "Xác nhận trả thiết bị"}
+                      </button>
+
                     </>
                   )}
-                </button>
+
+                {/* FIELD USER */}
+
+                {!isManager && (
+                  <button
+                    type="button"
+                    className="eq-modal-btn-confirm"
+                    onClick={() =>
+                      void handleConfirmReturn()
+                    }
+                    disabled={
+                      actionLoading
+                    }
+                  >
+                    <RotateCcw
+                      size={15}
+                    />
+
+                    {actionLoading
+                      ? "Đang gửi..."
+                      : "Gửi yêu cầu trả"}
+                  </button>
+                )}
+
               </div>
+
             </div>
           </div>
         )}
 
-        {/* Global Toast */}
+        {/* =================================================
+            TOAST
+        ================================================= */}
+
         <ToastPopup
-          visible={toast.visible}
-          type={toast.type}
-          title={toast.title}
-          message={toast.message}
-          onClose={() => setToast((prev) => ({ ...prev, visible: false }))}
+          visible={
+            toast.visible
+          }
+          type={
+            toast.type
+          }
+          title={
+            toast.title
+          }
+          message={
+            toast.message
+          }
+          onClose={() =>
+            setToast(
+              (previous) => ({
+                ...previous,
+                visible: false,
+              })
+            )
+          }
         />
+
       </div>
     </DashboardLayout>
   );

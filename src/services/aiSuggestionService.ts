@@ -12,6 +12,7 @@ import type {
 } from "../types/aiSuggestion";
 
 export interface OptimizationSettings {
+  // These fields mirror the BE OptimizationSettings contract.
   populationSize?: number;
   generationCount?: number;
   mutationRate?: number;
@@ -21,36 +22,41 @@ export interface OptimizationSettings {
   eliteCount?: number;
   tournamentSize?: number;
   topSuggestionCount?: number;
-  maxScheduleShiftDays?: number;
   landWeight?: number;
   humanWeight?: number;
   equipmentWeight?: number;
+  maintenanceWeight?: number;
+  softConstraintPenalty?: number;
+  maximumBonus?: number;
+
+  // Kept as optional compatibility fields for older UI code. They are NOT
+  // sent to the BE because the current BE does not define them.
+  maxScheduleShiftDays?: number;
   scheduleWeight?: number;
   penaltyWeight?: number;
   bonusWeight?: number;
   hardConstraintPenalty?: number;
-  softConstraintPenalty?: number;
 }
 
 export const DEFAULT_OPTIMIZATION_SETTINGS: OptimizationSettings = {
   populationSize: 100,
   generationCount: 80,
   mutationRate: 0.15,
-  initialMutationRate: 0.3,
+  initialMutationRate: 0.30,
   finalMutationRate: 0.05,
-  crossoverRate: 0.8,
+  crossoverRate: 0.80,
   eliteCount: 10,
   tournamentSize: 5,
   topSuggestionCount: 5,
-  maxScheduleShiftDays: 7,
-  landWeight: 25,
-  humanWeight: 25,
-  equipmentWeight: 25,
-  scheduleWeight: 25,
-  penaltyWeight: 1.0,
-  bonusWeight: 1.0,
-  hardConstraintPenalty: 40,
-  softConstraintPenalty: 8,
+
+  // BE expects normalized weights (0..1), not percentage points.
+  landWeight: 0.20,
+  humanWeight: 0.25,
+  equipmentWeight: 0.40,
+  maintenanceWeight: 0.15,
+
+  softConstraintPenalty: 5,
+  maximumBonus: 5,
 };
 
 export interface ApiOptimizationSuggestion {
@@ -61,6 +67,8 @@ export interface ApiOptimizationSuggestion {
   fitnessBreakdown?: FitnessBreakdown;
   constraintReport?: ConstraintReport;
   conflictCount?: number;
+  hardViolationCount?: number;
+  softViolationCount?: number;
   estimatedCompletionTime?: string;
   allocatedLands?: AllocatedLandItem[];
   allocatedHumans?: AllocatedHumanItem[];
@@ -315,9 +323,204 @@ function mapApiSuggestions(
  * Service function to fetch real AI experiment plan suggestions from the backend optimization API.
  * Calls POST /api/AllocationOptimizations/experiments/{experimentId}/suggestions
  */
+const REQUESTED_SUGGESTION_COUNT = 5;
+const OPTIMIZATION_TIMEOUT_MS = 180_000;
+
+function normalizeSignatureValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function normalizeSignatureDate(value?: string | null): string {
+  const normalized = normalizeSignatureValue(value);
+  if (!normalized) return "";
+
+  // Allocation dates are business dates for candidate identity. Ignore
+  // timezone/time-of-day differences that do not change the selected slot.
+  if (normalized.includes("t")) return normalized.slice(0, 10);
+  if (normalized.includes(" ")) return normalized.split(" ")[0];
+  return normalized;
+}
+
+function resourceSignature(parts: Array<unknown>): string {
+  return parts.map(normalizeSignatureValue).join("|");
+}
+
+/**
+ * Build the identity of the allocation that is actually visible to the user.
+ *
+ * IMPORTANT:
+ * Do NOT use BE technical IDs, phase IDs, fitness, penalties, bonuses,
+ * conflicts, efficiency or other solver metadata here.
+ *
+ * If Rank #1 and Rank #2 show the same equipment, personnel, land and
+ * execution dates, they are the SAME allocation candidate and must collapse
+ * into one card even if the BE gave them different internal IDs.
+ */
+function buildSuggestionSignature(item: ApiOptimizationSuggestion): string {
+  const equipment = (Array.isArray(item.allocatedEquipment)
+    ? item.allocatedEquipment
+    : []
+  )
+    .map((e) =>
+      resourceSignature([
+        // assetCode is the concrete equipment visible to the researcher.
+        // equipmentTypeName is the visible fallback when assetCode is absent.
+        normalizeSignatureValue(e.assetCode) ||
+          normalizeSignatureValue(e.equipmentTypeName) ||
+          "equipment",
+        normalizeSignatureDate(e.startDate),
+        normalizeSignatureDate(e.endDate),
+      ]),
+    )
+    .sort();
+
+  const humans = (Array.isArray(item.allocatedHumans)
+    ? item.allocatedHumans
+    : []
+  )
+    .map((h) =>
+      resourceSignature([
+        normalizeSignatureValue(h.fullName) ||
+          normalizeSignatureValue(h.roleName) ||
+          "personnel",
+        normalizeSignatureDate(h.startDate),
+        normalizeSignatureDate(h.endDate),
+      ]),
+    )
+    .sort();
+
+  const lands = (Array.isArray(item.allocatedLands)
+    ? item.allocatedLands
+    : []
+  )
+    .map((l) =>
+      resourceSignature([
+        normalizeSignatureValue(l.landCode) ||
+          [
+            normalizeSignatureValue(l.areaSize),
+            normalizeSignatureValue(l.soilType),
+          ]
+            .filter(Boolean)
+            .join("|") ||
+          "land",
+        normalizeSignatureDate(l.startDate),
+        normalizeSignatureDate(l.endDate),
+      ]),
+    )
+    .sort();
+
+  // Phase names are intentionally NOT part of identity.
+  // The same experiment phase can be represented by different BE phase
+  // metadata while the researcher sees the same date window.
+  const timeline = (Array.isArray(item.timeline) ? item.timeline : [])
+    .map((t) =>
+      resourceSignature([
+        normalizeSignatureDate(t.startDate),
+        normalizeSignatureDate(t.endDate),
+      ]),
+    )
+    .sort();
+
+  return JSON.stringify({
+    equipment,
+    humans,
+    lands,
+    timeline,
+  });
+}
+
+function selectUniqueSuggestions(
+  rawList: ApiOptimizationSuggestion[],
+  limit: number,
+): ApiOptimizationSuggestion[] {
+  const unique: ApiOptimizationSuggestion[] = [];
+  const signatures = new Set<string>();
+
+  for (const item of rawList) {
+    const signature = buildSuggestionSignature(item);
+
+    if (signatures.has(signature)) {
+      console.warn(
+        "AI solver returned a duplicate allocation candidate; FE removed it.",
+        { rank: item.rank, signature },
+      );
+      continue;
+    }
+
+    signatures.add(signature);
+    unique.push(item);
+
+    if (unique.length >= limit) break;
+  }
+
+  return unique;
+}
+
+/**
+ * Keep the ordering semantics exposed by the BE response:
+ * hard violations ASC, fitness DESC, soft violations ASC.
+ */
+function sortAndRerankSuggestions(
+  rawList: ApiOptimizationSuggestion[],
+): ApiOptimizationSuggestion[] {
+  return [...rawList]
+    .sort((a, b) => {
+      const hardDiff =
+        Number(a.hardViolationCount ?? 0) - Number(b.hardViolationCount ?? 0);
+      if (hardDiff !== 0) return hardDiff;
+
+      const fitnessDiff =
+        Number(b.fitnessScore ?? 0) - Number(a.fitnessScore ?? 0);
+      if (fitnessDiff !== 0) return fitnessDiff;
+
+      const softDiff =
+        Number(a.softViolationCount ?? 0) - Number(b.softViolationCount ?? 0);
+      if (softDiff !== 0) return softDiff;
+
+      return Number(a.conflictCount ?? 0) - Number(b.conflictCount ?? 0);
+    })
+    .map((item, index) => ({ ...item, rank: index + 1 }));
+}
+
+function toBackendSettings(settings: OptimizationSettings): OptimizationSettings {
+  return {
+    populationSize: Math.max(
+      20,
+      Math.min(1000, Number(settings.populationSize ?? 100)),
+    ),
+    generationCount: Math.max(
+      1,
+      Math.min(5000, Number(settings.generationCount ?? 80)),
+    ),
+    mutationRate: Number(settings.mutationRate ?? 0.15),
+    initialMutationRate: Number(settings.initialMutationRate ?? 0.30),
+    finalMutationRate: Number(settings.finalMutationRate ?? 0.05),
+    crossoverRate: Number(settings.crossoverRate ?? 0.80),
+    eliteCount: Number(settings.eliteCount ?? 10),
+    tournamentSize: Number(settings.tournamentSize ?? 5),
+    topSuggestionCount: REQUESTED_SUGGESTION_COUNT,
+    landWeight: Number(settings.landWeight ?? 0.20),
+    humanWeight: Number(settings.humanWeight ?? 0.25),
+    equipmentWeight: Number(settings.equipmentWeight ?? 0.40),
+    maintenanceWeight: Number(settings.maintenanceWeight ?? 0.15),
+    softConstraintPenalty: Number(settings.softConstraintPenalty ?? 5),
+    maximumBonus: Number(settings.maximumBonus ?? 5),
+  };
+}
+
+/**
+ * One request only. The BE owns the Genetic Algorithm and returns up to five
+ * candidates. FE only normalizes/de-duplicates the returned list; it never
+ * starts additional GA runs and never clones a candidate.
+ */
 export async function generateAISuggestions(
   input: AISuggestionInput,
-  settings: OptimizationSettings = {}
+  settings: OptimizationSettings = {},
 ): Promise<AISuggestionResponse> {
   const experimentId = input.experiment.experimentId;
 
@@ -325,25 +528,73 @@ export async function generateAISuggestions(
     throw new Error("Experiment ID is required to generate AI suggestions.");
   }
 
-  const mergedSettings: OptimizationSettings = {
+  const backendSettings = toBackendSettings({
     ...DEFAULT_OPTIMIZATION_SETTINGS,
     ...settings,
-  };
+    topSuggestionCount: REQUESTED_SUGGESTION_COUNT,
+  });
 
-  const response = await api.post(
-    `/AllocationOptimizations/experiments/${experimentId}/suggestions`,
-    mergedSettings
-  );
+  try {
+    const response = await api.post(
+      `/AllocationOptimizations/experiments/${experimentId}/suggestions`,
+      backendSettings,
+      { timeout: OPTIMIZATION_TIMEOUT_MS },
+    );
 
-  const rawData = response.data?.data ?? response.data;
-  const rawList: ApiOptimizationSuggestion[] = Array.isArray(rawData)
-    ? rawData
-    : [];
+    const rawData = response.data?.data ?? response.data;
+    const rawList: ApiOptimizationSuggestion[] = Array.isArray(rawData)
+      ? rawData
+      : Array.isArray(rawData?.suggestions)
+        ? rawData.suggestions
+        : [];
 
-  if (rawList.length === 0) {
-    throw new Error("No AI suggestions were returned by the optimization solver.");
+    if (rawList.length === 0) {
+      throw new Error(
+        "The optimization solver completed but returned no allocation candidates.",
+      );
+    }
+
+    // Final FE safety gate: candidates are deduplicated AFTER sorting but
+    // BEFORE they are mapped into cards. This guarantees that two BE records
+    // representing the same visible allocation can never become Rank #1/#2.
+    const uniqueRawSuggestions = selectUniqueSuggestions(
+      sortAndRerankSuggestions(rawList),
+      REQUESTED_SUGGESTION_COUNT,
+    );
+
+    const suggestions = mapApiSuggestions(uniqueRawSuggestions, input).map(
+      (suggestion, index) => ({
+        ...suggestion,
+        id: `ai-plan-${index + 1}`,
+        rank: index + 1,
+        title:
+          index === 0
+            ? "Optimal Allocation Candidate (Rank #1)"
+            : `Alternative Candidate (Rank #${index + 1})`,
+        strategyBadge:
+          index === 0
+            ? "Recommended (Rank 1)"
+            : `Rank #${index + 1} • Fitness ${suggestion.fitnessScore.toFixed(1)}%`,
+      }),
+    );
+
+    return { suggestions };
+  } catch (error: any) {
+    if (error?.code === "ECONNABORTED" || error?.message?.includes("timeout")) {
+      throw new Error(
+        "AI optimization is taking too long. The request was stopped after 3 minutes. Please try again with a smaller population or fewer generations.",
+      );
+    }
+
+    const status = error?.response?.status;
+    if (status) {
+      throw new Error(
+        `AI optimization failed with status code ${status}. Please check the backend logs and try again.`,
+      );
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error("Failed to generate AI allocation suggestions.");
   }
-
-  const suggestions = mapApiSuggestions(rawList, input);
-  return { suggestions };
 }

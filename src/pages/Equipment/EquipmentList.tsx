@@ -50,6 +50,8 @@ import {
 } from "../../context/PopupContext";
 
 import "./EquipmentList.css";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type TabType =
   | "instances"
@@ -1095,6 +1097,13 @@ export default function EquipmentList() {
         )
       : null;
 
+
+  const instancePagination = usePagination(filteredInstances, 10);
+
+  const typePagination = usePagination(filteredTypes, 10);
+
+  const categoryPagination = usePagination(filteredCategories, 10);
+
   return (
     <DashboardLayout>
       <div className="equipment-page">
@@ -1264,7 +1273,7 @@ export default function EquipmentList() {
                       </thead>
 
                       <tbody>
-                        {filteredInstances.map(
+                        {instancePagination.paginatedItems.map(
                           (item) => (
                             <tr
                               key={
@@ -1421,6 +1430,7 @@ export default function EquipmentList() {
                         )}
                       </tbody>
                     </table>
+                        <Pagination currentPage={instancePagination.currentPage} totalItems={filteredInstances.length} pageSize={instancePagination.pageSize} onPageChange={instancePagination.setCurrentPage} onPageSizeChange={instancePagination.setPageSize} />
                   </div>
                 </div>
               )}
@@ -1463,7 +1473,7 @@ export default function EquipmentList() {
                       </thead>
 
                       <tbody>
-                        {filteredTypes.map(
+                        {typePagination.paginatedItems.map(
                           (item) => (
                             <tr
                               key={
@@ -1548,6 +1558,7 @@ export default function EquipmentList() {
                         )}
                       </tbody>
                     </table>
+                        <Pagination currentPage={typePagination.currentPage} totalItems={filteredTypes.length} pageSize={typePagination.pageSize} onPageChange={typePagination.setCurrentPage} onPageSizeChange={typePagination.setPageSize} />
                   </div>
                 </div>
               )}
@@ -1578,7 +1589,7 @@ export default function EquipmentList() {
                       </thead>
 
                       <tbody>
-                        {filteredCategories.map(
+                        {categoryPagination.paginatedItems.map(
                           (item) => (
                             <tr
                               key={
@@ -1646,6 +1657,7 @@ export default function EquipmentList() {
                         )}
                       </tbody>
                     </table>
+                        <Pagination currentPage={categoryPagination.currentPage} totalItems={filteredCategories.length} pageSize={categoryPagination.pageSize} onPageChange={categoryPagination.setCurrentPage} onPageSizeChange={categoryPagination.setPageSize} />
                   </div>
                 </div>
               )}

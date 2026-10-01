@@ -314,7 +314,7 @@ export default function CreateExperiment() {
       }
     }
 
-    if (currentStep === 4) {
+    if (currentStep === 5) {
       for (
         const hr of humanReqs
       ) {
@@ -1030,6 +1030,18 @@ export default function CreateExperiment() {
 
         {currentStep ===
           2 && (
+          <LandReqStep
+            requirements={
+              landReqs
+            }
+            onChange={
+              setLandReqs
+            }
+          />
+        )}
+
+        {currentStep ===
+          3 && (
           <PhasesStep
             phases={phases}
             onChange={
@@ -1045,7 +1057,7 @@ export default function CreateExperiment() {
         )}
 
         {currentStep ===
-          3 && (
+          4 && (
           <EquipmentReqStep
             phases={phases}
             requirements={
@@ -1058,7 +1070,7 @@ export default function CreateExperiment() {
         )}
 
         {currentStep ===
-          4 && (
+          5 && (
           <HumanReqStep
             phases={phases}
             requirements={
@@ -1066,18 +1078,6 @@ export default function CreateExperiment() {
             }
             onChange={
               setHumanReqs
-            }
-          />
-        )}
-
-        {currentStep ===
-          5 && (
-          <LandReqStep
-            requirements={
-              landReqs
-            }
-            onChange={
-              setLandReqs
             }
           />
         )}

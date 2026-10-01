@@ -1,54 +1,55 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { useNotification } from "../../context/NotificationContext";
 import api from "../../services/api";
 
-import { getExperiments } from "../../services/experimentService";
+import { getExperimentById, getExperiments } from "../../services/experimentService";
 import { getEquipmentInstances } from "../../services/equipmentInstanceService";
 import { getEquipmentSubstitutions } from "../../services/equipmentSubstitutionService";
 import { getHumanResourceProfiles } from "../../services/humanResourceProfileService";
 import { getHumanResourceSkills } from "../../services/humanResourceSkillService";
 import { getLandResources } from "../../services/landResourceService";
 import { getExperimentPhases } from "../../services/experimentPhaseService";
+
 import {
   createExperimentEquipmentRequirement,
   getExperimentEquipmentRequirements,
 } from "../../services/experimentEquipmentRequirementService";
+
 import {
   createExperimentHumanRequirement,
   getExperimentHumanRequirements,
 } from "../../services/experimentHumanRequirementService";
+
 import {
   createExperimentLandRequirement,
   getExperimentLandRequirements,
 } from "../../services/experimentLandRequirementService";
+
 import {
   createAllocationPlan,
   evaluateAllocationPlan,
   getAllocationPlanById,
-  updateAllocationPlan,
+  simulateAllocationPlanFitness,
   submitAllocationPlan,
 } from "../../services/allocationPlanService";
+
 import {
   createAllocationEquipmentDetail,
   createAllocationHumanDetail,
   createAllocationLandDetail,
   deleteAllocationHumanDetail,
+  getAllAllocationEquipmentDetails,
+  getAllAllocationLandDetails,
   getAllocationEquipmentDetails,
   getAllocationHumanDetails,
   getAllocationLandDetails,
 } from "../../services/allocationDetailService";
-import {
-  createSchedule,
-  deleteSchedule,
-  getSchedules,
-} from "../../services/scheduleService";
-import { getCurrentUserTokenInfo } from "../../utils/storage";
-import HumanScheduleCalendar from "./components/HumanScheduleCalendar";
 
+import { getCurrentUserTokenInfo } from "../../utils/storage";
 import type { ExperimentResponse } from "../../types/experiment";
 import type { EquipmentInstance } from "../../types/equipmentInstance";
 import type { EquipmentSubstitution } from "../../types/equipmentSubstitution";
@@ -59,14 +60,31 @@ import type { ExperimentPhase } from "../../types/experimentPhase";
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
 import type { ExperimentHumanRequirement } from "../../types/experimentHumanRequirement";
 import type { ExperimentLandRequirement } from "../../types/experimentLandRequirement";
-import type { Schedule } from "../../types/schedule";
+import type {
+  AllocationEquipmentDetail,
+  AllocationEquipmentDetailRequest,
+} from "../../types/allocationDetail";
+import type { AllocationLandDetail } from "../../types/allocationLand";
+
+import type {
+  AllocationHumanDetailRequest,
+} from "../../types/allocationHumanDetail";
+
+import type {
+  AllocationLandDetailRequest,
+} from "../../types/allocationLand";
 
 import "./CreateAllocation.css";
 
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return "-";
+
   const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return dateStr;
+
+  if (Number.isNaN(d.getTime())) {
+    return dateStr;
+  }
+
   return new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -74,178 +92,24 @@ function formatDate(dateStr?: string | null): string {
   }).format(d);
 }
 
-function convertDateToIso(d?: string | null, endOfDay = false): string {
-  if (!d) return new Date().toISOString();
-  if (d.includes("T")) return d;
+function convertDateToIso(
+  d?: string | null,
+  endOfDay = false
+): string {
+  if (!d) {
+    return new Date().toISOString();
+  }
+
+  if (d.includes("T")) {
+    return d;
+  }
+
   const clean = d.slice(0, 10);
-  return endOfDay ? `${clean}T23:59:59` : `${clean}T00:00:00`;
+
+  return endOfDay
+    ? `${clean}T23:59:59`
+    : `${clean}T00:00:00`;
 }
-
-
-const WORK_START_HOUR = 8;
-const WORK_END_HOUR = 17;
-
-type WorkTimeRange = {
-  start: number;
-  end: number;
-};
-
-function clampHour(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function toHourValue(date: Date): number {
-  return date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
-}
-
-function mergeWorkRanges(ranges: WorkTimeRange[]): WorkTimeRange[] {
-  if (ranges.length === 0) return [];
-
-  const sorted = [...ranges].sort((a, b) => a.start - b.start);
-  const merged: WorkTimeRange[] = [{ ...sorted[0] }];
-
-  for (let index = 1; index < sorted.length; index += 1) {
-    const current = sorted[index];
-    const previous = merged[merged.length - 1];
-
-    if (current.start <= previous.end) {
-      previous.end = Math.max(previous.end, current.end);
-    } else {
-      merged.push({ ...current });
-    }
-  }
-
-  return merged;
-}
-
-function getBusyRangesForDate(
-  schedules: Schedule[],
-  dateKey: string,
-  ignoredPlanId?: number,
-  ignoredPhaseId?: number,
-  ignoredHumanId?: number
-): WorkTimeRange[] {
-  const dayStart = new Date(`${dateKey}T00:00:00`);
-  const dayEnd = new Date(`${dateKey}T23:59:59`);
-  const ranges: WorkTimeRange[] = [];
-
-  for (const schedule of schedules) {
-    if (schedule.status === "Cancelled") continue;
-
-    // When retrying Submit, schedules created by this same draft/phase/person
-    // are replaced below and must not make the person look busy to themselves.
-    if (
-      ignoredPlanId &&
-      ignoredPhaseId &&
-      ignoredHumanId &&
-      schedule.allocationPlanId === ignoredPlanId &&
-      schedule.phaseId === ignoredPhaseId &&
-      schedule.assignedHumanResourceId === ignoredHumanId
-    ) {
-      continue;
-    }
-
-    const start = new Date(schedule.startDate);
-    const end = new Date(schedule.endDate);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
-    if (end <= dayStart || start >= dayEnd) continue;
-
-    const clippedStart = start < dayStart ? dayStart : start;
-    const clippedEnd = end > dayEnd ? dayEnd : end;
-
-    const startHour = clampHour(
-      toHourValue(clippedStart),
-      WORK_START_HOUR,
-      WORK_END_HOUR
-    );
-    const endHour = clampHour(
-      toHourValue(clippedEnd),
-      WORK_START_HOUR,
-      WORK_END_HOUR
-    );
-
-    if (endHour > startHour) {
-      ranges.push({ start: startHour, end: endHour });
-    }
-  }
-
-  return mergeWorkRanges(ranges);
-}
-
-function getFreeWorkRanges(busyRanges: WorkTimeRange[]): WorkTimeRange[] {
-  const free: WorkTimeRange[] = [];
-  let cursor = WORK_START_HOUR;
-
-  for (const range of busyRanges) {
-    if (range.start > cursor) {
-      free.push({ start: cursor, end: range.start });
-    }
-    cursor = Math.max(cursor, range.end);
-  }
-
-  if (cursor < WORK_END_HOUR) {
-    free.push({ start: cursor, end: WORK_END_HOUR });
-  }
-
-  return free.filter((range) => range.end > range.start);
-}
-
-function buildWorkSegments(
-  freeRanges: WorkTimeRange[],
-  requiredHours: number
-): WorkTimeRange[] {
-  const result: WorkTimeRange[] = [];
-  let remaining = requiredHours;
-
-  for (const range of freeRanges) {
-    if (remaining <= 0.0001) break;
-
-    const available = range.end - range.start;
-    const used = Math.min(available, remaining);
-
-    if (used > 0) {
-      result.push({ start: range.start, end: range.start + used });
-      remaining -= used;
-    }
-  }
-
-  return remaining <= 0.0001 ? result : [];
-}
-
-function hourToDateTime(dateKey: string, hourValue: number): string {
-  let hour = Math.floor(hourValue);
-  let minute = Math.round((hourValue - hour) * 60);
-
-  if (minute === 60) {
-    hour += 1;
-    minute = 0;
-  }
-
-  return `${dateKey}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
-}
-
-
-const AI_DEFAULT_EVALUATION_SETTINGS = {
-  populationSize: 100,
-  generationCount: 120,
-  mutationRate: 0.08,
-  initialMutationRate: 0.25,
-  finalMutationRate: 0.03,
-  crossoverRate: 0.8,
-  eliteCount: 5,
-  tournamentSize: 4,
-  topSuggestionCount: 5,
-  maxScheduleShiftDays: 2,
-  equipmentWeight: 25,
-  humanWeight: 25,
-  landWeight: 25,
-  scheduleWeight: 25,
-  penaltyWeight: 1,
-  bonusWeight: 1,
-  hardConstraintPenalty: 25,
-  softConstraintPenalty: 5,
-} as const;
 
 type EvaluationWeightPlan = {
   equipmentWeight: number;
@@ -277,7 +141,8 @@ type FitnessComponentKey =
   | "equipment"
   | "human"
   | "land"
-  | "schedule";
+  | "schedule"
+  | "maintenance";
 
 type FitnessComponentResult = {
   score: number | null;
@@ -288,7 +153,10 @@ type FitnessComponentResult = {
 type FitnessBreakdown = Record<
   FitnessComponentKey,
   FitnessComponentResult
->;
+> & {
+  penaltyScore: number | null;
+  bonusScore: number | null;
+};
 
 function readNumber(
   source: Record<string, unknown>,
@@ -318,6 +186,167 @@ function readNumber(
 
   return null;
 }
+
+  const validateEquipmentInstanceAvailability = async (
+    equipmentInstanceId: number,
+    startDate: string,
+    endDate: string,
+    assetCode?: string
+  ) => {
+    let existingDetails;
+
+    try {
+      existingDetails = await getAllocationEquipmentDetails({
+        equipmentInstanceId,
+        size: 300,
+      });
+    } catch (availabilityError) {
+      console.warn(
+        "Unable to pre-check equipment allocation conflicts; the API will validate availability:",
+        availabilityError
+      );
+      return;
+    }
+
+    const requestedStart = new Date(startDate).getTime();
+    const requestedEnd = new Date(endDate).getTime();
+    if (!Number.isFinite(requestedStart) || !Number.isFinite(requestedEnd)) {
+      return;
+    }
+
+    const overlappingDetails = existingDetails.filter((detail) => {
+      const status = String(detail.status || "").toLowerCase();
+      const detailStart = new Date(detail.startDate).getTime();
+      const detailEnd = new Date(detail.endDate).getTime();
+
+      return (
+        Number(detail.equipmentInstanceId) === equipmentInstanceId &&
+        status !== "cancelled" &&
+        status !== "completed" &&
+        Number.isFinite(detailStart) &&
+        Number.isFinite(detailEnd) &&
+        detailStart < requestedEnd &&
+        requestedStart < detailEnd
+      );
+    });
+
+    if (overlappingDetails.length === 0) return;
+
+    const planStatuses = await Promise.all(
+      [...new Set(overlappingDetails.map((detail) => detail.allocationPlanId))].map(
+        async (conflictPlanId) => {
+          try {
+            const response = await api.get(
+              `/AllocationPlans/${conflictPlanId}`
+            );
+            const conflictPlan =
+              response.data?.data ||
+              response.data?.result ||
+              response.data;
+
+            return [
+              conflictPlanId,
+              String(conflictPlan?.approveStatus || "").toLowerCase(),
+            ] as const;
+          } catch {
+            return [conflictPlanId, "unknown"] as const;
+          }
+        }
+      )
+    );
+    const rejectedPlanIds = new Set(
+      planStatuses
+        .filter(([, status]) => status === "rejected")
+        .map(([conflictPlanId]) => conflictPlanId)
+    );
+    const hasConflict = overlappingDetails.some(
+      (detail) => !rejectedPlanIds.has(detail.allocationPlanId)
+    );
+
+    if (hasConflict) {
+      throw new Error(
+        `${assetCode || `Equipment #${equipmentInstanceId}`} is already allocated in the selected date range. Choose another item or adjust the phase dates.`
+      );
+    }
+  };
+
+  const validateLandAvailability = async (
+    landId: number,
+    startDate: string,
+    endDate: string,
+    landCode?: string
+  ) => {
+    let existingDetails: AllocationLandDetail[];
+
+    try {
+      existingDetails = await getAllocationLandDetails({
+        landId,
+        size: 300,
+      });
+    } catch (availabilityError) {
+      console.warn(
+        "Unable to pre-check land allocation conflicts; the API will validate availability:",
+        availabilityError
+      );
+      return;
+    }
+
+    const requestedStart = new Date(startDate).getTime();
+    const requestedEnd = new Date(endDate).getTime();
+    if (!Number.isFinite(requestedStart) || !Number.isFinite(requestedEnd)) {
+      return;
+    }
+
+    const overlappingDetails = existingDetails.filter((detail) => {
+      const status = String(detail.status || "").toLowerCase();
+      const detailStart = new Date(detail.startDate).getTime();
+      const detailEnd = new Date(detail.endDate).getTime();
+
+      return (
+        Number(detail.landId) === landId &&
+        status !== "cancelled" &&
+        status !== "completed" &&
+        Number.isFinite(detailStart) &&
+        Number.isFinite(detailEnd) &&
+        detailStart < requestedEnd &&
+        requestedStart < detailEnd
+      );
+    });
+
+    if (overlappingDetails.length === 0) return;
+
+    const planStatuses = await Promise.all(
+      [...new Set(overlappingDetails.map((detail) => detail.allocationPlanId))].map(
+        async (conflictPlanId) => {
+          try {
+            const response = await api.get(`/AllocationPlans/${conflictPlanId}`);
+            const conflictPlan =
+              response.data?.data || response.data?.result || response.data;
+            return [
+              conflictPlanId,
+              String(conflictPlan?.approveStatus || "").toLowerCase(),
+            ] as const;
+          } catch {
+            return [conflictPlanId, "unknown"] as const;
+          }
+        }
+      )
+    );
+    const rejectedPlanIds = new Set(
+      planStatuses
+        .filter(([, status]) => status === "rejected")
+        .map(([conflictPlanId]) => conflictPlanId)
+    );
+    const hasConflict = overlappingDetails.some(
+      (detail) => !rejectedPlanIds.has(detail.allocationPlanId)
+    );
+
+    if (hasConflict) {
+      throw new Error(
+        `${landCode || `Land #${landId}`} is already allocated in the selected date range. Choose another plot or adjust the experiment dates.`
+      );
+    }
+  };
 
 function normalizeEvaluationScore(
   value: number | null
@@ -349,8 +378,7 @@ function createFitnessComponent(
     contribution:
       normalizedScore === null
         ? null
-        : (normalizedScore * weight) /
-          100,
+        : (normalizedScore * weight) / 100,
   };
 }
 
@@ -358,16 +386,20 @@ function parseFitnessBreakdown(
   evaluation: unknown,
   weights: EvaluationWeightPlan
 ): FitnessBreakdown {
-  const root =
+  const responseRoot =
     evaluation &&
     typeof evaluation === "object"
-      ? (evaluation as Record<
-          string,
-          unknown
-        >)
+      ? (evaluation as Record<string, unknown>)
       : {};
+  const payload = responseRoot.data ?? responseRoot.result;
+  const root =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : responseRoot;
 
   const nestedCandidate =
+    root.fitnessBreakdown ??
+    root.FitnessBreakdown ??
     root.breakdown ??
     root.details ??
     root.componentScores ??
@@ -376,10 +408,7 @@ function parseFitnessBreakdown(
   const nested =
     nestedCandidate &&
     typeof nestedCandidate === "object"
-      ? (nestedCandidate as Record<
-          string,
-          unknown
-        >)
+      ? (nestedCandidate as Record<string, unknown>)
       : {};
 
   const source = {
@@ -429,203 +458,678 @@ function parseFitnessBreakdown(
     ]
   );
 
+  const maintenanceScore = readNumber(source, [
+    "maintenanceScore",
+    "maintenanceFitnessScore",
+    "maintenance",
+  ]);
+
   return {
     equipment: createFitnessComponent(
       equipmentScore,
       weights.equipmentWeight
     ),
+
     human: createFitnessComponent(
       humanScore,
       weights.humanWeight
     ),
+
     land: createFitnessComponent(
       landScore,
       weights.landWeight
     ),
+
     schedule: createFitnessComponent(
       scheduleScore,
       weights.scheduleWeight
     ),
+    maintenance: createFitnessComponent(
+      maintenanceScore,
+      0
+    ),
+    penaltyScore: readNumber(source, ["penaltyScore"]),
+    bonusScore: readNumber(source, ["bonusScore"]),
   };
 }
 
 export default function CreateAllocation() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { sendLocalNotification, fetchUnreadCount } = useNotification();
 
-  const initialExpId = Number(searchParams.get("experimentId")) || 0;
+  const {
+    sendLocalNotification,
+    fetchUnreadCount,
+  } = useNotification();
+
+  const initialExpId =
+    Number(
+      searchParams.get("experimentId")
+    ) || 0;
+
+  /*
+   * FLOW MỚI:
+   *
+   * Manager đi vào màn hình này sau khi đã Approve
+   * Allocation Plan.
+   *
+   * URL:
+   *
+   * /allocation/create
+   *   ?experimentId=123
+   *   &allocationPlanId=456
+   */
+  const initialPlanId =
+    Number(
+      searchParams.get(
+        "allocationPlanId"
+      )
+    ) || 0;
+
+  const currentUserInfo =
+    getCurrentUserTokenInfo();
+
+  const isManagerAllocation =
+    currentUserInfo.role === "Manager" &&
+    initialPlanId > 0;
+
+  // In Manager allocation mode, allocationPlanId is the source of truth.
+  // The experimentId in the URL may be stale/wrong, so never trust it to
+  // decide which Experiment receives resources.
+  useEffect(() => {
+    if (!isManagerAllocation || initialPlanId <= 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncExperimentFromApprovedPlan = async () => {
+      try {
+        const approvedPlan =
+          await getAllocationPlanById(initialPlanId);
+
+        if (cancelled) return;
+
+        if (approvedPlan.approveStatus !== "Approved") {
+          setError(
+            `Allocation Plan #${initialPlanId} is not Approved.`
+          );
+          return;
+        }
+
+        const planExperimentId =
+          Number(approvedPlan.experimentId);
+
+        if (
+          !planExperimentId ||
+          Number.isNaN(planExperimentId)
+        ) {
+          setError(
+            `Allocation Plan #${initialPlanId} has no valid Experiment.`
+          );
+          return;
+        }
+
+        // Force the screen to the Experiment that actually owns this plan.
+        setSelectedExpId(planExperimentId);
+        setDraftPlanId(initialPlanId);
+
+        // Manager's normal Experiment list may not contain this Experiment
+        // (for example because of status/list filtering). Fetch the exact
+        // Experiment so the UI can show its real name instead of "#ID".
+        try {
+          const planExperiment =
+            await getExperimentById(planExperimentId);
+
+          if (cancelled) return;
+
+          setAllExperiments((current) => {
+            const withoutSameExperiment =
+              current.filter(
+                (item) =>
+                  item.experimentId !==
+                  planExperimentId
+              );
+
+            return [
+              ...withoutSameExperiment,
+              planExperiment,
+            ];
+          });
+        } catch (experimentError) {
+          console.error(
+            `Failed to load Experiment #${planExperimentId}:`,
+            experimentError
+          );
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+
+        console.error(
+          "Failed to resolve Experiment from Allocation Plan:",
+          err
+        );
+
+        setError(
+          err?.response?.data?.message ||
+            `Unable to load Allocation Plan #${initialPlanId}.`
+        );
+      }
+    };
+
+    void syncExperimentFromApprovedPlan();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isManagerAllocation, initialPlanId]);
 
   // Master Data State
-  const [allExperiments, setAllExperiments] = useState<ExperimentResponse[]>([]);
-  const [selectedExpId, setSelectedExpId] = useState<number>(initialExpId);
+  const [
+    allExperiments,
+    setAllExperiments,
+  ] = useState<
+    ExperimentResponse[]
+  >([]);
 
-  const [availableEquipment, setAvailableEquipment] = useState<EquipmentInstance[]>([]);
-  const [equipmentSubstitutions, setEquipmentSubstitutions] = useState<EquipmentSubstitution[]>([]);
-  const [humanProfiles, setHumanProfiles] = useState<HumanResourceProfile[]>([]);
-  const [humanResourceSkills, setHumanResourceSkills] = useState<HumanResourceSkill[]>([]);
-  const [landResources, setLandResources] = useState<LandResource[]>([]);
+  const [
+    selectedExpId,
+    setSelectedExpId,
+  ] = useState<number>(
+    initialExpId
+  );
+
+  const [
+    availableEquipment,
+    setAvailableEquipment,
+  ] = useState<
+    EquipmentInstance[]
+  >([]);
+
+  const [existingEquipmentAllocations, setExistingEquipmentAllocations] =
+    useState<AllocationEquipmentDetail[]>([]);
+  const [blockedEquipmentInstanceIds, setBlockedEquipmentInstanceIds] =
+    useState<Set<number>>(() => new Set());
+  const [checkingEquipmentAvailability, setCheckingEquipmentAvailability] =
+    useState(false);
+
+  const [
+    equipmentSubstitutions,
+    setEquipmentSubstitutions,
+  ] = useState<
+    EquipmentSubstitution[]
+  >([]);
+
+  const [
+    humanProfiles,
+    setHumanProfiles,
+  ] = useState<
+    HumanResourceProfile[]
+  >([]);
+
+  const [
+    humanResourceSkills,
+    setHumanResourceSkills,
+  ] = useState<
+    HumanResourceSkill[]
+  >([]);
+
+  const [
+    landResources,
+    setLandResources,
+  ] = useState<
+    LandResource[]
+  >([]);
+  const [existingLandAllocations, setExistingLandAllocations] =
+    useState<AllocationLandDetail[]>([]);
+  const [blockedLandIds, setBlockedLandIds] =
+    useState<Set<number>>(() => new Set());
+  const [checkingLandAvailability, setCheckingLandAvailability] =
+    useState(false);
 
   // Experiment Specific Context
-  const [phases, setPhases] = useState<ExperimentPhase[]>([]);
-  const [activePhaseId, setActivePhaseId] = useState<number | null>(null);
-  const [equipmentReqs, setEquipmentReqs] = useState<ExperimentEquipmentRequirement[]>([]);
-  const [humanReqs, setHumanReqs] = useState<ExperimentHumanRequirement[]>([]);
-  const [landReqs, setLandReqs] = useState<ExperimentLandRequirement[]>([]);
-  const [phaseEquipmentReqs, setPhaseEquipmentReqs] =
-    useState<PhaseEquipmentRequirementRuntime[]>([]);
-  const [phaseHumanReqs, setPhaseHumanReqs] =
-    useState<PhaseHumanRequirementRuntime[]>([]);
+  const [
+    phases,
+    setPhases,
+  ] = useState<
+    ExperimentPhase[]
+  >([]);
 
-  // Selection state per phase: phaseId -> Array of chosen item IDs
-  const [selectedEquipByPhase, setSelectedEquipByPhase] = useState<Record<number, number[]>>({});
-  const [selectedHumansByPhase, setSelectedHumansByPhase] = useState<Record<number, number[]>>({});
+  const [
+    activePhaseId,
+    setActivePhaseId,
+  ] = useState<
+    number | null
+  >(null);
 
-  const [draftPlanId, setDraftPlanId] = useState<number | null>(null);
-  const [initializingDraftPlan, setInitializingDraftPlan] = useState(false);
-  const [scheduleHumanId, setScheduleHumanId] = useState<number | null>(null);
-  const [scheduledHumanDates, setScheduledHumanDates] = useState<
-    Record<number, Record<number, string[]>>
+  const [
+    equipmentReqs,
+    setEquipmentReqs,
+  ] = useState<
+    ExperimentEquipmentRequirement[]
+  >([]);
+
+  const [
+    humanReqs,
+    setHumanReqs,
+  ] = useState<
+    ExperimentHumanRequirement[]
+  >([]);
+
+  const [
+    landReqs,
+    setLandReqs,
+  ] = useState<
+    ExperimentLandRequirement[]
+  >([]);
+
+  const [
+    phaseEquipmentReqs,
+    setPhaseEquipmentReqs,
+  ] =
+    useState<
+      PhaseEquipmentRequirementRuntime[]
+    >([]);
+
+  const [
+    phaseHumanReqs,
+    setPhaseHumanReqs,
+  ] =
+    useState<
+      PhaseHumanRequirementRuntime[]
+    >([]);
+
+  const [
+    selectedEquipByPhase,
+    setSelectedEquipByPhase,
+  ] = useState<
+    Record<number, number[]>
   >({});
 
-  const [scheduledHumanMeta, setScheduledHumanMeta] = useState<
-    Record<
-      number,
-      Record<
-        number,
-        {
-          title: string;
-          description: string;
-        }
-      >
-    >
+  const [
+    selectedHumansByPhase,
+    setSelectedHumansByPhase,
+  ] = useState<
+    Record<number, number[]>
   >({});
 
-  // Land Plot selection: Strictly 1 land plot for the experiment!
-  const [selectedLandId, setSelectedLandId] = useState<number | null>(null);
+  const [
+    draftPlanId,
+    setDraftPlanId,
+  ] = useState<
+    number | null
+  >(null);
+
+  // API source of truth for the current Create Allocation session.
+  // React state can lag behind an async request and cause a stale plan id
+  // to be used in a subsequent POST.
+  const draftPlanIdRef = useRef<number | null>(null);
+  const draftCreationPromiseRef =
+    useRef<Promise<number> | null>(null);
+
+  const [
+    initializingDraftPlan,
+    setInitializingDraftPlan,
+  ] = useState(false);
+
+  const [
+    selectedLandId,
+    setSelectedLandId,
+  ] = useState<
+    number | null
+  >(null);
 
   // UI State
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [evaluatingFitness, setEvaluatingFitness] = useState(false);
-  const [fitnessScore, setFitnessScore] = useState<number | null>(null);
-  const [fitnessEvaluationMessage, setFitnessEvaluationMessage] = useState("");
-  const [fitnessBreakdown, setFitnessBreakdown] =
-    useState<FitnessBreakdown | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [evaluationWeights, setEvaluationWeights] =
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
+
+  const [
+    evaluatingFitness,
+    setEvaluatingFitness,
+  ] = useState(false);
+
+  const [
+    fitnessScore,
+    setFitnessScore,
+  ] = useState<
+    number | null
+  >(null);
+
+  const [
+    fitnessEvaluationMessage,
+    setFitnessEvaluationMessage,
+  ] = useState("");
+
+  const [
+    fitnessBreakdown,
+    setFitnessBreakdown,
+  ] =
+    useState<
+      FitnessBreakdown | null
+    >(null);
+
+  const [
+    evaluationWeights,
+    setEvaluationWeights,
+  ] =
     useState<EvaluationWeightPlan>({
-      equipmentWeight: 0,
-      humanWeight: 0,
-      landWeight: 0,
+      equipmentWeight: 34,
+      humanWeight: 33,
+      landWeight: 33,
       scheduleWeight: 0,
     });
 
-  const [weightInputs, setWeightInputs] = useState<
-    Record<keyof EvaluationWeightPlan, string>
+  const [
+    weightInputs,
+    setWeightInputs,
+  ] = useState<
+    Record<
+      keyof EvaluationWeightPlan,
+      string
+    >
   >({
-    equipmentWeight: "0",
-    humanWeight: "0",
-    landWeight: "0",
+    equipmentWeight: "34",
+    humanWeight: "33",
+    landWeight: "33",
     scheduleWeight: "0",
   });
 
-  const [allocationDetailsSaved, setAllocationDetailsSaved] = useState(false);
-  const [error, setError] = useState("");
+  const [
+    allocationDetailsSaved,
+    setAllocationDetailsSaved,
+  ] = useState(false);
 
-  // 1. Fetch initial experiments and system inventory
+  const [
+    error,
+    setError,
+  ] = useState("");
+
   useEffect(() => {
     async function loadInitialData() {
       setLoading(true);
-      try {
-        const currentUser = getCurrentUserTokenInfo();
-        const { userId, fullName, role } = currentUser;
-        const isPrivileged = role === "Admin" || role === "Manager";
 
-        const [expRes, equipRes, substitutionRes, humanRes, humanSkillRes, landRes] = await Promise.all([
-          getExperiments({
-            researcherId: !isPrivileged && userId > 0 ? userId : undefined,
-            size: 100,
-          }).catch(() => []),
-          getEquipmentInstances({ size: 500 }).catch(() => []),
-          getEquipmentSubstitutions({ size: 500 }).catch(() => []),
-          getHumanResourceProfiles({ size: 300 }).catch(() => []),
-          getHumanResourceSkills({ page: 1, size: 500 }).catch(() => []),
-          getLandResources({ size: 100 }).catch(() => []),
+      try {
+        const currentUser =
+          getCurrentUserTokenInfo();
+
+        const {
+          userId,
+          fullName,
+          role,
+        } = currentUser;
+
+        const isPrivileged =
+          role === "Admin" ||
+          role === "Manager";
+
+        const [
+          expRes,
+          equipRes,
+          equipmentAllocationsRes,
+          substitutionRes,
+          humanRes,
+          humanSkillRes,
+          landRes,
+          landAllocationsRes,
+        ] =
+          await Promise.all([
+            getExperiments({
+              researcherId:
+                !isPrivileged &&
+                userId > 0
+                  ? userId
+                  : undefined,
+
+              size: 100,
+            }).catch(() => []),
+
+            getEquipmentInstances({
+              size: 500,
+            }).catch(() => []),
+
+            getAllAllocationEquipmentDetails().catch(() => []),
+
+            getEquipmentSubstitutions({
+              size: 500,
+            }).catch(() => []),
+
+            getHumanResourceProfiles({
+              size: 300,
+            }).catch(() => []),
+
+            getHumanResourceSkills({
+              page: 1,
+              size: 500,
+            }).catch(() => []),
+
+            getLandResources({
+              size: 100,
+            }).catch(() => []),
+
+            getAllAllocationLandDetails().catch(() => []),
+          ]);
+
+        const rawExps =
+          Array.isArray(expRes)
+            ? expRes
+            : (expRes as any)
+                ?.items || [];
+
+        /*
+         * Resource Allocation Request chỉ được tạo sau khi Experiment
+         * đã được Manager approve.
+         *
+         * API có thể trả trạng thái sau approve là Planning hoặc Ready
+         * tùy workflow hiện tại của backend. Không lấy Draft/Submitted
+         * để tránh Researcher tạo Allocation trước khi Manager duyệt.
+         */
+        const approvedExperimentStatuses = new Set([
+          "planning",
+          "ready",
         ]);
 
-        // Resource Allocation Hub only shows experiments that have already
-        // been submitted by the Researcher and are ready for allocation.
-        // Draft / Planning / Ready / Running / Completed / Cancelled experiments
-        // must not appear in the Target Experiment selector.
-        const rawExps = Array.isArray(expRes) ? expRes : (expRes as any)?.items || [];
+        const approvedExperiments =
+          rawExps.filter(
+            (item: ExperimentResponse) =>
+              approvedExperimentStatuses.has(
+                String(item.status || "")
+                  .trim()
+                  .toLowerCase()
+              )
+          );
 
-        const submittedExperiments = rawExps.filter(
-          (item: ExperimentResponse) =>
-            String(item.status || "")
-              .trim()
-              .toLowerCase() === "submitted"
-        );
+        const exps =
+          isPrivileged
+            ? approvedExperiments
+            : approvedExperiments.filter(
+                (
+                  item: ExperimentResponse
+                ) =>
+                  (
+                    userId > 0 &&
+                    Number(item.researcherId) ===
+                      Number(userId)
+                  ) ||
+                  (
+                    fullName &&
+                    (
+                      item.researcherName
+                        ?.toLowerCase()
+                        .includes(
+                          fullName.toLowerCase()
+                        ) ||
+                      item.createdByName
+                        ?.toLowerCase()
+                        .includes(
+                          fullName.toLowerCase()
+                        )
+                    )
+                  )
+              );
 
-        const exps = isPrivileged
-          ? submittedExperiments
-          : submittedExperiments.filter(
-              (item: ExperimentResponse) =>
-                (userId > 0 && item.researcherId === userId) ||
-                (fullName &&
-                  (item.researcherName?.toLowerCase().includes(fullName.toLowerCase()) ||
-                    item.createdByName?.toLowerCase().includes(fullName.toLowerCase())))
-            );
         setAllExperiments(exps);
 
-        // Filter equipment with Available status
-        const equips = Array.isArray(equipRes) ? equipRes : (equipRes as any)?.items || [];
-        const availEquips = equips.filter(
-          (e: EquipmentInstance) => e.status === "Available" || !e.status
+        const equips =
+          Array.isArray(equipRes)
+            ? equipRes
+            : (equipRes as any)
+                ?.items || [];
+
+        const availEquips =
+          equips.filter(
+            (
+              e: EquipmentInstance
+            ) =>
+              e.status ===
+                "Available" ||
+              !e.status
+          );
+
+        setAvailableEquipment(
+          availEquips
         );
-        setAvailableEquipment(availEquips);
 
-        const substitutions = Array.isArray(substitutionRes)
-          ? substitutionRes
-          : (substitutionRes as any)?.items || [];
-        setEquipmentSubstitutions(substitutions);
+        setExistingEquipmentAllocations(
+          Array.isArray(equipmentAllocationsRes)
+            ? equipmentAllocationsRes
+            : []
+        );
 
-        // Strictly filter personnel to only Seasonal and Technician roles
-        const humans = Array.isArray(humanRes) ? humanRes : (humanRes as any)?.items || [];
-        const fieldStaff = humans.filter((hp: HumanResourceProfile) => {
-          const r = (hp.roleName || (hp as any)?.role || "").toLowerCase();
-          return r.includes("seasonal") || r.includes("technician");
-        });
-        setHumanProfiles(fieldStaff);
+        const substitutions =
+          Array.isArray(
+            substitutionRes
+          )
+            ? substitutionRes
+            : (
+                substitutionRes as any
+              )?.items || [];
 
-        const skills = Array.isArray(humanSkillRes)
-          ? humanSkillRes
-          : (humanSkillRes as any)?.items || [];
-        setHumanResourceSkills(skills);
+        setEquipmentSubstitutions(
+          substitutions
+        );
 
-        const lands = Array.isArray(landRes) ? landRes : (landRes as any)?.items || [];
+        const humans =
+          Array.isArray(humanRes)
+            ? humanRes
+            : (humanRes as any)
+                ?.items || [];
+
+        const fieldStaff =
+          humans.filter(
+            (
+              hp: HumanResourceProfile
+            ) => {
+              const r =
+                (
+                  hp.roleName ||
+                  (hp as any)
+                    ?.role ||
+                  ""
+                ).toLowerCase();
+
+              return (
+                r.includes(
+                  "seasonal"
+                ) ||
+                r.includes(
+                  "technician"
+                )
+              );
+            }
+          );
+
+        setHumanProfiles(
+          fieldStaff
+        );
+
+        const skills =
+          Array.isArray(
+            humanSkillRes
+          )
+            ? humanSkillRes
+            : (
+                humanSkillRes as any
+              )?.items || [];
+
+        setHumanResourceSkills(
+          skills
+        );
+
+        const lands =
+          Array.isArray(landRes)
+            ? landRes
+            : (landRes as any)
+                ?.items || [];
+
         setLandResources(lands);
 
-        // Determine default selected experiment
-        if (initialExpId && exps.some((e: ExperimentResponse) => e.experimentId === initialExpId)) {
-          setSelectedExpId(initialExpId);
-        } else if (exps.length > 0) {
-          setSelectedExpId(exps[0].experimentId);
+        setExistingLandAllocations(
+          Array.isArray(landAllocationsRes)
+            ? landAllocationsRes
+            : []
+        );
+
+        // Researcher create-plan mode may initialize from the URL/default list.
+        // Manager allocation mode is different: allocationPlanId is the source
+        // of truth, so this loader must never overwrite selectedExpId.
+        if (!isManagerAllocation) {
+          if (
+            initialExpId &&
+            exps.some(
+              (
+                e: ExperimentResponse
+              ) =>
+                e.experimentId ===
+                initialExpId
+            )
+          ) {
+            setSelectedExpId(
+              initialExpId
+            );
+          } else if (
+            exps.length > 0
+          ) {
+            setSelectedExpId(
+              exps[0]
+                .experimentId
+            );
+          }
         }
       } catch (err: any) {
-        console.error("Load initial allocation inventory data failed:", err);
-        setError("Failed to load live resource inventory.");
+        console.error(
+          "Load initial allocation inventory data failed:",
+          err
+        );
+
+        setError(
+          "Failed to load live resource inventory."
+        );
       } finally {
         setLoading(false);
       }
     }
 
     void loadInitialData();
-  }, [initialExpId]);
-
-  // 2. When selectedExpId changes, load specific experiment requirements & phases
+  }, [initialExpId, isManagerAllocation]);
+    // 2. When selectedExpId changes, load specific experiment requirements & phases
   useEffect(() => {
-    if (!selectedExpId) return;
+    if (!selectedExpId) {
+      setPhases([]);
+      setActivePhaseId(null);
+      setEquipmentReqs([]);
+      setHumanReqs([]);
+      setLandReqs([]);
+      setPhaseEquipmentReqs([]);
+      setPhaseHumanReqs([]);
+      return;
+    }
 
     async function loadExperimentDetails(id: number) {
       try {
@@ -637,10 +1141,26 @@ export default function CreateAllocation() {
           phaseEquipmentReqRes,
           phaseHumanReqRes,
         ] = await Promise.all([
-          getExperimentPhases({ experimentId: id, size: 100 }).catch(() => []),
-          getExperimentEquipmentRequirements({ experimentId: id, size: 100 }).catch(() => []),
-          getExperimentHumanRequirements({ experimentId: id, size: 100 }).catch(() => []),
-          getExperimentLandRequirements({ experimentId: id, size: 100 }).catch(() => []),
+          getExperimentPhases({
+            experimentId: id,
+            size: 100,
+          }).catch(() => []),
+
+          getExperimentEquipmentRequirements({
+            experimentId: id,
+            size: 100,
+          }).catch(() => []),
+
+          getExperimentHumanRequirements({
+            experimentId: id,
+            size: 100,
+          }).catch(() => []),
+
+          getExperimentLandRequirements({
+            experimentId: id,
+            size: 100,
+          }).catch(() => []),
+
           api
             .get("/PhaseEquipmentRequirements", {
               params: {
@@ -651,6 +1171,7 @@ export default function CreateAllocation() {
             })
             .then((response) => response.data)
             .catch(() => []),
+
           api
             .get("/PhaseHumanRequirements", {
               params: {
@@ -664,25 +1185,54 @@ export default function CreateAllocation() {
         ]);
 
         // Filter strictly to this experiment
-        const allP = Array.isArray(phasesRes) ? phasesRes : [];
-        const matchedPhases = allP.filter((p) => p.experimentId === id);
+        const allP = Array.isArray(phasesRes)
+          ? phasesRes
+          : [];
+
+        const matchedPhases = allP.filter(
+          (p) => p.experimentId === id
+        );
+
         setPhases(matchedPhases);
 
         // Set default active phase
         if (matchedPhases.length > 0) {
-          setActivePhaseId(matchedPhases[0].experimentPhaseId);
+          setActivePhaseId(
+            matchedPhases[0].experimentPhaseId
+          );
         } else {
           setActivePhaseId(null);
         }
 
-        const allE = Array.isArray(eReqRes) ? eReqRes : [];
-        setEquipmentReqs(allE.filter((e) => e.experimentId === id));
+        const allE = Array.isArray(eReqRes)
+          ? eReqRes
+          : [];
 
-        const allH = Array.isArray(hReqRes) ? hReqRes : [];
-        setHumanReqs(allH.filter((h) => h.experimentId === id));
+        setEquipmentReqs(
+          allE.filter(
+            (e) => e.experimentId === id
+          )
+        );
 
-        const allL = Array.isArray(lReqRes) ? lReqRes : [];
-        setLandReqs(allL.filter((l) => l.experimentId === id));
+        const allH = Array.isArray(hReqRes)
+          ? hReqRes
+          : [];
+
+        setHumanReqs(
+          allH.filter(
+            (h) => h.experimentId === id
+          )
+        );
+
+        const allL = Array.isArray(lReqRes)
+          ? lReqRes
+          : [];
+
+        setLandReqs(
+          allL.filter(
+            (l) => l.experimentId === id
+          )
+        );
 
         const normalizeApiArray = <T,>(
           payload: unknown
@@ -701,21 +1251,28 @@ export default function CreateAllocation() {
                 unknown
               >;
 
-            if (Array.isArray(record.items)) {
+            if (
+              Array.isArray(record.items)
+            ) {
               return record.items as T[];
             }
 
-            if (Array.isArray(record.data)) {
+            if (
+              Array.isArray(record.data)
+            ) {
               return record.data as T[];
             }
 
-            if (Array.isArray(record.result)) {
+            if (
+              Array.isArray(record.result)
+            ) {
               return record.result as T[];
             }
 
             if (
               record.data &&
-              typeof record.data === "object"
+              typeof record.data ===
+                "object"
             ) {
               const nested =
                 record.data as Record<
@@ -723,7 +1280,11 @@ export default function CreateAllocation() {
                   unknown
                 >;
 
-              if (Array.isArray(nested.items)) {
+              if (
+                Array.isArray(
+                  nested.items
+                )
+              ) {
                 return nested.items as T[];
               }
             }
@@ -741,7 +1302,9 @@ export default function CreateAllocation() {
                 Number(
                   phase.experimentPhaseId
                 ) ===
-                Number(requirement.phaseId)
+                Number(
+                  requirement.phaseId
+                )
             )
           )
         );
@@ -755,7 +1318,9 @@ export default function CreateAllocation() {
                 Number(
                   phase.experimentPhaseId
                 ) ===
-                Number(requirement.phaseId)
+                Number(
+                  requirement.phaseId
+                )
             )
           )
         );
@@ -763,42 +1328,95 @@ export default function CreateAllocation() {
         // Reset phase selections
         setSelectedEquipByPhase({});
         setSelectedHumansByPhase({});
-        setScheduledHumanDates({});
-        setScheduledHumanMeta({});
-        setScheduleHumanId(null);
-        setDraftPlanId(null);
+
+        /*
+         * FLOW MỚI:
+         *
+         * Manager vào màn hình này bằng allocationPlanId
+         * sau khi plan đã được Approved.
+         *
+         * Vì vậy KHÔNG reset planId về null trong
+         * Manager Allocation Mode.
+         */
+        if (
+          isManagerAllocation &&
+          initialPlanId > 0
+        ) {
+          draftPlanIdRef.current = initialPlanId;
+          setDraftPlanId(initialPlanId);
+        } else {
+          // Researcher starts a new Create Allocation session.
+          draftPlanIdRef.current = null;
+          draftCreationPromiseRef.current = null;
+          setDraftPlanId(null);
+        }
+
         setSelectedLandId(null);
         setFitnessScore(null);
         setFitnessEvaluationMessage("");
         setFitnessBreakdown(null);
+
         setEvaluationWeights({
-          equipmentWeight: 0,
-          humanWeight: 0,
-          landWeight: 0,
+          equipmentWeight: 34,
+          humanWeight: 33,
+          landWeight: 33,
           scheduleWeight: 0,
         });
+
         setWeightInputs({
-          equipmentWeight: "0",
-          humanWeight: "0",
-          landWeight: "0",
+          equipmentWeight: "34",
+          humanWeight: "33",
+          landWeight: "33",
           scheduleWeight: "0",
         });
+
         setAllocationDetailsSaved(false);
       } catch (detailErr) {
-        console.warn("Could not load experiment requirements for allocation hub:", detailErr);
+        console.warn(
+          "Could not load experiment requirements for allocation hub:",
+          detailErr
+        );
       }
     }
 
-    void loadExperimentDetails(selectedExpId);
-  }, [selectedExpId]);
+    void loadExperimentDetails(
+      selectedExpId
+    );
+  }, [
+    selectedExpId,
+    initialPlanId,
+    isManagerAllocation,
+  ]);
 
-  const selectedExp = allExperiments.find((e) => e.experimentId === selectedExpId);
-  const activePhase = phases.find((p) => p.experimentPhaseId === activePhaseId);
+  const selectedExp =
+    allExperiments.find(
+      (e) =>
+        e.experimentId ===
+        selectedExpId
+    );
+
+  const activePhase =
+    phases.find(
+      (p) =>
+        p.experimentPhaseId ===
+        activePhaseId
+    );
 
   // Normalize efficiency so both 80 and 0.8 are treated as 80%.
-  const normalizeEfficiency = (value?: number | null): number => {
-    if (value === null || value === undefined || Number.isNaN(value)) return 0;
-    return value > 1 ? value / 100 : value;
+  const normalizeEfficiency = (
+    value?: number | null
+  ): number => {
+    if (
+      value === null ||
+      value === undefined ||
+      Number.isNaN(value)
+    ) {
+      return 0;
+    }
+
+    return value > 1
+      ? value / 100
+      : value;
   };
 
   // Get equipment requirements that belong to a specific phase.
@@ -807,37 +1425,84 @@ export default function CreateAllocation() {
   const getEquipmentRequirementsForPhase = (
     phaseId: number
   ): ExperimentEquipmentRequirement[] => {
-    const phase = phases.find((item) => item.experimentPhaseId === phaseId);
-    if (!phase) return [];
+    const phase = phases.find(
+      (item) =>
+        item.experimentPhaseId ===
+        phaseId
+    );
+
+    if (!phase) {
+      return [];
+    }
 
     if (phases.length === 1) {
       return equipmentReqs;
     }
 
-    const phaseName = (phase.phaseName || "").trim().toLowerCase();
-    if (!phaseName) return [];
+    const phaseName =
+      (
+        phase.phaseName || ""
+      )
+        .trim()
+        .toLowerCase();
 
-    const phaseNameWithoutColon = phaseName.replace(/:$/, "");
+    if (!phaseName) {
+      return [];
+    }
 
-    return equipmentReqs.filter((req) => {
-      const note = (req.note || "").trim().toLowerCase();
-      return (
-        note.includes(`[${phaseName}`) ||
-        note.includes(`[${phaseNameWithoutColon}`)
+    const phaseNameWithoutColon =
+      phaseName.replace(
+        /:$/,
+        ""
       );
-    });
+
+    return equipmentReqs.filter(
+      (req) => {
+        const note =
+          (
+            req.note || ""
+          )
+            .trim()
+            .toLowerCase();
+
+        return (
+          note.includes(
+            `[${phaseName}`
+          ) ||
+          note.includes(
+            `[${phaseNameWithoutColon}`
+          )
+        );
+      }
+    );
   };
 
-  const activePhaseEquipmentRequirements = useMemo(() => {
-    if (!activePhaseId) return [];
-    return getEquipmentRequirementsForPhase(activePhaseId);
-  }, [activePhaseId, phases, equipmentReqs]);
+  const activePhaseEquipmentRequirements =
+    useMemo(() => {
+      if (!activePhaseId) {
+        return [];
+      }
+
+      return getEquipmentRequirementsForPhase(
+        activePhaseId
+      );
+    }, [
+      activePhaseId,
+      phases,
+      equipmentReqs,
+    ]);
 
   type EquipmentRequirementMatch = {
-    requirement: ExperimentEquipmentRequirement;
-    substitution?: EquipmentSubstitution;
+    requirement:
+      ExperimentEquipmentRequirement;
+
+    substitution?:
+      EquipmentSubstitution;
+
     isSubstitute: boolean;
-    effectiveEfficiency: number;
+
+    effectiveEfficiency:
+      number;
   };
 
   // Find which requirement an equipment instance satisfies.
@@ -848,59 +1513,108 @@ export default function CreateAllocation() {
   // - Effective efficiency meets minAcceptableEfficiency
   const findEquipmentMatch = (
     phaseId: number,
-    equipment: EquipmentInstance
+    equipment:
+      EquipmentInstance
   ): EquipmentRequirementMatch | null => {
-    const requirements = getEquipmentRequirementsForPhase(phaseId);
-    const equipmentTypeId = equipment.equipmentTypeId;
-    const instanceEfficiency = normalizeEfficiency(equipment.efficiencyRate ?? 1);
-
-    // Prefer the requested equipment type itself.
-    for (const requirement of requirements) {
-      if (requirement.equipmentTypeId !== equipmentTypeId) continue;
-
-      const minimumEfficiency = normalizeEfficiency(
-        requirement.minAcceptableEfficiency
+    const requirements =
+      getEquipmentRequirementsForPhase(
+        phaseId
       );
 
-      if (instanceEfficiency >= minimumEfficiency) {
+    const equipmentTypeId =
+      equipment.equipmentTypeId;
+
+    const instanceEfficiency =
+      normalizeEfficiency(
+        equipment.efficiencyRate ??
+          1
+      );
+
+    // Prefer the requested equipment type itself.
+    for (
+      const requirement of
+      requirements
+    ) {
+      if (
+        requirement.equipmentTypeId !==
+        equipmentTypeId
+      ) {
+        continue;
+      }
+
+      const minimumEfficiency =
+        normalizeEfficiency(
+          requirement.minAcceptableEfficiency
+        );
+
+      if (
+        instanceEfficiency >=
+        minimumEfficiency
+      ) {
         return {
           requirement,
           isSubstitute: false,
-          effectiveEfficiency: instanceEfficiency,
+          effectiveEfficiency:
+            instanceEfficiency,
         };
       }
     }
 
     // Then try valid substitute types.
-    let bestMatch: EquipmentRequirementMatch | null = null;
+    let bestMatch:
+      EquipmentRequirementMatch | null =
+      null;
 
-    for (const requirement of requirements) {
-      if (!requirement.allowSubstitute) continue;
+    for (
+      const requirement of
+      requirements
+    ) {
+      if (
+        !requirement.allowSubstitute
+      ) {
+        continue;
+      }
 
-      const minimumEfficiency = normalizeEfficiency(
-        requirement.minAcceptableEfficiency
-      );
-
-      const validRelations = equipmentSubstitutions.filter(
-        (substitution) =>
-          substitution.primaryEquipmentTypeId === requirement.equipmentTypeId &&
-          substitution.subEquipmentTypeId === equipmentTypeId
-      );
-
-      for (const substitution of validRelations) {
-        const substitutionEfficiency = normalizeEfficiency(
-          substitution.efficiencyRate
+      const minimumEfficiency =
+        normalizeEfficiency(
+          requirement.minAcceptableEfficiency
         );
+
+      const validRelations =
+        equipmentSubstitutions.filter(
+          (substitution) =>
+            substitution.primaryEquipmentTypeId ===
+              requirement.equipmentTypeId &&
+            substitution.subEquipmentTypeId ===
+              equipmentTypeId
+        );
+
+      for (
+        const substitution of
+        validRelations
+      ) {
+        const substitutionEfficiency =
+          normalizeEfficiency(
+            substitution.efficiencyRate
+          );
 
         // Effective efficiency combines the actual instance condition/efficiency
         // with the substitution conversion efficiency.
-        const effectiveEfficiency = instanceEfficiency * substitutionEfficiency;
+        const effectiveEfficiency =
+          instanceEfficiency *
+          substitutionEfficiency;
 
-        if (effectiveEfficiency < minimumEfficiency) continue;
+        if (
+          effectiveEfficiency <
+          minimumEfficiency
+        ) {
+          continue;
+        }
 
         if (
           !bestMatch ||
-          effectiveEfficiency > bestMatch.effectiveEfficiency
+          effectiveEfficiency >
+            bestMatch.effectiveEfficiency
         ) {
           bestMatch = {
             requirement,
@@ -915,66 +1629,317 @@ export default function CreateAllocation() {
     return bestMatch;
   };
 
-  const primaryEquipmentForActivePhase = useMemo(() => {
-    if (!activePhaseId) return [];
+  useEffect(() => {
+    let cancelled = false;
 
-    return availableEquipment.filter((equipment) => {
-      if (equipment.status !== "Available") return false;
-      const match = findEquipmentMatch(activePhaseId, equipment);
-      return Boolean(match && !match.isSubstitute);
-    });
-  }, [
-    activePhaseId,
-    activePhaseEquipmentRequirements,
-    availableEquipment,
-    equipmentSubstitutions,
-  ]);
+    const phase = phases.find(
+      (item) => item.experimentPhaseId === activePhaseId
+    );
+    const startDate = phase?.expectedStartDate || selectedExp?.expectStartDate;
+    const endDate = phase?.expectedEndDate || selectedExp?.expectEndDate;
 
-  const substituteEquipmentForActivePhase = useMemo(() => {
-    if (!activePhaseId) return [];
+    if (!activePhaseId || !startDate || !endDate) {
+      setBlockedEquipmentInstanceIds(new Set());
+      setCheckingEquipmentAvailability(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
-    return availableEquipment
-      .map((equipment) => {
-        if (equipment.status !== "Available") return null;
-        const match = findEquipmentMatch(activePhaseId, equipment);
-        if (!match || !match.isSubstitute) return null;
-        return { equipment, match };
-      })
-      .filter(
-        (
-          item
-        ): item is {
-          equipment: EquipmentInstance;
-          match: EquipmentRequirementMatch;
-        } => item !== null
+    const requestedStart = new Date(convertDateToIso(startDate)).getTime();
+    const requestedEnd = new Date(convertDateToIso(endDate, true)).getTime();
+    const overlappingDetails = existingEquipmentAllocations.filter((detail) => {
+      const status = String(detail.status || "").toLowerCase();
+      const detailStart = new Date(detail.startDate).getTime();
+      const detailEnd = new Date(detail.endDate).getTime();
+
+      return (
+        detail.equipmentInstanceId != null &&
+        status !== "cancelled" &&
+        status !== "completed" &&
+        Number.isFinite(detailStart) &&
+        Number.isFinite(detailEnd) &&
+        detailStart < requestedEnd &&
+        requestedStart < detailEnd
       );
+    });
+
+    if (overlappingDetails.length === 0) {
+      setBlockedEquipmentInstanceIds(new Set());
+      setCheckingEquipmentAvailability(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCheckingEquipmentAvailability(true);
+    const planIds = [...new Set(
+      overlappingDetails.map((detail) => detail.allocationPlanId)
+    )];
+
+    void Promise.all(
+      planIds.map(async (planId) => {
+        try {
+          const response = await api.get(`/AllocationPlans/${planId}`);
+          const plan = response.data?.data || response.data?.result || response.data;
+          return [planId, String(plan?.approveStatus || "").toLowerCase()] as const;
+        } catch {
+          return [planId, "unknown"] as const;
+        }
+      })
+    ).then((planStatuses) => {
+      if (cancelled) return;
+
+      const rejectedPlanIds = new Set(
+        planStatuses
+          .filter(([, status]) => status === "rejected")
+          .map(([planId]) => planId)
+      );
+
+      setBlockedEquipmentInstanceIds(
+        new Set(
+          overlappingDetails
+            .filter((detail) => !rejectedPlanIds.has(detail.allocationPlanId))
+            .map((detail) => Number(detail.equipmentInstanceId))
+        )
+      );
+      setCheckingEquipmentAvailability(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     activePhaseId,
-    activePhaseEquipmentRequirements,
-    availableEquipment,
-    equipmentSubstitutions,
+    existingEquipmentAllocations,
+    phases,
+    selectedExp?.expectEndDate,
+    selectedExp?.expectStartDate,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const startDate = selectedExp?.expectStartDate;
+    const endDate = selectedExp?.expectEndDate;
+
+    if (!startDate || !endDate) {
+      setBlockedLandIds(new Set());
+      setCheckingLandAvailability(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const requestedStart = new Date(convertDateToIso(startDate)).getTime();
+    const requestedEnd = new Date(convertDateToIso(endDate, true)).getTime();
+    const overlappingDetails = existingLandAllocations.filter((detail) => {
+      const status = String(detail.status || "").toLowerCase();
+      const detailStart = new Date(detail.startDate).getTime();
+      const detailEnd = new Date(detail.endDate).getTime();
+
+      return (
+        status !== "cancelled" &&
+        status !== "completed" &&
+        Number.isFinite(detailStart) &&
+        Number.isFinite(detailEnd) &&
+        detailStart < requestedEnd &&
+        requestedStart < detailEnd
+      );
+    });
+
+    if (overlappingDetails.length === 0) {
+      setBlockedLandIds(new Set());
+      setCheckingLandAvailability(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCheckingLandAvailability(true);
+    const planIds = [...new Set(
+      overlappingDetails.map((detail) => detail.allocationPlanId)
+    )];
+
+    void Promise.all(
+      planIds.map(async (planId) => {
+        try {
+          const response = await api.get(`/AllocationPlans/${planId}`);
+          const plan = response.data?.data || response.data?.result || response.data;
+          return [planId, String(plan?.approveStatus || "").toLowerCase()] as const;
+        } catch {
+          return [planId, "unknown"] as const;
+        }
+      })
+    ).then((planStatuses) => {
+      if (cancelled) return;
+
+      const ignoredPlanIds = new Set(
+        planStatuses
+          .filter(([, status]) => status === "rejected")
+          .map(([planId]) => planId)
+      );
+
+      setBlockedLandIds(
+        new Set(
+          overlappingDetails
+            .filter((detail) => !ignoredPlanIds.has(detail.allocationPlanId))
+            .map((detail) => detail.landId)
+        )
+      );
+      setCheckingLandAvailability(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    existingLandAllocations,
+    selectedExp?.expectEndDate,
+    selectedExp?.expectStartDate,
+  ]);
+
+  const primaryEquipmentForActivePhase =
+    useMemo(() => {
+      if (!activePhaseId || checkingEquipmentAvailability) {
+        return [];
+      }
+
+      return availableEquipment.filter(
+        (equipment) => {
+          if (
+            equipment.status !==
+              "Available" ||
+            blockedEquipmentInstanceIds.has(
+              equipment.equipmentInstanceId
+            )
+          ) {
+            return false;
+          }
+
+          const match =
+            findEquipmentMatch(
+              activePhaseId,
+              equipment
+            );
+
+          return Boolean(
+            match &&
+              !match.isSubstitute
+          );
+        }
+      );
+    }, [
+      activePhaseId,
+      activePhaseEquipmentRequirements,
+      availableEquipment,
+      blockedEquipmentInstanceIds,
+      checkingEquipmentAvailability,
+      equipmentSubstitutions,
+    ]);
+
+  const substituteEquipmentForActivePhase =
+    useMemo(() => {
+      if (!activePhaseId || checkingEquipmentAvailability) {
+        return [];
+      }
+
+      return availableEquipment
+        .map((equipment) => {
+          if (
+            equipment.status !==
+              "Available" ||
+            blockedEquipmentInstanceIds.has(
+              equipment.equipmentInstanceId
+            )
+          ) {
+            return null;
+          }
+
+          const match =
+            findEquipmentMatch(
+              activePhaseId,
+              equipment
+            );
+
+          if (
+            !match ||
+            !match.isSubstitute
+          ) {
+            return null;
+          }
+
+          return {
+            equipment,
+            match,
+          };
+        })
+        .filter(
+          (
+            item
+          ): item is {
+            equipment:
+              EquipmentInstance;
+            match:
+              EquipmentRequirementMatch;
+          } =>
+            item !== null
+        );
+    }, [
+      activePhaseId,
+      activePhaseEquipmentRequirements,
+      availableEquipment,
+      blockedEquipmentInstanceIds,
+      checkingEquipmentAvailability,
+      equipmentSubstitutions,
+    ]);
 
   // Toggle Equipment for current active phase.
   // Quantity is enforced per requirement, so a substitute counts toward
   // the quantity of its primary requirement.
-  const handleToggleEquipment = (eqId: number) => {
-    if (allocationDetailsSaved) {
-      setError("Fitness evaluation has already been prepared. Submit this plan before changing resources.");
+  const handleToggleEquipment = (
+    eqId: number
+  ) => {
+    /*
+     * Resource allocation chỉ được thực hiện
+     * bởi Manager sau khi plan đã Approved.
+     */
+
+    if (
+      allocationDetailsSaved
+    ) {
+      setError(
+        "Fitness evaluation has already been prepared. Save this allocation before changing resources."
+      );
+
       return;
     }
 
-    if (!activePhaseId) return;
+    if (!activePhaseId) {
+      return;
+    }
 
-    const equipment = availableEquipment.find(
-      (item) => item.equipmentInstanceId === eqId
-    );
+    const equipment =
+      availableEquipment.find(
+        (item) =>
+          item.equipmentInstanceId ===
+          eqId
+      );
 
-    if (!equipment) return;
+    if (!equipment) {
+      return;
+    }
 
-    const targetMatch = findEquipmentMatch(activePhaseId, equipment);
+    const targetMatch =
+      findEquipmentMatch(
+        activePhaseId,
+        equipment
+      );
+
     if (!targetMatch) {
-      setError("This equipment does not satisfy the selected phase requirement.");
+      setError(
+        "This equipment does not satisfy the selected phase requirement."
+      );
+
       return;
     }
 
@@ -982,58 +1947,105 @@ export default function CreateAllocation() {
     setFitnessEvaluationMessage("");
     setFitnessBreakdown(null);
 
-    setSelectedEquipByPhase((prev) => {
-      const currentList = prev[activePhaseId] || [];
+    setSelectedEquipByPhase(
+      (prev) => {
+        const currentList =
+          prev[activePhaseId] ||
+          [];
 
-      if (currentList.includes(eqId)) {
+        if (
+          currentList.includes(
+            eqId
+          )
+        ) {
+          setError("");
+
+          return {
+            ...prev,
+
+            [activePhaseId]:
+              currentList.filter(
+                (id) =>
+                  id !== eqId
+              ),
+          };
+        }
+
+        const selectedForSameRequirement =
+          currentList.filter(
+            (selectedId) => {
+              const selectedEquipment =
+                availableEquipment.find(
+                  (item) =>
+                    item.equipmentInstanceId ===
+                    selectedId
+                );
+
+              if (
+                !selectedEquipment
+              ) {
+                return false;
+              }
+
+              const selectedMatch =
+                findEquipmentMatch(
+                  activePhaseId,
+                  selectedEquipment
+                );
+
+              return (
+                selectedMatch
+                  ?.requirement
+                  .expEquipmentReqId ===
+                targetMatch
+                  .requirement
+                  .expEquipmentReqId
+              );
+            }
+          ).length;
+
+        const requiredQuantity =
+          Math.max(
+            0,
+            targetMatch
+              .requirement
+              .quantity ||
+              0
+          );
+
+        if (
+          requiredQuantity > 0 &&
+          selectedForSameRequirement >=
+            requiredQuantity
+        ) {
+          setError(
+            `Requirement "${
+              targetMatch
+                .requirement
+                .equipmentTypeName ||
+              `Equipment Type #${
+                targetMatch
+                  .requirement
+                  .equipmentTypeId
+              }`
+            }" requires only ${requiredQuantity} unit(s).`
+          );
+
+          return prev;
+        }
+
         setError("");
+
         return {
           ...prev,
-          [activePhaseId]: currentList.filter((id) => id !== eqId),
+
+          [activePhaseId]: [
+            ...currentList,
+            eqId,
+          ],
         };
       }
-
-      const selectedForSameRequirement = currentList.filter((selectedId) => {
-        const selectedEquipment = availableEquipment.find(
-          (item) => item.equipmentInstanceId === selectedId
-        );
-        if (!selectedEquipment) return false;
-
-        const selectedMatch = findEquipmentMatch(
-          activePhaseId,
-          selectedEquipment
-        );
-
-        return (
-          selectedMatch?.requirement.expEquipmentReqId ===
-          targetMatch.requirement.expEquipmentReqId
-        );
-      }).length;
-
-      const requiredQuantity = Math.max(
-        0,
-        targetMatch.requirement.quantity || 0
-      );
-
-      if (
-        requiredQuantity > 0 &&
-        selectedForSameRequirement >= requiredQuantity
-      ) {
-        setError(
-          `Requirement "${
-            targetMatch.requirement.equipmentTypeName ||
-            `Equipment Type #${targetMatch.requirement.equipmentTypeId}`
-          }" requires only ${requiredQuantity} unit(s).`
-        );
-        return prev;
-      }
-
-      setError("");
-      return {
-        ...prev,
-        [activePhaseId]: [...currentList, eqId],
-      };
-    });
+    );
   };
 
   // Get human requirements that belong to a specific phase.
@@ -1042,1585 +2054,1950 @@ export default function CreateAllocation() {
   const getHumanRequirementsForPhase = (
     phaseId: number
   ): ExperimentHumanRequirement[] => {
-    const phase = phases.find((item) => item.experimentPhaseId === phaseId);
-    if (!phase) return [];
+    const phase =
+      phases.find(
+        (item) =>
+          item.experimentPhaseId ===
+          phaseId
+      );
 
-    if (phases.length === 1) {
+    if (!phase) {
+      return [];
+    }
+
+    if (
+      phases.length === 1
+    ) {
       return humanReqs;
     }
 
-    const phaseName = (phase.phaseName || "").trim().toLowerCase();
-    if (!phaseName) return [];
+    const phaseName =
+      (
+        phase.phaseName || ""
+      )
+        .trim()
+        .toLowerCase();
 
-    const phaseNameWithoutColon = phaseName.replace(/:$/, "");
+    if (!phaseName) {
+      return [];
+    }
 
-    return humanReqs.filter((req) => {
-      const note = (req.note || "").trim().toLowerCase();
-      return (
-        note.includes(`[${phaseName}`) ||
-        note.includes(`[${phaseNameWithoutColon}`)
+    const phaseNameWithoutColon =
+      phaseName.replace(
+        /:$/,
+        ""
       );
-    });
+
+    return humanReqs.filter(
+      (req) => {
+        const note =
+          (
+            req.note || ""
+          )
+            .trim()
+            .toLowerCase();
+
+        return (
+          note.includes(
+            `[${phaseName}`
+          ) ||
+          note.includes(
+            `[${phaseNameWithoutColon}`
+          )
+        );
+      }
+    );
   };
 
-  const activePhaseHumanRequirements = useMemo(() => {
-    if (!activePhaseId) return [];
-    return getHumanRequirementsForPhase(activePhaseId);
-  }, [activePhaseId, phases, humanReqs]);
+  const activePhaseHumanRequirements =
+    useMemo(() => {
+      if (!activePhaseId) {
+        return [];
+      }
+
+      return getHumanRequirementsForPhase(
+        activePhaseId
+      );
+    }, [
+      activePhaseId,
+      phases,
+      humanReqs,
+    ]);
 
   type HumanRequirementMatch = {
-    requirement: ExperimentHumanRequirement;
-    matchedSkill?: HumanResourceSkill;
+    requirement:
+      ExperimentHumanRequirement;
+
+    matchedSkill?:
+      HumanResourceSkill;
   };
 
   // Find which human requirement a profile satisfies.
   // A person must match role, available working hours, and required skill (when specified).
   const findHumanMatch = (
     phaseId: number,
-    human: HumanResourceProfile
+    human:
+      HumanResourceProfile
   ): HumanRequirementMatch | null => {
-    const requirements = getHumanRequirementsForPhase(phaseId);
-
-    for (const requirement of requirements) {
-      if (human.roleId == null || human.roleId !== requirement.roleId) {
-        continue;
-      }
-
-      const requiredHours = requirement.workingHoursPerDay ?? 0;
-      const availableHours = human.maxWorkingHoursPerDay ?? 0;
-
-      if (requiredHours > 0 && availableHours < requiredHours) {
-        continue;
-      }
-
-      if (requirement.requiredSkillId == null) {
-        return { requirement };
-      }
-
-      const matchedSkill = humanResourceSkills.find(
-        (skill) =>
-          skill.humanResourceId === human.humanResourceId &&
-          skill.skillId === requirement.requiredSkillId
+    const requirements =
+      getHumanRequirementsForPhase(
+        phaseId
       );
 
+    for (
+      const requirement of
+      requirements
+    ) {
+      if (
+        human.roleId == null ||
+        human.roleId !==
+          requirement.roleId
+      ) {
+        continue;
+      }
+
+      const requiredHours =
+        requirement.workingHoursPerDay ??
+        0;
+
+      const availableHours =
+        human.maxWorkingHoursPerDay ??
+        0;
+
+      if (
+        requiredHours > 0 &&
+        availableHours <
+          requiredHours
+      ) {
+        continue;
+      }
+
+      if (
+        requirement.requiredSkillId ==
+        null
+      ) {
+        return {
+          requirement,
+        };
+      }
+
+      const matchedSkill =
+        humanResourceSkills.find(
+          (skill) =>
+            skill.humanResourceId ===
+              human.humanResourceId &&
+            skill.skillId ===
+              requirement.requiredSkillId
+        );
+
       if (matchedSkill) {
-        return { requirement, matchedSkill };
+        return {
+          requirement,
+          matchedSkill,
+        };
       }
     }
 
     return null;
   };
 
-  const filteredHumansForActivePhase = useMemo(() => {
-    if (!activePhaseId) return [];
+  const filteredHumansForActivePhase =
+    useMemo(() => {
+      if (!activePhaseId) {
+        return [];
+      }
 
-    return humanProfiles.filter((human) => {
-      if (human.status !== "Available") return false;
-      return Boolean(findHumanMatch(activePhaseId, human));
-    });
-  }, [
-    activePhaseId,
-    activePhaseHumanRequirements,
-    humanProfiles,
-    humanResourceSkills,
-  ]);
+      return humanProfiles.filter(
+        (human) => {
+          if (
+            human.status !==
+            "Available"
+          ) {
+            return false;
+          }
 
-  // Reuse the Researcher's existing Draft for this experiment whenever possible.
-  // Creating a brand-new Draft on every page reload leaves orphan Drafts behind.
-  // Those old Drafts may already hold Equipment/Land allocation details and the
-  // backend then rejects the same resource in the new Draft with HTTP 500.
-  const ensureDraftAllocationPlan = async (): Promise<number> => {
-    if (draftPlanId) {
-      return draftPlanId;
-    }
-
-    if (!selectedExpId) {
-      throw new Error("Please select an experiment first.");
-    }
-
-    try {
-      setInitializingDraftPlan(true);
-
-      const currentUser =
-        getCurrentUserTokenInfo();
-
-      try {
-        const existingDraftResponse =
-          await api.get("/AllocationPlans", {
-            params: {
-              ExperimentId:
-                selectedExpId,
-              ApproveStatus:
-                "Draft",
-              CreatedBy:
-                currentUser.userId ||
-                undefined,
-              Page: 1,
-              Size: 100,
-            },
-          });
-
-        const responseData =
-          existingDraftResponse.data;
-
-        const draftItems: any[] =
-          Array.isArray(responseData)
-            ? responseData
-            : Array.isArray(
-                responseData?.items
-              )
-              ? responseData.items
-              : Array.isArray(
-                    responseData?.data
-                  )
-                ? responseData.data
-                : Array.isArray(
-                      responseData?.result
-                    )
-                  ? responseData.result
-                  : Array.isArray(
-                        responseData
-                          ?.data?.items
-                      )
-                    ? responseData
-                        .data.items
-                    : [];
-
-        const reusableDraft =
-          [...draftItems]
-            .filter(
-              (plan) =>
-                Number(
-                  plan?.experimentId
-                ) ===
-                  Number(
-                    selectedExpId
-                  ) &&
-                String(
-                  plan?.approveStatus ||
-                    plan?.status ||
-                    ""
-                ).toLowerCase() ===
-                  "draft" &&
-                Number(
-                  plan?.allocationPlanId ||
-                    plan?.id ||
-                    0
-                ) > 0
+          return Boolean(
+            findHumanMatch(
+              activePhaseId,
+              human
             )
-            .sort(
-              (a, b) =>
-                Number(
-                  b?.allocationPlanId ||
-                    b?.id ||
-                    0
-                ) -
-                Number(
-                  a?.allocationPlanId ||
-                    a?.id ||
-                    0
-                )
-            )[0];
-
-        const reusablePlanId =
-          Number(
-            reusableDraft
-              ?.allocationPlanId ||
-              reusableDraft?.id ||
-              0
           );
-
-        if (reusablePlanId > 0) {
-          console.info(
-            `Reusing existing Allocation Draft #${reusablePlanId} for experiment #${selectedExpId}.`
-          );
-
-          setDraftPlanId(
-            reusablePlanId
-          );
-
-          return reusablePlanId;
         }
-      } catch (draftLookupError) {
-        console.warn(
-          "Unable to look up an existing Allocation Draft. A new Draft will be created.",
-          draftLookupError
-        );
-      }
-
-      const createdPlan =
-        await createAllocationPlan({
-          experimentId:
-            selectedExpId,
-          fitnessScore: null,
-          approveStatus: "Draft",
-        });
-
-      const newPlanId =
-        Number(
-          createdPlan
-            ?.allocationPlanId ||
-            (
-              createdPlan as unknown as {
-                id?: number;
-              }
-            )?.id ||
-            0
-        );
-
-      if (newPlanId <= 0) {
-        throw new Error(
-          "Failed to initialize Allocation Draft."
-        );
-      }
-
-      setDraftPlanId(newPlanId);
-      return newPlanId;
-    } finally {
-      setInitializingDraftPlan(false);
-    }
-  };
-
-  // Clicking a matching worker opens the schedule calendar. The worker is
-  // counted as selected only after a valid working date is persisted.
-  const handleOpenHumanSchedule = async (humanId: number) => {
-    if (allocationDetailsSaved) {
-      setError("Fitness evaluation has already been prepared. Submit this plan before changing personnel schedules.");
-      return;
-    }
-
-    if (!activePhaseId) return;
-
-    const human = humanProfiles.find(
-      (item) => item.humanResourceId === humanId
-    );
-    if (!human) return;
-
-    const targetMatch = findHumanMatch(activePhaseId, human);
-    if (!targetMatch) {
-      setError("This person does not satisfy the selected phase personnel requirement.");
-      return;
-    }
-
-    const currentList = selectedHumansByPhase[activePhaseId] || [];
-    const alreadySelected = currentList.includes(humanId);
-
-    if (!alreadySelected) {
-      const selectedForSameRequirement = currentList.filter((selectedId) => {
-        const selectedHuman = humanProfiles.find(
-          (item) => item.humanResourceId === selectedId
-        );
-        if (!selectedHuman) return false;
-
-        const selectedMatch = findHumanMatch(activePhaseId, selectedHuman);
-        return (
-          selectedMatch?.requirement.expHumanReqId ===
-          targetMatch.requirement.expHumanReqId
-        );
-      }).length;
-
-      const requiredQuantity = Math.max(0, targetMatch.requirement.quantity || 0);
-      if (requiredQuantity > 0 && selectedForSameRequirement >= requiredQuantity) {
-        setError(
-          `Requirement "${
-            targetMatch.requirement.roleName ||
-            `Role #${targetMatch.requirement.roleId}`
-          }" requires only ${requiredQuantity} person(s).`
-        );
-        return;
-      }
-    }
-
-    setError("");
-    setScheduleHumanId(humanId);
-  };
-
-  const handleHumanScheduled = (payload: {
-    humanResourceId: number;
-    phaseId: number;
-    dates: string[];
-    title: string;
-    description: string;
-  }) => {
-    const normalizedDates = Array.from(new Set(payload.dates)).sort();
-
-    setScheduledHumanDates((prev) => ({
-      ...prev,
-      [payload.phaseId]: {
-        ...(prev[payload.phaseId] || {}),
-        [payload.humanResourceId]: normalizedDates,
-      },
-    }));
-
-    setScheduledHumanMeta((prev) => ({
-      ...prev,
-      [payload.phaseId]: {
-        ...(prev[payload.phaseId] || {}),
-        [payload.humanResourceId]: {
-          title: payload.title.trim(),
-          description: payload.description.trim(),
-        },
-      },
-    }));
-
-    setSelectedHumansByPhase((prev) => {
-      const current = prev[payload.phaseId] || [];
-      const alreadySelected = current.includes(payload.humanResourceId);
-
-      if (normalizedDates.length > 0 && !alreadySelected) {
-        return {
-          ...prev,
-          [payload.phaseId]: [...current, payload.humanResourceId],
-        };
-      }
-
-      if (normalizedDates.length === 0 && alreadySelected) {
-        return {
-          ...prev,
-          [payload.phaseId]: current.filter(
-            (id) => id !== payload.humanResourceId
-          ),
-        };
-      }
-
-      return prev;
-    });
-
-    setFitnessScore(null);
-    setFitnessEvaluationMessage("");
-    setFitnessBreakdown(null);
-    setError("");
-    setScheduleHumanId(null);
-  };
-
-
-  // Land requirement for the selected experiment.
-  // Current business rule: each experiment has at most one land requirement.
-  const activeLandRequirement = useMemo(() => {
-    if (landReqs.length === 0) return null;
-    return landReqs[0];
-  }, [landReqs]);
-
-  // Filter land plots according to the requirement chosen by the Researcher.
-  // A plot is valid when:
-  // - status is Available (or backend omitted the status),
-  // - soilType matches requiredSoilType,
-  // - areaSize is greater than or equal to requiredArea.
-  const filteredLandResources = useMemo(() => {
-    if (!activeLandRequirement) return [];
-
-    const requiredSoilType = (
-      activeLandRequirement.requiredSoilType || ""
-    )
-      .trim()
-      .toLowerCase();
-
-    const requiredArea = Number(activeLandRequirement.requiredArea) || 0;
-
-    return landResources.filter((land) => {
-      if (land.status && land.status !== "Available") {
-        return false;
-      }
-
-      const landSoilType = (land.soilType || "")
-        .trim()
-        .toLowerCase();
-
-      if (requiredSoilType && landSoilType !== requiredSoilType) {
-        return false;
-      }
-
-      const landArea = Number(land.areaSize) || 0;
-
-      if (requiredArea > 0 && landArea < requiredArea) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [activeLandRequirement, landResources]);
-
-  // Select Land (Strictly 1 Land Plot for the Experiment)
-  const handleSelectLand = (landId: number) => {
-    if (allocationDetailsSaved) {
-      setError("Fitness evaluation has already been prepared. Submit this plan before changing the land plot.");
-      return;
-    }
-
-    setFitnessScore(null);
-    setFitnessEvaluationMessage("");
-    setFitnessBreakdown(null);
-    setSelectedLandId((prev) => (prev === landId ? null : landId));
-  };
-
-  // Calculate totals
-  const totalEquipmentCount = Object.values(selectedEquipByPhase).reduce(
-    (acc, list) => acc + list.length,
-    0
-  );
-  const totalHumanCount = Object.values(selectedHumansByPhase).reduce(
-    (acc, list) => acc + list.length,
-    0
-  );
-
-
-
-  const findPhaseEquipmentRequirementId = (
-    phaseId: number,
-    requestedEquipmentTypeId: number
-  ): number | null => {
-    const match =
-      phaseEquipmentReqs.find(
-        (requirement) =>
-          Number(requirement.phaseId) ===
-            Number(phaseId) &&
-          Number(
-            requirement.equipmentTypeId
-          ) ===
-            Number(
-              requestedEquipmentTypeId
-            )
       );
+    }, [
+      activePhaseId,
+      activePhaseHumanRequirements,
+      humanProfiles,
+      humanResourceSkills,
+    ]);
 
-    return match?.phaseEquipmentReqId
-      ? Number(
-          match.phaseEquipmentReqId
-        )
-      : null;
-  };
+  /*
+   * ==========================================================
+   * ALLOCATION PLAN INITIALIZATION
+   * ==========================================================
+   *
+   * Researcher:
+   *   tạo Draft Plan MỚI cho mỗi lần bắt đầu Create Allocation.
+   *   KHÔNG reuse Draft cũ của cùng Experiment.
+   *
+  * Manager:
+  *   validates the approved request in initialPlanId, then creates one
+  *   Draft assignment plan because Backend does not allow details on Approved plans.
+   */
+  const ensureDraftAllocationPlan =
+    async (): Promise<number> => {
+      /*
+       * MANAGER RESOURCE ALLOCATION MODE
+       */
+      if (
+        isManagerAllocation &&
+        initialPlanId > 0
+      ) {
+        const existingPlan =
+          await getAllocationPlanById(
+            initialPlanId
+          );
 
-  const findPhaseHumanRequirementId = (
-    phaseId: number,
-    roleId?: number | null
-  ): number | null => {
-    const candidates =
-      phaseHumanReqs.filter(
-        (requirement) =>
-          Number(requirement.phaseId) ===
-          Number(phaseId)
-      );
-
-    const match =
-      roleId != null
-        ? candidates.find(
-            (requirement) =>
-              Number(
-                requirement.roleId
-              ) === Number(roleId)
+        if (
+          String(
+            existingPlan.approveStatus ||
+              ""
           )
-        : candidates[0];
+            .trim()
+            .toLowerCase() !==
+          "approved"
+        ) {
+          throw new Error(
+            "Manager can allocate resources only after the Allocation Plan has been approved."
+          );
+        }
 
-    return match?.phaseHumanReqId
-      ? Number(
-          match.phaseHumanReqId
-        )
-      : null;
-  };
+        if (
+          Number(
+            existingPlan.experimentId
+          ) !==
+          Number(selectedExpId)
+        ) {
+          throw new Error(
+            "This Allocation Plan does not belong to the selected experiment."
+          );
+        }
 
-  const hasDateRangeOverlap = (
-    startA: string,
-    endA: string,
-    startB: string,
-    endB: string
-  ): boolean => {
-    const aStart = new Date(startA).getTime();
-    const aEnd = new Date(endA).getTime();
-    const bStart = new Date(startB).getTime();
-    const bEnd = new Date(endB).getTime();
-
-    if (
-      Number.isNaN(aStart) ||
-      Number.isNaN(aEnd) ||
-      Number.isNaN(bStart) ||
-      Number.isNaN(bEnd)
-    ) {
-      return false;
-    }
-
-    return aStart <= bEnd && bStart <= aEnd;
-  };
-
-  const clearStaleHumanDraftConflicts = async (
-    currentPlanId: number,
-    humanResourceId: number,
-    startDate: string,
-    endDate: string
-  ) => {
-    if (!selectedExpId) {
-      return;
-    }
-
-    const currentUser =
-      getCurrentUserTokenInfo();
-
-    const response = await api.get(
-      "/AllocationHumanDetails",
-      {
-        params: {
-          HumanResourceId:
-            humanResourceId,
-          Page: 1,
-          Size: 500,
-        },
       }
-    );
 
-    const data = response.data;
+      /*
+       * RESEARCHER DRAFT MODE
+       *
+       * Never use a stale React state value as the API source of truth.
+       * A Draft is reused only inside this mounted Create Allocation session.
+       * We never search the backend for an old Draft.
+       */
+      if (draftPlanIdRef.current) {
+        const currentPlan =
+          await getAllocationPlanById(
+            draftPlanIdRef.current
+          );
 
-    const allHumanDetails: any[] =
-      Array.isArray(data)
-        ? data
-        : Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data?.result)
-              ? data.result
-              : Array.isArray(
-                    data?.data?.items
-                  )
-                ? data.data.items
-                : [];
+        const currentPlanExperimentId =
+          Number(currentPlan?.experimentId || 0);
+        const currentPlanStatus =
+          String(currentPlan?.approveStatus || "")
+            .trim()
+            .toLowerCase();
 
-    const conflicts =
-      allHumanDetails.filter(
-        (detail) => {
-          const detailPlanId =
+        if (
+          currentPlanExperimentId === Number(selectedExpId) &&
+          currentPlanStatus === "draft"
+        ) {
+          return draftPlanIdRef.current;
+        }
+
+        // Stale plan / wrong experiment: never POST details to it.
+        draftPlanIdRef.current = null;
+        setDraftPlanId(null);
+      }
+
+      if (!selectedExpId) {
+        throw new Error(
+          "Please select an experiment first."
+        );
+      }
+
+      // Prevent concurrent Evaluate/Submit clicks from creating multiple
+      // Drafts before React has had a chance to update state.
+      if (draftCreationPromiseRef.current) {
+        return draftCreationPromiseRef.current;
+      }
+
+      const createNewDraft = (async () => {
+        setInitializingDraftPlan(true);
+
+        try {
+          const experimentIdForDraft =
+            Number(selectedExpId);
+
+          const createdPlan =
+            await createAllocationPlan({
+              experimentId: experimentIdForDraft,
+              fitnessScore: null,
+              approveStatus: "Draft",
+            });
+
+          const newPlanId =
             Number(
-              detail?.allocationPlanId ||
+              createdPlan?.allocationPlanId ||
+                (
+                  createdPlan as unknown as {
+                    id?: number;
+                  }
+                )?.id ||
                 0
             );
 
+          if (newPlanId <= 0) {
+            throw new Error(
+              "Failed to initialize a new Allocation Draft."
+            );
+          }
+
+          // Verify the server-created Draft before any detail POST.
+          const verifiedPlan =
+            await getAllocationPlanById(newPlanId);
+
           if (
-            detailPlanId <= 0 ||
-            detailPlanId ===
-              Number(currentPlanId)
+            Number(verifiedPlan?.experimentId || 0) !==
+            experimentIdForDraft
           ) {
-            return false;
+            throw new Error(
+              `New Allocation Draft #${newPlanId} does not belong to Experiment #${experimentIdForDraft}.`
+            );
           }
 
           if (
-            String(
-              detail?.status || ""
-            ).toLowerCase() ===
-            "cancelled"
+            String(verifiedPlan?.approveStatus || "")
+              .trim()
+              .toLowerCase() !== "draft"
           ) {
-            return false;
+            throw new Error(
+              `New Allocation Draft #${newPlanId} is not in Draft status.`
+            );
           }
 
-          return hasDateRangeOverlap(
-            startDate,
-            endDate,
-            detail?.startDate || "",
-            detail?.endDate || ""
+          draftPlanIdRef.current = newPlanId;
+          setDraftPlanId(newPlanId);
+
+          console.info(
+            `Created new Allocation Draft #${newPlanId} for experiment #${experimentIdForDraft}.`
           );
+
+          return newPlanId;
+        } finally {
+          setInitializingDraftPlan(false);
+          draftCreationPromiseRef.current = null;
         }
-      );
+      })();
 
-    for (const conflict of conflicts) {
-      const conflictPlanId =
-        Number(
-          conflict?.allocationPlanId ||
-            0
-        );
+      draftCreationPromiseRef.current = createNewDraft;
 
-      let conflictPlan: any = null;
+      return createNewDraft;
+    };
 
-      try {
-        conflictPlan =
-          await getAllocationPlanById(
-            conflictPlanId
-          );
-      } catch {
-        conflictPlan = null;
-      }
+  /*
+   * ==========================================================
+   * LAND
+   * ==========================================================
+   */
 
-      const conflictStatus =
-        String(
-          conflictPlan?.approveStatus ||
-            conflictPlan?.status ||
-            ""
-        ).toLowerCase();
-
-      const conflictExperimentId =
-        Number(
-          conflictPlan?.experimentId ||
-            0
-        );
-
-      const conflictCreatedBy =
-        Number(
-          conflictPlan?.createdBy ||
-            conflictPlan?.createdByUserId ||
-            0
-        );
-
-      const isSameResearcher =
-        !currentUser.userId ||
-        !conflictCreatedBy ||
-        conflictCreatedBy ===
-          Number(currentUser.userId);
-
-      const isStaleDraft =
-        conflictStatus === "draft" &&
-        conflictExperimentId ===
-          Number(selectedExpId) &&
-        isSameResearcher;
-
-      const detailId =
-        Number(
-          conflict
-            ?.allocationHumanDetailId ||
-            conflict?.id ||
-            0
-        );
-
+  const activeLandRequirement =
+    useMemo(() => {
       if (
-        isStaleDraft &&
-        detailId > 0
+        landReqs.length === 0
       ) {
-        console.info(
-          `Removing stale human allocation detail #${detailId} from Draft #${conflictPlanId} before reusing human #${humanResourceId}.`
-        );
-
-        await deleteAllocationHumanDetail(
-          detailId
-        );
-
-        continue;
+        return null;
       }
 
-      throw new Error(
-        `This personnel is already allocated from ${formatDate(
-          conflict?.startDate
-        )} to ${formatDate(
-          conflict?.endDate
-        )} in Allocation Plan #${conflictPlanId}. Please choose another available personnel or change the working dates.`
-      );
-    }
-  };
+      /*
+       * Current backend requirement is experiment-level.
+       * Therefore the same requirement applies to phases.
+       */
+      return landReqs[0];
+    }, [landReqs]);
 
-  const persistAllocationDetails = async (planId: number) => {
-    if (allocationDetailsSaved) return;
-
-    /*
-     * Fitness evaluation can be retried after a partial failure. For example,
-     * Equipment may have been saved successfully while Human failed. If we
-     * blindly POST everything again on the next Evaluate click, the backend can
-     * reject duplicate allocation details with HTTP 500.
-     *
-     * Always reload the current Draft details first and only create records that
-     * do not already exist for this Allocation Plan.
-     */
-    const [existingEquipmentDetails, existingHumanDetails, existingLandDetails] =
-      await Promise.all([
-        getAllocationEquipmentDetails({
-          allocationPlanId: planId,
-          page: 1,
-          size: 500,
-        }),
-        getAllocationHumanDetails({
-          allocationPlanId: planId,
-          page: 1,
-          size: 500,
-        }),
-        getAllocationLandDetails({
-          allocationPlanId: planId,
-          page: 1,
-          size: 500,
-        }),
-      ]);
-
-    // Equipment details per phase
-    for (const [pIdStr, eqIds] of Object.entries(selectedEquipByPhase)) {
-      const phaseIdNum = Number(pIdStr);
-      const pObj = phases.find((p) => p.experimentPhaseId === phaseIdNum);
-      const sDate = convertDateToIso(
-        pObj?.expectedStartDate || selectedExp?.expectStartDate
-      );
-      const eDate = convertDateToIso(
-        pObj?.expectedEndDate || selectedExp?.expectEndDate,
-        true
-      );
-
-      for (const eqId of eqIds) {
-        const eqObj = availableEquipment.find(
-          (e) => e.equipmentInstanceId === eqId
-        );
-
-        if (!eqObj) {
-          console.warn(`Skipping equipment ${eqId}: equipment instance not found.`);
-          continue;
-        }
-
-        const match = findEquipmentMatch(phaseIdNum, eqObj);
-        if (!match) {
-          console.warn(
-            `Skipping equipment ${eqId}: it no longer matches a requirement for phase ${phaseIdNum}.`
-          );
-          continue;
-        }
-
-        const expEqReqId = match.requirement.expEquipmentReqId;
-        if (!expEqReqId) {
-          console.warn(
-            `Skipping equipment ${eqId}: matching experiment equipment requirement has no ID.`
-          );
-          continue;
-        }
-
-        const existingEquipmentForPlan =
-          existingEquipmentDetails.find(
-            (detail) =>
-              Number(
-                detail.equipmentInstanceId
-              ) === Number(eqId) &&
-              detail.status !==
-                "Cancelled"
-          );
-
-        if (existingEquipmentForPlan) {
-          console.info(
-            `Reusing existing equipment allocation detail: plan=${planId}, equipment=${eqId}, existingRequirement=${existingEquipmentForPlan.expEquipmentReqId ?? "unknown"}.`
-          );
-          continue;
-        }
-
-        const equipmentPayload = {
-          allocationPlanId: Number(planId),
-          expEquipmentReqId: Number(expEqReqId),
-          phaseEquipmentReqId: null,
-          allocatedEquipmentTypeId:
-            Number(eqObj.equipmentTypeId),
-          equipmentInstanceId: Number(eqId),
-          quantity: 1,
-          efficiencyRate:
-            normalizeEfficiency(
-              match.effectiveEfficiency
-            ),
-          isSubstitute:
-            Boolean(match.isSubstitute),
-          startDate: sDate,
-          endDate: eDate,
-          status: "Allocated" as const,
-        };
-
-        try {
-          const createdEquipmentDetail =
-            await createAllocationEquipmentDetail(
-              equipmentPayload
-            );
-
-          existingEquipmentDetails.push(
-            createdEquipmentDetail
-          );
-        } catch (equipmentError: any) {
-          console.error(
-            "Allocation equipment detail POST failed.",
-            {
-              payload:
-                equipmentPayload,
-              response:
-                equipmentError?.response
-                  ?.data,
-              status:
-                equipmentError?.response
-                  ?.status,
-            }
-          );
-
-          const responseData =
-            equipmentError?.response?.data;
-
-          const backendMessage =
-            responseData?.message ||
-            responseData?.error ||
-            responseData?.title ||
-            (typeof responseData === "string" &&
-            responseData.trim()
-              ? responseData.trim()
-              : null);
-
-          throw new Error(
-            backendMessage ||
-              `Unable to save equipment ${
-                eqObj.assetCode ||
-                `#${eqId}`
-              } for this allocation plan. Backend returned HTTP ${
-                equipmentError?.response?.status ||
-                500
-              }.`
-          );
-        }
-      }
-    }
-
-    // Human details per phase / selected working dates
-    for (const [pIdStr, hIds] of Object.entries(selectedHumansByPhase)) {
-      const phaseIdNum = Number(pIdStr);
-
-      for (const hId of hIds) {
-        const hObj = humanProfiles.find((h) => h.humanResourceId === hId);
-        if (!hObj) continue;
-
-        const humanMatch = findHumanMatch(phaseIdNum, hObj);
-        const requirement = humanMatch?.requirement;
-
-        let expHReqId = requirement?.expHumanReqId;
-        const requiredWorkingHours =
-          requirement?.workingHoursPerDay ??
-          hObj.maxWorkingHoursPerDay ??
-          8;
-
-        if (!expHReqId) {
-          const createdHReq = await createExperimentHumanRequirement({
-            experimentId: selectedExpId,
-            roleId: requirement?.roleId ?? hObj.roleId ?? 1,
-            quantity: requirement?.quantity ?? 1,
-            requiredSkillId: requirement?.requiredSkillId ?? null,
-            workingHoursPerDay: requiredWorkingHours,
-            note: requirement?.note ?? null,
-          });
-
-          expHReqId =
-            (createdHReq as { expHumanReqId?: number; id?: number })
-              ?.expHumanReqId ??
-            (createdHReq as { expHumanReqId?: number; id?: number })?.id;
-        }
-
-        if (!expHReqId) {
-          throw new Error(
-            `Human requirement ID is missing for resource #${hId}.`
-          );
-        }
-
-        const selectedDates = scheduledHumanDates[phaseIdNum]?.[hId] || [];
-        if (selectedDates.length === 0) {
-          throw new Error(
-            `${hObj.fullName || `Human resource #${hId}`} has no scheduled working date.`
-          );
-        }
-
-        const sortedDates = [...selectedDates].sort();
-        const firstWorkingDate = sortedDates[0];
-        const lastWorkingDate = sortedDates[sortedDates.length - 1];
-
-        if (!firstWorkingDate || !lastWorkingDate) {
-          throw new Error(
-            `${hObj.fullName || `Human resource #${hId}`} has no valid scheduled working date.`
-          );
-        }
-
-        const existingHumanForPlan =
-          existingHumanDetails.find(
-            (detail) =>
-              Number(
-                detail.humanResourceId
-              ) === Number(hId) &&
-              Number(
-                detail.expHumanReqId
-              ) === Number(expHReqId) &&
-              detail.status !==
-                "Cancelled"
-          );
-
-        if (existingHumanForPlan) {
-          console.info(
-            `Reusing existing human allocation detail: plan=${planId}, requirement=${expHReqId}, human=${hId}.`
-          );
-          continue;
-        }
-
-        const humanStartDate =
-          `${firstWorkingDate}T08:00:00`;
-        const humanEndDate =
-          `${lastWorkingDate}T17:00:00`;
-
-        await clearStaleHumanDraftConflicts(
-          planId,
-          hId,
-          humanStartDate,
-          humanEndDate
-        );
-
-        const humanPayload = {
-          allocationPlanId:
-            Number(planId),
-          expHumanReqId:
-            Number(expHReqId),
-          phaseHumanReqId: null,
-          humanResourceId:
-            Number(hId),
-          workingHours:
-            Number(requiredWorkingHours),
-          startDate:
-            humanStartDate,
-          endDate:
-            humanEndDate,
-          status: "Allocated" as const,
-        };
-
-        try {
-          const createdHumanDetail =
-            await createAllocationHumanDetail(
-              humanPayload
-            );
-
-          existingHumanDetails.push(
-            createdHumanDetail
-          );
-        } catch (humanError: any) {
-          console.error(
-            "Allocation human detail POST failed.",
-            {
-              payload:
-                humanPayload,
-              response:
-                humanError?.response?.data,
-              status:
-                humanError?.response?.status,
-            }
-          );
-
-          const responseData =
-            humanError?.response?.data;
-
-          const backendMessage =
-            responseData?.message ||
-            responseData?.error ||
-            responseData?.title ||
-            (typeof responseData === "string" &&
-            responseData.trim()
-              ? responseData.trim()
-              : null);
-
-          throw new Error(
-            backendMessage ||
-              `Unable to save personnel ${
-                hObj.fullName ||
-                `#${hId}`
-              } for this allocation plan. Backend returned HTTP ${
-                humanError?.response?.status ||
-                500
-              }.`
-          );
-        }
-      }
-    }
-
-    // One land plot for the experiment
-    if (selectedLandId) {
-      const selectedLand = landResources.find(
-        (land) => Number(land.landId) === Number(selectedLandId)
-      );
-
-      if (!selectedLand || !selectedLand.landId || selectedLand.landId <= 0) {
-        throw new Error(
-          "The selected land plot is invalid or no longer exists."
-        );
+  const filteredLandResources =
+    useMemo(() => {
+      if (!activeLandRequirement || checkingLandAvailability) {
+        return [];
       }
 
-      const normalizeSoilType = (value?: string | null) =>
-        (value || "")
+      const requiredArea =
+        Number(
+          activeLandRequirement
+            .requiredArea
+        ) || 0;
+
+      const requiredSoilType =
+        (
+          activeLandRequirement
+            .requiredSoilType || ""
+        )
           .trim()
-          .toLowerCase()
-          .replace(/\s+/g, " ");
+          .toLowerCase();
 
-      const selectedSoilType =
-        normalizeSoilType(selectedLand.soilType);
+      return landResources.filter(
+        (land) => {
+          const status =
+            (
+              land.status || ""
+            )
+              .trim()
+              .toLowerCase();
 
-      const selectedArea =
-        Number(selectedLand.areaSize) || 0;
-
-      const landRequirement =
-        landReqs.find((requirement) => {
-          const requirementId =
-            Number(requirement.expLandReqId || 0);
-
-          if (requirementId <= 0) {
+          if (
+            status &&
+            status !==
+              "available"
+          ) {
             return false;
           }
 
-          const sameExperiment =
-            requirement.experimentId == null ||
-            Number(requirement.experimentId) ===
-              Number(selectedExpId);
-
-          if (!sameExperiment) {
+          if (blockedLandIds.has(land.landId)) {
             return false;
           }
 
-          const requiredSoilType =
-            normalizeSoilType(
-              requirement.requiredSoilType
-            );
+          const landArea =
+            Number(
+              land.areaSize
+            ) || 0;
 
-          const requiredArea =
-            Number(requirement.requiredArea) || 0;
+          if (
+            requiredArea > 0 &&
+            landArea <
+              requiredArea
+          ) {
+            return false;
+          }
 
-          const soilMatches =
-            !requiredSoilType ||
-            !selectedSoilType ||
-            requiredSoilType ===
-              selectedSoilType;
+          if (
+            requiredSoilType
+          ) {
+            const actualSoilType =
+              (
+                land.soilType ||
+                ""
+              )
+                .trim()
+                .toLowerCase();
 
-          const areaMatches =
-            requiredArea <= 0 ||
-            selectedArea <= 0 ||
-            selectedArea >= requiredArea;
-
-          return soilMatches && areaMatches;
-        }) ||
-        activeLandRequirement;
-
-      let expLandReqId = Number(
-        landRequirement?.expLandReqId || 0
-      );
-
-      if (expLandReqId <= 0) {
-        const createdReq = await createExperimentLandRequirement({
-          experimentId: selectedExpId,
-          requiredArea:
-            Number(activeLandRequirement?.requiredArea) ||
-            Number(selectedLand.areaSize) ||
-            1000,
-          requiredSoilType:
-            activeLandRequirement?.requiredSoilType ||
-            selectedLand.soilType ||
-            "Standard Soil",
-          note:
-            activeLandRequirement?.note ||
-            "Allocated Land Plot",
-        });
-
-        expLandReqId = Number(
-          (createdReq as {
-            expLandReqId?: number;
-            id?: number;
-          })?.expLandReqId ??
-            (createdReq as {
-              expLandReqId?: number;
-              id?: number;
-            })?.id ??
-            0
-        );
-      }
-
-      if (expLandReqId <= 0) {
-        throw new Error(
-          "Land requirement ID is invalid. Reload the experiment requirements and try again."
-        );
-      }
-
-      const sDate = convertDateToIso(
-        selectedExp?.expectStartDate
-      );
-      const eDate = convertDateToIso(
-        selectedExp?.expectEndDate,
-        true
-      );
-
-      const startMs = new Date(sDate).getTime();
-      const endMs = new Date(eDate).getTime();
-
-      if (
-        Number.isNaN(startMs) ||
-        Number.isNaN(endMs) ||
-        endMs <= startMs
-      ) {
-        throw new Error(
-          "The experiment date range is invalid for land allocation."
-        );
-      }
-
-      // A plan can only use the same land plot once.
-      // Do NOT include expLandReqId in this duplicate check because older
-      // retries/drafts may already have persisted the same land with a
-      // different requirement id. Posting it again causes the backend to
-      // return HTTP 500 before /evaluate can run.
-      const existingLandForPlan =
-        existingLandDetails.find(
-          (detail) =>
-            Number(detail.landId) ===
-              Number(selectedLandId) &&
-            detail.status !==
-              "Cancelled"
-        );
-
-      const landAlreadyExists =
-        Boolean(existingLandForPlan);
-
-      if (landAlreadyExists) {
-        console.info(
-          `Reusing existing land allocation detail: plan=${planId}, land=${selectedLandId}, existingRequirement=${existingLandForPlan?.expLandReqId ?? "unknown"}.`
-        );
-      } else {
-        const landPayload = {
-          allocationPlanId: Number(planId),
-          landId: Number(selectedLand.landId),
-          expLandReqId: Number(expLandReqId),
-          startDate: sDate,
-          endDate: eDate,
-          status: "Proposed" as const,
-        };
-
-        try {
-          const createdLandDetail =
-            await createAllocationLandDetail(
-              landPayload
-            );
-
-          existingLandDetails.push(
-            createdLandDetail
-          );
-        } catch (landError: any) {
-          console.error(
-            "Allocation land detail POST failed.",
-            {
-              payload: landPayload,
-              response:
-                landError?.response?.data,
-              status:
-                landError?.response?.status,
+            if (
+              actualSoilType !==
+              requiredSoilType
+            ) {
+              return false;
             }
-          );
+          }
 
-          const backendMessage =
-            landError?.response?.data?.message ||
-            landError?.response?.data?.error ||
-            landError?.response?.data?.title ||
-            (typeof landError?.response?.data === "string"
-              ? landError.response.data
-              : null);
-
-          throw new Error(
-            backendMessage ||
-              `Unable to save land plot ${selectedLand.landCode || selectedLand.landId}. The selected plot must match the experiment land requirement and be allocatable for the experiment period. Backend returned HTTP ${landError?.response?.status || 500}.`
-          );
+          return true;
         }
-      }
+      );
+    }, [
+      landResources,
+      activeLandRequirement,
+      blockedLandIds,
+      checkingLandAvailability,
+    ]);
+
+  const handleSelectLand = (
+    landId: number
+  ) => {
+
+    if (
+      allocationDetailsSaved
+    ) {
+      setError(
+        "Fitness evaluation has already been prepared. Save this allocation before changing land."
+      );
+
+      return;
     }
 
-    setAllocationDetailsSaved(true);
-  };
-
-  const persistHumanSchedules = async (planId: number) => {
-    const currentUser = getCurrentUserTokenInfo();
-
-    for (const [phaseIdText, humans] of Object.entries(scheduledHumanDates)) {
-      const phaseId = Number(phaseIdText);
-      const phase = phases.find((item) => item.experimentPhaseId === phaseId);
-      if (!phase) continue;
-
-      for (const [humanIdText, selectedDatesRaw] of Object.entries(humans)) {
-        const humanId = Number(humanIdText);
-        const human = humanProfiles.find(
-          (item) => item.humanResourceId === humanId
-        );
-        if (!human) continue;
-
-        const selectedDates = Array.from(new Set(selectedDatesRaw)).sort();
-        if (selectedDates.length === 0) continue;
-
-        const humanMatch = findHumanMatch(phaseId, human);
-        const requiredHours =
-          humanMatch?.requirement.workingHoursPerDay ??
-          human.maxWorkingHoursPerDay ??
-          8;
-
-        if (requiredHours <= 0 || requiredHours > WORK_END_HOUR - WORK_START_HOUR) {
-          throw new Error(
-            `Invalid working hours for ${human.fullName || `Human #${humanId}`}.`
-          );
-        }
-
-        const firstDate = selectedDates[0];
-        const lastDate = selectedDates[selectedDates.length - 1];
-
-        const schedules = await getSchedules({
-          assignedHumanResourceId: humanId,
-          dateFrom: `${firstDate}T00:00:00`,
-          dateTo: `${lastDate}T23:59:59`,
-          page: 1,
-          size: 500,
-        });
-
-        // Validate every selected day again at Submit time. Another plan may
-        // have occupied the person after the Researcher opened the calendar.
-        const preparedDays = selectedDates.map((dateKey) => {
-          const busyRanges = getBusyRangesForDate(
-            schedules,
-            dateKey,
-            planId,
-            phaseId,
-            humanId
-          );
-          const freeRanges = getFreeWorkRanges(busyRanges);
-          const segments = buildWorkSegments(freeRanges, requiredHours);
-
-          return { dateKey, segments };
-        });
-
-        const invalidDay = preparedDays.find((item) => item.segments.length === 0);
-        if (invalidDay) {
-          throw new Error(
-            `${human.fullName || `Human #${humanId}`} no longer has ${requiredHours} free hour(s) on ${formatDate(invalidDay.dateKey)}.`
-          );
-        }
-
-        // A retry of Submit should update this draft's schedules rather than
-        // create duplicate rows.
-        const oldDraftSchedules = schedules.filter(
-          (schedule) =>
-            schedule.status !== "Cancelled" &&
-            schedule.allocationPlanId === planId &&
-            schedule.phaseId === phaseId &&
-            schedule.assignedHumanResourceId === humanId
-        );
-
-        for (const schedule of oldDraftSchedules) {
-          if (schedule.scheduleId > 0) {
-            await deleteSchedule(schedule.scheduleId);
-          }
-        }
-
-        const scheduleMeta =
-          scheduledHumanMeta[phaseId]?.[humanId];
-
-        const fallbackTitle = [
-          selectedExp?.experimentName?.trim(),
-          phase.phaseName?.trim(),
-        ]
-          .filter(Boolean)
-          .join(" - ");
-
-        const titleBase =
-          scheduleMeta?.title?.trim() ||
-          fallbackTitle ||
-          "Personnel Work Schedule";
-
-        const phaseLabel =
-          phase.phaseName?.trim() ||
-          `Phase #${phaseId}`;
-
-        const description =
-          scheduleMeta?.description?.trim() ||
-          `Scheduled from Resource Allocation Hub for ${
-            human.fullName ||
-            `Human Resource #${humanId}`
-          }.`;
-
-        for (const preparedDay of preparedDays) {
-          for (let index = 0; index < preparedDay.segments.length; index += 1) {
-            const segment = preparedDay.segments[index];
-
-            await createSchedule({
-              allocationPlanId: planId,
-              phaseId,
-              title:
-                preparedDay.segments.length > 1
-                  ? `${titleBase} - ${phaseLabel} (${index + 1}/${preparedDay.segments.length})`
-                  : `${titleBase} - ${phaseLabel}`,
-              description,
-              startDate: hourToDateTime(preparedDay.dateKey, segment.start),
-              endDate: hourToDateTime(preparedDay.dateKey, segment.end),
-              status: "Planned",
-              createdBy: currentUser.userId > 0 ? currentUser.userId : null,
-              assignedHumanResourceId: humanId,
-              notes: `Required ${requiredHours} working hour(s) within office hours 08:00-17:00.`,
-              priority: 1,
-            });
-          }
-        }
-      }
-    }
-  };
-
-  const evaluationWeightTotal =
-    evaluationWeights.equipmentWeight +
-    evaluationWeights.humanWeight +
-    evaluationWeights.landWeight +
-    evaluationWeights.scheduleWeight;
-
-  const getRemainingWeightFor = (
-    key: keyof EvaluationWeightPlan
-  ): number => {
-    const otherTotal = (
-      Object.entries(evaluationWeights) as Array<
-        [keyof EvaluationWeightPlan, number]
-      >
-    ).reduce(
-      (total, [currentKey, value]) =>
-        currentKey === key
-          ? total
-          : total + value,
-      0
+    setSelectedLandId(
+      (current) =>
+        current === landId
+          ? null
+          : landId
     );
 
-    return Math.max(0, 100 - otherTotal);
+    setFitnessScore(null);
+    setFitnessEvaluationMessage("");
+    setFitnessBreakdown(null);
   };
 
-  const resetFitnessEvaluationState = () => {
+  /*
+   * ==========================================================
+   * COUNTERS
+   * ==========================================================
+   */
+
+  const totalEquipmentCount =
+    useMemo(
+      () =>
+        Object.values(
+          selectedEquipByPhase
+        ).reduce(
+          (
+            sum,
+            list
+          ) =>
+            sum +
+            list.length,
+          0
+        ),
+      [
+        selectedEquipByPhase,
+      ]
+    );
+
+  const totalHumanCount =
+    useMemo(
+      () =>
+        Object.values(
+          selectedHumansByPhase
+        ).reduce(
+          (
+            sum,
+            list
+          ) =>
+            sum +
+            list.length,
+          0
+        ),
+      [
+        selectedHumansByPhase,
+      ]
+    );
+
+  const evaluationWeightTotal =
+    useMemo(
+      () =>
+        evaluationWeights
+          .equipmentWeight +
+        evaluationWeights
+          .humanWeight +
+        evaluationWeights
+          .landWeight,
+      [evaluationWeights]
+    );
+
+  /*
+   * ==========================================================
+   * PHASE REQUIREMENT HELPERS
+   * ==========================================================
+   */
+
+  const ensurePhaseHumanRequirement =
+    async (
+      phaseId: number,
+      requirement:
+        ExperimentHumanRequirement
+    ): Promise<
+      number | null
+    > => {
+      const existing =
+        phaseHumanReqs.find(
+          (item) =>
+            Number(
+              item.phaseId
+            ) ===
+              Number(
+                phaseId
+              ) &&
+            Number(
+              item.roleId
+            ) ===
+              Number(
+                requirement.roleId
+              ) &&
+            Number(
+              item.requiredSkillId ||
+                0
+            ) ===
+              Number(
+                requirement
+                  .requiredSkillId ||
+                  0
+              )
+        );
+
+      if (existing) {
+        return Number(
+          existing.phaseHumanReqId
+        );
+      }
+
+      try {
+        const response =
+          await api.post(
+            "/PhaseHumanRequirements",
+            {
+              phaseId,
+
+              roleId:
+                requirement.roleId,
+
+              quantity:
+                requirement.quantity ||
+                1,
+
+              requiredSkillId:
+                requirement
+                  .requiredSkillId ||
+                null,
+
+              note:
+                requirement.note ||
+                null,
+            }
+          );
+
+        const created =
+          response.data;
+
+        const createdId =
+          Number(
+            created
+              ?.phaseHumanReqId ||
+              created?.id ||
+              0
+          );
+
+        if (
+          createdId > 0
+        ) {
+          setPhaseHumanReqs(
+            (current) => [
+              ...current,
+              {
+                phaseHumanReqId:
+                  createdId,
+
+                phaseId,
+
+                experimentId:
+                  selectedExpId,
+
+                roleId:
+                  requirement.roleId,
+
+                quantity:
+                  requirement.quantity,
+
+                requiredSkillId:
+                  requirement
+                    .requiredSkillId,
+
+                note:
+                  requirement.note,
+              },
+            ]
+          );
+
+          return createdId;
+        }
+      } catch (err) {
+        console.warn(
+          "Unable to create PhaseHumanRequirement:",
+          err
+        );
+      }
+
+      return null;
+    };
+
+  /*
+   * ==========================================================
+   * ALLOCATION DETAIL PERSISTENCE
+   * ==========================================================
+   *
+   * Hàm này chỉ được gọi trong Manager Allocation Mode.
+   *
+   * Nó persist:
+   *
+   * - AllocationEquipmentDetails
+   * - AllocationHumanDetails
+   * - AllocationLandDetails
+   *
+   * KHÔNG persist Schedule.
+   */
+
+  const persistAllocationDetails =
+    async (
+      planId: number
+    ) => {
+      const plan =
+        await getAllocationPlanById(
+          planId
+        );
+
+      const normalizedPlanStatus = String(
+        plan.approveStatus || ""
+      )
+        .trim()
+        .toLowerCase();
+
+      const canPersistResourceDetails =
+        isManagerAllocation
+          ? normalizedPlanStatus === "draft" &&
+            String(
+              (await getAllocationPlanById(initialPlanId))
+                .approveStatus || ""
+            ).trim().toLowerCase() === "approved"
+          : currentUserInfo.role === "Researcher" &&
+            normalizedPlanStatus === "draft";
+
+      if (!canPersistResourceDetails) {
+        throw new Error(
+          isManagerAllocation
+            ? "Manager allocation requires an Approved source request and a Draft assignment plan."
+            : "Researcher can prepare resources only while the Allocation Plan is Draft."
+        );
+      }
+
+      // Hard guard: never create an Equipment Detail against a plan belonging
+      // to another experiment/session.
+      if (
+        Number(plan.experimentId || 0) !==
+        Number(selectedExpId)
+      ) {
+        throw new Error(
+          `Allocation Plan #${planId} belongs to Experiment #${plan.experimentId}, not Experiment #${selectedExpId}.`
+        );
+      }
+
+      /*
+       * --------------------------------------------------------
+       * EQUIPMENT
+       * --------------------------------------------------------
+       */
+
+      const existingEquipmentDetails =
+        await getAllocationEquipmentDetails(
+          {
+            allocationPlanId:
+              planId,
+
+            size: 500,
+          }
+        ).catch(() => []);
+
+      const equipmentDetails =
+        Array.isArray(
+          existingEquipmentDetails
+        )
+          ? existingEquipmentDetails
+          : (
+              existingEquipmentDetails as any
+            )?.items || [];
+
+      const existingEquipmentKeys =
+        new Set(
+          equipmentDetails.map(
+            (detail: any) =>
+              [
+                Number(
+                  detail
+                    .allocationPlanId
+                ),
+
+                Number(
+                  detail
+                    .equipmentInstanceId
+                ),
+
+                Number(
+                  detail
+                    .expEquipmentReqId ||
+                    0
+                ),
+
+                Number(
+                  detail
+                    .phaseEquipmentReqId ||
+                    0
+                ),
+              ].join(":")
+          )
+        );
+
+      for (
+        const [
+          phaseIdText,
+          equipmentIds,
+        ] of Object.entries(
+          selectedEquipByPhase
+        )
+      ) {
+        const phaseId =
+          Number(
+            phaseIdText
+          );
+
+        const phase =
+          phases.find(
+            (item) =>
+              item.experimentPhaseId ===
+              phaseId
+          );
+
+        if (!phase) {
+          continue;
+        }
+
+        for (
+          const equipmentId of
+          equipmentIds
+        ) {
+          const equipment =
+            availableEquipment.find(
+              (item) =>
+                item.equipmentInstanceId ===
+                equipmentId
+            );
+
+          if (!equipment) {
+            continue;
+          }
+
+          const match =
+            findEquipmentMatch(
+              phaseId,
+              equipment
+            );
+
+          if (!match) {
+            throw new Error(
+              `${
+                equipment.assetCode ||
+                equipment.equipmentTypeName ||
+                `Equipment #${equipmentId}`
+              } does not satisfy the requirement for ${phase.phaseName}.`
+            );
+          }
+
+          const requirement =
+            match.requirement;
+
+          const startDate =
+            convertDateToIso(
+              phase.expectedStartDate ||
+                selectedExp
+                  ?.expectStartDate
+            );
+
+          const endDate =
+            convertDateToIso(
+              phase.expectedEndDate ||
+                selectedExp
+                  ?.expectEndDate,
+              true
+            );
+
+          const key = [
+            planId,
+            equipmentId,
+            requirement
+              .expEquipmentReqId,
+            0,
+          ].join(":");
+
+          if (
+            existingEquipmentKeys.has(
+              key
+            )
+          ) {
+            continue;
+          }
+
+          await validateEquipmentInstanceAvailability(
+            equipmentId,
+            startDate,
+            endDate,
+            equipment.assetCode
+          );
+
+          const equipmentAllocationPayload: AllocationEquipmentDetailRequest = {
+              allocationPlanId:
+                Number(planId),
+
+              expEquipmentReqId:
+                Number(
+                  requirement
+                    .expEquipmentReqId
+                ),
+
+              phaseEquipmentReqId: null,
+
+              // AllocationEquipmentDetailRequest requires the actual
+              // equipment type being allocated, even for a substitute.
+              allocatedEquipmentTypeId:
+                Number(
+                  equipment.equipmentTypeId
+                ),
+
+              equipmentInstanceId:
+                Number(
+                  equipmentId
+                ),
+
+              // One selected EquipmentInstance represents one allocated unit.
+              quantity: 1,
+
+              // The allocation API stores efficiency as a 0..1 ratio.
+              efficiencyRate:
+                Number(
+                  match.effectiveEfficiency.toFixed(4)
+                ),
+
+              isSubstitute:
+                Boolean(
+                  match.isSubstitute
+                ),
+
+              startDate,
+              endDate,
+
+              status:
+                "Allocated",
+          };
+
+          console.debug(
+            "Creating AllocationEquipmentDetail with verified payload:",
+            equipmentAllocationPayload
+          );
+
+          await createAllocationEquipmentDetail(
+            equipmentAllocationPayload
+          );
+
+          existingEquipmentKeys.add(
+            key
+          );
+        }
+      }
+
+      /*
+       * --------------------------------------------------------
+       * HUMAN RESOURCE
+       * --------------------------------------------------------
+       *
+       * FLOW MỚI:
+       *
+       * Manager allocate personnel vào phase.
+       *
+       * Không tạo Schedule tại đây.
+       *
+       * startDate/endDate chỉ biểu diễn khoảng thời gian
+       * resource được dành cho phase.
+       */
+
+      const existingHumanDetailsResponse =
+        await getAllocationHumanDetails(
+          {
+            allocationPlanId:
+              planId,
+
+            size: 500,
+          }
+        ).catch(() => []);
+
+      const existingHumanDetails =
+        Array.isArray(
+          existingHumanDetailsResponse
+        )
+          ? existingHumanDetailsResponse
+          : (
+              existingHumanDetailsResponse as any
+            )?.items || [];
+
+      const existingHumanKeys =
+        new Set(
+          existingHumanDetails.map(
+            (detail: any) =>
+              [
+                Number(
+                  detail
+                    .allocationPlanId
+                ),
+
+                Number(
+                  detail
+                    .humanResourceId
+                ),
+
+                Number(
+                  detail
+                    .expHumanReqId ||
+                    0
+                ),
+
+                Number(
+                  detail
+                    .phaseHumanReqId ||
+                    0
+                ),
+              ].join(":")
+          )
+        );
+
+      for (
+        const [
+          phaseIdText,
+          humanIds,
+        ] of Object.entries(
+          selectedHumansByPhase
+        )
+      ) {
+        const phaseIdNum =
+          Number(
+            phaseIdText
+          );
+
+        const phase =
+          phases.find(
+            (item) =>
+              item.experimentPhaseId ===
+              phaseIdNum
+          );
+
+        if (!phase) {
+          continue;
+        }
+
+        for (
+          const humanId of
+          humanIds
+        ) {
+          const human =
+            humanProfiles.find(
+              (item) =>
+                item.humanResourceId ===
+                humanId
+            );
+
+          if (!human) {
+            continue;
+          }
+
+          const humanMatch =
+            findHumanMatch(
+              phaseIdNum,
+              human
+            );
+
+          if (!humanMatch) {
+            throw new Error(
+              `${
+                human.fullName ||
+                `Human resource #${humanId}`
+              } does not satisfy the personnel requirement for ${phase.phaseName}.`
+            );
+          }
+
+          const requirement =
+            humanMatch.requirement;
+
+          const phaseHumanReqId =
+            await ensurePhaseHumanRequirement(
+              phaseIdNum,
+              requirement
+            );
+
+          const requiredWorkingHours =
+            Number(
+              requirement
+                .workingHoursPerDay ||
+                human
+                  .maxWorkingHoursPerDay ||
+                8
+            );
+
+          /*
+           * Đây KHÔNG phải Work Schedule.
+           *
+           * Manager chỉ reserve Human Resource cho
+           * khoảng thời gian của Experiment Phase.
+           */
+          const humanStartDate =
+            convertDateToIso(
+              phase.expectedStartDate ||
+                selectedExp
+                  ?.expectStartDate
+            );
+
+          const humanEndDate =
+            convertDateToIso(
+              phase.expectedEndDate ||
+                selectedExp
+                  ?.expectEndDate,
+              true
+            );
+
+          const key = [
+            planId,
+            humanId,
+            requirement
+              .expHumanReqId,
+            phaseHumanReqId ||
+              0,
+          ].join(":");
+
+          if (
+            existingHumanKeys.has(
+              key
+            )
+          ) {
+            continue;
+          }
+
+          const humanAllocationPayload: AllocationHumanDetailRequest = {
+              allocationPlanId:
+                Number(planId),
+
+              expHumanReqId:
+                phaseHumanReqId
+                  ? null
+                  : Number(
+                      requirement.expHumanReqId
+                    ),
+
+              phaseHumanReqId:
+                phaseHumanReqId
+                  ? Number(
+                      phaseHumanReqId
+                    )
+                  : null,
+
+              humanResourceId:
+                Number(
+                  humanId
+                ),
+
+              workingHours:
+                requiredWorkingHours,
+
+              startDate:
+                humanStartDate,
+
+              endDate:
+                humanEndDate,
+
+              // Allocation detail API stores efficiency as percentage (100 = 100%).
+              // The matching logic above is normalized to 0..1, so convert it back here.
+              status:
+                "Allocated",
+          };
+
+          await createAllocationHumanDetail(
+            humanAllocationPayload
+          );
+
+          existingHumanKeys.add(
+            key
+          );
+        }
+      }
+
+      /*
+       * --------------------------------------------------------
+       * LAND
+       * --------------------------------------------------------
+       */
+
+      if (
+        activeLandRequirement &&
+        selectedLandId
+      ) {
+        const selectedLand =
+          landResources.find(
+            (item) =>
+              item.landId ===
+              selectedLandId
+          );
+
+        if (
+          !selectedLand
+        ) {
+          throw new Error(
+            "Selected land resource could not be found."
+          );
+        }
+
+        const requiredArea =
+          Number(
+            activeLandRequirement
+              .requiredArea
+          ) || 0;
+
+        const actualArea =
+          Number(
+            selectedLand.areaSize
+          ) || 0;
+
+        if (
+          requiredArea > 0 &&
+          actualArea <
+            requiredArea
+        ) {
+          throw new Error(
+            `Selected land provides ${actualArea} ha but ${requiredArea} ha is required.`
+          );
+        }
+
+        const existingLandDetailsResponse =
+          await getAllocationLandDetails(
+            {
+              allocationPlanId:
+                planId,
+
+              size: 100,
+            }
+          ).catch(() => []);
+
+        const existingLandDetails =
+          Array.isArray(
+            existingLandDetailsResponse
+          )
+            ? existingLandDetailsResponse
+            : (
+                existingLandDetailsResponse as any
+              )?.items || [];
+
+        const landAlreadyAllocated =
+          existingLandDetails.some(
+            (detail: any) =>
+              Number(
+                detail
+                  .allocationPlanId
+              ) ===
+                Number(
+                  planId
+                ) &&
+              Number(
+                detail.landId
+              ) ===
+                Number(
+                  selectedLandId
+                ) &&
+              Number(
+                detail
+                  .expLandReqId ||
+                  0
+              ) ===
+                Number(
+                  activeLandRequirement
+                    .expLandReqId
+                )
+          );
+
+        if (
+          !landAlreadyAllocated
+        ) {
+          const landStartDate = convertDateToIso(
+            selectedExp?.expectStartDate
+          );
+          const landEndDate = convertDateToIso(
+            selectedExp?.expectEndDate,
+            true
+          );
+
+          await validateLandAvailability(
+            selectedLandId,
+            landStartDate,
+            landEndDate,
+            selectedLand.landCode
+          );
+
+          const landAllocationPayload: AllocationLandDetailRequest = {
+              allocationPlanId:
+                Number(planId),
+
+              expLandReqId:
+                Number(
+                  activeLandRequirement
+                    .expLandReqId
+                ),
+
+              landId:
+                Number(
+                  selectedLandId
+                ),
+
+              startDate: landStartDate,
+
+              endDate: landEndDate,
+
+              // Allocation detail API stores efficiency as percentage (100 = 100%).
+              // The matching logic above is normalized to 0..1, so convert it back here.
+              status:
+                "Allocated",
+          };
+
+          await createAllocationLandDetail(
+            landAllocationPayload
+          );
+        }
+      }
+
+      setAllocationDetailsSaved(
+        true
+      );
+    };
+
+  const handleWeightInputChange = (
+    key: keyof EvaluationWeightPlan,
+    value: string
+  ) => {
+    const parsedValue = value === "" ? null : Number(value);
+    const numericOtherWeights = (
+      Object.entries(weightInputs) as [keyof EvaluationWeightPlan, string][]
+    )
+      .filter(([entryKey]) => entryKey !== key)
+      .reduce((total, [entryKey, entryValue]) => {
+        const numericEntry =
+          entryValue === "" ? 0 : Number(entryValue);
+
+        if (!Number.isFinite(numericEntry)) {
+          return total + (evaluationWeights[entryKey] ?? 0);
+        }
+
+        return total + numericEntry;
+      }, 0);
+
+    const maxAllowed = Math.max(0, 100 - numericOtherWeights);
+    const fittedPercentage =
+      parsedValue === null
+        ? 0
+        : Number.isFinite(parsedValue)
+          ? Math.max(0, Math.min(maxAllowed, parsedValue))
+          : 0;
+
+    setEvaluationWeights((current) => ({
+      ...current,
+      [key]: fittedPercentage,
+    }));
+    setWeightInputs((currentInputs) => ({
+      ...currentInputs,
+      [key]: value === "" ? "" : String(fittedPercentage),
+    }));
+
     setFitnessScore(null);
     setFitnessBreakdown(null);
     setFitnessEvaluationMessage("");
     setAllocationDetailsSaved(false);
-    setError("");
   };
 
-  const updateEvaluationWeight = (
-    key: keyof EvaluationWeightPlan,
-    rawValue: string
-  ) => {
-    if (rawValue === "") {
-      setWeightInputs((current) => ({
-        ...current,
-        [key]: "",
-      }));
-
-      setEvaluationWeights((current) => ({
-        ...current,
-        [key]: 0,
-      }));
-
-      resetFitnessEvaluationState();
-      return;
-    }
-
-    const parsed = Number(rawValue);
-
-    if (!Number.isFinite(parsed)) {
-      return;
-    }
-
-    setEvaluationWeights((current) => {
-      const otherTotal = (
-        Object.entries(current) as Array<
-          [keyof EvaluationWeightPlan, number]
-        >
-      ).reduce(
-        (total, [currentKey, value]) =>
-          currentKey === key
-            ? total
-            : total + value,
-        0
-      );
-
-      const maxAllowed = Math.max(
-        0,
-        100 - otherTotal
-      );
-
-      const nextValue = Math.min(
-        maxAllowed,
-        Math.max(0, parsed)
-      );
-
-      setWeightInputs((inputCurrent) => ({
-        ...inputCurrent,
-        [key]: String(nextValue),
-      }));
-
-      return {
-        ...current,
-        [key]: nextValue,
-      };
-    });
-
-    resetFitnessEvaluationState();
-  };
-
-  const handleEvaluationWeightBlur = (
+  const handleWeightBlur = (
     key: keyof EvaluationWeightPlan
   ) => {
-    setWeightInputs((current) => {
-      if (current[key] !== "") {
-        return current;
-      }
-
-      return {
-        ...current,
-        [key]: "0",
-      };
-    });
+    // Keep the visible input synchronized with the already-fitted value.
+    setWeightInputs((current) => ({
+      ...current,
+      [key]: String(evaluationWeights[key] ?? 0),
+    }));
   };
 
-  const handleEvaluateFitnessScore = async () => {
-    if (!selectedExpId || !selectedExp) {
-      setError("Please select an experiment first.");
-      return;
-    }
+  /*
+   * ==========================================================
+   * FITNESS EVALUATION
+   * ==========================================================
+   *
+   * Chỉ Manager được Evaluate sau khi Plan đã Approved
+   * và resource đã được chọn.
+   */
 
-    if (totalEquipmentCount === 0) {
-      setError("Please select the required equipment before evaluating Fitness Score.");
-      return;
-    }
+  const handleEvaluateFitnessScore =
+    async () => {
+      if (
+        !selectedExpId ||
+        !selectedExp
+      ) {
+        setError(
+          "Please select an experiment first."
+        );
 
-    if (totalHumanCount === 0) {
-      setError("Please select and schedule the required personnel before evaluating Fitness Score.");
-      return;
-    }
+        return;
+      }
 
-    if (activeLandRequirement && !selectedLandId) {
-      setError("Please select a land plot before evaluating Fitness Score.");
-      return;
-    }
+      if (
+        (equipmentReqs.length > 0 || phaseEquipmentReqs.length > 0) &&
+        totalEquipmentCount === 0
+      ) {
+        setError(
+          "Please select the required equipment before evaluating Fitness Score."
+        );
 
-    if (Math.abs(evaluationWeightTotal - 100) > 0.001) {
-      setError(
-        `Evaluation weights must total exactly 100%. Current total: ${evaluationWeightTotal.toFixed(
+        return;
+      }
+
+      if (
+        (humanReqs.length > 0 || phaseHumanReqs.length > 0) &&
+        totalHumanCount === 0
+      ) {
+        setError(
+          "Please select the required personnel before evaluating Fitness Score."
+        );
+
+        return;
+      }
+
+      if (
+        activeLandRequirement &&
+        !selectedLandId
+      ) {
+        setError(
+          "Please select a land plot before evaluating Fitness Score."
+        );
+
+        return;
+      }
+
+      if (Math.abs(evaluationWeightTotal - 100) > 0.001) {
+        setError(
+          `The three weights must total exactly 100%. Current total: ${evaluationWeightTotal.toFixed(1)}%.`
+        );
+        return;
+      }
+
+      try {
+        setEvaluatingFitness(
+          true
+        );
+
+        setError("");
+
+        setFitnessEvaluationMessage(
+          ""
+        );
+
+        const equipmentDetails = Object.entries(
+          selectedEquipByPhase
+        ).flatMap(([phaseIdText, equipmentIds]) => {
+          const phaseId = Number(phaseIdText);
+          const phase = phases.find(
+            (item) => item.experimentPhaseId === phaseId
+          );
+
+          if (!phase) return [];
+
+          return equipmentIds.flatMap((equipmentId) => {
+            const equipment = availableEquipment.find(
+              (item) => item.equipmentInstanceId === equipmentId
+            );
+            if (!equipment) return [];
+
+            const match = findEquipmentMatch(phaseId, equipment);
+            if (!match) return [];
+
+            const phaseRequirement = phaseEquipmentReqs.find(
+              (item) =>
+                item.phaseId === phaseId &&
+                item.equipmentTypeId === match.requirement.equipmentTypeId
+            );
+            const startDate =
+              phase.expectedStartDate || selectedExp.expectStartDate;
+            const endDate =
+              phase.expectedEndDate || selectedExp.expectEndDate;
+
+            return [{
+              equipmentTypeId: equipment.equipmentTypeId ?? null,
+              equipmentInstanceId: equipment.equipmentInstanceId ?? null,
+              quantity: 1,
+              expEquipmentReqId: match.requirement.expEquipmentReqId,
+              phaseEquipmentReqId: null,
+              isSubstitute: match.isSubstitute,
+              efficiencyRate: Number(match.effectiveEfficiency.toFixed(4)),
+              startDate: startDate ? convertDateToIso(startDate) : null,
+              endDate: endDate ? convertDateToIso(endDate, true) : null,
+            }];
+          });
+        });
+
+        const humanDetails = Object.entries(
+          selectedHumansByPhase
+        ).flatMap(([phaseIdText, humanIds]) => {
+          const phaseId = Number(phaseIdText);
+          const phase = phases.find(
+            (item) => item.experimentPhaseId === phaseId
+          );
+
+          if (!phase) return [];
+
+          return humanIds.flatMap((humanId) => {
+            const human = humanProfiles.find(
+              (item) => item.humanResourceId === humanId
+            );
+            if (!human) return [];
+
+            const match = findHumanMatch(phaseId, human);
+            if (!match) return [];
+
+            const phaseRequirement = phaseHumanReqs.find(
+              (item) =>
+                item.phaseId === phaseId &&
+                item.roleId === match.requirement.roleId
+            );
+            const startDate =
+              phase.expectedStartDate || selectedExp.expectStartDate;
+            const endDate =
+              phase.expectedEndDate || selectedExp.expectEndDate;
+
+            return [{
+              humanResourceId: human.humanResourceId,
+              assignedRole: match.requirement.roleName ?? null,
+              expHumanReqId: phaseRequirement
+                ? null
+                : match.requirement.expHumanReqId,
+              phaseHumanReqId: phaseRequirement?.phaseHumanReqId ?? null,
+              workingHours: Number(
+                match.requirement.workingHoursPerDay ||
+                  human.maxWorkingHoursPerDay ||
+                  8
+              ),
+              startDate: startDate ? convertDateToIso(startDate) : null,
+              endDate: endDate ? convertDateToIso(endDate, true) : null,
+            }];
+          });
+        });
+
+        const selectedLand = landResources.find(
+          (land) => land.landId === selectedLandId
+        );
+        const landDetails =
+          activeLandRequirement && selectedLand
+            ? [{
+                landId: selectedLand.landId,
+                allocatedArea: Number(
+                  activeLandRequirement.requiredArea || selectedLand.areaSize || 0
+                ),
+                expLandReqId: activeLandRequirement.expLandReqId,
+                startDate: selectedExp.expectStartDate
+                  ? convertDateToIso(selectedExp.expectStartDate)
+                  : null,
+                endDate: selectedExp.expectEndDate
+                  ? convertDateToIso(selectedExp.expectEndDate, true)
+                  : null,
+              }]
+            : [];
+
+        const evaluation = await simulateAllocationPlanFitness({
+          experimentId: selectedExpId,
+          currentPlanId: draftPlanId ?? (initialPlanId > 0 ? initialPlanId : null),
+          equipmentDetails,
+          humanDetails,
+          landDetails,
+        });
+
+        const breakdown = parseFitnessBreakdown(
+          evaluation.raw,
+          evaluationWeights
+        );
+        const hasAllComponentScores = [
+          breakdown.equipment.score,
+          breakdown.human.score,
+          breakdown.land.score,
+        ].every((score) => score !== null);
+        if (!hasAllComponentScores) {
+          throw new Error(
+            "The simulation did not return all component scores needed to apply the selected weights."
+          );
+        }
+
+        const weightedScore = [
+          breakdown.equipment.contribution,
+          breakdown.human.contribution,
+          breakdown.land.contribution,
+        ].reduce<number>(
+          (total, contribution) => total + (contribution ?? 0),
           0
-        )}%.`
-      );
-      return;
-    }
+        ) + (breakdown.penaltyScore ?? 0) + (breakdown.bonusScore ?? 0);
 
-    try {
-      setEvaluatingFitness(true);
+        setFitnessScore(Number(weightedScore));
+        setFitnessBreakdown(breakdown);
+
+        setFitnessEvaluationMessage(
+          "Simulated for the currently selected resources. This does not save or submit the allocation."
+        );
+      } catch (
+        evaluationError: any
+      ) {
+        console.error(
+          "Evaluate allocation fitness failed:",
+          evaluationError
+        );
+
+        const responseData =
+          evaluationError
+            ?.response?.data;
+
+        const backendMessage =
+          responseData?.message ||
+          responseData?.error ||
+          responseData?.title ||
+          (
+            typeof responseData ===
+            "string"
+              ? responseData
+              : null
+          );
+
+        setError(
+          backendMessage ||
+            evaluationError
+              ?.message ||
+            "Failed to evaluate Fitness Score."
+        );
+      } finally {
+        setEvaluatingFitness(
+          false
+        );
+      }
+    };
+
+  /*
+   * ==========================================================
+   * SAVE / SUBMIT
+   * ==========================================================
+   *
+   * RESEARCHER
+   *   Draft Plan
+   *      -> Submit
+   *      -> Pending
+   *
+   * MANAGER
+   *   Approved Plan
+   *      -> persist resources
+   *
+   * Schedule KHÔNG được tạo ở cả hai nhánh.
+   */
+
+  const handleSaveAndSubmitPlan =
+    async () => {
+      if (
+        !selectedExpId ||
+        !selectedExp
+      ) {
+        setError(
+          "Please select an experiment first."
+        );
+
+        return;
+      }
+
+      setSubmitting(true);
       setError("");
-      setFitnessEvaluationMessage("");
 
-      const planId = await ensureDraftAllocationPlan();
+      try {
+        const planId =
+          await ensureDraftAllocationPlan();
 
-      await persistAllocationDetails(planId);
-      await persistHumanSchedules(planId);
+        /*
+         * ======================================================
+         * MANAGER RESOURCE ALLOCATION
+         * ======================================================
+         */
 
-      const evaluation =
-        await evaluateAllocationPlan(
+        if (
+          isManagerAllocation
+        ) {
+          const approvedSourcePlan =
+            await getAllocationPlanById(
+              initialPlanId
+            );
+          const assignmentPlan = await getAllocationPlanById(planId);
+
+          if (
+            String(
+              approvedSourcePlan
+                .approveStatus ||
+                ""
+            )
+              .trim()
+              .toLowerCase() !==
+            "approved"
+          ) {
+            throw new Error(
+              "Manager can allocate resources only after the source plan has been approved."
+            );
+          }
+
+          if (
+            Number(approvedSourcePlan.experimentId) !== Number(assignmentPlan.experimentId) ||
+            String(assignmentPlan.approveStatus || "").trim().toLowerCase() !== "draft"
+          ) {
+            throw new Error(
+              "The assignment Draft is invalid for the approved source plan."
+            );
+          }
+
+          if (
+            totalEquipmentCount ===
+            0
+          ) {
+            throw new Error(
+              "Please select the required equipment."
+            );
+          }
+
+          if (
+            totalHumanCount ===
+            0
+          ) {
+            throw new Error(
+              "Please select the required personnel."
+            );
+          }
+
+          if (
+            activeLandRequirement &&
+            !selectedLandId
+          ) {
+            throw new Error(
+              "Please select the required land plot."
+            );
+          }
+
+          /*
+           * Đây là nơi duy nhất trong màn hình này
+           * resource allocation được persist.
+           *
+           * KHÔNG persist Schedule.
+           */
+          await persistAllocationDetails(
+            planId
+          );
+
+          /*
+           * Fitness Score không bắt buộc để lưu resource.
+           *
+           * Nếu Manager đã Evaluate thì score đã được backend
+           * cập nhật. Nếu chưa Evaluate thì vẫn cho phép lưu.
+           */
+          sendLocalNotification({
+            title:
+              "Resources Allocated",
+
+            message:
+              `Personnel, equipment and land resources were allocated to Experiment #${selectedExpId}.`,
+
+            notificationType:
+              "Success",
+
+            referenceType:
+              "AllocationPlan",
+
+            referenceId:
+              planId,
+          });
+
+          void fetchUnreadCount();
+
+          navigate(
+            `/allocation/${planId}`,
+            {
+              state: {
+                  message:
+                    `Resources were saved to assignment Draft #${planId}, created from Approved plan #${initialPlanId}.`,
+              },
+            }
+          );
+
+          return;
+        }
+
+        /*
+         * ======================================================
+         * RESEARCHER SUBMIT PLAN
+         * ======================================================
+         *
+         * Researcher KHÔNG persist resource.
+         * Researcher KHÔNG persist Schedule.
+         */
+
+        if (
+          currentUserInfo.role !==
+          "Researcher"
+        ) {
+          throw new Error(
+            "Only Researcher can submit a new Allocation Plan."
+          );
+        }
+
+        if (
+          totalEquipmentCount === 0 &&
+          (equipmentReqs.length > 0 || phaseEquipmentReqs.length > 0)
+        ) {
+          throw new Error("Please select the required equipment before submitting the plan.");
+        }
+
+        if (
+          totalHumanCount === 0 &&
+          (humanReqs.length > 0 || phaseHumanReqs.length > 0)
+        ) {
+          throw new Error("Please select the required personnel before submitting the plan.");
+        }
+
+        if (activeLandRequirement && !selectedLandId) {
+          throw new Error("Please select the required land plot before submitting the plan.");
+        }
+
+        if (Math.abs(evaluationWeightTotal - 100) > 0.001) {
+          throw new Error(
+            `The three weights must total exactly 100%. Current total: ${evaluationWeightTotal.toFixed(1)}%.`
+          );
+        }
+
+        /*
+         * Fitness Score is no longer part of the Researcher submit flow.
+         * Therefore resource details must be persisted HERE before the
+         * Allocation Plan is submitted. Previously this happened only from
+         * the Evaluate Fitness Score handler, so removing that UI also
+         * removed the only call that created Equipment/Human/Land details.
+         */
+        await persistAllocationDetails(planId);
+
+        const savedEvaluation = await evaluateAllocationPlan(
           planId,
           {
-            ...AI_DEFAULT_EVALUATION_SETTINGS,
-            ...evaluationWeights,
+            equipmentWeight: evaluationWeights.equipmentWeight / 100,
+            humanWeight: evaluationWeights.humanWeight / 100,
+            landWeight: evaluationWeights.landWeight / 100,
+            maintenanceWeight: 0,
           }
         );
 
-      setFitnessBreakdown(
-        parseFitnessBreakdown(
-          evaluation,
-          evaluationWeights
-        )
-      );
+        if (savedEvaluation.fitnessScore === null) {
+          throw new Error(
+            "The backend did not return the Fitness Score for the saved allocation."
+          );
+        }
 
-      let evaluatedScore =
-        evaluation.fitnessScore;
+        setFitnessScore(savedEvaluation.fitnessScore);
+        setFitnessBreakdown(
+          parseFitnessBreakdown(savedEvaluation.raw, evaluationWeights)
+        );
 
-      // Some backend versions update the AllocationPlan but return only a
-      // generic success response. Reload the plan to obtain the persisted score.
-      if (evaluatedScore === null || evaluatedScore === undefined) {
-        const refreshedPlan = await getAllocationPlanById(planId);
-        evaluatedScore = refreshedPlan.fitnessScore;
-      }
+        // Submit only changes the Allocation Plan workflow: Draft -> Pending.
+        await submitAllocationPlan(planId);
 
-      if (evaluatedScore === null || evaluatedScore === undefined) {
-        throw new Error(
-          "The backend evaluation completed but did not return a Fitness Score."
+        sendLocalNotification({
+          title:
+            "Allocation Plan Submitted",
+
+          message:
+            `Allocation plan for Experiment #${selectedExpId} has been submitted for Manager approval.`,
+
+          notificationType:
+            "Success",
+
+          referenceType:
+            "AllocationPlan",
+
+          referenceId:
+            planId,
+        });
+
+        void fetchUnreadCount();
+
+        navigate(
+          "/allocation",
+          {
+            state: {
+              message:
+                `Allocation plan for Experiment "${selectedExp.experimentName}" submitted successfully for Manager approval.`,
+            },
+          }
+        );
+      } catch (err: any) {
+        console.error(
+          "Allocation flow failed:",
+          err
+        );
+
+        const responseData =
+          err?.response?.data;
+
+        const responseErrors =
+          responseData?.errors &&
+          typeof responseData.errors === "object"
+            ? Object.entries(responseData.errors)
+                .map(([field, messages]) =>
+                  `${field}: ${Array.isArray(messages) ? messages.join(", ") : String(messages)}`
+                )
+                .join("; ")
+            : null;
+
+        const backendMessage =
+          responseData?.message ||
+          responseData?.error ||
+          responseData?.title ||
+          responseData?.detail ||
+          responseErrors ||
+          (
+            typeof responseData ===
+            "string"
+              ? responseData
+                : responseData && Object.keys(responseData).length > 0
+                  ? JSON.stringify(responseData)
+                  : null
+          );
+
+        console.error("Allocation API failure details:", {
+          status: err?.response?.status,
+          url: err?.config?.url,
+          response: responseData,
+        });
+
+        setError(
+          backendMessage ||
+            err?.message ||
+            "Failed to process Allocation Plan. Please check inputs."
+        );
+      } finally {
+        setSubmitting(
+          false
         );
       }
-
-      setFitnessScore(Number(evaluatedScore));
-      setFitnessEvaluationMessage(
-        `Fitness Score was calculated by the backend using: Equipment ${evaluationWeights.equipmentWeight}%, Personnel ${evaluationWeights.humanWeight}%, Land ${evaluationWeights.landWeight}%, Schedule ${evaluationWeights.scheduleWeight}%.`
-      );
-    } catch (evaluationError: any) {
-      console.error(
-        "Evaluate allocation fitness failed:",
-        evaluationError
-      );
-
-      const responseData =
-        evaluationError?.response?.data;
-
-      const backendMessage =
-        responseData?.message ||
-        responseData?.error ||
-        responseData?.title ||
-        (typeof responseData === "string"
-          ? responseData
-          : null);
-
-      setError(
-        backendMessage ||
-          evaluationError?.message ||
-          "Failed to evaluate Fitness Score."
-      );
-    } finally {
-      setEvaluatingFitness(false);
-    }
-  };
-
-  // Save & Submit Allocation Plan (Manual)
-  const handleSaveAndSubmitPlan = async () => {
-    if (!selectedExpId || !selectedExp) {
-      setError("Please select an experiment first.");
-      return;
-    }
-
-    if (fitnessScore === null) {
-      setError("Please evaluate the Fitness Score before submitting the Allocation Plan.");
-      return;
-    }
-
-    setSubmitting(true);
-    setError("");
-
-    try {
-      const planId = await ensureDraftAllocationPlan();
-
-      // Allocation details are normally persisted during Fitness evaluation.
-      await persistAllocationDetails(planId);
-
-      // IMPORTANT: personnel calendar selections have only lived in FE state
-      // until this exact point. Create/update the real backend schedules only
-      // when Researcher confirms Save & Submit Allocation Plan.
-      await persistHumanSchedules(planId);
-
-      // Persist the exact Fitness Score that the Researcher reviewed before
-      // moving the Allocation Plan from Draft -> Pending. This guarantees the
-      // Manager sees the same score on the submitted plan.
-      await updateAllocationPlan(planId, {
-        experimentId: selectedExpId,
-        fitnessScore,
-        approveStatus: "Draft",
-      });
-
-      // Backend submit endpoint transitions the plan to Pending so it becomes
-      // actionable for Manager approval/rejection.
-      await submitAllocationPlan(planId);
-
-      sendLocalNotification({
-        title: "Allocation Plan Submitted",
-        message: `Allocation plan for Experiment #${selectedExpId} with ${totalEquipmentCount} equipment and ${totalHumanCount} personnel (Fitness Score: ${fitnessScore}) has been submitted for Manager approval!`,
-        notificationType: "Success",
-        referenceType: "AllocationPlan",
-        referenceId: planId,
-      });
-      void fetchUnreadCount();
-
-      navigate("/allocation", {
-        state: {
-          message: `Allocation plan for Experiment "${selectedExp.experimentName}" submitted successfully for Manager approval! Fitness Score: ${fitnessScore}.`,
-        },
-      });
-    } catch (err: any) {
-      console.error("Save & submit allocation plan failed:", err);
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to submit allocation plan. Please check inputs."
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    };
 
   // AI Allocation Handler
-  const handleStartAIAllocation = () => {
-    if (!selectedExpId) {
-      setError("Please select an experiment first.");
-      return;
-    }
-    navigate(`/experiments/${selectedExpId}/ai-suggestions`);
-  };
+  const handleStartAIAllocation =
+    () => {
+      if (
+        !selectedExpId
+      ) {
+        setError(
+          "Please select an experiment first."
+        );
+
+        return;
+      }
+
+      /*
+       * AI resource optimizer thuộc bước Manager allocation.
+       */
+      if (
+        !isManagerAllocation
+      ) {
+        setError(
+          "AI Resource Optimizer is available after Manager approves the Allocation Plan."
+        );
+
+        return;
+      }
+
+      navigate(
+        `/experiments/${selectedExpId}/ai-suggestions?allocationPlanId=${initialPlanId}`
+      );
+    };
 
   return (
     <DashboardLayout>
@@ -2638,126 +4015,70 @@ export default function CreateAllocation() {
               alignItems: "center",
               justifyContent: "center",
               padding: "24px",
-              background: "rgba(15, 23, 42, 0.48)",
-              backdropFilter: "blur(2px)",
+              background:
+                "rgba(15, 23, 42, 0.48)",
+              backdropFilter:
+                "blur(2px)",
             }}
-            onMouseDown={(event) => {
-              if (event.currentTarget === event.target) {
+            onMouseDown={(
+              event
+            ) => {
+              if (
+                event.currentTarget ===
+                event.target
+              ) {
                 setError("");
               }
             }}
           >
             <div
               style={{
-                width: "min(520px, 100%)",
-                borderRadius: "16px",
-                background: "#ffffff",
-                border: "1px solid #fecaca",
+                width: "100%",
+                maxWidth: "520px",
+                borderRadius: "14px",
+                border:
+                  "1px solid #fecaca",
+                background:
+                  "#ffffff",
                 boxShadow:
-                  "0 24px 70px rgba(15, 23, 42, 0.24)",
+                  "0 20px 50px rgba(15, 23, 42, 0.22)",
                 overflow: "hidden",
               }}
-              onMouseDown={(event) =>
-                event.stopPropagation()
-              }
             >
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  gap: "16px",
-                  padding: "20px 22px 16px",
-                  borderBottom: "1px solid #fee2e2",
+                  padding:
+                    "18px 20px 14px",
+                  borderBottom:
+                    "1px solid #fee2e2",
+                  background:
+                    "#fff7f7",
                 }}
               >
                 <div
+                  id="allocation-error-title"
                   style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "12px",
+                    fontSize:
+                      "16px",
+                    fontWeight:
+                      700,
+                    color:
+                      "#b91c1c",
                   }}
                 >
-                  <div
-                    style={{
-                      width: "36px",
-                      height: "36px",
-                      flex: "0 0 36px",
-                      borderRadius: "999px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "#fef2f2",
-                      color: "#dc2626",
-                      fontSize: "20px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    !
-                  </div>
-
-                  <div>
-                    <h3
-                      id="allocation-error-title"
-                      style={{
-                        margin: 0,
-                        color: "#0f172a",
-                        fontSize: "18px",
-                        lineHeight: 1.3,
-                        fontWeight: 700,
-                      }}
-                    >
-                      Unable to complete request
-                    </h3>
-
-                    <p
-                      style={{
-                        margin: "6px 0 0",
-                        color: "#64748b",
-                        fontSize: "13px",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      Please review the message below and try
-                      again.
-                    </p>
-                  </div>
+                  Allocation Error
                 </div>
 
-                <button
-                  type="button"
-                  aria-label="Close error popup"
-                  onClick={() => setError("")}
-                  style={{
-                    border: 0,
-                    background: "transparent",
-                    color: "#64748b",
-                    cursor: "pointer",
-                    fontSize: "24px",
-                    lineHeight: 1,
-                    padding: "0 2px",
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-
-              <div
-                style={{
-                  padding: "18px 22px",
-                }}
-              >
                 <div
                   style={{
-                    borderRadius: "10px",
-                    border: "1px solid #fecaca",
-                    background: "#fff7f7",
-                    color: "#b91c1c",
-                    padding: "13px 14px",
-                    fontSize: "13.5px",
-                    lineHeight: 1.6,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
+                    marginTop:
+                      "7px",
+                    color:
+                      "#7f1d1d",
+                    fontSize:
+                      "13px",
+                    lineHeight:
+                      1.55,
                   }}
                 >
                   {error}
@@ -2766,28 +4087,20 @@ export default function CreateAllocation() {
 
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  padding: "0 22px 20px",
+                  display:
+                    "flex",
+                  justifyContent:
+                    "flex-end",
+                  padding:
+                    "12px 20px",
                 }}
               >
                 <button
                   type="button"
-                  onClick={() => setError("")}
-                  autoFocus
-                  style={{
-                    minWidth: "96px",
-                    height: "38px",
-                    border: 0,
-                    borderRadius: "9px",
-                    background: "#16a34a",
-                    color: "#ffffff",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    boxShadow:
-                      "0 4px 12px rgba(22, 163, 74, 0.2)",
-                  }}
+                  onClick={() =>
+                    setError("")
+                  }
+                  className="alloc-btn-manual"
                 >
                   Close
                 </button>
@@ -2796,414 +4109,986 @@ export default function CreateAllocation() {
           </div>
         )}
 
-        {/* Header */}
-        <div className="create-header">
+        <div className="alloc-page-header">
           <div>
-            <p className="breadcrumb">Dashboard / Allocations / Resource Allocation Hub</p>
-            <h1>Resource Allocation Hub</h1>
+            <button
+              type="button"
+              className="alloc-back-btn"
+              onClick={() =>
+                navigate(
+                  "/allocation"
+                )
+              }
+            >
+              <ArrowLeft
+                size={16}
+              />
+
+              Back to Allocation Plans
+            </button>
+
+            <h1>
+              {isManagerAllocation
+                ? "Allocate Resources"
+                : "Request Allocation Resources"}
+            </h1>
+
             <p>
-              Select an experiment, configure resources per phase (Equipment, Seasonal/Technician workforce, and Land Plot), and submit for Manager approval.
+              {isManagerAllocation
+                ? "Allocate personnel, equipment and land to the approved Allocation Plan."
+                : "Select proposed resources and submit the resource allocation request for Manager approval."}
             </p>
           </div>
-
-          <button type="button" onClick={() => navigate("/allocation")} className="back-btn">
-            <ArrowLeft size={16} /> Back to Allocations
-          </button>
         </div>
 
-        {/* Experiment Context Selector Card */}
-        <div className="alloc-exp-picker-card">
-          <div className="alloc-picker-row">
-            <div>
-              <label
-                htmlFor="experiment-alloc-select"
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 500,
-                  color: "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  display: "block",
-                  marginBottom: "5px",
-                }}
-              >
-                Target Experiment
-              </label>
-              <select
-                id="experiment-alloc-select"
-                value={selectedExpId || ""}
-                onChange={(e) => {
-                  const id = Number(e.target.value);
-                  setSelectedExpId(id);
-                }}
-                className="alloc-picker-select"
-              >
-                {allExperiments.length === 0 ? (
-                  <option value="">No Active Experiments Found</option>
-                ) : (
-                  allExperiments.map((exp) => (
-                    <option key={exp.experimentId} value={exp.experimentId}>
-                      #{exp.experimentId} - {exp.experimentName} ({exp.status || "Active"})
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            {selectedExp && (
-              <div className="alloc-exp-meta-items">
-                <div className="alloc-exp-meta-item">
-                  Schedule: <span style={{ color: "#1e293b", fontWeight: 500 }}>{formatDate(selectedExp.expectStartDate)}</span> →{" "}
-                  <span style={{ color: "#1e293b", fontWeight: 500 }}>{formatDate(selectedExp.expectEndDate)}</span>
-                </div>
-                <div className="alloc-exp-meta-item">
-                  Deadline: <span style={{ color: "#1e293b", fontWeight: 500 }}>{formatDate(selectedExp.deadline)}</span>
-                </div>
-                <div className="alloc-exp-meta-item">
-                  <span
-                    style={{
-                      fontSize: "11.5px",
-                      fontWeight: 500,
-                      padding: "2px 8px",
-                      borderRadius: "5px",
-                      background: "#f0f9ff",
-                      color: "#0369a1",
-                      border: "1px solid #e0f2fe",
-                    }}
-                  >
-                    Priority {selectedExp.priority ?? 1}
-                  </span>
-                </div>
-                <div className="alloc-exp-meta-item">
-                  <span
-                    style={{
-                      fontSize: "11.5px",
-                      fontWeight: 500,
-                      padding: "2px 8px",
-                      borderRadius: "5px",
-                      background: "#f8fafc",
-                      color: "#475569",
-                      border: "1px solid #e2e8f0",
-                    }}
-                  >
-                    Status: {selectedExp.status || "Submitted"}
-                  </span>
-                </div>
-              </div>
-            )}
+        {loading ? (
+          <div className="alloc-loading">
+            Loading resource inventory...
           </div>
-        </div>
-
-        {/* 1. Experiment Phases Stepper - Allows choosing active phase to allocate */}
-        <div className="alloc-phase-nav-card">
-          <div className="alloc-phase-nav-header">
-            <div>
-              <h3>1. Select Experiment Phase ({phases.length} Phases)</h3>
-              <p style={{ margin: "3px 0 0", fontSize: "12.5px", color: "#64748b", fontWeight: 400 }}>
-                Click on a phase below to configure equipment and workforce assignments specifically for that execution window.
-              </p>
-            </div>
-          </div>
-
-          {phases.length === 0 ? (
-            <p style={{ color: "#64748b", margin: "10px 0 0", fontSize: "13px", fontWeight: 400 }}>
-              No phases defined for this experiment. You can proceed with AI Optimization to auto-generate phased schedules.
-            </p>
-          ) : (
-            <div className="alloc-phase-tabs">
-              {phases.map((p) => {
-                const isSelected = p.experimentPhaseId === activePhaseId;
-                const equipCount = selectedEquipByPhase[p.experimentPhaseId]?.length || 0;
-                const humanCount = selectedHumansByPhase[p.experimentPhaseId]?.length || 0;
-
-                return (
-                  <button
-                    key={p.experimentPhaseId}
-                    type="button"
-                    onClick={() => setActivePhaseId(p.experimentPhaseId)}
-                    className={`alloc-phase-tab ${isSelected ? "active" : ""}`}
-                  >
-                    <span className="alloc-phase-tab-badge">Phase #{p.phaseOrder ?? 1}</span>
-                    <div className="alloc-phase-tab-title">{p.phaseName}</div>
-                    <div className="alloc-phase-tab-dates">
-                      {formatDate(p.expectedStartDate)} → {formatDate(p.expectedEndDate)}
-                    </div>
-                    {(equipCount > 0 || humanCount > 0) && (
-                      <div style={{ marginTop: "3px", fontSize: "11px", fontWeight: 500, color: "#16a34a" }}>
-                        {equipCount} machines • {humanCount} staff
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 2. Interactive Phase Resource Workspace Grid */}
-        {activePhase ? (
-          <div className="alloc-workspace-grid">
-            {/* Left: Phase Equipment Allocation */}
-            <div className="alloc-section-card">
+        ) : (
+          <>
+            <div className="alloc-section">
               <div className="alloc-section-header">
                 <div>
-                  <h4>Equipment for "{activePhase.phaseName}"</h4>
-                  <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 400 }}>
-                    Select equipment that matches this phase's equipment requirements.
-                  </span>
+                  <h2>
+                    Experiment
+                  </h2>
+
+                  <p>
+                    {isManagerAllocation
+                      ? "Resource allocation will be saved to the approved plan."
+                      : "Select an experiment, then prepare its proposed resource allocation."}
+                  </p>
                 </div>
-                <span className="alloc-selection-count">
-                  {selectedEquipByPhase[activePhase.experimentPhaseId]?.length || 0} Selected
-                </span>
               </div>
 
-              {activePhaseEquipmentRequirements.length > 0 && (
-                <div
-                  style={{
-                    margin: "10px 0 12px",
-                    padding: "10px 12px",
-                    border: "1px solid #dcfce7",
-                    background: "#f0fdf4",
-                    borderRadius: "7px",
-                  }}
-                >
+              {isManagerAllocation ? (
+                <div className="alloc-form-group">
+                  <label>Experiment</label>
+
                   <div
                     style={{
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#166534",
-                      marginBottom: "6px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.03em",
+                      minHeight: "42px",
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "0 14px",
+                      border: "1px solid #dbe3ec",
+                      borderRadius: "8px",
+                      background: "#f8fafc",
+                      color: "#0f172a",
+                      fontWeight: 600,
                     }}
                   >
-                    Equipment Requirement
+                    {selectedExp?.experimentName ||
+                      "Loading approved plan experiment..."}
                   </div>
 
-                  {activePhaseEquipmentRequirements.map((req) => (
-                    <div
-                      key={req.expEquipmentReqId}
-                      style={{
-                        fontSize: "12px",
-                        color: "#334155",
-                        marginTop: "3px",
-                      }}
-                    >
-                      <strong>
-                        {req.equipmentTypeName || `Equipment Type #${req.equipmentTypeId}`}
-                      </strong>
-                      {" • "}
-                      Required: {req.quantity}
-                      {" • "}
-                      Min Eff: {Math.round(
-                        normalizeEfficiency(req.minAcceptableEfficiency) * 100
-                      )}%
-                      {" • "}
-                      Substitute: {req.allowSubstitute ? "Allowed" : "No"}
-                    </div>
-                  ))}
+                  <div
+                    style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                    }}
+                  >
+                    Allocation Plan #{initialPlanId} · Approved
+                  </div>
+                </div>
+              ) : (
+                <div className="alloc-form-group">
+                  <label
+                    htmlFor="allocation-experiment"
+                  >
+                    Experiment
+                  </label>
+
+                  <select
+                    id="allocation-experiment"
+                    value={
+                      selectedExpId ||
+                      ""
+                    }
+                    onChange={(
+                      event
+                    ) => {
+                      const id =
+                        Number(
+                          event
+                            .target
+                            .value
+                        );
+
+                      setSelectedExpId(
+                        id
+                      );
+                    }}
+                  >
+                    <option value="">
+                      -- Select Experiment --
+                    </option>
+
+                    {allExperiments.map(
+                      (
+                        experiment
+                      ) => (
+                        <option
+                          key={
+                            experiment
+                              .experimentId
+                          }
+                          value={
+                            experiment
+                              .experimentId
+                          }
+                        >
+                          {
+                            experiment
+                              .experimentName
+                          }
+                        </option>
+                      )
+                    )}
+                  </select>
                 </div>
               )}
 
-              {loading ? (
-                <p
-                  style={{
-                    color: "#64748b",
-                    fontSize: "12.5px",
-                    margin: "12px 0",
-                    fontWeight: 400,
-                  }}
-                >
-                  Loading available equipment...
-                </p>
-              ) : activePhaseEquipmentRequirements.length === 0 ? (
-                <p
-                  style={{
-                    color: "#b45309",
-                    fontSize: "12.5px",
-                    margin: "12px 0",
-                    fontWeight: 500,
-                  }}
-                >
-                  No equipment requirement is configured for this phase.
-                </p>
-              ) : primaryEquipmentForActivePhase.length === 0 &&
-                substituteEquipmentForActivePhase.length === 0 ? (
-                <p
-                  style={{
-                    color: "#64748b",
-                    fontSize: "12.5px",
-                    margin: "12px 0",
-                    fontWeight: 400,
-                  }}
-                >
-                  No available equipment or valid substitution matches the requirements for this phase.
-                </p>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      margin: "10px 0 7px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#0f766e",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                    }}
-                  >
-                    Requested Equipment
+              {selectedExp && (
+                <div className="alloc-experiment-summary">
+                  <div>
+                    <span>
+                      Experiment
+                    </span>
+
+                    <strong>
+                      {
+                        selectedExp
+                          .experimentName
+                      }
+                    </strong>
                   </div>
 
-                  {primaryEquipmentForActivePhase.length === 0 ? (
+                  <div>
+                    <span>
+                      Researcher
+                    </span>
+
+                    <strong>
+                      {selectedExp
+                        .researcherName ||
+                        selectedExp
+                          .createdByName ||
+                        "-"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      Expected
+                      Start
+                    </span>
+
+                    <strong>
+                      {formatDate(
+                        selectedExp
+                          .expectStartDate
+                      )}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>
+                      Expected
+                      End
+                    </span>
+
+                    <strong>
+                      {formatDate(
+                        selectedExp
+                          .expectEndDate
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
+                        {selectedExp && (
+              <>
+                {/* =========================================================
+                    1. EXPERIMENT PHASES
+                ========================================================= */}
+                <div className="alloc-phase-nav-card">
+                  <div className="alloc-phase-nav-header">
+                    <div>
+                      <h3>
+                        1. Select Experiment Phase ({phases.length} Phases)
+                      </h3>
+
+                      <p
+                        style={{
+                          margin: "3px 0 0",
+                          fontSize: "12.5px",
+                          color: "#64748b",
+                          fontWeight: 400,
+                        }}
+                      >
+                        Select a phase to allocate equipment and personnel
+                        for that execution window.
+                      </p>
+                    </div>
+                  </div>
+
+                  {phases.length === 0 ? (
                     <p
                       style={{
                         color: "#64748b",
-                        fontSize: "12px",
-                        margin: "8px 0 12px",
+                        margin: "10px 0 0",
+                        fontSize: "13px",
+                        fontWeight: 400,
                       }}
                     >
-                      No primary equipment is currently available.
+                      No phases are defined for this experiment.
                     </p>
                   ) : (
-                    <div className="alloc-items-list">
-                      {primaryEquipmentForActivePhase.map((eq) => {
-                        const match = findEquipmentMatch(
-                          activePhase.experimentPhaseId,
-                          eq
-                        );
-                        const isChecked = (
-                          selectedEquipByPhase[activePhase.experimentPhaseId] || []
-                        ).includes(eq.equipmentInstanceId);
+                    <div className="alloc-phase-tabs">
+                      {phases.map((phase) => {
+                        const isSelected =
+                          phase.experimentPhaseId === activePhaseId;
+
+                        const equipmentCount =
+                          selectedEquipByPhase[
+                            phase.experimentPhaseId
+                          ]?.length || 0;
+
+                        const humanCount =
+                          selectedHumansByPhase[
+                            phase.experimentPhaseId
+                          ]?.length || 0;
 
                         return (
-                          <div
-                            key={`primary-${eq.equipmentInstanceId}`}
+                          <button
+                            key={phase.experimentPhaseId}
+                            type="button"
                             onClick={() =>
-                              handleToggleEquipment(eq.equipmentInstanceId)
+                              setActivePhaseId(
+                                phase.experimentPhaseId
+                              )
                             }
-                            className={`alloc-item-row ${
-                              isChecked ? "selected" : ""
+                            className={`alloc-phase-tab ${
+                              isSelected ? "active" : ""
                             }`}
                           >
-                            <div style={{ display: "flex", alignItems: "center" }}>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {}}
-                                className="alloc-item-checkbox"
-                              />
-                              <div>
-                                <div
-                                  style={{
-                                    fontSize: "13px",
-                                    color: "#0284c7",
-                                    fontWeight: 550,
-                                  }}
-                                >
-                                  {eq.assetCode || `EQ-${eq.equipmentInstanceId}`}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "11.5px",
-                                    color: "#64748b",
-                                    fontWeight: 400,
-                                  }}
-                                >
-                                  {eq.equipmentTypeName ||
-                                    `Type #${eq.equipmentTypeId}`} {" • "}
-                                  {eq.conditionLevel || "Good"}
-                                </div>
-                              </div>
+                            <span className="alloc-phase-tab-badge">
+                              Phase #{phase.phaseOrder ?? 1}
+                            </span>
+
+                            <div className="alloc-phase-tab-title">
+                              {phase.phaseName}
                             </div>
 
-                            <div style={{ textAlign: "right" }}>
+                            <div className="alloc-phase-tab-dates">
+                              {formatDate(phase.expectedStartDate)}
+                              {" → "}
+                              {formatDate(phase.expectedEndDate)}
+                            </div>
+
+                            {(equipmentCount > 0 ||
+                              humanCount > 0) && (
                               <div
                                 style={{
-                                  fontSize: "10.5px",
-                                  fontWeight: 700,
-                                  color: "#15803d",
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                PRIMARY
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: "11.5px",
+                                  marginTop: "3px",
+                                  fontSize: "11px",
                                   fontWeight: 500,
                                   color: "#16a34a",
                                 }}
                               >
-                                {Math.round(
-                                  (match?.effectiveEfficiency ??
-                                    normalizeEfficiency(eq.efficiencyRate ?? 1)) *
-                                    100
-                                )}
-                                % Eff.
-                              </span>
-                            </div>
-                          </div>
+                                {equipmentCount} machines •{" "}
+                                {humanCount} staff
+                              </div>
+                            )}
+                          </button>
                         );
                       })}
                     </div>
                   )}
+                </div>
 
-                  {activePhaseEquipmentRequirements.some(
-                    (req) => req.allowSubstitute
-                  ) && (
-                    <>
-                      <div
-                        style={{
-                          margin: "16px 0 7px",
-                          paddingTop: "12px",
-                          borderTop: "1px dashed #cbd5e1",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          color: "#7c3aed",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        Valid Equipment Substitutions
+                {/* =========================================================
+                    2. PHASE RESOURCE WORKSPACE
+                ========================================================= */}
+
+                {activePhase ? (
+                  <div className="alloc-workspace-grid">
+                    {/* =====================================================
+                        EQUIPMENT
+                    ===================================================== */}
+                    <div className="alloc-section-card">
+                      <div className="alloc-section-header">
+                        <div>
+                          <h4>
+                            Equipment for "{activePhase.phaseName}"
+                          </h4>
+
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#64748b",
+                              fontWeight: 400,
+                            }}
+                          >
+                            Select equipment matching this phase&apos;s
+                            requirements.
+                          </span>
+                        </div>
+
+                        <span className="alloc-selection-count">
+                          {selectedEquipByPhase[
+                            activePhase.experimentPhaseId
+                          ]?.length || 0}{" "}
+                          Selected
+                        </span>
                       </div>
 
-                      {substituteEquipmentForActivePhase.length === 0 ? (
+                      {activePhaseEquipmentRequirements.length > 0 && (
+                        <div
+                          style={{
+                            margin: "10px 0 12px",
+                            padding: "10px 12px",
+                            border: "1px solid #dcfce7",
+                            background: "#f0fdf4",
+                            borderRadius: "7px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "#166534",
+                              marginBottom: "6px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.03em",
+                            }}
+                          >
+                            Equipment Requirement
+                          </div>
+
+                          {activePhaseEquipmentRequirements.map(
+                            (requirement) => (
+                              <div
+                                key={
+                                  requirement.expEquipmentReqId
+                                }
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#334155",
+                                  marginTop: "3px",
+                                }}
+                              >
+                                <strong>
+                                  {requirement.equipmentTypeName ||
+                                    `Equipment Type #${requirement.equipmentTypeId}`}
+                                </strong>
+
+                                {" • "}
+                                Required: {requirement.quantity}
+
+                                {" • "}
+                                Min Eff:{" "}
+                                {Math.round(
+                                  normalizeEfficiency(
+                                    requirement.minAcceptableEfficiency
+                                  ) * 100
+                                )}
+                                %
+
+                                {" • "}
+                                Substitute:{" "}
+                                {requirement.allowSubstitute
+                                  ? "Allowed"
+                                  : "No"}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                      {activePhaseEquipmentRequirements.length === 0 ? (
+                        <p
+                          style={{
+                            color: "#b45309",
+                            fontSize: "12.5px",
+                            margin: "12px 0",
+                            fontWeight: 500,
+                          }}
+                        >
+                          No equipment requirement is configured for this
+                          phase.
+                        </p>
+                      ) : checkingEquipmentAvailability ? (
                         <p
                           style={{
                             color: "#64748b",
-                            fontSize: "12px",
-                            margin: "8px 0",
+                            fontSize: "12.5px",
+                            margin: "12px 0",
                           }}
                         >
-                          No available substitute equipment meets the minimum efficiency requirement.
+                          Checking equipment availability for this phase&apos;s dates...
+                        </p>
+                      ) : primaryEquipmentForActivePhase.length === 0 &&
+                        substituteEquipmentForActivePhase.length === 0 ? (
+                        <p
+                          style={{
+                            color: "#64748b",
+                            fontSize: "12.5px",
+                            margin: "12px 0",
+                          }}
+                        >
+                          No available equipment matches this phase&apos;s
+                          requirements.
+                        </p>
+                      ) : (
+                        <>
+                          <div
+                            style={{
+                              margin: "10px 0 7px",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "#0f766e",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                            }}
+                          >
+                            Requested Equipment
+                          </div>
+
+                          {primaryEquipmentForActivePhase.length === 0 ? (
+                            <p
+                              style={{
+                                color: "#64748b",
+                                fontSize: "12px",
+                                margin: "8px 0 12px",
+                              }}
+                            >
+                              No primary equipment is currently available.
+                            </p>
+                          ) : (
+                            <div className="alloc-items-list">
+                              {primaryEquipmentForActivePhase.map(
+                                (equipment) => {
+                                  const match =
+                                    findEquipmentMatch(
+                                      activePhase.experimentPhaseId,
+                                      equipment
+                                    );
+
+                                  const isChecked = (
+                                    selectedEquipByPhase[
+                                      activePhase.experimentPhaseId
+                                    ] || []
+                                  ).includes(
+                                    equipment.equipmentInstanceId
+                                  );
+
+                                  return (
+                                    <div
+                                      key={
+                                        equipment.equipmentInstanceId
+                                      }
+                                      onClick={() =>
+                                        handleToggleEquipment(
+                                          equipment.equipmentInstanceId
+                                        )
+                                      }
+                                      className={`alloc-item-row ${
+                                        isChecked ? "selected" : ""
+                                      }`}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                        }}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          readOnly
+                                          className="alloc-item-checkbox"
+                                        />
+
+                                        <div>
+                                          <div
+                                            style={{
+                                              fontSize: "13px",
+                                              color: "#0284c7",
+                                              fontWeight: 550,
+                                            }}
+                                          >
+                                            {equipment.assetCode ||
+                                              `EQ-${equipment.equipmentInstanceId}`}
+                                          </div>
+
+                                          <div
+                                            style={{
+                                              fontSize: "11.5px",
+                                              color: "#64748b",
+                                            }}
+                                          >
+                                            {equipment.equipmentTypeName ||
+                                              `Type #${equipment.equipmentTypeId}`}
+
+                                            {" • "}
+
+                                            {equipment.conditionLevel ||
+                                              "Good"}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div
+                                        style={{
+                                          textAlign: "right",
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            fontSize: "10.5px",
+                                            fontWeight: 700,
+                                            color: "#15803d",
+                                          }}
+                                        >
+                                          PRIMARY
+                                        </div>
+
+                                        <span
+                                          style={{
+                                            fontSize: "11.5px",
+                                            color: "#16a34a",
+                                          }}
+                                        >
+                                          {Math.round(
+                                            (match?.effectiveEfficiency ??
+                                              normalizeEfficiency(
+                                                equipment.efficiencyRate ??
+                                                  1
+                                              )) * 100
+                                          )}
+                                          % Eff.
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              )}
+                            </div>
+                          )}
+
+                          {activePhaseEquipmentRequirements.some(
+                            (requirement) =>
+                              requirement.allowSubstitute
+                          ) && (
+                            <>
+                              <div
+                                style={{
+                                  margin: "16px 0 7px",
+                                  paddingTop: "12px",
+                                  borderTop:
+                                    "1px dashed #cbd5e1",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  color: "#7c3aed",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                Valid Equipment Substitutions
+                              </div>
+
+                              {substituteEquipmentForActivePhase.length ===
+                              0 ? (
+                                <p
+                                  style={{
+                                    color: "#64748b",
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  No available substitute equipment meets
+                                  the minimum efficiency requirement.
+                                </p>
+                              ) : (
+                                <div className="alloc-items-list">
+                                  {substituteEquipmentForActivePhase.map(
+                                    ({ equipment, match }) => {
+                                      const isChecked = (
+                                        selectedEquipByPhase[
+                                          activePhase.experimentPhaseId
+                                        ] || []
+                                      ).includes(
+                                        equipment.equipmentInstanceId
+                                      );
+
+                                      return (
+                                        <div
+                                          key={`sub-${equipment.equipmentInstanceId}-${match.requirement.expEquipmentReqId}`}
+                                          onClick={() =>
+                                            handleToggleEquipment(
+                                              equipment.equipmentInstanceId
+                                            )
+                                          }
+                                          className={`alloc-item-row ${
+                                            isChecked
+                                              ? "selected"
+                                              : ""
+                                          }`}
+                                        >
+                                          <div
+                                            style={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                            }}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              readOnly
+                                              className="alloc-item-checkbox"
+                                            />
+
+                                            <div>
+                                              <div
+                                                style={{
+                                                  fontSize: "13px",
+                                                  color: "#7c3aed",
+                                                  fontWeight: 600,
+                                                }}
+                                              >
+                                                {equipment.assetCode ||
+                                                  `EQ-${equipment.equipmentInstanceId}`}
+                                              </div>
+
+                                              <div
+                                                style={{
+                                                  fontSize: "11.5px",
+                                                  color: "#64748b",
+                                                }}
+                                              >
+                                                {equipment.equipmentTypeName ||
+                                                  `Type #${equipment.equipmentTypeId}`}
+
+                                                {" • substitutes for "}
+
+                                                <strong>
+                                                  {match.requirement
+                                                    .equipmentTypeName ||
+                                                    `Type #${match.requirement.equipmentTypeId}`}
+                                                </strong>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <div
+                                            style={{
+                                              textAlign: "right",
+                                            }}
+                                          >
+                                            <div
+                                              style={{
+                                                fontSize: "10.5px",
+                                                fontWeight: 700,
+                                                color: "#7c3aed",
+                                              }}
+                                            >
+                                              SUBSTITUTE
+                                            </div>
+
+                                            <div
+                                              style={{
+                                                fontSize: "11.5px",
+                                                fontWeight: 600,
+                                                color: "#7c3aed",
+                                              }}
+                                            >
+                                              {Math.round(
+                                                match.effectiveEfficiency *
+                                                  100
+                                              )}
+                                              % Effective
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* =====================================================
+                        PERSONNEL
+                    ===================================================== */}
+                    <div className="alloc-section-card">
+                      <div className="alloc-section-header">
+                        <div>
+                          <h4>
+                            Personnel for "{activePhase.phaseName}"
+                          </h4>
+
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#64748b",
+                              fontWeight: 400,
+                            }}
+                          >
+                            Select personnel matching this phase&apos;s requirements.
+                            Work schedules will be assigned after the Allocation Plan is approved.
+                          </span>
+                        </div>
+
+                        <span className="alloc-selection-count">
+                          {selectedHumansByPhase[
+                            activePhase.experimentPhaseId
+                          ]?.length || 0}{" "}
+                          Selected
+                        </span>
+                      </div>
+
+                      {activePhaseHumanRequirements.length > 0 && (
+                        <div
+                          style={{
+                            margin: "10px 0 12px",
+                            padding: "10px 12px",
+                            border: "1px solid #ede9fe",
+                            background: "#faf5ff",
+                            borderRadius: "7px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "#7e22ce",
+                              marginBottom: "6px",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Personnel Requirement
+                          </div>
+
+                          {activePhaseHumanRequirements.map(
+                            (requirement) => (
+                              <div
+                                key={
+                                  requirement.expHumanReqId
+                                }
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#334155",
+                                  marginTop: "4px",
+                                }}
+                              >
+                                <strong>
+                                  {requirement.roleName ||
+                                    `Role #${requirement.roleId}`}
+                                </strong>
+
+                                {" • "}
+                                Required: {requirement.quantity}
+
+                                {" • "}
+                                Skill:{" "}
+                                {requirement.requiredSkillName ||
+                                  (requirement.requiredSkillId
+                                    ? `Skill #${requirement.requiredSkillId}`
+                                    : "Any")}
+
+                                {" • "}
+                                Working:{" "}
+                                {requirement.workingHoursPerDay ?? "-"}{" "}
+                                hrs/day
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                      {activePhaseHumanRequirements.length === 0 ? (
+                        <p
+                          style={{
+                            color: "#b45309",
+                            fontSize: "12.5px",
+                            margin: "12px 0",
+                          }}
+                        >
+                          No personnel requirement is configured for this
+                          phase.
+                        </p>
+                      ) : filteredHumansForActivePhase.length === 0 ? (
+                        <p
+                          style={{
+                            color: "#64748b",
+                            fontSize: "12.5px",
+                            margin: "12px 0",
+                          }}
+                        >
+                          No available personnel matches this phase&apos;s
+                          role, skill and working-hour requirements.
                         </p>
                       ) : (
                         <div className="alloc-items-list">
-                          {substituteEquipmentForActivePhase.map(
-                            ({ equipment: eq, match }) => {
+                          {filteredHumansForActivePhase.map(
+                            (human) => {
                               const isChecked = (
-                                selectedEquipByPhase[
+                                selectedHumansByPhase[
                                   activePhase.experimentPhaseId
                                 ] || []
-                              ).includes(eq.equipmentInstanceId);
-
-                              const substitutionEfficiency = normalizeEfficiency(
-                                match.substitution?.efficiencyRate ?? 0
+                              ).includes(
+                                human.humanResourceId
                               );
+
+                              const match =
+                                findHumanMatch(
+                                  activePhase.experimentPhaseId,
+                                  human
+                                );
 
                               return (
                                 <div
-                                  key={`sub-${eq.equipmentInstanceId}-${match.requirement.expEquipmentReqId}`}
-                                  onClick={() =>
-                                    handleToggleEquipment(eq.equipmentInstanceId)
+                                  key={
+                                    human.humanResourceId
                                   }
+                                  onClick={() => {
+                                    const phaseId =
+                                      activePhase.experimentPhaseId;
+
+                                    const current =
+                                      selectedHumansByPhase[
+                                        phaseId
+                                      ] || [];
+
+                                    /*
+                                     * Unselect personnel.
+                                     */
+                                    if (
+                                      current.includes(
+                                        human.humanResourceId
+                                      )
+                                    ) {
+                                      setSelectedHumansByPhase(
+                                        (previous) => ({
+                                          ...previous,
+
+                                          [phaseId]:
+                                            (
+                                              previous[
+                                                phaseId
+                                              ] || []
+                                            ).filter(
+                                              (id) =>
+                                                id !==
+                                                human.humanResourceId
+                                            ),
+                                        })
+                                      );
+
+                                      setFitnessScore(null);
+                                      setFitnessBreakdown(null);
+                                      setFitnessEvaluationMessage("");
+                                      setAllocationDetailsSaved(false);
+
+                                      return;
+                                    }
+
+                                    if (!match) {
+                                      setError(
+                                        "This person does not satisfy the selected phase personnel requirement."
+                                      );
+
+                                      return;
+                                    }
+
+                                    /*
+                                     * Enforce quantity of the matched
+                                     * personnel requirement.
+                                     */
+                                    const selectedForRequirement =
+                                      current.filter(
+                                        (selectedHumanId) => {
+                                          const selectedHuman =
+                                            humanProfiles.find(
+                                              (item) =>
+                                                item.humanResourceId ===
+                                                selectedHumanId
+                                            );
+
+                                          if (!selectedHuman) {
+                                            return false;
+                                          }
+
+                                          const selectedMatch =
+                                            findHumanMatch(
+                                              phaseId,
+                                              selectedHuman
+                                            );
+
+                                          return (
+                                            selectedMatch?.requirement
+                                              .expHumanReqId ===
+                                            match.requirement
+                                              .expHumanReqId
+                                          );
+                                        }
+                                      ).length;
+
+                                    const requiredQuantity =
+                                      Math.max(
+                                        0,
+                                        Number(
+                                          match.requirement.quantity ||
+                                            0
+                                        )
+                                      );
+
+                                    if (
+                                      requiredQuantity > 0 &&
+                                      selectedForRequirement >=
+                                        requiredQuantity
+                                    ) {
+                                      setError(
+                                        `Requirement "${
+                                          match.requirement.roleName ||
+                                          `Role #${match.requirement.roleId}`
+                                        }" requires only ${requiredQuantity} person(s).`
+                                      );
+
+                                      return;
+                                    }
+
+                                    setSelectedHumansByPhase(
+                                      (previous) => ({
+                                        ...previous,
+
+                                        [phaseId]: [
+                                          ...(
+                                            previous[
+                                              phaseId
+                                            ] || []
+                                          ),
+                                          human.humanResourceId,
+                                        ],
+                                      })
+                                    );
+
+                                    setFitnessScore(null);
+                                    setFitnessBreakdown(null);
+                                    setFitnessEvaluationMessage("");
+                                    setAllocationDetailsSaved(false);
+                                    setError("");
+                                  }}
                                   className={`alloc-item-row ${
                                     isChecked ? "selected" : ""
                                   }`}
-                                  style={{
-                                    borderColor: isChecked ? "#a78bfa" : "#ddd6fe",
-                                    background: isChecked ? "#f5f3ff" : "#faf5ff",
-                                  }}
                                 >
                                   <div
                                     style={{
@@ -3214,84 +5099,110 @@ export default function CreateAllocation() {
                                     <input
                                       type="checkbox"
                                       checked={isChecked}
-                                      onChange={() => {}}
+                                      readOnly
                                       className="alloc-item-checkbox"
                                     />
+
                                     <div>
                                       <div
                                         style={{
                                           fontSize: "13px",
-                                          color: "#7c3aed",
-                                          fontWeight: 600,
+                                          color: "#1e293b",
+                                          fontWeight: 550,
                                         }}
                                       >
-                                        {eq.assetCode ||
-                                          `EQ-${eq.equipmentInstanceId}`}
+                                        {human.fullName ||
+                                          `Staff #${
+                                            human.userId ||
+                                            human.humanResourceId
+                                          }`}
                                       </div>
+
                                       <div
                                         style={{
                                           fontSize: "11.5px",
                                           color: "#64748b",
-                                          fontWeight: 400,
                                         }}
                                       >
-                                        {eq.equipmentTypeName ||
-                                          match.substitution?.subEquipmentTypeName ||
-                                          `Type #${eq.equipmentTypeId}`} {" • "}
-                                        substitutes for {" "}
-                                        <strong>
-                                          {match.requirement.equipmentTypeName ||
-                                            match.substitution
-                                              ?.primaryEquipmentTypeName ||
-                                            `Type #${match.requirement.equipmentTypeId}`}
-                                        </strong>
-                                      </div>
-                                      {match.substitution?.note && (
-                                        <div
+                                        <span
                                           style={{
-                                            fontSize: "10.5px",
-                                            color: "#7c3aed",
-                                            marginTop: "2px",
+                                            fontWeight: 500,
+                                            color: "#7e22ce",
+                                            marginRight: "6px",
                                           }}
                                         >
-                                          {match.substitution.note}
+                                          {human.roleName ||
+                                            `Role #${
+                                              human.roleId ?? "-"
+                                            }`}
+                                        </span>
+
+                                        •{" "}
+                                        {human.maxWorkingHoursPerDay ??
+                                          0}{" "}
+                                        hrs/day
+                                      </div>
+
+                                      {isChecked && (
+                                        <div
+                                          style={{
+                                            marginTop: "3px",
+                                            fontSize: "10.5px",
+                                            color: "#15803d",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          Allocated to this phase.
+                                          Schedule will be assigned by
+                                          Researcher later.
                                         </div>
                                       )}
                                     </div>
                                   </div>
 
-                                  <div style={{ textAlign: "right" }}>
-                                    <div
-                                      style={{
-                                        fontSize: "10.5px",
-                                        fontWeight: 700,
-                                        color: "#7c3aed",
-                                        marginBottom: "2px",
-                                      }}
-                                    >
-                                      SUBSTITUTE
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "11.5px",
-                                        fontWeight: 600,
-                                        color: "#7c3aed",
-                                      }}
-                                    >
-                                      {Math.round(match.effectiveEfficiency * 100)}%
-                                      Effective
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "10.5px",
-                                        color: "#64748b",
-                                      }}
-                                    >
-                                      Rule: {Math.round(substitutionEfficiency * 100)}%
-                                      {match.substitution?.timeMultiplier
-                                        ? ` • Time ×${match.substitution.timeMultiplier}`
-                                        : ""}
-                                    </div>
+                                  <div
+                                    style={{
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    {match?.matchedSkill ? (
+                                      <>
+                                        <div
+                                          style={{
+                                            fontSize: "11.5px",
+                                            color: "#0369a1",
+                                            fontWeight: 600,
+                                          }}
+                                        >
+                                          {match.matchedSkill
+                                            .skillName ||
+                                            `Skill #${match.matchedSkill.skillId}`}
+                                        </div>
+
+                                        <div
+                                          style={{
+                                            fontSize: "10.5px",
+                                            color: "#64748b",
+                                            marginTop: "2px",
+                                          }}
+                                        >
+                                          {
+                                            match.matchedSkill
+                                              .skillLevel
+                                          }
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "#16a34a",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        Role Match
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -3299,17 +5210,245 @@ export default function CreateAllocation() {
                           )}
                         </div>
                       )}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
+                    </div>
+                  </div>
+                ) : null}
 
-            {/* Right: Phase Personnel Allocation */}
-            <div className="alloc-section-card">
+                {/* =========================================================
+                    3. LAND
+                ========================================================= */}
+
+                <div
+                  className="alloc-section-card full-width"
+                  style={{
+                    marginBottom: "20px",
+                  }}
+                >
+                  <div className="alloc-section-header">
+                    <div>
+                      <h4>
+                        3. Experiment Land Plot
+                      </h4>
+
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          color: "#64748b",
+                          fontWeight: 400,
+                        }}
+                      >
+                        Select one available land plot matching the
+                        experiment&apos;s land requirement.
+                      </span>
+                    </div>
+
+                    {selectedLandId && (
+                      <span className="alloc-selection-count">
+                        1 Selected
+                      </span>
+                    )}
+                  </div>
+
+                  {activeLandRequirement && (
+                    <div
+                      style={{
+                        margin: "10px 0 14px",
+                        padding: "10px 12px",
+                        border: "1px solid #fed7aa",
+                        background: "#fff7ed",
+                        borderRadius: "7px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: "#c2410c",
+                          marginBottom: "6px",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Land Requirement
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#334155",
+                        }}
+                      >
+                        <strong>
+                          Soil Type:{" "}
+                          {activeLandRequirement.requiredSoilType ||
+                            "Any"}
+                        </strong>
+
+                        {" • "}
+
+                        Required Area:{" "}
+                        <strong>
+                          {activeLandRequirement.requiredArea || 0} m²
+                        </strong>
+
+                        {activeLandRequirement.note && (
+                          <>
+                            {" • "}
+                            Note: {activeLandRequirement.note}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!activeLandRequirement ? (
+                    <p
+                      style={{
+                        color: "#b45309",
+                        fontSize: "12.5px",
+                      }}
+                    >
+                      No land requirement is configured for this
+                      experiment.
+                    </p>
+                  ) : checkingLandAvailability ? (
+                    <p
+                      style={{
+                        color: "#64748b",
+                        fontSize: "12.5px",
+                      }}
+                    >
+                      Checking land availability for the experiment dates...
+                    </p>
+                  ) : filteredLandResources.length === 0 ? (
+                    <p
+                      style={{
+                        color: "#64748b",
+                        fontSize: "12.5px",
+                      }}
+                    >
+                      No available land plot matches the required soil
+                      type and area.
+                    </p>
+                  ) : (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fill, minmax(280px, 1fr))",
+                        gap: "10px",
+                      }}
+                    >
+                      {filteredLandResources.map((land) => {
+                        const isSelected =
+                          selectedLandId === land.landId;
+
+                        const requiredArea =
+                          Number(
+                            activeLandRequirement.requiredArea
+                          ) || 0;
+
+                        const landArea =
+                          Number(land.areaSize) || 0;
+
+                        const extraArea =
+                          Math.max(
+                            0,
+                            landArea - requiredArea
+                          );
+
+                        return (
+                          <div
+                            key={land.landId}
+                            onClick={() =>
+                              handleSelectLand(
+                                land.landId
+                              )
+                            }
+                            className={`alloc-land-row ${
+                              isSelected ? "selected" : ""
+                            }`}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="land-radio-selection"
+                                checked={isSelected}
+                                readOnly
+                                className="alloc-land-radio"
+                              />
+
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    color: "#15803d",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {land.landCode ||
+                                    `Plot #${land.landId}`}
+                                </div>
+
+                                <div
+                                  style={{
+                                    fontSize: "11.5px",
+                                    color: "#64748b",
+                                    marginTop: "2px",
+                                  }}
+                                >
+                                  {land.soilType ||
+                                    "Unknown Soil"}
+
+                                  {" • "}
+
+                                  {land.areaSize?.toLocaleString() ||
+                                    "-"}{" "}
+                                  m²
+                                </div>
+
+                                {extraArea > 0 && (
+                                  <div
+                                    style={{
+                                      marginTop: "3px",
+                                      fontSize: "10.5px",
+                                      color: "#64748b",
+                                    }}
+                                  >
+                                    +
+                                    {extraArea.toLocaleString()}{" "}
+                                    m² above requirement
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <span className="badge-available">
+                              Available
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div
+              className="alloc-section-card full-width"
+              style={{
+                marginBottom: "20px",
+                padding: "16px 18px",
+              }}
+            >
               <div className="alloc-section-header">
                 <div>
-                  <h4>Personnel for "{activePhase.phaseName}"</h4>
+                  <h4>4. Fitness Score</h4>
                   <span
                     style={{
                       fontSize: "12px",
@@ -3317,930 +5456,281 @@ export default function CreateAllocation() {
                       fontWeight: 400,
                     }}
                   >
-                    Select personnel matching this phase&apos;s role, skill, and working-hour requirements. Click a person to choose a working date (08:00-17:00).
+                    Simulate the current resource selection before submitting.
                   </span>
                 </div>
 
-                <span className="alloc-selection-count">
-                  {selectedHumansByPhase[activePhase.experimentPhaseId]?.length || 0} Selected
+                <button
+                  type="button"
+                  onClick={() => void handleEvaluateFitnessScore()}
+                  disabled={
+                    evaluatingFitness ||
+                    submitting ||
+                    !selectedExpId ||
+                    Math.abs(evaluationWeightTotal - 100) > 0.001
+                  }
+                  className="alloc-btn-ai"
+                >
+                  <Sparkles size={15} />
+                  {evaluatingFitness
+                    ? "Simulating..."
+                    : "Simulate Fitness Score"}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "12px",
+                  marginTop: "14px",
+                }}
+              >
+                {[
+                  { key: "equipmentWeight", label: "Equipment Weight" },
+                  { key: "humanWeight", label: "Personnel Weight" },
+                  { key: "landWeight", label: "Land Weight" },
+                ].map(({ key, label }) => (
+                  <label
+                    key={key}
+                    style={{
+                      display: "grid",
+                      gap: "5px",
+                      color: "#475569",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {label} (%)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      inputMode="numeric"
+                      value={weightInputs[key as keyof EvaluationWeightPlan]}
+                      onChange={(event) =>
+                        handleWeightInputChange(
+                          key as keyof EvaluationWeightPlan,
+                          event.target.value
+                        )
+                      }
+                      onBlur={() =>
+                        handleWeightBlur(key as keyof EvaluationWeightPlan)
+                      }
+                      aria-label={`${label} percentage`}
+                      style={{
+                        width: "100%",
+                        minHeight: "38px",
+                        boxSizing: "border-box",
+                        padding: "8px 10px",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "6px",
+                        backgroundColor: "#ffffff",
+                        color: "#0f172a",
+                        colorScheme: "light",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                  marginTop: "10px",
+                  color:
+                    Math.abs(evaluationWeightTotal - 100) <= 0.001
+                      ? "#15803d"
+                      : "#b45309",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                <span>Weight total</span>
+                <span>
+                  {evaluationWeightTotal}% / 100%
+                  {Math.abs(evaluationWeightTotal - 100) <= 0.001
+                    ? " · Ready"
+                    : " · Adjust weights to exactly 100%"}
                 </span>
               </div>
 
-              {activePhaseHumanRequirements.length > 0 && (
-                <div
-                  style={{
-                    margin: "10px 0 12px",
-                    padding: "10px 12px",
-                    border: "1px solid #ede9fe",
-                    background: "#faf5ff",
-                    borderRadius: "7px",
-                  }}
-                >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "14px",
+                  marginTop: "12px",
+                  padding: "12px 14px",
+                  border: "1px solid #dbeafe",
+                  borderRadius: "7px",
+                  background: "#f8fbff",
+                }}
+              >
+                <div>
                   <div
                     style={{
                       fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#7e22ce",
-                      marginBottom: "6px",
+                      color: "#64748b",
+                      fontWeight: 600,
                       textTransform: "uppercase",
-                      letterSpacing: "0.03em",
                     }}
                   >
-                    Personnel Requirement
+                    Fitness Score
                   </div>
+                  <strong
+                    style={{
+                      display: "block",
+                      marginTop: "3px",
+                      color: fitnessScore === null ? "#64748b" : "#15803d",
+                      fontSize: "24px",
+                    }}
+                  >
+                    {fitnessScore === null
+                      ? "Not calculated"
+                      : Number(fitnessScore).toFixed(2)}
+                  </strong>
+                </div>
+              </div>
 
-                  {activePhaseHumanRequirements.map((requirement) => (
+              {fitnessBreakdown && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                    gap: "10px",
+                    marginTop: "10px",
+                  }}
+                >
+                  {[
+                    { label: "Equipment", result: fitnessBreakdown.equipment },
+                    { label: "Personnel", result: fitnessBreakdown.human },
+                    { label: "Land", result: fitnessBreakdown.land },
+                  ].map(({ label, result }) => (
                     <div
-                      key={requirement.expHumanReqId}
+                      key={label}
                       style={{
-                        fontSize: "12px",
-                        color: "#334155",
-                        marginTop: "4px",
+                        padding: "10px 12px",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "7px",
+                        background: "#fff",
                       }}
                     >
-                      <strong>
-                        {requirement.roleName || `Role #${requirement.roleId}`}
-                      </strong>
-                      {" • "}
-                      Required: {requirement.quantity}
-                      {" • "}
-                      Skill: {requirement.requiredSkillName ||
-                        (requirement.requiredSkillId
-                          ? `Skill #${requirement.requiredSkillId}`
-                          : "Any")}
-                      {" • "}
-                      Working: {requirement.workingHoursPerDay ?? "-"} hrs/day
+                      <span style={{ color: "#64748b", fontSize: "11px" }}>
+                        {label}
+                      </span>
+                      {result.score !== null && (
+                        <strong
+                          style={{
+                            display: "block",
+                            marginTop: "4px",
+                            color: "#0f172a",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {`${result.score.toFixed(2)}%`}
+                        </strong>
+                      )}
+                      <span style={{ color: "#64748b", fontSize: "11px" }}>
+                        Weight {result.weight}%
+                        {result.contribution === null
+                          ? ""
+                          : ` · Contribution ${result.contribution.toFixed(2)}`}
+                      </span>
                     </div>
                   ))}
                 </div>
               )}
+            </div>
 
-              {loading ? (
-                <p
-                  style={{
-                    color: "#64748b",
-                    fontSize: "12.5px",
-                    margin: "12px 0",
-                    fontWeight: 400,
-                  }}
-                >
-                  Loading workforce data...
-                </p>
-              ) : activePhaseHumanRequirements.length === 0 ? (
-                <p
-                  style={{
-                    color: "#b45309",
-                    fontSize: "12.5px",
-                    margin: "12px 0",
-                    fontWeight: 500,
-                  }}
-                >
-                  No personnel requirement is configured for this phase.
-                </p>
-              ) : filteredHumansForActivePhase.length === 0 ? (
-                <p
-                  style={{
-                    color: "#64748b",
-                    fontSize: "12.5px",
-                    margin: "12px 0",
-                    fontWeight: 400,
-                  }}
-                >
-                  No available personnel matches this phase&apos;s role, skill, and working-hour requirements.
-                </p>
-              ) : (
-                <div className="alloc-items-list">
-                  {filteredHumansForActivePhase.map((hp) => {
-                    const isChecked = (
-                      selectedHumansByPhase[activePhase.experimentPhaseId] || []
-                    ).includes(hp.humanResourceId);
+            {/* =========================================================
+                5. BOTTOM ACTION
+            ========================================================= */}
 
-                    const match = findHumanMatch(
-                      activePhase.experimentPhaseId,
-                      hp
-                    );
+            <div className="alloc-summary-card">
+              {selectedExp && (
+                <div className="alloc-summary-stats">
+                  <div className="alloc-stat-pill">
+                    Equipment Units:{" "}
+                    <strong>
+                      {totalEquipmentCount}
+                    </strong>
+                  </div>
 
-                    return (
-                      <div
-                        key={hp.humanResourceId}
-                        onClick={() => void handleOpenHumanSchedule(hp.humanResourceId)}
-                        className={`alloc-item-row ${isChecked ? "selected" : ""}`}
-                      >
-                        <div style={{ display: "flex", alignItems: "center" }}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            className="alloc-item-checkbox"
-                          />
+                  <div className="alloc-stat-pill">
+                    Field Workforce:{" "}
+                    <strong>
+                      {totalHumanCount}
+                    </strong>
+                  </div>
 
-                          <div>
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                color: "#1e293b",
-                                fontWeight: 550,
-                              }}
-                            >
-                              {hp.fullName || `Staff #${hp.userId || hp.humanResourceId}`}
-                            </div>
-
-                            <div
-                              style={{
-                                fontSize: "11.5px",
-                                color: "#64748b",
-                                fontWeight: 400,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontWeight: 500,
-                                  color: "#7e22ce",
-                                  marginRight: "6px",
-                                }}
-                              >
-                                {hp.roleName || `Role #${hp.roleId ?? "-"}`}
-                              </span>
-                              • {hp.maxWorkingHoursPerDay ?? 0} hrs/day
-                            </div>
-
-                            {(scheduledHumanDates[activePhase.experimentPhaseId]?.[
-                              hp.humanResourceId
-                            ]?.length || 0) > 0 && (
-                              <div
-                                style={{
-                                  marginTop: "3px",
-                                  fontSize: "10.5px",
-                                  color: "#15803d",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Selected {
-                                  scheduledHumanDates[activePhase.experimentPhaseId][
-                                    hp.humanResourceId
-                                  ].length
-                                } day(s): {
-                                  scheduledHumanDates[activePhase.experimentPhaseId][
-                                    hp.humanResourceId
-                                  ]
-                                    .slice(0, 3)
-                                    .map((date) => formatDate(date))
-                                    .join(", ")
-                                }
-                                {scheduledHumanDates[activePhase.experimentPhaseId][
-                                  hp.humanResourceId
-                                ].length > 3
-                                  ? " ..."
-                                  : ""}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div style={{ textAlign: "right" }}>
-                          {match?.matchedSkill ? (
-                            <>
-                              <div
-                                style={{
-                                  fontSize: "11.5px",
-                                  color: "#0369a1",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {match.matchedSkill.skillName ||
-                                  `Skill #${match.matchedSkill.skillId}`}
-                              </div>
-
-                              <div
-                                style={{
-                                  fontSize: "10.5px",
-                                  color: "#64748b",
-                                  marginTop: "2px",
-                                }}
-                              >
-                                {match.matchedSkill.skillLevel}
-                              </div>
-                            </>
-                          ) : (
-                            <span
-                              style={{
-                                fontSize: "11px",
-                                color: "#16a34a",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Role Match
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <div className="alloc-stat-pill">
+                    Land Plot:{" "}
+                    <strong>
+                      {selectedLandId
+                        ? landResources.find(
+                            (land) =>
+                              land.landId ===
+                              selectedLandId
+                          )?.landCode ||
+                          "Selected (1)"
+                        : "None (0/1)"}
+                    </strong>
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
-        ) : null}
 
-        {/* 3. Experiment Land Plot Selection (Strictly 1 Plot Allowed) */}
-        <div
-          className="alloc-section-card full-width"
-          style={{ marginBottom: "20px" }}
-        >
-          <div className="alloc-section-header">
-            <div>
-              <h4>3. Experiment Land Plot (Strictly Max 1 Plot)</h4>
-              <span
-                style={{
-                  fontSize: "12px",
-                  color: "#64748b",
-                  fontWeight: 400,
-                }}
-              >
-                Select one available land plot matching the Researcher&apos;s land requirement.
-              </span>
-            </div>
-
-            {selectedLandId && (
-              <span className="alloc-selection-count">1 Selected</span>
-            )}
-          </div>
-
-          {/* Land requirement summary */}
-          {activeLandRequirement && (
-            <div
-              style={{
-                margin: "10px 0 14px",
-                padding: "10px 12px",
-                border: "1px solid #fed7aa",
-                background: "#fff7ed",
-                borderRadius: "7px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "#c2410c",
-                  marginBottom: "6px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.03em",
-                }}
-              >
-                Land Requirement
-              </div>
-
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#334155",
-                }}
-              >
-                <strong>
-                  Soil Type: {activeLandRequirement.requiredSoilType || "Any"}
-                </strong>
-                {" • "}
-                Required Area:{" "}
-                <strong>
-                  {activeLandRequirement.requiredArea || 0} m²
-                </strong>
-                {activeLandRequirement.note && (
-                  <>
-                    {" • "}
-                    Note: {activeLandRequirement.note}
-                  </>
+              <div className="alloc-action-buttons">
+                {isManagerAllocation && (
+                  <button
+                    type="button"
+                    onClick={
+                      handleStartAIAllocation
+                    }
+                    disabled={
+                      !selectedExpId ||
+                      submitting
+                    }
+                    className="alloc-btn-manual"
+                  >
+                    Use AI Suggestion Optimizer
+                  </button>
                 )}
-              </div>
-            </div>
-          )}
 
-          {loading ? (
-            <p
-              style={{
-                color: "#64748b",
-                fontSize: "12.5px",
-                margin: "12px 0",
-                fontWeight: 400,
-              }}
-            >
-              Loading land resources...
-            </p>
-          ) : !activeLandRequirement ? (
-            <p
-              style={{
-                color: "#b45309",
-                fontSize: "12.5px",
-                margin: "12px 0",
-                fontWeight: 500,
-              }}
-            >
-              No land requirement is configured for this experiment.
-            </p>
-          ) : filteredLandResources.length === 0 ? (
-            <p
-              style={{
-                color: "#64748b",
-                fontSize: "12.5px",
-                margin: "12px 0",
-                fontWeight: 400,
-              }}
-            >
-              No available land plot matches the required soil type and area.
-            </p>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: "10px",
-              }}
-            >
-              {filteredLandResources.map((land) => {
-                const isSelected = selectedLandId === land.landId;
-                const requiredArea = Number(activeLandRequirement.requiredArea) || 0;
-                const landArea = Number(land.areaSize) || 0;
-                const extraArea = Math.max(0, landArea - requiredArea);
-
-                return (
-                  <div
-                    key={land.landId}
-                    onClick={() => handleSelectLand(land.landId)}
-                    className={`alloc-land-row ${isSelected ? "selected" : ""}`}
-                  >
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      <input
-                        type="radio"
-                        name="land-radio-selection"
-                        checked={isSelected}
-                        onChange={() => {}}
-                        className="alloc-land-radio"
-                      />
-
-                      <div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: "#15803d",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {land.landCode || `Plot #${land.landId}`}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: "11.5px",
-                            color: "#64748b",
-                            marginTop: "2px",
-                          }}
-                        >
-                          {land.soilType || "Unknown Soil"}
-                          {" • "}
-                          {land.areaSize?.toLocaleString() || "-"} m²
-                        </div>
-
-                        {extraArea > 0 && (
-                          <div
-                            style={{
-                              marginTop: "3px",
-                              fontSize: "10.5px",
-                              color: "#64748b",
-                            }}
-                          >
-                            +{extraArea.toLocaleString()} m² above requirement
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "flex-end",
-                        gap: "4px",
-                      }}
-                    >
-                      <span className="badge-available">Available</span>
-                      <span
-                        style={{
-                          fontSize: "10.5px",
-                          color: "#16a34a",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Matches Requirement
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 4. Backend Fitness Evaluation */}
-        <div
-          className="alloc-section-card full-width"
-          style={{ marginBottom: "20px" }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "18px",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: "280px" }}>
-              <h4 style={{ margin: 0, color: "#0f172a" }}>
-                4. Allocation Fitness Evaluation
-              </h4>
-              <p
-                style={{
-                  margin: "5px 0 0",
-                  fontSize: "12.5px",
-                  color: "#64748b",
-                  lineHeight: 1.6,
-                }}
-              >
-                After selecting Equipment, Personnel schedules, and Land, use the
-                backend evaluation engine to calculate the official Fitness Score
-                before submitting this Allocation Plan.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => void handleEvaluateFitnessScore()}
-              disabled={
-                evaluatingFitness ||
-                submitting ||
-                initializingDraftPlan ||
-                fitnessScore !== null ||
-                Math.abs(evaluationWeightTotal - 100) > 0.001
-              }
-              className="alloc-btn-manual"
-              style={{ whiteSpace: "nowrap" }}
-            >
-              {evaluatingFitness
-                ? "Evaluating..."
-                : fitnessScore !== null
-                  ? "Evaluation Complete"
-                  : "Evaluate Fitness Score"}
-            </button>
-          </div>
-
-          <div
-            style={{
-              marginTop: "16px",
-              padding: "14px",
-              border: "1px solid #dbeafe",
-              borderRadius: "10px",
-              background: "#f8fbff",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: "14px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    color: "#0f172a",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                  }}
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleSaveAndSubmitPlan()
+                  }
+                  disabled={
+                    submitting ||
+                    evaluatingFitness ||
+                    initializingDraftPlan ||
+                    !selectedExpId
+                  }
+                  className="alloc-btn-ai"
                 >
-                  Evaluation Weights
-                </div>
-
-                <div
-                  style={{
-                    marginTop: "3px",
-                    color: "#64748b",
-                    fontSize: "11.5px",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Enter the weight for each factor. Each field can be cleared and re-entered directly; the remaining columns are automatically limited so the total cannot exceed 100%.
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "6px 10px",
-                  border:
-                    Math.abs(evaluationWeightTotal - 100) <= 0.001
-                      ? "1px solid #86efac"
-                      : "1px solid #fca5a5",
-                  borderRadius: "999px",
-                  background:
-                    Math.abs(evaluationWeightTotal - 100) <= 0.001
-                      ? "#f0fdf4"
-                      : "#fef2f2",
-                  color:
-                    Math.abs(evaluationWeightTotal - 100) <= 0.001
-                      ? "#15803d"
-                      : "#b91c1c",
-                  fontSize: "11.5px",
-                  fontWeight: 700,
-                }}
-              >
-                Total: {evaluationWeightTotal.toFixed(0)}%
+                  {submitting
+                    ? isManagerAllocation
+                      ? "Saving Resources..."
+                      : "Submitting Request..."
+                    : isManagerAllocation
+                      ? "Save Resource Allocation"
+                      : "Submit Resource Request for Approval"}
+                </button>
               </div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: "10px",
-                marginTop: "12px",
-              }}
-            >
-              {[
-                {
-                  key: "equipmentWeight" as const,
-                  label: "Equipment",
-                  description: "Equipment requirement & efficiency",
-                },
-                {
-                  key: "humanWeight" as const,
-                  label: "Personnel",
-                  description: "Role, skills & workforce suitability",
-                },
-                {
-                  key: "landWeight" as const,
-                  label: "Land",
-                  description: "Soil type, area & availability",
-                },
-                {
-                  key: "scheduleWeight" as const,
-                  label: "Schedule",
-                  description: "Schedule feasibility & conflicts",
-                },
-              ].map((item) => {
-                return (
-                  <div
-                    key={item.key}
-                    style={{
-                      padding: "11px 12px",
-                      border: "1px solid #dbe3ee",
-                      borderRadius: "8px",
-                      background: "#ffffff",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "8px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: "#334155",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {item.label}
-                      </span>
-
-                      <span
-                        style={{
-                          color: "#7c3aed",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {evaluationWeights[item.key]}%
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        position: "relative",
-                        marginTop: "9px",
-                      }}
-                    >
-                      <input
-                        type="number"
-                        min={0}
-                        max={getRemainingWeightFor(item.key)}
-                        step={1}
-                        value={weightInputs[item.key]}
-                        disabled={
-                          evaluatingFitness ||
-                          submitting ||
-                          initializingDraftPlan ||
-                          fitnessScore !== null
-                        }
-                        onChange={(event) =>
-                          updateEvaluationWeight(
-                            item.key,
-                            event.target.value
-                          )
-                        }
-                        onBlur={() =>
-                          handleEvaluationWeightBlur(
-                            item.key
-                          )
-                        }
-                        style={{
-                          width: "100%",
-                          height: "38px",
-                          boxSizing: "border-box",
-                          padding: "0 34px 0 11px",
-                          border: "1px solid #c4b5fd",
-                          borderRadius: "7px",
-                          background: "#ffffff",
-                          color: "#0f172a",
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          outline: "none",
-                        }}
-                      />
-
-                      <span
-                        style={{
-                          position: "absolute",
-                          right: "11px",
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          color: "#64748b",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          pointerEvents: "none",
-                        }}
-                      >
-                        %
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "5px",
-                        color: "#94a3b8",
-                        fontSize: "10px",
-                      }}
-                    >
-                      {item.description}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {Math.abs(evaluationWeightTotal - 100) > 0.001 && (
-              <div
-                style={{
-                  marginTop: "10px",
-                  padding: "8px 10px",
-                  border: "1px solid #fecaca",
-                  borderRadius: "7px",
-                  background: "#fef2f2",
-                  color: "#b91c1c",
-                  fontSize: "11.5px",
-                  fontWeight: 600,
-                }}
-              >
-                The four weights must total exactly 100%. Current total:{" "}
-                {evaluationWeightTotal.toFixed(0)}%.
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: "10px",
-              marginTop: "16px",
-            }}
-          >
-            <div
-              style={{
-                padding: "12px 14px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                background: "#f8fafc",
-              }}
-            >
-              <div style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 700 }}>
-                EQUIPMENT
-              </div>
-              <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>
-                {totalEquipmentCount}
-              </strong>
-              <span style={{ fontSize: "11px", color: "#64748b" }}>unit(s) selected</span>
-            </div>
-
-            <div
-              style={{
-                padding: "12px 14px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                background: "#f8fafc",
-              }}
-            >
-              <div style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 700 }}>
-                PERSONNEL
-              </div>
-              <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>
-                {totalHumanCount}
-              </strong>
-              <span style={{ fontSize: "11px", color: "#64748b" }}>person(s) scheduled</span>
-            </div>
-
-            <div
-              style={{
-                padding: "12px 14px",
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                background: "#f8fafc",
-              }}
-            >
-              <div style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 700 }}>
-                LAND
-              </div>
-              <strong style={{ display: "block", marginTop: "5px", fontSize: "18px" }}>
-                {selectedLandId ? 1 : 0}
-              </strong>
-              <span style={{ fontSize: "11px", color: "#64748b" }}>plot selected</span>
-            </div>
-
-            <div
-              style={{
-                padding: "12px 14px",
-                border: fitnessScore !== null ? "1px solid #86efac" : "1px solid #cbd5e1",
-                borderRadius: "8px",
-                background: fitnessScore !== null ? "#f0fdf4" : "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "10.5px",
-                  color: fitnessScore !== null ? "#15803d" : "#64748b",
-                  fontWeight: 700,
-                }}
-              >
-                FITNESS SCORE
-              </div>
-              <strong
-                style={{
-                  display: "block",
-                  marginTop: "4px",
-                  fontSize: "24px",
-                  color: fitnessScore !== null ? "#15803d" : "#94a3b8",
-                }}
-              >
-                {fitnessScore !== null ? fitnessScore.toFixed(2) : "--"}
-              </strong>
-              <span style={{ fontSize: "11px", color: "#64748b" }}>
-                calculated by backend
-              </span>
-            </div>
-          </div>
-
-          {fitnessEvaluationMessage && (
-            <div
-              style={{
-                marginTop: "12px",
-                padding: "10px 12px",
-                border: "1px solid #bbf7d0",
-                background: "#f0fdf4",
-                color: "#166534",
-                borderRadius: "7px",
-                fontSize: "12px",
-                fontWeight: 500,
-              }}
-            >
-              {fitnessEvaluationMessage}
-            </div>
-          )}
-
-          {allocationDetailsSaved && fitnessScore !== null && (
-            <div
-              style={{
-                marginTop: "10px",
-                fontSize: "11.5px",
-                color: "#64748b",
-              }}
-            >
-              The evaluated Draft is locked to keep the displayed Fitness Score
-              consistent with the resources stored on the backend.
-            </div>
-          )}
-        </div>
-
-        {/* 5. Bottom Summary Bar & Submit Action */}
-        <div className="alloc-summary-card">
-          <div className="alloc-summary-stats">
-            <div className="alloc-stat-pill">
-              Equipment Units: <strong>{totalEquipmentCount}</strong>
-            </div>
-            <div className="alloc-stat-pill">
-              Field Workforce: <strong>{totalHumanCount}</strong>
-            </div>
-            <div className="alloc-stat-pill">
-              Land Plot:{" "}
-              <strong>
-                {selectedLandId
-                  ? landResources.find((l) => l.landId === selectedLandId)?.landCode || "Selected (1)"
-                  : "None (0/1)"}
-              </strong>
-            </div>
-          </div>
-
-          <div className="alloc-action-buttons">
-            <button
-              type="button"
-              onClick={handleStartAIAllocation}
-              disabled={!selectedExpId}
-              className="alloc-btn-manual"
-            >
-              Use AI Suggestion Optimizer
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void handleSaveAndSubmitPlan()}
-              disabled={
-                submitting ||
-                evaluatingFitness ||
-                initializingDraftPlan ||
-                !selectedExpId ||
-                fitnessScore === null
-              }
-              className="alloc-btn-ai"
-            >
-              {submitting
-                ? "Submitting Plan..."
-                : fitnessScore === null
-                  ? "Evaluate Before Submit"
-                  : "Save & Submit Allocation Plan"}
-            </button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
-      <HumanScheduleCalendar
-        open={scheduleHumanId !== null}
-        human={
-          scheduleHumanId !== null
-            ? humanProfiles.find(
-                (item) => item.humanResourceId === scheduleHumanId
-              ) || null
-            : null
-        }
-        phaseId={activePhaseId}
-        phaseName={activePhase?.phaseName}
-        phaseStartDate={activePhase?.expectedStartDate}
-        phaseEndDate={activePhase?.expectedEndDate}
-        experimentName={selectedExp?.experimentName}
-        selectedWorkingDates={
-          activePhaseId && scheduleHumanId !== null
-            ? scheduledHumanDates[activePhaseId]?.[scheduleHumanId] || []
-            : []
-        }
-        selectedScheduleTitle={
-          activePhaseId && scheduleHumanId !== null
-            ? scheduledHumanMeta[activePhaseId]?.[scheduleHumanId]?.title || ""
-            : ""
-        }
-        selectedScheduleDescription={
-          activePhaseId && scheduleHumanId !== null
-            ? scheduledHumanMeta[activePhaseId]?.[scheduleHumanId]?.description || ""
-            : ""
-        }
-        requiredWorkingHours={(() => {
-          if (!activePhaseId || scheduleHumanId === null) return 0;
-
-          const human = humanProfiles.find(
-            (item) => item.humanResourceId === scheduleHumanId
-          );
-          if (!human) return 0;
-
-          return (
-            findHumanMatch(activePhaseId, human)?.requirement.workingHoursPerDay ??
-            0
-          );
-        })()}
-        onClose={() => setScheduleHumanId(null)}
-        onScheduled={handleHumanScheduled}
-      />
-
     </DashboardLayout>
   );
 }

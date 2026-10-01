@@ -31,9 +31,9 @@ import {
 } from "../../services/experimentLandRequirementService";
 import {
   createAllocationPlan,
-  getAllocationPlans,
+  evaluateAllocationPlan,
+  getAllocationPlanById,
   submitAllocationPlan,
-  updateAllocationPlan,
 } from "../../services/allocationPlanService";
 import {
   createAllocationEquipmentDetail,
@@ -42,6 +42,7 @@ import {
   deleteAllocationEquipmentDetail,
   deleteAllocationHumanDetail,
   deleteAllocationLandDetail,
+  getAllAllocationEquipmentDetails,
   getAllocationEquipmentDetails,
   getAllocationHumanDetails,
   getAllocationLandDetails,
@@ -145,6 +146,129 @@ function dateKeysBetween(start?: string | null, end?: string | null): string[] {
   return result;
 }
 
+function normalizeCandidateValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizeCandidateDate(value?: string | null): string {
+  const normalized = normalizeCandidateValue(value);
+  if (!normalized) return "";
+  if (normalized.includes("t")) return normalized.slice(0, 10);
+  if (normalized.includes(" ")) return normalized.split(" ")[0];
+  return normalized;
+}
+
+/**
+ * Last UI-level duplicate guard.
+ *
+ * The service already removes duplicates, but this guard is intentionally
+ * kept in the page because the BE response can contain records whose
+ * technical metadata differs while the rendered allocation is identical.
+ * The UI must never show two cards for the same visible allocation.
+ */
+function getVisibleCandidateSignature(plan: AISuggestionPlan): string {
+  const equipment = (Array.isArray(plan.allocatedEquipment)
+    ? plan.allocatedEquipment
+    : []
+  )
+    .map((item) =>
+      [
+        normalizeCandidateValue(item.assetCode) ||
+          normalizeCandidateValue(item.equipmentTypeName) ||
+          "equipment",
+        normalizeCandidateDate(item.startDate),
+        normalizeCandidateDate(item.endDate),
+      ].join("|"),
+    )
+    .sort();
+
+  const humans = (Array.isArray(plan.allocatedHumans)
+    ? plan.allocatedHumans
+    : []
+  )
+    .map((item) =>
+      [
+        normalizeCandidateValue(item.fullName) ||
+          normalizeCandidateValue(item.roleName) ||
+          "personnel",
+        normalizeCandidateDate(item.startDate),
+        normalizeCandidateDate(item.endDate),
+      ].join("|"),
+    )
+    .sort();
+
+  const lands = (Array.isArray(plan.allocatedLands)
+    ? plan.allocatedLands
+    : []
+  )
+    .map((item) =>
+      [
+        normalizeCandidateValue(item.landCode) ||
+          [
+            normalizeCandidateValue(item.areaSize),
+            normalizeCandidateValue(item.soilType),
+          ]
+            .filter(Boolean)
+            .join("|") ||
+          "land",
+        normalizeCandidateDate(item.startDate),
+        normalizeCandidateDate(item.endDate),
+      ].join("|"),
+    )
+    .sort();
+
+  const timeline = (Array.isArray(plan.timeline) ? plan.timeline : [])
+    .map((item) =>
+      [
+        normalizeCandidateDate(item.startDate),
+        normalizeCandidateDate(item.endDate),
+      ].join("|"),
+    )
+    .sort();
+
+  return JSON.stringify({ equipment, humans, lands, timeline });
+}
+
+function deduplicateVisibleCandidates(
+  plans: AISuggestionPlan[],
+): AISuggestionPlan[] {
+  const seen = new Set<string>();
+  const unique: AISuggestionPlan[] = [];
+
+  for (const plan of plans) {
+    const signature = getVisibleCandidateSignature(plan);
+
+    if (seen.has(signature)) {
+      console.warn(
+        "FE removed a visually duplicate AI allocation candidate.",
+        {
+          rank: plan.rank,
+          signature,
+        },
+      );
+      continue;
+    }
+
+    seen.add(signature);
+    unique.push(plan);
+  }
+
+  return unique.map((plan, index) => ({
+    ...plan,
+    id: `ai-plan-${index + 1}`,
+    rank: index + 1,
+    title:
+      index === 0
+        ? "Optimal Allocation Candidate (Rank #1)"
+        : `Alternative Candidate (Rank #${index + 1})`,
+    strategyBadge:
+      index === 0
+        ? "Recommended (Rank 1)"
+        : `Rank #${index + 1} • Fitness ${Number(plan.fitnessScore ?? 0).toFixed(1)}%`,
+  }));
+}
+
 export default function AISuggestionPage() {
   const { showConfirm } = usePopup();
   const { id } = useParams<{ id?: string }>();
@@ -158,6 +282,7 @@ export default function AISuggestionPage() {
 
   // Experiment & Requirements State
   const [experiment, setExperiment] = useState<ExperimentResponse | null>(null);
+  const [createdDraftPlanId, setCreatedDraftPlanId] = useState<number | null>(null);
   const [allExperiments, setAllExperiments] = useState<ExperimentResponse[]>([]);
   const [phases, setPhases] = useState<ExperimentPhase[]>([]);
   const [equipReqs, setEquipReqs] = useState<ExperimentEquipmentRequirement[]>([]);
@@ -285,11 +410,35 @@ export default function AISuggestionPage() {
           })),
         };
 
-        const res = await generateAISuggestions(payload, currentSettings);
-        setSuggestions(res.suggestions || []);
-        if (res.suggestions && res.suggestions.length > 0) {
-          setSelectedPlanId(res.suggestions[0].id);
+        const res = await generateAISuggestions(payload, {
+          ...currentSettings,
+          // BE decides how many real candidates are available (up to five).
+          // FE never clones candidates or starts additional solver requests.
+        });
+
+        const rawSuggestions = Array.isArray(res.suggestions)
+          ? res.suggestions
+          : [];
+
+        // Final UI-level duplicate protection. The service performs the
+        // primary dedupe; this second pass compares exactly what the page
+        // renders and removes any remaining visually identical candidate.
+        const nextSuggestions = deduplicateVisibleCandidates(rawSuggestions);
+
+        if (rawSuggestions.length !== nextSuggestions.length) {
+          console.warn(
+            `FE removed ${rawSuggestions.length - nextSuggestions.length} visually duplicate AI candidate(s).`,
+          );
         }
+
+        setSuggestions(nextSuggestions);
+
+        if (nextSuggestions.length > 0) {
+          setSelectedPlanId(nextSuggestions[0].id);
+        } else {
+          setSelectedPlanId("");
+        }
+
       } catch (err: unknown) {
         console.error("Failed to load and optimize AI plan:", err);
         setError(
@@ -313,47 +462,66 @@ export default function AISuggestionPage() {
 
   const selectedPlan = suggestions.find((s) => s.id === selectedPlanId);
 
-  // Resolve or create the single Draft Allocation Plan used by the selected AI option.
-  const ensureDraftAllocationPlan = async (): Promise<number> => {
+  const ensureAllocationPlan = async (): Promise<number> => {
     if (!experiment) {
       throw new Error("Experiment is not loaded.");
     }
 
-    const plans = await getAllocationPlans({
-      experimentId: experiment.experimentId,
-      page: 1,
-      size: 100,
-    });
-
-    const existingDraft = [...plans]
-      .filter(
-        (plan) =>
-          Number(plan.experimentId) === Number(experiment.experimentId) &&
-          String(plan.approveStatus || "").toLowerCase() === "draft"
-      )
-      .sort(
-        (first, second) =>
-          new Date(second.updatedAt || second.createdAt || 0).getTime() -
-          new Date(first.updatedAt || first.createdAt || 0).getTime()
-      )[0];
-
-    if (existingDraft?.allocationPlanId) {
-      return existingDraft.allocationPlanId;
+    if (createdDraftPlanId) {
+      const draft = await getAllocationPlanById(createdDraftPlanId);
+      if (
+        Number(draft.experimentId) === Number(experiment.experimentId) &&
+        String(draft.approveStatus || "").toLowerCase() === "draft"
+      ) {
+        return createdDraftPlanId;
+      }
+      setCreatedDraftPlanId(null);
     }
 
-    const created = await createAllocationPlan({
+    const rawPlanId = new URLSearchParams(window.location.search).get(
+      "allocationPlanId"
+    );
+    const planId = Number(rawPlanId || 0);
+
+    if (Number.isInteger(planId) && planId > 0) {
+      const plan = await getAllocationPlanById(planId);
+      if (Number(plan.experimentId) !== Number(experiment.experimentId)) {
+        throw new Error(
+          `Allocation Plan #${planId} does not belong to Experiment #${experiment.experimentId}.`
+        );
+      }
+
+      if (String(plan.approveStatus || "").toLowerCase() === "draft") {
+        setCreatedDraftPlanId(planId);
+        return planId;
+      }
+    }
+
+    const createdPlan = await createAllocationPlan({
       experimentId: experiment.experimentId,
       fitnessScore: null,
       approveStatus: "Draft",
     });
+    const newPlanId = Number(
+      createdPlan?.allocationPlanId ||
+        (createdPlan as unknown as { id?: number })?.id ||
+        0
+    );
 
-    const planId = Number(created?.allocationPlanId || 0);
-
-    if (!Number.isInteger(planId) || planId <= 0) {
-      throw new Error("Unable to create Draft Allocation Plan for the AI suggestion.");
+    if (!Number.isInteger(newPlanId) || newPlanId <= 0) {
+      throw new Error("Failed to create a Draft Allocation Plan for this Experiment.");
     }
 
-    return planId;
+    const verifiedPlan = await getAllocationPlanById(newPlanId);
+    if (
+      Number(verifiedPlan.experimentId) !== Number(experiment.experimentId) ||
+      String(verifiedPlan.approveStatus || "").toLowerCase() !== "draft"
+    ) {
+      throw new Error("The newly created Allocation Plan is invalid for this Experiment.");
+    }
+
+    setCreatedDraftPlanId(newPlanId);
+    return newPlanId;
   };
 
   const resolvePhase = (phaseId?: number, phaseName?: string) => {
@@ -484,6 +652,15 @@ export default function AISuggestionPage() {
       throw new Error("The selected AI option does not contain land allocation data.");
     }
 
+    const existingEquipmentDetails = await getAllAllocationEquipmentDetails().catch(
+      () => []
+    );
+    const equipmentAddedForPlan: Array<{
+      equipmentInstanceId: number;
+      startDate: string;
+      endDate: string;
+    }> = [];
+
     // Equipment selected by the AI solver.
     for (const item of selectedPlan.allocatedEquipment) {
       const equipmentInstanceId = Number(item.equipmentInstanceId || 0);
@@ -517,6 +694,25 @@ export default function AISuggestionPage() {
         );
       }
 
+      const isSubstitute =
+        allocatedEquipmentTypeId !== Number(requirement.equipmentTypeId);
+      const efficiencyRate = normalizeEfficiency(item.efficiencyRate);
+
+      if (isSubstitute && !requirement.allowSubstitute) {
+        throw new Error(
+          `${item.assetCode || `Equipment #${equipmentInstanceId}`} uses a substitute type that this requirement does not allow.`
+        );
+      }
+
+      const minimumEfficiency = normalizeEfficiency(
+        requirement.minAcceptableEfficiency
+      );
+      if (isSubstitute && efficiencyRate < minimumEfficiency) {
+        throw new Error(
+          `${item.assetCode || `Equipment #${equipmentInstanceId}`} does not meet the minimum substitution efficiency.`
+        );
+      }
+
       const phase = resolvePhase(item.phaseId, item.phaseName);
       const startDate = toAllocationDateTime(
         item.startDate || phase?.expectedStartDate || experiment.expectStartDate
@@ -526,6 +722,45 @@ export default function AISuggestionPage() {
         true
       );
 
+      const requestedStart = new Date(startDate).getTime();
+      const requestedEnd = new Date(endDate).getTime();
+      const overlappingDetails = existingEquipmentDetails.filter((detail) => {
+        const status = String(detail.status || "").toLowerCase();
+        const detailStart = new Date(detail.startDate).getTime();
+        const detailEnd = new Date(detail.endDate).getTime();
+
+        return (
+          Number(detail.equipmentInstanceId) === equipmentInstanceId &&
+          Number(detail.allocationPlanId) !== planId &&
+          status !== "cancelled" &&
+          status !== "completed" &&
+          Number.isFinite(detailStart) &&
+          Number.isFinite(detailEnd) &&
+          detailStart < requestedEnd &&
+          requestedStart < detailEnd
+        );
+      });
+
+      for (const detail of overlappingDetails) {
+        const conflictPlan = await getAllocationPlanById(detail.allocationPlanId);
+        if (String(conflictPlan.approveStatus || "").toLowerCase() !== "rejected") {
+          throw new Error(
+            `${item.assetCode || `Equipment #${equipmentInstanceId}`} is already allocated in the selected date range. Choose another item or adjust the phase dates.`
+          );
+        }
+      }
+
+      const localConflict = equipmentAddedForPlan.some((allocation) =>
+        allocation.equipmentInstanceId === equipmentInstanceId &&
+        new Date(allocation.startDate).getTime() < requestedEnd &&
+        requestedStart < new Date(allocation.endDate).getTime()
+      );
+      if (localConflict) {
+        throw new Error(
+          `${item.assetCode || `Equipment #${equipmentInstanceId}`} is assigned to overlapping phases in this AI candidate.`
+        );
+      }
+
       await createAllocationEquipmentDetail({
         allocationPlanId: planId,
         expEquipmentReqId: requirement.expEquipmentReqId,
@@ -533,11 +768,17 @@ export default function AISuggestionPage() {
         allocatedEquipmentTypeId,
         equipmentInstanceId,
         quantity: 1,
-        efficiencyRate: normalizeEfficiency(item.efficiencyRate),
-        isSubstitute: Boolean(item.isSubstitute),
+        efficiencyRate,
+        isSubstitute,
         startDate,
         endDate,
         status: "Allocated",
+      });
+
+      equipmentAddedForPlan.push({
+        equipmentInstanceId,
+        startDate,
+        endDate,
       });
     }
 
@@ -712,7 +953,8 @@ export default function AISuggestionPage() {
           `Unable to allocate ${
             firstAssignment.item.fullName ||
             `Human Resource #${firstAssignment.humanResourceId}`
-          }. The person may already be allocated during this period.`
+          }. The person may already be allocated during this period.`,
+          { cause: humanDetailError }
         );
       }
     }
@@ -852,26 +1094,22 @@ export default function AISuggestionPage() {
       setApplying(true);
       setError(null);
 
-      const planId = await ensureDraftAllocationPlan();
+      const planId = await ensureAllocationPlan();
 
       // If this experiment already had a Manual/AI Draft, replace only the
       // Draft's allocation resources. Never modify the Experiment requirements.
       await clearDraftAllocationResources(planId);
       await persistSelectedAIResources(planId);
 
-      // Persist the exact score the Researcher reviewed. No hard-coded fallback.
-      await updateAllocationPlan(planId, {
-        experimentId: experiment.experimentId,
-        fitnessScore,
-        approveStatus: "Draft",
-      });
+      const savedEvaluation = await evaluateAllocationPlan(planId, settings);
+      const appliedFitnessScore = savedEvaluation.fitnessScore ?? fitnessScore;
 
       // Use the exact same state transition as Manual Allocation.
       await submitAllocationPlan(planId);
 
       sendLocalNotification({
         title: "AI Allocation Plan Submitted",
-        message: `Candidate #${selectedPlan.rank} for "${experiment.experimentName}" was submitted with Fitness Score ${fitnessScore.toFixed(2)} for Manager review.`,
+        message: `Candidate #${selectedPlan.rank} for "${experiment.experimentName}" was submitted with Fitness Score ${appliedFitnessScore.toFixed(2)} for Manager review.`,
         notificationType: "Success",
         referenceType: "AllocationPlan",
         referenceId: planId,
@@ -880,7 +1118,7 @@ export default function AISuggestionPage() {
 
       navigate(`/allocation/${planId}`, {
         state: {
-          message: `AI Candidate #${selectedPlan.rank} submitted successfully. Fitness Score: ${fitnessScore.toFixed(2)}.`,
+          message: `AI Candidate #${selectedPlan.rank} submitted successfully. Fitness Score: ${appliedFitnessScore.toFixed(2)}.`,
           planningMethod: "AI",
         },
       });
@@ -1149,21 +1387,19 @@ export default function AISuggestionPage() {
                   </div>
 
                   <div className="ai-input-wrapper">
-                    <label>Schedule Shift Max</label>
+                    <label>Mutation Rate</label>
                     <div className="ai-input-box">
                       <input
                         type="number"
-                        min="0"
-                        max="30"
-                        value={settings.maxScheduleShiftDays ?? 7}
+                        step="0.05"
+                        min="0.001"
+                        max="0.8"
+                        value={settings.mutationRate ?? 0.15}
                         onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            maxScheduleShiftDays: Number(e.target.value),
-                          })
+                          setSettings({ ...settings, mutationRate: Number(e.target.value) })
                         }
                       />
-                      <span className="ai-input-unit">days</span>
+                      <span className="ai-input-unit">rate</span>
                     </div>
                   </div>
                 </div>
@@ -1174,10 +1410,13 @@ export default function AISuggestionPage() {
                 <div className="ai-settings-group-header">
                   <span>
                     Objective Weights (
-                    {(settings.landWeight ?? 25) +
-                      (settings.humanWeight ?? 25) +
-                      (settings.equipmentWeight ?? 25) +
-                      (settings.scheduleWeight ?? 25)}
+                    {Math.round(
+                      ((settings.landWeight ?? 0.20) +
+                        (settings.humanWeight ?? 0.25) +
+                        (settings.equipmentWeight ?? 0.40) +
+                        (settings.maintenanceWeight ?? 0.15)) *
+                        100
+                    )}
                     )
                   </span>
                 </div>
@@ -1189,9 +1428,9 @@ export default function AISuggestionPage() {
                         type="number"
                         min="0"
                         max="100"
-                        value={settings.landWeight ?? 25}
+                        value={Math.round((settings.landWeight ?? 0.20) * 100)}
                         onChange={(e) =>
-                          setSettings({ ...settings, landWeight: Number(e.target.value) })
+                          setSettings({ ...settings, landWeight: Number(e.target.value) / 100 })
                         }
                       />
                       <span className="ai-input-unit">pts</span>
@@ -1205,9 +1444,9 @@ export default function AISuggestionPage() {
                         type="number"
                         min="0"
                         max="100"
-                        value={settings.humanWeight ?? 25}
+                        value={Math.round((settings.humanWeight ?? 0.25) * 100)}
                         onChange={(e) =>
-                          setSettings({ ...settings, humanWeight: Number(e.target.value) })
+                          setSettings({ ...settings, humanWeight: Number(e.target.value) / 100 })
                         }
                       />
                       <span className="ai-input-unit">pts</span>
@@ -1221,9 +1460,9 @@ export default function AISuggestionPage() {
                         type="number"
                         min="0"
                         max="100"
-                        value={settings.equipmentWeight ?? 25}
+                        value={Math.round((settings.equipmentWeight ?? 0.40) * 100)}
                         onChange={(e) =>
-                          setSettings({ ...settings, equipmentWeight: Number(e.target.value) })
+                          setSettings({ ...settings, equipmentWeight: Number(e.target.value) / 100 })
                         }
                       />
                       <span className="ai-input-unit">pts</span>
@@ -1231,18 +1470,21 @@ export default function AISuggestionPage() {
                   </div>
 
                   <div className="ai-input-wrapper">
-                    <label>Schedule Weight</label>
+                    <label>Maintenance Weight</label>
                     <div className="ai-input-box">
                       <input
                         type="number"
                         min="0"
                         max="100"
-                        value={settings.scheduleWeight ?? 25}
+                        value={Math.round((settings.maintenanceWeight ?? 0.15) * 100)}
                         onChange={(e) =>
-                          setSettings({ ...settings, scheduleWeight: Number(e.target.value) })
+                          setSettings({
+                            ...settings,
+                            maintenanceWeight: Number(e.target.value) / 100,
+                          })
                         }
                       />
-                      <span className="ai-input-unit">pts</span>
+                      <span className="ai-input-unit">%</span>
                     </div>
                   </div>
                 </div>
@@ -1252,7 +1494,7 @@ export default function AISuggestionPage() {
             {/* Footer action */}
             <div className="ai-settings-footer">
               <span style={{ fontSize: "12.5px", color: "#64748b" }}>
-                Higher weight prioritizes satisfying constraints for that specific resource category.
+                Weights follow the BE model: Land + Human + Equipment + Maintenance = 100%.
               </span>
               <button
                 type="button"
@@ -1288,8 +1530,8 @@ export default function AISuggestionPage() {
               Running Genetic Algorithm Optimization...
             </h3>
             <p style={{ fontSize: "14px", color: "#64748b", maxWidth: "560px", margin: "0 auto" }}>
-              Evaluating population size {settings.populationSize || 100} across {settings.generationCount || 80} generations.
-              Resolving resource contentions, equipment availability, staff workload, and land plot parameters.
+              Running one Genetic Algorithm request with population size {settings.populationSize || 100} across {settings.generationCount || 80} generations.
+              The backend returns the available real allocation candidates; the FE does not clone or repeat solver requests.
             </p>
           </div>
         )}
@@ -1330,7 +1572,7 @@ export default function AISuggestionPage() {
         {/* Content View: Candidate Plans Ready */}
         {!loadingExp && !loadingAI && !error && suggestions.length > 0 && (
           <div>
-            {/* Top 5 Candidates Grid */}
+            {/* Top Candidate Grid */}
             <div className="ai-candidates-grid">
               {suggestions.map((plan) => {
                 const isSelected = plan.id === selectedPlanId;

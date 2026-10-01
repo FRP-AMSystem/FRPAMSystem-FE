@@ -249,3 +249,82 @@ export async function submitExperiment(
     response.data
   );
 }
+
+export async function updateExperimentStatus(
+  id: number,
+  status: "Draft" | "Submitted" | "Planning" | "Ready" | "Running" | "Completed" | "Cancelled"
+): Promise<ExperimentResponse> {
+  validateExperimentId(id);
+
+  const response = await api.put(
+    `/Experiments/${id}/status`,
+    { status }
+  );
+
+  return unwrapResponse<ExperimentResponse>(response.data);
+}
+
+/**
+ * Manager/Admin approves a submitted experiment.
+ * Swagger: POST /api/Experiments/{id}/approve
+ */
+export async function approveExperiment(
+  id: number
+): Promise<ExperimentResponse> {
+  validateExperimentId(id);
+
+  const response = await api.post(
+    `/Experiments/${id}/approve`
+  );
+
+  return unwrapResponse<ExperimentResponse>(response.data);
+}
+
+/**
+ * Manager/Admin rejects a submitted experiment.
+ * Swagger: POST /api/Experiments/{id}/reject
+ */
+export async function rejectExperiment(
+  id: number,
+  reason?: string | null
+): Promise<ExperimentResponse> {
+  validateExperimentId(id);
+
+  const response = await api.post(
+    `/Experiments/${id}/reject`,
+    { reason: reason?.trim() || null }
+  );
+
+  return unwrapResponse<ExperimentResponse>(response.data);
+}
+
+/** Swagger: POST /api/Experiments/{id}/start */
+export async function startExperiment(
+  id: number
+): Promise<ExperimentResponse> {
+  validateExperimentId(id);
+  const response = await api.post(`/Experiments/${id}/start`);
+  return unwrapResponse<ExperimentResponse>(response.data);
+}
+
+/** Swagger: POST /api/Experiments/{id}/complete */
+export async function completeExperiment(
+  id: number
+): Promise<ExperimentResponse> {
+  validateExperimentId(id);
+  const response = await api.post(`/Experiments/${id}/complete`);
+  return unwrapResponse<ExperimentResponse>(response.data);
+}
+
+/** Swagger: POST /api/Experiments/{id}/cancel */
+export async function cancelExperiment(
+  id: number,
+  reason?: string | null
+): Promise<ExperimentResponse> {
+  validateExperimentId(id);
+  const response = await api.post(
+    `/Experiments/${id}/cancel`,
+    { reason: reason?.trim() || null }
+  );
+  return unwrapResponse<ExperimentResponse>(response.data);
+}

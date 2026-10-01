@@ -31,6 +31,8 @@ import type {
 import "./HumanRequirementList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -285,6 +287,9 @@ export default function HumanRequirementList() {
     }
   };
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(filteredRequirements, 10);
+
   return (
     <DashboardLayout>
       <div className="human-requirement-page">
@@ -433,7 +438,7 @@ export default function HumanRequirementList() {
                 </thead>
 
                 <tbody>
-                  {filteredRequirements.map(
+                  {paginatedItems.map(
                     (
                       requirement
                     ) => (
@@ -581,6 +586,13 @@ export default function HumanRequirementList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={filteredRequirements.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </div>

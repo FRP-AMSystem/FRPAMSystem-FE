@@ -36,13 +36,12 @@ import {
   getExperimentById,
   submitExperiment,
   updateExperiment,
+  approveExperiment,
+  rejectExperiment,
 } from "../../services/experimentService";
 
 import {
   createAllocationPlan,
-  getAllocationPlans,
-  approveAllocationPlan,
-  rejectAllocationPlan,
 } from "../../services/allocationPlanService";
 
 import {
@@ -903,8 +902,9 @@ export default function ExperimentDetail() {
 
   const handleApproveExperiment = async () => {
     if (!experiment || actionProcessing) return;
+
     const confirmed = await showConfirm(
-      `Approve experiment plan "${experiment.experimentName}"?`
+      `Approve experiment "${experiment.experimentName}"?`
     );
     if (!confirmed) return;
 
@@ -912,43 +912,22 @@ export default function ExperimentDetail() {
       setActionProcessing(true);
       setError("");
 
-      // 1. Update experiment status to Running
-      let updated = experiment;
-      try {
-        updated = await updateExperiment(experiment.experimentId, {
-          experimentName: experiment.experimentName,
-          description: experiment.description || "",
-          researcherId: experiment.researcherId,
-          expectStartDate: experiment.expectStartDate || new Date().toISOString(),
-          expectEndDate: experiment.expectEndDate || new Date().toISOString(),
-          deadline: experiment.deadline || experiment.expectEndDate || new Date().toISOString(),
-          priority: experiment.priority ?? 1,
-          status: "Running",
-        });
-      } catch (uErr) {
-        console.warn("Direct update status to Running:", uErr);
-      }
+      // Swagger: POST /Experiments/{id}/approve
+      // Experiment approval is independent from Allocation Plan approval.
+      const updated = await approveExperiment(
+        experiment.experimentId
+      );
 
-      // 2. Also approve attached allocation plans if any
-      try {
-        const allocs = await getAllocationPlans({ experimentId: experiment.experimentId });
-        for (const p of allocs) {
-          if (p.approveStatus === "Pending" || p.approveStatus === "Draft") {
-            await approveAllocationPlan(p.allocationPlanId);
-          }
-        }
-      } catch (aErr) {
-        console.warn("Approve attached allocation plans notice:", aErr);
-      }
+      setExperiment(updated);
 
-      setExperiment({ ...updated, status: "Running" });
       sendLocalNotification({
-        title: "Experiment Plan Approved",
-        message: `Experiment plan "${experiment.experimentName}" has been APPROVED and is now Running!`,
+        title: "Experiment Approved",
+        message: `Experiment "${experiment.experimentName}" has been approved.`,
         notificationType: "Success",
         referenceType: "Experiment",
         referenceId: experiment.experimentId,
       });
+
       void fetchUnreadCount();
       await loadExperiment();
     } catch (appErr) {
@@ -961,6 +940,7 @@ export default function ExperimentDetail() {
 
   const handleRejectExperiment = async () => {
     if (!experiment || actionProcessing) return;
+
     const reasonText = rejectReason.trim();
     if (!reasonText) {
       setError("Please enter a rejection reason.");
@@ -971,53 +951,25 @@ export default function ExperimentDetail() {
       setActionProcessing(true);
       setError("");
 
-      const updatedDescription = experiment.description
-        ? `${experiment.description}\n\n[Manager Rejection Reason: ${reasonText}]`
-        : `[Manager Rejection Reason: ${reasonText}]`;
+      // Swagger: POST /Experiments/{id}/reject with { reason }.
+      // Do not convert rejection into Cancelled and do not reject Allocation Plans here.
+      const updated = await rejectExperiment(
+        experiment.experimentId,
+        reasonText
+      );
 
-      // 1. Update experiment status to Cancelled
-      let updated = experiment;
-      try {
-        updated = await updateExperiment(experiment.experimentId, {
-          experimentName: experiment.experimentName,
-          description: updatedDescription,
-          researcherId: experiment.researcherId,
-          expectStartDate: experiment.expectStartDate || new Date().toISOString(),
-          expectEndDate: experiment.expectEndDate || new Date().toISOString(),
-          deadline: experiment.deadline || experiment.expectEndDate || new Date().toISOString(),
-          priority: experiment.priority ?? 1,
-          status: "Cancelled",
-        });
-      } catch (uErr) {
-        console.warn("Direct update status to Cancelled:", uErr);
-      }
-
-      // 2. Also reject attached allocation plans if any
-      try {
-        const allocs = await getAllocationPlans({ experimentId: experiment.experimentId });
-        for (const p of allocs) {
-          if (p.approveStatus === "Pending" || p.approveStatus === "Draft") {
-            await rejectAllocationPlan(p.allocationPlanId);
-          }
-        }
-      } catch (aErr) {
-        console.warn("Reject attached allocation plans notice:", aErr);
-      }
-
-      setExperiment({
-        ...updated,
-        status: "Cancelled",
-        description: updatedDescription,
-      });
+      setExperiment(updated);
       setShowRejectModal(false);
       setRejectReason("");
+
       sendLocalNotification({
-        title: "Experiment Plan Rejected",
-        message: `Experiment plan "${experiment.experimentName}" has been REJECTED (status changed to Cancelled).`,
+        title: "Experiment Rejected",
+        message: `Experiment "${experiment.experimentName}" has been rejected.`,
         notificationType: "Warning",
         referenceType: "Experiment",
         referenceId: experiment.experimentId,
       });
+
       void fetchUnreadCount();
       await loadExperiment();
     } catch (rejErr) {
@@ -1233,7 +1185,7 @@ export default function ExperimentDetail() {
                   title="Approve this experiment plan"
                 >
                   <CheckCircle2 size={15} />
-                  {actionProcessing ? "Processing..." : "Approve Plan"}
+                  {actionProcessing ? "Processing..." : "Approve Experiment"}
                 </button>
 
                 <button
@@ -1247,7 +1199,7 @@ export default function ExperimentDetail() {
                   title="Reject this experiment plan"
                 >
                   <XCircle size={15} />
-                  Reject Plan
+                  Reject Experiment
                 </button>
               </>
             )}
@@ -1282,13 +1234,15 @@ export default function ExperimentDetail() {
           </div>
         )}
 
-        {(experiment.status === "Approved" || experiment.status === "Running") && (
+        {(experiment.status === "Ready" || experiment.status === "Running") && (
           <div className="experiment-status-banner approved">
             <CheckCircle2 className="experiment-banner-icon" />
             <div>
-              <strong>Experiment Plan Approved & Running</strong>
+              <strong>{experiment.status === "Ready" ? "Experiment Plan Approved & Ready" : "Experiment Running"}</strong>
               <p style={{ margin: "4px 0 0" }}>
-                The experiment plan was successfully approved by the Manager. All phases and allocated resources are ready for execution.
+                {experiment.status === "Ready"
+                  ? "The experiment plan was approved by the Manager and is ready for resource allocation/execution."
+                  : "The experiment is currently running."}
               </p>
             </div>
           </div>
@@ -1312,6 +1266,62 @@ export default function ExperimentDetail() {
           </div>
         )}
 
+        {/* Professional two-column detail layout */}
+        <style>{`
+          .experiment-detail-professional-layout {
+            display: grid;
+            grid-template-columns: minmax(300px, 0.72fr) minmax(0, 1.8fr);
+            gap: 24px;
+            align-items: start;
+            margin-top: 20px;
+          }
+          .experiment-detail-summary-column,
+          .experiment-detail-resource-column {
+            min-width: 0;
+          }
+          .experiment-detail-summary-column {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            position: sticky;
+            top: 20px;
+          }
+          .experiment-detail-summary-column .experiment-detail-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 18px;
+          }
+          .experiment-detail-summary-column .experiment-detail-card,
+          .experiment-detail-summary-column .experiment-detail-description-card {
+            margin: 0;
+            width: 100%;
+          }
+          .experiment-detail-resource-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+          }
+          .experiment-detail-resource-column .experiment-phase-section {
+            margin-top: 0 !important;
+          }
+          @media (max-width: 1180px) {
+            .experiment-detail-professional-layout {
+              grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.5fr);
+              gap: 18px;
+            }
+          }
+          @media (max-width: 900px) {
+            .experiment-detail-professional-layout {
+              grid-template-columns: 1fr;
+            }
+            .experiment-detail-summary-column {
+              position: static;
+            }
+          }
+        `}</style>
+
+        <div className="experiment-detail-professional-layout">
+          <aside className="experiment-detail-summary-column">
         <div className="experiment-detail-grid">
           <div className="experiment-detail-card">
             <h3>General Information</h3>
@@ -1415,6 +1425,9 @@ export default function ExperimentDetail() {
           </p>
         </div>
 
+          </aside>
+
+          <main className="experiment-detail-resource-column">
         {/* =====================================================
             1. EXECUTION PHASES SECTION
         ===================================================== */}
@@ -1606,7 +1619,7 @@ export default function ExperimentDetail() {
                           </span>
                         )}
                       </td>
-                      <td>{req.minAcceptableEfficiency ?? 80}%</td>
+                      <td>{Math.round((req.minAcceptableEfficiency ?? 0) <= 1 ? (req.minAcceptableEfficiency ?? 0) * 100 : (req.minAcceptableEfficiency ?? 0))}</td>
                       <td style={{ color: "#64748b" }}>{req.note || "-"}</td>
                     </tr>
                   ))}
@@ -1743,6 +1756,9 @@ export default function ExperimentDetail() {
               </table>
             </div>
           )}
+        </div>
+
+          </main>
         </div>
 
         {/* Submit / Resource Allocation Action Card */}

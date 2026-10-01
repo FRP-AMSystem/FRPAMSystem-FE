@@ -23,6 +23,12 @@ import {
   getExperiments,
 } from "../../services/experimentService";
 
+import {
+  getAllocationEquipmentDetails,
+  getAllocationHumanDetails,
+  getAllocationLandDetails,
+} from "../../services/allocationDetailService";
+
 import type {
   AllocationPlan,
 } from "../../types/allocationPlan";
@@ -472,6 +478,12 @@ export default function DashboardPage() {
     setError,
   ] = useState("");
 
+  const [actualResourceCounts, setActualResourceCounts] = useState({
+    equipment: 0,
+    human: 0,
+    land: 0,
+  });
+
   useEffect(() => {
     let active = true;
 
@@ -564,6 +576,63 @@ export default function DashboardPage() {
       myExperimentIds,
     ]);
 
+  // AllocationPlan.*DetailCount is not a reliable persisted-resource count.
+  // Load the actual detail endpoints for the plans visible to this dashboard.
+  useEffect(() => {
+    let active = true;
+
+    async function loadActualResourceCounts() {
+      if (visiblePlans.length === 0) {
+        if (active) {
+          setActualResourceCounts({ equipment: 0, human: 0, land: 0 });
+        }
+        return;
+      }
+
+      try {
+        const counts = await Promise.all(
+          visiblePlans.map(async (plan) => {
+            const allocationPlanId = plan.allocationPlanId;
+            const [equipment, human, land] = await Promise.all([
+              getAllocationEquipmentDetails({ allocationPlanId, size: 500 }),
+              getAllocationHumanDetails({ allocationPlanId, size: 500 }),
+              getAllocationLandDetails({ allocationPlanId, size: 500 }),
+            ]);
+
+            return {
+              equipment: Array.isArray(equipment) ? equipment.length : 0,
+              human: Array.isArray(human) ? human.length : 0,
+              land: Array.isArray(land) ? land.length : 0,
+            };
+          })
+        );
+
+        if (active) {
+          setActualResourceCounts(
+            counts.reduce(
+              (total, current) => ({
+                equipment: total.equipment + current.equipment,
+                human: total.human + current.human,
+                land: total.land + current.land,
+              }),
+              { equipment: 0, human: 0, land: 0 }
+            )
+          );
+        }
+      } catch (resourceError) {
+        console.error("Load persisted resource details failed:", resourceError);
+        if (active) {
+          setActualResourceCounts({ equipment: 0, human: 0, land: 0 });
+        }
+      }
+    }
+
+    void loadActualResourceCounts();
+    return () => {
+      active = false;
+    };
+  }, [visiblePlans]);
+
   const dashboardData =
     useMemo(() => {
       const totalPlans =
@@ -630,38 +699,9 @@ export default function DashboardPage() {
           )
           : 0;
 
-      const equipmentCount =
-        visiblePlans.reduce(
-          (sum, plan) =>
-            sum +
-            (
-              plan.equipmentDetailCount ??
-              0
-            ),
-          0
-        );
-
-      const humanCount =
-        visiblePlans.reduce(
-          (sum, plan) =>
-            sum +
-            (
-              plan.humanDetailCount ??
-              0
-            ),
-          0
-        );
-
-      const landCount =
-        visiblePlans.reduce(
-          (sum, plan) =>
-            sum +
-            (
-              plan.landDetailCount ??
-              0
-            ),
-          0
-        );
+      const equipmentCount = actualResourceCounts.equipment;
+      const humanCount = actualResourceCounts.human;
+      const landCount = actualResourceCounts.land;
 
       const scheduleCount =
         visiblePlans.reduce(
@@ -693,7 +733,7 @@ export default function DashboardPage() {
         scheduleCount,
         totalResourceDetails,
       };
-    }, [visiblePlans]);
+    }, [visiblePlans, actualResourceCounts]);
 
   const stats =
     useMemo<
@@ -713,13 +753,6 @@ export default function DashboardPage() {
                 String(
                   dashboardData.totalPlans
                 ),
-
-              trend: {
-                value:
-                  `${dashboardData.draftPlans} draft · ${dashboardData.cancelledPlans} cancelled`,
-
-                isUp: true,
-              },
 
               type:
                 "total-resources",
@@ -755,12 +788,6 @@ export default function DashboardPage() {
                   dashboardData.approvedPlans
                 ),
 
-              avatars: [
-                "",
-                "",
-                `+${dashboardData.approvedPlans}`,
-              ],
-
               type:
                 "active-experiments",
             },
@@ -775,9 +802,6 @@ export default function DashboardPage() {
                 String(
                   dashboardData.pendingPlans
                 ),
-
-              conflictCount:
-                dashboardData.pendingPlans,
 
               type:
                 "conflicts",
@@ -804,13 +828,6 @@ export default function DashboardPage() {
                   dashboardData.totalPlans
                 ),
 
-              trend: {
-                value:
-                  `${dashboardData.draftPlans} draft · ${dashboardData.rejectedPlans} rejected`,
-
-                isUp: true,
-              },
-
               type:
                 "total-resources",
             },
@@ -826,12 +843,6 @@ export default function DashboardPage() {
                   dashboardData.approvedPlans
                 ),
 
-              avatars: [
-                "",
-                "",
-                `+${dashboardData.approvedPlans}`,
-              ],
-
               type:
                 "active-experiments",
             },
@@ -846,9 +857,6 @@ export default function DashboardPage() {
                 String(
                   dashboardData.pendingPlans
                 ),
-
-              conflictCount:
-                dashboardData.pendingPlans,
 
               type:
                 "conflicts",
@@ -1072,14 +1080,14 @@ export default function DashboardPage() {
       [visiblePlans]
     );
 
-  const resourceBreakdown =
-    useMemo(
-      () =>
-        buildResourceBreakdown(
-          visiblePlans
-        ),
-      [visiblePlans]
-    );
+  const resourceBreakdown = useMemo<ResourceBreakdownItem[]>(
+    () => [
+      { name: "Equipment", value: actualResourceCounts.equipment, color: "#2563eb" },
+      { name: "Human Resources", value: actualResourceCounts.human, color: "#22c55e" },
+      { name: "Land", value: actualResourceCounts.land, color: "#f59e0b" },
+    ],
+    [actualResourceCounts]
+  );
 
   const recentPlans =
     useMemo(
@@ -1106,9 +1114,6 @@ export default function DashboardPage() {
 
   const canViewAnalytics =
     role === "Manager" ||
-    role === "Researcher";
-
-  const canCreateAllocation =
     role === "Researcher";
 
   const isLimitedDashboardRole =
@@ -1145,19 +1150,6 @@ export default function DashboardPage() {
               </button>
             )}
 
-            {canCreateAllocation && (
-              <button
-                type="button"
-                className="dashboard-create-btn"
-                onClick={() =>
-                  navigate(
-                    "/allocation/create"
-                  )
-                }
-              >
-                + Create Allocation
-              </button>
-            )}
           </div>
         </div>
 
@@ -1221,33 +1213,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-
-            {role ===
-              "Researcher" && (
-                <div className="role-section-card">
-                  <h3>
-                    Researcher Workspace
-                  </h3>
-
-                  <p>
-                    Create experiments,
-                    requirements, and phases, then
-                    track their execution and
-                    progress.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(
-                        "/experiments"
-                      )
-                    }
-                  >
-                    View Experiments
-                  </button>
-                </div>
-              )}
 
             {role === "Technician" && (
               <div className="role-section-card">
@@ -1323,21 +1288,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {canCreateAllocation && (
-              <button
-                type="button"
-                className="dashboard-fab"
-                title="Create Allocation"
-                aria-label="Create allocation"
-                onClick={() =>
-                  navigate(
-                    "/allocation/create"
-                  )
-                }
-              >
-                +
-              </button>
-            )}
           </>
         )}
       </div>

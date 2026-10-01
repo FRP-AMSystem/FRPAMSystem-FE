@@ -25,6 +25,38 @@ export interface AllocationPlanEvaluationResult {
   raw: unknown;
 }
 
+export interface SimulatePlanFitnessRequest {
+  experimentId: number;
+  currentPlanId: number | null;
+  landDetails: Array<{
+    landId: number;
+    allocatedArea: number;
+    expLandReqId: number | null;
+    startDate: string | null;
+    endDate: string | null;
+  }>;
+  equipmentDetails: Array<{
+    equipmentTypeId: number | null;
+    equipmentInstanceId: number | null;
+    quantity: number;
+    expEquipmentReqId: number | null;
+    phaseEquipmentReqId: number | null;
+    isSubstitute: boolean;
+    efficiencyRate: number;
+    startDate: string | null;
+    endDate: string | null;
+  }>;
+  humanDetails: Array<{
+    humanResourceId: number;
+    assignedRole: string | null;
+    expHumanReqId: number | null;
+    phaseHumanReqId: number | null;
+    workingHours: number;
+    startDate: string | null;
+    endDate: string | null;
+  }>;
+}
+
 function extractFitnessScore(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -378,6 +410,20 @@ export async function evaluateAllocationPlan(
 
   const response = await api.post(
     `/AllocationPlans/${id}/evaluate`,
+    payload
+  );
+
+  return {
+    fitnessScore: extractFitnessScore(response.data),
+    raw: response.data,
+  };
+}
+
+export async function simulateAllocationPlanFitness(
+  payload: SimulatePlanFitnessRequest
+): Promise<AllocationPlanEvaluationResult> {
+  const response = await api.post(
+    "/AllocationPlans/simulate-fitness",
     payload
   );
 

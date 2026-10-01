@@ -33,6 +33,8 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 import "./EquipmentShortageLogList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type RequirementType =
   | "Experiment"
@@ -666,6 +668,9 @@ export default function EquipmentShortageLogList() {
       appliedPhaseRequirementFilter
     );
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(items, 10);
+
   return (
     <DashboardLayout>
       <div className="equipment-shortage-page">
@@ -844,7 +849,7 @@ export default function EquipmentShortageLogList() {
                 </thead>
 
                 <tbody>
-                  {items.map(
+                  {paginatedItems.map(
                     (item) => {
                       const requirementType =
                         getRequirementType(
@@ -994,6 +999,13 @@ export default function EquipmentShortageLogList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={items.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

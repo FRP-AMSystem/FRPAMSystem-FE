@@ -901,3 +901,65 @@
     padding: 18px 14px 36px;
   }
 }
+
+/* =========================================================
+   Manager review hierarchy
+   Pending plan = resource request awaiting a Manager decision.
+   Keep decision data first, requested resources second,
+   technical metadata last.
+   ========================================================= */
+.allocation-main-col > .alloc-card:nth-child(1) { order: 1; }
+.allocation-main-col > .alloc-card:nth-child(2) { order: 3; }
+.allocation-main-col > .alloc-card:nth-child(3) { order: 2; }
+
+.allocation-main-col > .alloc-card:nth-child(1) {
+  border-top: 3px solid #16a34a;
+}
+
+.allocation-main-col > .alloc-card:nth-child(3) {
+  border-top: 3px solid #22c55e;
+}
+
+.allocation-side-col > .alloc-card:nth-child(2) {
+  position: sticky;
+  top: 18px;
+  border-top: 3px solid #f59e0b;
+}
+
+.alloc-metrics-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+.alloc-metric-item:nth-child(5) {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.alloc-metric-item:nth-child(6) {
+  display: none;
+}
+
+.alloc-action-bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+}
+
+.alloc-action-bar .alloc-btn {
+  width: 100%;
+  min-height: 40px;
+  justify-content: center;
+}
+
+@media (max-width: 1200px) {
+  .alloc-metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1024px) {
+  .allocation-side-col > .alloc-card:nth-child(2) { position: static; }
+}
+
+@media (max-width: 700px) {
+  .alloc-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

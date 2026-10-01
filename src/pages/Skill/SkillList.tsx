@@ -32,6 +32,8 @@ import type {
 import "./SkillList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Manager"
@@ -442,6 +444,9 @@ export default function SkillList() {
     }
   };
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(items, 10);
+
   return (
     <DashboardLayout>
       <div className="skill-page">
@@ -572,7 +577,7 @@ export default function SkillList() {
                 </thead>
 
                 <tbody>
-                  {items.map(
+                  {paginatedItems.map(
                     (item) => (
                       <tr
                         key={
@@ -652,6 +657,13 @@ export default function SkillList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={items.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

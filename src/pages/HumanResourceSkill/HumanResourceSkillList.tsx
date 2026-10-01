@@ -49,6 +49,8 @@ import type {
 import "./HumanResourceSkillList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -560,6 +562,9 @@ export default function HumanResourceSkillList() {
     setLevelFilter("");
   };
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(items, 10);
+
   return (
     <DashboardLayout>
       <div className="human-skill-page">
@@ -762,7 +767,7 @@ export default function HumanResourceSkillList() {
                 </thead>
 
                 <tbody>
-                  {items.map(
+                  {paginatedItems.map(
                     (item) => (
                       <tr
                         key={
@@ -849,6 +854,13 @@ export default function HumanResourceSkillList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={items.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

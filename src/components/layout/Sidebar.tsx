@@ -690,7 +690,21 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
+      <div
+        className="sidebar-brand"
+        role="button"
+        tabIndex={0}
+        title="Go to Dashboard"
+        aria-label="Go to Dashboard"
+        onClick={() => navigate("/dashboard")}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            navigate("/dashboard");
+          }
+        }}
+        style={{ cursor: "pointer" }}
+      >
         <div className="sidebar-logo-container">
           <Trees
             size={22}

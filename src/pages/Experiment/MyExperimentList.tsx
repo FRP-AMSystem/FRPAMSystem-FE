@@ -13,6 +13,8 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 import "./ExperimentList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
@@ -180,6 +182,9 @@ export default function MyExperimentList() {
     }
   };
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(experiments, 10);
+
   return (
     <DashboardLayout>
       <div className="experiment-page">
@@ -241,6 +246,7 @@ export default function MyExperimentList() {
           {loading ? (
             <p className="loading-text">Loading draft experiments...</p>
           ) : (
+            <>
             <table className="experiment-table">
               <thead>
                 <tr>
@@ -256,7 +262,7 @@ export default function MyExperimentList() {
               </thead>
 
               <tbody>
-                {experiments.map((item) => {
+                {paginatedItems.map((item) => {
                   const isDeleting = deletingId === item.experimentId;
 
                   return (
@@ -331,6 +337,14 @@ export default function MyExperimentList() {
                 )}
               </tbody>
             </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={experiments.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
+                      </>
           )}
         </div>
       </div>

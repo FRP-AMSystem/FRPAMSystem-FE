@@ -7,6 +7,22 @@ interface UserTableProps {
   onEditUser: (user: User) => void;
 }
 
+function getRoleNameValue(role: User["role"] | null | undefined): string {
+  if (typeof role === "string") {
+    return role.trim();
+  }
+
+  if (role && typeof role === "object") {
+    return String(
+      (role as { roleName?: string; name?: string }).roleName ??
+        (role as { roleName?: string; name?: string }).name ??
+        ""
+    ).trim();
+  }
+
+  return "";
+}
+
 export default function UserTable({ users, onViewUser, onEditUser }: UserTableProps) {
   // Generate a fallback avatar letter
   const getAvatarFallback = (fullName: string) => {
@@ -27,8 +43,8 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
   };
 
   // Dynamic colors for each role badge
-  const getRoleBadgeClass = (role: string) => {
-    const normRole = (role || "").toLowerCase().trim();
+  const getRoleBadgeClass = (role: User["role"] | null | undefined) => {
+    const normRole = getRoleNameValue(role).toLowerCase();
     switch (normRole) {
       case "admin":
         return "role-badge role-admin";
@@ -105,7 +121,11 @@ export default function UserTable({ users, onViewUser, onEditUser }: UserTablePr
               </td>
               <td>
                 <span className={getRoleBadgeClass(user.role)}>
-                  {((user.role || "").toLowerCase() === "student" ? "Seasonal" : user.role || "User").toUpperCase()}
+                  {(
+                    getRoleNameValue(user.role).toLowerCase() === "student"
+                      ? "Seasonal"
+                      : getRoleNameValue(user.role) || "User"
+                  ).toUpperCase()}
                 </span>
               </td>
               <td>

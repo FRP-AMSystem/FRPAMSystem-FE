@@ -134,7 +134,7 @@ function getPageDescription(role: Role): string {
     case "Manager":
       return "Review pending allocation plans and approve, reject, or cancel them.";
     case "Researcher":
-      return "Create draft allocation plans, add resources, and track approval status.";
+      return "Create and submit allocation plans, then track approval status.";
     case "Technician":
       return "View allocation information related to equipment and schedules.";
     case "Student":
@@ -399,10 +399,10 @@ export default function AllocationList() {
                           </strong>
                         </td>
                         <td>
-                          Land: {plan.landDetailCount ?? 0} | Equipment:{" "}
-                          {plan.equipmentDetailCount ?? 0} | Human:{" "}
-                          {plan.humanDetailCount ?? 0} | Schedule:{" "}
-                          {plan.scheduleCount ?? 0}
+                          Land: {plan.landDetailCount ?? 0} |{" "}
+                          Equipment: {plan.equipmentDetailCount ?? 0} |{" "}
+                          Human: {plan.humanDetailCount ?? 0} |{" "}
+                          Schedule: {plan.scheduleCount ?? 0}
                         </td>
                         <td>
                           <div className="action-group">

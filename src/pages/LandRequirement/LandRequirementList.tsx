@@ -33,6 +33,8 @@ import type {
 import "./LandRequirementList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -289,6 +291,9 @@ export default function LandRequirementList() {
     }
   };
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(requirements, 10);
+
   return (
     <DashboardLayout>
       <div className="land-requirement-list-page">
@@ -462,7 +467,7 @@ export default function LandRequirementList() {
                 </thead>
 
                 <tbody>
-                  {requirements.map(
+                  {paginatedItems.map(
                     (
                       requirement
                     ) => (
@@ -570,6 +575,13 @@ export default function LandRequirementList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={requirements.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

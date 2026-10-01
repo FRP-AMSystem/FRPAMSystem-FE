@@ -41,6 +41,8 @@ import type {
 import "./EquipmentSubstitutionList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -724,6 +726,9 @@ export default function EquipmentSubstitutionList() {
       substituteFilter
     );
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(items, 10);
+
   return (
     <DashboardLayout>
       <div className="equipment-substitution-page">
@@ -922,7 +927,7 @@ export default function EquipmentSubstitutionList() {
                 </thead>
 
                 <tbody>
-                  {items.map(
+                  {paginatedItems.map(
                     (item) => {
                       const primaryName =
                         item.primaryEquipmentTypeName ||
@@ -1064,6 +1069,13 @@ export default function EquipmentSubstitutionList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={items.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

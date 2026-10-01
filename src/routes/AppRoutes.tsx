@@ -720,7 +720,7 @@ export default function AppRoutes() {
       />
 
       <Route
-        path="/allocation/:id"
+        path="/allocation/:allocationPlanId"
         element={
           <ProtectedRoute
             allowedRoles={operationalViewRoles}

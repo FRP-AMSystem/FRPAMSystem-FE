@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -15,7 +16,6 @@ import {
   Users,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
   Info,
   UserCheck,
   Briefcase,
@@ -23,12 +23,14 @@ import {
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
-import api from "../../services/api";
-import { getAllocationPlans } from "../../services/allocationPlanService";
+import {
+  getAllocationPlanById,
+  getAllocationPlans,
+} from "../../services/allocationPlanService";
 import { getAllocationHumanDetails } from "../../services/allocationDetailService";
 import { getExperimentPhases } from "../../services/experimentPhaseService";
 import { getExperiments } from "../../services/experimentService";
-import { createSchedule } from "../../services/scheduleService";
+import { createSchedule, getSchedules } from "../../services/scheduleService";
 import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
 
 import type { AllocationPlan } from "../../types/allocationPlan";
@@ -49,38 +51,256 @@ interface ScheduleFormState {
   startTime: string;
   endDate: string;
   endTime: string;
-  status: ScheduleStatus;
   assignedHumanResourceId: string;
   notes: string;
   priority: string;
 }
 
-const TASK_TEMPLATES = [
-  {
-    title: "Field Plot Preparation & Clearing",
-    desc: "Clear debris, establish plot boundaries, and level soil beds according to protocol.",
-  },
-  {
-    title: "Equipment Setup & Sensor Calibration",
-    desc: "Calibrate IoT sensors, drone batteries, and test telemetry before starting field data collection.",
-  },
-  {
-    title: "Seedling Planting & Specimen Tagging",
-    desc: "Plant research saplings systematically following randomized block design and attach barcode tags.",
-  },
-  {
-    title: "Controlled Irrigation & Fertilizer Application",
-    desc: "Apply designated water volume and nutrient formula as specified in phase schedule.",
-  },
-  {
-    title: "Foliar Health Survey & Growth Measurement",
-    desc: "Measure sapling height, stem diameter, and inspect leaves for any pest or disease symptoms.",
-  },
-  {
-    title: "Biomass Harvest & Sample Logging",
-    desc: "Harvest plot samples, record fresh weight, and transfer to storage facility for drying analysis.",
-  },
-];
+
+interface TimePickerProps {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  ariaLabel: string;
+}
+
+interface CompactTimeDropdownProps {
+  value: string;
+  items: string[];
+  ariaLabel: string;
+  onChange: (value: string) => void;
+}
+
+function CompactTimeDropdown({ value, items, ariaLabel, onChange }: CompactTimeDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      requestAnimationFrame(() => {
+        selectedRef.current?.scrollIntoView({ block: "center" });
+      });
+    }
+  }, [open]);
+
+  return (
+    <div ref={rootRef} style={{ position: "relative", minWidth: 0 }}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        style={{
+          width: "100%",
+          height: "40px",
+          padding: "0 10px",
+          border: `1px solid ${open ? "#16a34a" : "#cbd5e1"}`,
+          borderRadius: "8px",
+          background: "#fff",
+          color: "#0f172a",
+          fontWeight: 700,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          cursor: "pointer",
+          outline: "none",
+          boxShadow: open ? "0 0 0 3px rgba(34,197,94,.10)" : "none",
+        }}
+      >
+        <span>{value}</span>
+        <span style={{ color: "#64748b", fontSize: "10px" }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{
+            position: "absolute",
+            zIndex: 60,
+            top: "calc(100% + 5px)",
+            left: 0,
+            right: 0,
+            maxHeight: "176px",
+            overflowY: "auto",
+            padding: "5px",
+            border: "1px solid #dbe3ee",
+            borderRadius: "9px",
+            background: "#fff",
+            boxShadow: "0 10px 24px rgba(15,23,42,.14)",
+            scrollbarWidth: "thin",
+          }}
+        >
+          {items.map((item) => {
+            const selected = item === value;
+            return (
+              <button
+                key={item}
+                ref={selected ? selectedRef : null}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(item);
+                  setOpen(false);
+                }}
+                style={{
+                  width: "100%",
+                  height: "32px",
+                  padding: "0 9px",
+                  border: 0,
+                  borderRadius: "6px",
+                  background: selected ? "#dcfce7" : "transparent",
+                  color: selected ? "#15803d" : "#0f172a",
+                  fontWeight: selected ? 800 : 600,
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                {item}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScheduleTimePicker({ value, onChange, disabled = false, ariaLabel }: TimePickerProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [hour = "08", minute = "00"] = (value || "08:00").split(":");
+  const hours = useMemo(
+    () => Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0")),
+    []
+  );
+  const minutes = useMemo(
+    () => Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0")),
+    []
+  );
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  const setPart = (nextHour: string, nextMinute: string) => {
+    onChange(`${nextHour.padStart(2, "0")}:${nextMinute.padStart(2, "0")}`);
+  };
+
+  return (
+    <div ref={rootRef} style={{ position: "relative", flex: 1, minWidth: 0 }}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((prev) => !prev)}
+        style={{
+          width: "100%",
+          height: "42px",
+          border: `1px solid ${open ? "#16a34a" : "#cbd5e1"}`,
+          borderRadius: "8px",
+          background: disabled ? "#f8fafc" : "#fff",
+          padding: "0 13px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          cursor: disabled ? "not-allowed" : "pointer",
+          color: "#0f172a",
+          boxShadow: open ? "0 0 0 3px rgba(34,197,94,.10)" : "none",
+          transition: "border-color .15s ease, box-shadow .15s ease",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "9px", fontWeight: 600 }}>
+          <Clock size={17} color="#16a34a" />
+          {hour}:{minute}
+        </span>
+        <span style={{ color: "#64748b", fontSize: "11px" }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && !disabled && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 40,
+            top: "calc(100% + 8px)",
+            left: 0,
+            width: "100%",
+            minWidth: "260px",
+            padding: "14px",
+            border: "1px solid #dbe3ee",
+            borderRadius: "12px",
+            background: "#fff",
+            boxShadow: "0 14px 34px rgba(15,23,42,.16)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+            <div>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "#0f172a" }}>Select time</div>
+              <div style={{ marginTop: "2px", fontSize: "11px", color: "#64748b" }}>24-hour format</div>
+            </div>
+            <div style={{ padding: "5px 9px", borderRadius: "8px", background: "#f0fdf4", color: "#15803d", fontWeight: 700, fontSize: "13px" }}>
+              {hour}:{minute}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 18px 1fr", alignItems: "start", gap: "8px" }}>
+            <CompactTimeDropdown
+              ariaLabel={`${ariaLabel} hour`}
+              value={hour}
+              items={hours}
+              onChange={(nextHour) => setPart(nextHour, minute)}
+            />
+            <span style={{ paddingTop: "10px", textAlign: "center", fontWeight: 800, color: "#64748b" }}>:</span>
+            <CompactTimeDropdown
+              ariaLabel={`${ariaLabel} minute`}
+              value={minute}
+              items={minutes}
+              onChange={(nextMinute) => setPart(hour, nextMinute)}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            style={{
+              width: "100%",
+              height: "36px",
+              marginTop: "12px",
+              border: 0,
+              borderRadius: "8px",
+              background: "#16a34a",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const priorityLabels: Record<number, string> = {
   0: "Low",
@@ -88,6 +308,37 @@ const priorityLabels: Record<number, string> = {
   2: "High",
   3: "Urgent",
 };
+
+const WEEK_DAYS = [
+  { value: 1, label: "Mon", fullLabel: "Monday" },
+  { value: 2, label: "Tue", fullLabel: "Tuesday" },
+  { value: 3, label: "Wed", fullLabel: "Wednesday" },
+  { value: 4, label: "Thu", fullLabel: "Thursday" },
+  { value: 5, label: "Fri", fullLabel: "Friday" },
+  { value: 6, label: "Sat", fullLabel: "Saturday" },
+  { value: 0, label: "Sun", fullLabel: "Sunday" },
+];
+
+function dateOnly(value?: string | null): string {
+  return value ? value.slice(0, 10) : "";
+}
+
+function getDatesForWeekdays(start: string, end: string, weekdays: number[]): string[] {
+  if (!start || !end || weekdays.length === 0) return [];
+  const result: string[] = [];
+  const cursor = new Date(`${start}T12:00:00`);
+  const last = new Date(`${end}T12:00:00`);
+  while (cursor <= last) {
+    if (weekdays.includes(cursor.getDay())) {
+      const y = cursor.getFullYear();
+      const m = String(cursor.getMonth() + 1).padStart(2, "0");
+      const d = String(cursor.getDate()).padStart(2, "0");
+      result.push(`${y}-${m}-${d}`);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
 
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return "-";
@@ -102,11 +353,26 @@ function formatDate(dateStr?: string | null): string {
 
 function combineDateAndTime(dateStr: string, timeStr: string): string | null {
   if (!dateStr) return null;
+
   const validTime = timeStr && timeStr.trim() ? timeStr.trim() : "08:00";
-  const iso = `${dateStr}T${validTime}:00`;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
+  const [hours, minutes] = validTime.split(":").map(Number);
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateStr) ||
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  // IMPORTANT: The Schedule API expects the selected wall-clock time.
+  // Do not call new Date(...).toISOString() here because that converts
+  // local time to UTC (for example 08:00 can become 01:00).
+  return `${dateStr}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
 }
 
 export default function CreateSchedule() {
@@ -127,6 +393,9 @@ export default function CreateSchedule() {
   const [phases, setPhases] = useState<ExperimentPhase[]>([]);
   const [allocatedHumans, setAllocatedHumans] = useState<AllocationHumanDetail[]>([]);
 
+  const [tasks, setTasks] = useState<string[]>([]);
+  const [taskInput, setTaskInput] = useState("");
+
   const [form, setForm] = useState<ScheduleFormState>({
     allocationPlanId: allocationPlanIdFromUrl,
     phaseId: phaseIdFromUrl,
@@ -136,11 +405,13 @@ export default function CreateSchedule() {
     startTime: "08:00",
     endDate: "",
     endTime: "17:00",
-    status: "Planned",
     assignedHumanResourceId: personnelIdFromUrl,
     notes: "",
     priority: "1",
   });
+
+  // Default working week: Monday through Friday.
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
 
   const [loading, setLoading] = useState(true);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -166,10 +437,10 @@ export default function CreateSchedule() {
       title:
         title ||
         (type === "error"
-          ? "Lỗi xác thực lịch (Validation Error)"
+          ? "Schedule Validation Error"
           : type === "warning"
-          ? "Cảnh báo (Warning)"
-          : "Thông báo (Notice)"),
+          ? "Warning"
+          : "Notice"),
       message,
     });
   };
@@ -188,8 +459,30 @@ export default function CreateSchedule() {
             : getExperiments({ size: 300 }).catch(() => []),
         ]);
 
-        const rawAllocations = Array.isArray(allocationsRes) ? allocationsRes : [];
+        let rawAllocations = Array.isArray(allocationsRes) ? allocationsRes : [];
         const rawExperiments = Array.isArray(expRes) ? expRes : [];
+
+        // When Create Schedule is opened from Allocation Detail, the target plan
+        // may not be present in the first page returned by getAllocationPlans().
+        // Load that exact plan by id and merge it into the local list so the URL
+        // context is never lost.
+        const urlPlanId = Number(allocationPlanIdFromUrl);
+        if (urlPlanId && !Number.isNaN(urlPlanId)) {
+          const exists = rawAllocations.some(
+            (plan) => Number(plan.allocationPlanId) === urlPlanId
+          );
+
+          if (!exists) {
+            try {
+              const exactPlan = await getAllocationPlanById(urlPlanId);
+              if (exactPlan) {
+                rawAllocations = [exactPlan, ...rawAllocations];
+              }
+            } catch (planErr) {
+              console.error("Failed to load Allocation Plan from URL:", planErr);
+            }
+          }
+        }
 
         setAllAllocationPlans(rawAllocations);
         setMyExperiments(rawExperiments);
@@ -202,36 +495,48 @@ export default function CreateSchedule() {
     }
 
     void loadInitialData();
-  }, [role, currentUserId]);
+  }, [role, currentUserId, allocationPlanIdFromUrl]);
 
-  // 2. Filter Allocations for Researcher (Only allow Researcher to pick their own allocations)
+  // 2. Only Approved Allocation Plans can be used for scheduling.
+  // Ownership is validated from the persisted Allocation Plan itself.
+  // Do NOT depend on getExperiments({ researcherId }) here: that list can be
+  // filtered by experiment status and can incorrectly hide a valid approved plan.
   const allowedAllocationPlans = useMemo(() => {
-    const isResearcher = role === "Researcher";
-    const myExpIds = new Set(myExperiments.map((e) => e.experimentId));
+    if (role !== "Researcher") {
+      return [];
+    }
+
+    const normalizedFullName = (currentUser.fullName || "")
+      .trim()
+      .toLowerCase();
 
     return allAllocationPlans.filter((plan) => {
-      // If opened via URL, always include the targeted plan
-      if (
-        allocationPlanIdFromUrl &&
-        String(plan.allocationPlanId) === allocationPlanIdFromUrl
-      ) {
-        return true;
+      if (String(plan.approveStatus || "").trim().toLowerCase() !== "approved") {
+        return false;
       }
 
-      if (!isResearcher) {
-        // Admin or Manager can view all allocations
-        return true;
-      }
+      const createdById = Number(plan.createdBy || 0);
+      const createdByName = (plan.createdByName || "").trim().toLowerCase();
 
-      // Researcher restriction: only their own experiments or allocations created by them
-      const isOwner =
-        (currentUserId && plan.createdBy === currentUserId) ||
-        (plan.experimentId && myExpIds.has(plan.experimentId)) ||
-        (plan.createdByName &&
-          currentUser.fullName &&
-          plan.createdByName.toLowerCase() === currentUser.fullName.toLowerCase());
+      // Prefer the Allocation Plan owner fields. Some backend responses do not
+      // expose createdBy consistently, so fall back to experiment ownership only
+      // when we actually have matching experiment data.
+      const ownedByUserId =
+        Boolean(currentUserId) && createdById > 0 && createdById === currentUserId;
 
-      return isOwner;
+      const ownedByName =
+        Boolean(normalizedFullName) &&
+        Boolean(createdByName) &&
+        (createdByName === normalizedFullName ||
+          createdByName.includes(normalizedFullName) ||
+          normalizedFullName.includes(createdByName));
+
+      const ownedExperiment = myExperiments.some(
+        (experiment) =>
+          Number(experiment.experimentId) === Number(plan.experimentId)
+      );
+
+      return ownedByUserId || ownedByName || ownedExperiment;
     });
   }, [
     allAllocationPlans,
@@ -239,7 +544,6 @@ export default function CreateSchedule() {
     role,
     currentUserId,
     currentUser.fullName,
-    allocationPlanIdFromUrl,
   ]);
 
   // Selected Allocation Object
@@ -249,57 +553,85 @@ export default function CreateSchedule() {
     );
   }, [allAllocationPlans, form.allocationPlanId]);
 
-  // 3. When Allocation Plan changes -> Fetch allocated humans & experiment phases
+  // 3. When Allocation Plan changes -> load ONLY persisted human allocations
+  // belonging to that exact Allocation Plan, plus the Experiment phases.
   const loadAllocationSpecificData = useCallback(
     async (planId: number, experimentId?: number | null) => {
       try {
         setLoadingDetails(true);
         setError("");
 
-        const [humanRes, phaseRes, liveHumanAllRes] = await Promise.all([
-          getAllocationHumanDetails({ allocationPlanId: planId, size: 100 }).catch(() => []),
+        const [humanRes, phaseRes] = await Promise.all([
+          getAllocationHumanDetails({
+            allocationPlanId: planId,
+            page: 1,
+            size: 300,
+          }).catch(() => []),
           experimentId
-            ? getExperimentPhases({ experimentId, size: 100 }).catch(() => [])
+            ? getExperimentPhases({
+                experimentId,
+                page: 1,
+                size: 300,
+              }).catch(() => [])
             : Promise.resolve([]),
-          api.get("/AllocationHumanDetails?size=300").catch(() => ({ data: [] })),
         ]);
 
-        let humans: AllocationHumanDetail[] = Array.isArray(humanRes) ? humanRes : [];
+        // Never fall back to experiment-wide personnel. A Researcher may only
+        // schedule personnel actually allocated by Manager to this plan.
+        const humans: AllocationHumanDetail[] = (
+          Array.isArray(humanRes) ? humanRes : []
+        ).filter(
+          (item) =>
+            item.allocationPlanId === planId &&
+            item.status !== "Cancelled"
+        );
 
-        // Fallback: If empty, filter all AllocationHumanDetails by planId or experimentId
-        if (humans.length === 0 && liveHumanAllRes?.data) {
-          const rawAll = Array.isArray(liveHumanAllRes.data)
-            ? liveHumanAllRes.data
-            : liveHumanAllRes.data?.items || liveHumanAllRes.data?.data || [];
-          humans = rawAll.filter(
-            (h: any) =>
-              h.allocationPlanId === planId ||
-              (experimentId && h.experimentId === experimentId)
-          );
-        }
+        const loadedPhases = Array.isArray(phaseRes) ? phaseRes : [];
 
         setAllocatedHumans(humans);
-        setPhases(Array.isArray(phaseRes) ? phaseRes : []);
+        setPhases(loadedPhases);
 
-        // If personnelId was in URL, preselect it
-        if (personnelIdFromUrl) {
-          const matched = humans.find(
-            (h) =>
-              String(h.humanResourceId) === personnelIdFromUrl ||
-              String(h.userId) === personnelIdFromUrl
-          );
-          if (matched) {
-            setForm((prev) => ({
-              ...prev,
-              assignedHumanResourceId: String(matched.humanResourceId),
-              phaseId: matched.phaseId ? String(matched.phaseId) : prev.phaseId,
-              startDate: matched.startDate ? matched.startDate.slice(0, 10) : prev.startDate,
-              endDate: matched.endDate ? matched.endDate.slice(0, 10) : prev.endDate,
-            }));
+        setForm((prev) => {
+          let next = { ...prev };
+
+          // URL personnel may be used only if it belongs to this plan.
+          if (personnelIdFromUrl) {
+            const matched = humans.find(
+              (h) => String(h.humanResourceId) === personnelIdFromUrl
+            );
+
+            if (matched) {
+              next = {
+                ...next,
+                assignedHumanResourceId: String(matched.humanResourceId),
+                phaseId: matched.phaseId
+                  ? String(matched.phaseId)
+                  : next.phaseId,
+              };
+            } else {
+              next.assignedHumanResourceId = "";
+            }
           }
-        }
+
+          // URL phase must belong to this experiment.
+          if (
+            next.phaseId &&
+            !loadedPhases.some(
+              (p) => String(p.experimentPhaseId) === next.phaseId
+            )
+          ) {
+            next.phaseId = "";
+          }
+
+          return next;
+        });
       } catch (err: any) {
         console.error("Failed to load allocation human details:", err);
+        showToast(
+          err?.response?.data?.message ||
+            "Unable to load personnel allocated to this plan.",
+          "error"
+        );
       } finally {
         setLoadingDetails(false);
       }
@@ -308,6 +640,11 @@ export default function CreateSchedule() {
   );
 
   useEffect(() => {
+    // Wait until the URL plan + Researcher experiments have finished loading.
+    // Without this guard, the first render has an empty allowedAllocationPlans,
+    // causing the valid allocationPlanId from the URL to be cleared prematurely.
+    if (loading) return;
+
     if (!form.allocationPlanId) {
       setAllocatedHumans([]);
       setPhases([]);
@@ -315,11 +652,44 @@ export default function CreateSchedule() {
     }
 
     const planId = Number(form.allocationPlanId);
-    if (!planId || isNaN(planId)) return;
+    if (!planId || Number.isNaN(planId)) return;
 
-    const plan = allAllocationPlans.find((p) => p.allocationPlanId === planId);
-    void loadAllocationSpecificData(planId, plan?.experimentId);
-  }, [form.allocationPlanId, allAllocationPlans, loadAllocationSpecificData]);
+    const plan = allowedAllocationPlans.find(
+      (item) => Number(item.allocationPlanId) === planId
+    );
+
+    if (!plan) {
+      // Keep the URL selection visible instead of silently clearing it. This makes
+      // a genuine authorization/status problem explicit and avoids the blank form
+      // shown when a valid plan was excluded by a secondary experiment query.
+      const rawPlan = allAllocationPlans.find(
+        (item) => Number(item.allocationPlanId) === planId
+      );
+
+      setAllocatedHumans([]);
+      setPhases([]);
+
+      if (rawPlan && String(rawPlan.approveStatus || "").toLowerCase() !== "approved") {
+        showToast(
+          `Allocation Plan #${planId} has not been approved by the Manager.`,
+          "warning"
+        );
+      } else {
+        showToast(
+          `Allocation Plan #${planId} does not belong to the current Researcher.`,
+          "warning"
+        );
+      }
+      return;
+    }
+
+    void loadAllocationSpecificData(planId, plan.experimentId);
+  }, [
+    loading,
+    form.allocationPlanId,
+    allowedAllocationPlans,
+    loadAllocationSpecificData,
+  ]);
 
   // 4. Group Allocated Human Resources clearly by Phase
   const groupedPersonnelByPhase = useMemo(() => {
@@ -376,6 +746,20 @@ export default function CreateSchedule() {
       .sort((a, b) => (a.phaseOrder ?? 999) - (b.phaseOrder ?? 999));
   }, [allocatedHumans, phases]);
 
+  // Personnel options follow the selected phase. General allocations
+  // (phaseId == null) remain available for the whole experiment.
+  const personnelForSelectedPhase = useMemo(() => {
+    if (!form.phaseId) {
+      return allocatedHumans;
+    }
+
+    const phaseId = Number(form.phaseId);
+
+    return allocatedHumans.filter(
+      (human) => human.phaseId == null || human.phaseId === phaseId
+    );
+  }, [allocatedHumans, form.phaseId]);
+
   // Selected Personnel Object
   const selectedPersonnel = useMemo(() => {
     if (!form.assignedHumanResourceId) return null;
@@ -420,41 +804,48 @@ export default function CreateSchedule() {
             ? String(targetStaff.phaseId)
             : prev.phaseId;
 
-        const nextStartDate =
-          targetStaff?.startDate && !prev.startDate
-            ? targetStaff.startDate.slice(0, 10)
-            : prev.startDate;
-
-        const nextEndDate =
-          targetStaff?.endDate && !prev.endDate
-            ? targetStaff.endDate.slice(0, 10)
-            : prev.endDate;
-
         return {
           ...prev,
           assignedHumanResourceId: value,
           phaseId: nextPhaseId,
-          startDate: nextStartDate,
-          endDate: nextEndDate,
+          // The allocation period is fixed. Researcher chooses working weekdays inside it.
+          startDate: dateOnly(targetStaff?.startDate),
+          endDate: dateOnly(targetStaff?.endDate),
         };
       });
       return;
     }
 
     if (name === "phaseId") {
-      const targetPhase = phases.find((p) => String(p.experimentPhaseId) === value);
-      setForm((prev) => ({
-        ...prev,
-        phaseId: value,
-        startDate:
-          targetPhase?.expectedStartDate && !prev.startDate
-            ? targetPhase.expectedStartDate.slice(0, 10)
-            : prev.startDate,
-        endDate:
-          targetPhase?.expectedEndDate && !prev.endDate
-            ? targetPhase.expectedEndDate.slice(0, 10)
-            : prev.endDate,
-      }));
+      const targetPhase = phases.find(
+        (p) => String(p.experimentPhaseId) === value
+      );
+      const targetPhaseId = value ? Number(value) : null;
+
+      setForm((prev) => {
+        const currentHuman = allocatedHumans.find(
+          (h) =>
+            String(h.humanResourceId) === prev.assignedHumanResourceId
+        );
+
+        const humanStillValid =
+          !currentHuman ||
+          targetPhaseId == null ||
+          currentHuman.phaseId == null ||
+          currentHuman.phaseId === targetPhaseId;
+
+        return {
+          ...prev,
+          phaseId: value,
+          assignedHumanResourceId: humanStillValid
+            ? prev.assignedHumanResourceId
+            : "",
+          startDate:
+            targetPhase?.expectedStartDate?.slice(0, 10) || "",
+          endDate:
+            targetPhase?.expectedEndDate?.slice(0, 10) || "",
+        };
+      });
       return;
     }
 
@@ -464,13 +855,48 @@ export default function CreateSchedule() {
     }));
   };
 
-  // Quick Template Click
-  const handleApplyTemplate = (tpl: { title: string; desc: string }) => {
+  // Tasks are entered by the Researcher instead of being hard-coded in the frontend.
+  const syncTaskSummary = (nextTasks: string[]) => {
     setForm((prev) => ({
       ...prev,
-      title: tpl.title,
-      description: tpl.desc,
+      title:
+        nextTasks.length === 0
+          ? ""
+          : nextTasks.length === 1
+          ? nextTasks[0]
+          : `${nextTasks.length} Assigned Field Tasks`,
+      description: nextTasks
+        .map((task, index) => `${index + 1}. ${task}`)
+        .join("\n"),
     }));
+  };
+
+  const handleAddTask = () => {
+    const task = taskInput.trim();
+    if (!task) return;
+
+    if (tasks.some((item) => item.toLowerCase() === task.toLowerCase())) {
+      showToast("This task has already been added.", "warning");
+      return;
+    }
+
+    const nextTasks = [...tasks, task];
+    setTasks(nextTasks);
+    setTaskInput("");
+    syncTaskSummary(nextTasks);
+  };
+
+  const handleRemoveTask = (taskToRemove: string) => {
+    const nextTasks = tasks.filter((task) => task !== taskToRemove);
+    setTasks(nextTasks);
+    syncTaskSummary(nextTasks);
+  };
+
+  const handleTaskInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleAddTask();
+    }
   };
 
   // Submit Handler
@@ -480,34 +906,25 @@ export default function CreateSchedule() {
 
     const planId = Number(form.allocationPlanId);
     if (!planId || isNaN(planId)) {
-      showToast("Vui lòng chọn một kế hoạch phân bổ (Allocation Plan).", "warning");
+      showToast("Please select an Allocation Plan.", "warning");
+      return;
+    }
+
+    const approvedPlan = allAllocationPlans.find(
+      (plan) => plan.allocationPlanId === planId && plan.approveStatus === "Approved"
+    );
+    if (!approvedPlan) {
+      showToast("Work schedules can only be assigned to an Allocation Plan approved by the Manager.", "warning");
+      return;
+    }
+
+    if (role !== "Researcher") {
+      showToast("Only a Researcher can assign work schedules to allocated personnel.", "warning");
       return;
     }
 
     if (!form.title.trim()) {
-      showToast("Vui lòng nhập tiêu đề lịch làm việc (Schedule Title).", "warning");
-      return;
-    }
-
-    if (!form.startDate || !form.endDate) {
-      showToast("Vui lòng chỉ định ngày bắt đầu và ngày kết thúc.", "warning");
-      return;
-    }
-
-    const startIso = combineDateAndTime(form.startDate, form.startTime);
-    const endIso = combineDateAndTime(form.endDate, form.endTime);
-
-    if (!startIso || !endIso) {
-      showToast("Định dạng ngày hoặc giờ không hợp lệ.", "error");
-      return;
-    }
-
-    if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
-      showToast(
-        "Thời gian kết thúc lịch phải sau thời gian bắt đầu (Schedule end time must be strictly after start time).",
-        "error",
-        "Lỗi thời gian (Invalid Schedule Period)"
-      );
+      showToast("Please enter a Schedule Title.", "warning");
       return;
     }
 
@@ -515,34 +932,140 @@ export default function CreateSchedule() {
       ? Number(form.assignedHumanResourceId)
       : null;
 
+    if (!assignedHumanResourceId) {
+      showToast(
+        "Please select personnel allocated to this Allocation Plan.",
+        "warning"
+      );
+      return;
+    }
+
+    const allocatedHuman = allocatedHumans.find(
+      (human) => human.humanResourceId === assignedHumanResourceId
+    );
+
+    if (!allocatedHuman) {
+      showToast("The selected personnel does not belong to the current Allocation Plan.", "error");
+      return;
+    }
+
+    if (selectedWeekdays.length === 0) {
+      showToast("Please select at least one working day.", "warning");
+      return;
+    }
+
+    const allocationStartDate = dateOnly(allocatedHuman.startDate);
+    const allocationEndDate = dateOnly(allocatedHuman.endDate);
+    if (!allocationStartDate || !allocationEndDate) {
+      showToast("The selected personnel does not have a valid allocation period.", "error");
+      return;
+    }
+
+    const phaseId = form.phaseId ? Number(form.phaseId) : null;
+    if (phaseId && allocatedHuman.phaseId != null && allocatedHuman.phaseId !== phaseId) {
+      showToast("The selected personnel is not allocated to this phase.", "error");
+      return;
+    }
+
+    const workDates = getDatesForWeekdays(
+      allocationStartDate,
+      allocationEndDate,
+      selectedWeekdays
+    );
+
+    if (workDates.length === 0) {
+      showToast("No dates match the selected weekdays within the allocation period.", "warning");
+      return;
+    }
+
     try {
       setSaving(true);
 
-      const created = await createSchedule({
-        allocationPlanId: planId,
-        phaseId: form.phaseId ? Number(form.phaseId) : null,
-        title: form.title.trim(),
-        description: form.description.trim() || null,
-        startDate: startIso,
-        endDate: endIso,
-        status: form.status,
-        priority: Number(form.priority),
-        assignedHumanResourceId: assignedHumanResourceId,
-        createdBy: currentUserId,
-        notes: form.notes.trim() || null,
-      });
+      let createdCount = 0;
+      const conflicts: string[] = [];
 
-      if (created?.scheduleId) {
-        navigate(`/schedules/${created.scheduleId}`, { replace: true });
-      } else {
-        navigate("/schedules", { replace: true });
+      // Create one schedule per selected working day. The allocation start/end remain fixed.
+      for (const workDate of workDates) {
+        const startIso = combineDateAndTime(workDate, form.startTime);
+        const endIso = combineDateAndTime(workDate, form.endTime);
+
+        if (!startIso || !endIso) {
+          throw new Error(`Invalid date or time: ${workDate}`);
+        }
+        if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+          showToast("End time must be later than start time on the same working day.", "warning");
+          return;
+        }
+
+        const existingSchedules = await getSchedules({
+          assignedHumanResourceId,
+          dateFrom: startIso,
+          dateTo: endIso,
+          page: 1,
+          size: 300,
+        });
+
+        const scheduleStart = new Date(startIso).getTime();
+        const scheduleEnd = new Date(endIso).getTime();
+        const hasConflict = existingSchedules.some((schedule) => {
+          if (schedule.status === "Cancelled") return false;
+          const existingStart = new Date(schedule.startDate).getTime();
+          const existingEnd = new Date(schedule.endDate).getTime();
+          return existingStart < scheduleEnd && existingEnd > scheduleStart;
+        });
+
+        if (hasConflict) {
+          conflicts.push(formatDate(workDate));
+          continue;
+        }
+
+        await createSchedule({
+          allocationPlanId: planId,
+          phaseId,
+          title: form.title.trim(),
+          description: form.description.trim() || null,
+          startDate: startIso,
+          endDate: endIso,
+          status: (new Date(startIso).getTime() <= Date.now()
+            ? new Date(endIso).getTime() <= Date.now()
+              ? "Completed"
+              : "InProgress"
+            : "Planned") as ScheduleStatus,
+          priority: Number(form.priority),
+          assignedHumanResourceId,
+          createdBy: currentUserId,
+          notes: form.notes.trim() || null,
+        });
+        createdCount += 1;
       }
+
+      if (createdCount === 0 && conflicts.length > 0) {
+        showToast(
+          `No schedules were created because all selected dates conflict with existing schedules: ${conflicts.join(", ")}.`,
+          "error",
+          "Schedule Conflict"
+        );
+        return;
+      }
+
+      if (conflicts.length > 0) {
+        showToast(
+          `Created ${createdCount} schedules. Skipped ${conflicts.length} conflicting date(s): ${conflicts.join(", ")}.`,
+          "warning",
+          "Schedules Created"
+        );
+      }
+
+      navigate(
+        `/schedules?allocationPlanId=${planId}&humanResourceId=${assignedHumanResourceId}&created=1&createdCount=${createdCount}`,
+        { replace: true }
+      );
     } catch (submitErr: any) {
       console.error("Create schedule failed:", submitErr);
       showToast(
         submitErr?.response?.data?.message ||
           submitErr?.message ||
-          "Không thể tạo lịch làm việc. Vui lòng kiểm tra lại các trường dữ liệu.",
+          "Unable to create work schedules. Please check the entered information.",
         "error"
       );
     } finally {
@@ -608,6 +1131,7 @@ export default function CreateSchedule() {
                   className="schedule-select"
                   value={form.allocationPlanId}
                   onChange={handleChange}
+                  disabled={Boolean(allocationPlanIdFromUrl)}
                   required
                 >
                   <option value="">-- Select an Approved Allocation Plan --</option>
@@ -615,7 +1139,7 @@ export default function CreateSchedule() {
                     const planId = plan.allocationPlanId;
                     const expTitle = plan.experimentName || `Experiment #${plan.experimentId}`;
                     const status = plan.approveStatus || "Pending";
-                    const fitness = Math.round(plan.fitnessScore ?? 85);
+                    const fitness = Number(plan.fitnessScore ?? 0).toFixed(2);
                     return (
                       <option key={planId} value={planId}>
                         Allocation #{planId} — {expTitle} [{status} • Fitness {fitness}%]
@@ -685,7 +1209,19 @@ export default function CreateSchedule() {
                   required
                 >
                   <option value="">-- Select Allocated Personnel --</option>
-                  {groupedPersonnelByPhase.map((group, gIdx) => (
+                  {groupedPersonnelByPhase
+                    .map((group) => ({
+                      ...group,
+                      personnel: group.personnel.filter((human) =>
+                        personnelForSelectedPhase.some(
+                          (allowed) =>
+                            allowed.allocationHumanDetailId ===
+                            human.allocationHumanDetailId
+                        )
+                      ),
+                    }))
+                    .filter((group) => group.personnel.length > 0)
+                    .map((group, gIdx) => (
                     <optgroup key={gIdx} label={`📍 ${group.phaseName} (${group.personnel.length} staff)`}>
                       {group.personnel.map((h, hIdx) => {
                         const roleName = h.roleName || h.humanResourceRoleName || "Technician";
@@ -709,7 +1245,7 @@ export default function CreateSchedule() {
                   </p>
                 ) : allocatedHumans.length === 0 && !loadingDetails ? (
                   <p style={{ fontSize: "12px", color: "#dc2626", margin: "4px 0 0" }}>
-                    No personnel allocated to this plan. You can still assign manually if needed.
+                    No personnel has been allocated by Manager to this plan yet.
                   </p>
                 ) : null}
               </div>
@@ -721,7 +1257,7 @@ export default function CreateSchedule() {
                     Click staff card to assign quickly:
                   </label>
                   <div className="schedule-personnel-visual-grid">
-                    {allocatedHumans.map((h, idx) => {
+                    {personnelForSelectedPhase.map((h, idx) => {
                       const isSelected = String(h.humanResourceId) === form.assignedHumanResourceId;
                       const roleName = h.roleName || h.humanResourceRoleName || "Technician";
                       const isSeasonal = roleName.toLowerCase().includes("seasonal");
@@ -761,7 +1297,7 @@ export default function CreateSchedule() {
                               )}
                             </div>
                             <span style={{ fontSize: "11px", color: "#64748b" }}>
-                              {h.workingHours || 8} hrs/day • {formatDate(h.startDate)}
+                              {h.workingHours || 8} hrs/day • Available {formatDate(h.startDate)} → {formatDate(h.endDate)}
                             </span>
                           </div>
                         </div>
@@ -783,23 +1319,101 @@ export default function CreateSchedule() {
                 </div>
               </div>
 
-              {/* Quick Task Templates */}
+              {/* Researcher-defined tasks */}
               <div className="schedule-templates-wrapper">
-                <span className="schedule-templates-title">
-                  <Sparkles size={13} color="#16a34a" /> Quick Task Templates:
-                </span>
-                <div className="schedule-templates-grid">
-                  {TASK_TEMPLATES.map((t, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      className="schedule-template-btn"
-                      onClick={() => handleApplyTemplate(t)}
-                    >
-                      {t.title}
-                    </button>
-                  ))}
+                <span className="schedule-templates-title">Tasks <span className="required-star">*</span></span>
+
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input
+                    type="text"
+                    className="schedule-input"
+                    value={taskInput}
+                    onChange={(event) => setTaskInput(event.target.value)}
+                    onKeyDown={handleTaskInputKeyDown}
+                    placeholder="Enter a task, e.g., Inspect seedling growth"
+                    disabled={saving}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTask}
+                    disabled={saving || !taskInput.trim()}
+                    style={{
+                      minWidth: 110,
+                      height: 40,
+                      padding: "0 18px",
+                      border: 0,
+                      borderRadius: 8,
+                      background: taskInput.trim() ? "#16a34a" : "#d1d5db",
+                      color: "#fff",
+                      fontWeight: 700,
+                      cursor: taskInput.trim() ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    + Add Task
+                  </button>
                 </div>
+
+                <div style={{ marginTop: 8, color: "#64748b", fontSize: 12 }}>
+                  Type a task and press Enter or click Add Task. You can assign multiple tasks to the same staff member.
+                </div>
+
+                {tasks.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: "12px",
+                      border: "1px solid #bbf7d0",
+                      borderRadius: 8,
+                      background: "#f0fdf4",
+                    }}
+                  >
+                    <div style={{ marginBottom: 8, color: "#166534", fontSize: 13 }}>
+                      <strong>Added Tasks ({tasks.length})</strong>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                      {tasks.map((task, index) => (
+                        <div
+                          key={`${task}-${index}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            padding: "8px 10px",
+                            border: "1px solid #dcfce7",
+                            borderRadius: 7,
+                            background: "#fff",
+                            color: "#14532d",
+                            fontSize: 13,
+                          }}
+                        >
+                          <span><strong>{index + 1}.</strong> {task}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTask(task)}
+                            disabled={saving}
+                            aria-label={`Remove ${task}`}
+                            title="Remove task"
+                            style={{
+                              width: 28,
+                              height: 28,
+                              border: "1px solid #fecaca",
+                              borderRadius: 6,
+                              background: "#fff",
+                              color: "#dc2626",
+                              cursor: "pointer",
+                              fontSize: 18,
+                              lineHeight: 1,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Title */}
@@ -862,91 +1476,120 @@ export default function CreateSchedule() {
                 </div>
               </div>
 
-              {/* Start Date & Time */}
+              {selectedPersonnel && (
+                <div
+                  style={{
+                    marginBottom: "14px",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    background: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    fontSize: "12px",
+                    color: "#166534",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>{selectedPersonnel.fullName || "Selected staff"}</strong> is available from {" "}
+                  <strong>{formatDate(selectedPersonnel.startDate)}</strong> to {" "}
+                  <strong>{formatDate(selectedPersonnel.endDate)}</strong>. The allocation period is fixed. Choose which weekdays this employee works within that range.
+                </div>
+              )}
+
               <div className="schedule-form-group">
-                <label>
-                  Start Date & Time <span className="required-star">*</span>
-                </label>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <input
-                    type="date"
-                    name="startDate"
-                    className="schedule-input"
-                    style={{ flex: 1 }}
-                    value={form.startDate}
-                    onChange={handleChange}
-                    required
-                  />
-                  <input
-                    type="time"
-                    name="startTime"
-                    className="schedule-input"
-                    style={{ width: "105px" }}
+                <label>Allocation Period</label>
+                <div className="schedule-input" style={{ background: "#f8fafc", cursor: "default" }}>
+                  {selectedPersonnel
+                    ? `${formatDate(selectedPersonnel.startDate)} → ${formatDate(selectedPersonnel.endDate)}`
+                    : "Select personnel first"}
+                </div>
+              </div>
+
+              <div className="schedule-form-group">
+                <label>Working Days <span className="required-star">*</span></label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "6px" }}>
+                  {WEEK_DAYS.map((day) => {
+                    const checked = selectedWeekdays.includes(day.value);
+                    return (
+                      <label
+                        key={day.value}
+                        title={day.fullLabel}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "5px",
+                          padding: "9px 4px",
+                          border: `1px solid ${checked ? "#22c55e" : "#dbe3ee"}`,
+                          borderRadius: "8px",
+                          background: checked ? "#f0fdf4" : "#fff",
+                          cursor: selectedPersonnel ? "pointer" : "not-allowed",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!selectedPersonnel}
+                          onChange={() =>
+                            setSelectedWeekdays((prev) =>
+                              checked
+                                ? prev.filter((value) => value !== day.value)
+                                : [...prev, day.value]
+                            )
+                          }
+                        />
+                        {day.label}
+                      </label>
+                    );
+                  })}
+                </div>
+                <small style={{ color: "#64748b", marginTop: "6px", display: "block" }}>
+                  Schedules will only be created on the selected weekdays within the allocation period. Default: Monday–Friday.
+                </small>
+              </div>
+
+              <div className="schedule-form-group">
+                <label>Daily Working Time <span className="required-star">*</span></label>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <ScheduleTimePicker
+                    ariaLabel="Start working time"
                     value={form.startTime}
-                    onChange={handleChange}
-                    required
+                    disabled={!selectedPersonnel}
+                    onChange={(value) =>
+                      setForm((prev) => ({ ...prev, startTime: value }))
+                    }
                   />
-                </div>
-              </div>
-
-              {/* End Date & Time */}
-              <div className="schedule-form-group">
-                <label>
-                  End Date & Time <span className="required-star">*</span>
-                </label>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <input
-                    type="date"
-                    name="endDate"
-                    className="schedule-input"
-                    style={{ flex: 1 }}
-                    value={form.endDate}
-                    onChange={handleChange}
-                    required
-                  />
-                  <input
-                    type="time"
-                    name="endTime"
-                    className="schedule-input"
-                    style={{ width: "105px" }}
+                  <span style={{ color: "#64748b", fontWeight: 600 }}>to</span>
+                  <ScheduleTimePicker
+                    ariaLabel="End working time"
                     value={form.endTime}
-                    onChange={handleChange}
-                    required
+                    disabled={!selectedPersonnel}
+                    onChange={(value) =>
+                      setForm((prev) => ({ ...prev, endTime: value }))
+                    }
                   />
                 </div>
               </div>
 
-              {/* Priority & Status */}
-              <div className="schedule-form-row">
-                <div className="schedule-form-group">
-                  <label htmlFor="priority">Priority</label>
-                  <select
-                    id="priority"
-                    name="priority"
-                    className="schedule-select"
-                    value={form.priority}
-                    onChange={handleChange}
-                  >
-                    <option value="0">Low</option>
-                    <option value="1">Medium</option>
-                    <option value="2">High</option>
-                    <option value="3">Urgent</option>
-                  </select>
-                </div>
-
-                <div className="schedule-form-group">
-                  <label htmlFor="status">Initial Status</label>
-                  <select
-                    id="status"
-                    name="status"
-                    className="schedule-select"
-                    value={form.status}
-                    onChange={handleChange}
-                  >
-                    <option value="Planned">Planned</option>
-                    <option value="InProgress">In Progress</option>
-                  </select>
-                </div>
+              {/* Priority. Schedule status is automatic from its start/end time. */}
+              <div className="schedule-form-group">
+                <label htmlFor="priority">Priority</label>
+                <select
+                  id="priority"
+                  name="priority"
+                  className="schedule-select"
+                  value={form.priority}
+                  onChange={handleChange}
+                >
+                  <option value="0">Low</option>
+                  <option value="1">Medium</option>
+                  <option value="2">High</option>
+                  <option value="3">Urgent</option>
+                </select>
+                <small style={{ color: "#64748b", marginTop: "6px", display: "block" }}>
+                  Status is automatic: Planned before start time, In Progress while working, and Completed after end time.
+                </small>
               </div>
             </div>
 
@@ -1008,8 +1651,9 @@ export default function CreateSchedule() {
                 <div className="schedule-summary-item">
                   <span>Period</span>
                   <strong>
-                    {form.startDate ? `${formatDate(form.startDate)}` : "TBD"} →{" "}
-                    {form.endDate ? `${formatDate(form.endDate)}` : "TBD"}
+                    {selectedPersonnel
+                      ? `${formatDate(selectedPersonnel.startDate)} → ${formatDate(selectedPersonnel.endDate)}`
+                      : "TBD"}
                   </strong>
                 </div>
               </div>

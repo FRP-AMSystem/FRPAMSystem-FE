@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
+import api from "../../services/api";
+import { getAllAllocationLandDetails } from "../../services/allocationDetailService";
 
 import {
     getAreas,
@@ -41,6 +43,8 @@ import type {
 import "./LandResourceList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
@@ -80,6 +84,9 @@ export default function LandResourceList() {
     const role = (localStorage.getItem("role") || "Seasonal") as Role;
     const canManage = role === "Admin" || role === "Manager";
     const [items, setItems] = useState<LandResource[]>([]);
+    const [effectiveStatuses, setEffectiveStatuses] = useState<
+        Map<number, LandResourceStatus>
+    >(() => new Map());
     const [areas, setAreas] = useState<Area[]>([]);
     const [soilTypes, setSoilTypes] = useState<string[]>([]);
     const [loadingSoilTypes, setLoadingSoilTypes] = useState(false);
@@ -101,15 +108,15 @@ export default function LandResourceList() {
         try {
             setLoading(true);
             setError("");
-            const [landData, areaData] = await Promise.all([
+            const [landData, areaData, allocationDetails] = await Promise.all([
                 getLandResources({
                     keyword: appliedKeyword || undefined,
                     areaId: areaFilter ? Number(areaFilter) : undefined,
-                    status: statusFilter ? statusFilter as LandResourceStatus : undefined,
                     page: 1,
                     size: 300,
                 }),
                 getAreas({ page: 1, size: 300 }),
+                getAllAllocationLandDetails().catch(() => []),
             ]);
             const filteredLandData = soilTypeFilter
                 ? landData.filter(
@@ -123,7 +130,78 @@ export default function LandResourceList() {
                 )
                 : landData;
 
+            const today = new Date().toISOString().slice(0, 10);
+            const candidateDetails = allocationDetails.filter((detail) => {
+                const status = String(detail.status || "").toLowerCase();
+                const endDate = String(detail.endDate || "").slice(0, 10);
+
+                return (
+                    status !== "cancelled" &&
+                    status !== "completed" &&
+                    (status === "inuse" || endDate >= today)
+                );
+            });
+            const planIds = [...new Set(
+                candidateDetails.map((detail) => detail.allocationPlanId)
+            )];
+            const planStatuses = await Promise.all(
+                planIds.map(async (planId) => {
+                    try {
+                        const response = await api.get(`/AllocationPlans/${planId}`);
+                        const plan =
+                            response.data?.data ||
+                            response.data?.result ||
+                            response.data;
+                        return [
+                            planId,
+                            String(plan?.approveStatus || "").toLowerCase(),
+                        ] as const;
+                    } catch {
+                        return [planId, "unknown"] as const;
+                    }
+                })
+            );
+            const approvedPlanIds = new Set(
+                planStatuses
+                    .filter(([, status]) => status === "approved")
+                    .map(([planId]) => planId)
+            );
+            const approvedDetails = candidateDetails.filter((detail) =>
+                approvedPlanIds.has(detail.allocationPlanId)
+            );
+            const nextStatuses = new Map<number, LandResourceStatus>();
+
+            for (const land of filteredLandData) {
+                if (land.status === "Unavailable") {
+                    nextStatuses.set(land.landId, "Unavailable");
+                    continue;
+                }
+
+                const landDetails = approvedDetails.filter(
+                    (detail) => detail.landId === land.landId
+                );
+                const currentlyInUse = landDetails.some((detail) => {
+                    const status = String(detail.status || "").toLowerCase();
+                    const startDate = String(detail.startDate || "").slice(0, 10);
+                    const endDate = String(detail.endDate || "").slice(0, 10);
+
+                    return (
+                        status === "inuse" ||
+                        (startDate <= today && today <= endDate)
+                    );
+                });
+
+                if (currentlyInUse) {
+                    nextStatuses.set(land.landId, "InUse");
+                } else if (landDetails.length > 0) {
+                    nextStatuses.set(land.landId, "Reserved");
+                } else {
+                    nextStatuses.set(land.landId, "Available");
+                }
+            }
+
             setItems(filteredLandData);
+            setEffectiveStatuses(nextStatuses);
             setAreas(areaData);
         } catch (loadError) {
             setError(getErrorMessage(loadError));
@@ -131,7 +209,7 @@ export default function LandResourceList() {
         } finally {
             setLoading(false);
         }
-    }, [appliedKeyword, areaFilter, soilTypeFilter, statusFilter]);
+    }, [appliedKeyword, areaFilter, soilTypeFilter]);
 
     useEffect(() => { void loadData(); }, [loadData]);
 
@@ -237,6 +315,18 @@ export default function LandResourceList() {
             setDeletingId(null);
         }
     };
+
+
+    const visibleItems = useMemo(
+        () => items.filter(
+            (item) =>
+                !statusFilter ||
+                (effectiveStatuses.get(item.landId) || item.status) === statusFilter
+        ),
+        [items, statusFilter, effectiveStatuses]
+    );
+
+    const { currentPage: currentPageList, pageSize: pageSizeList, paginatedItems: paginatedItemsList, setCurrentPage: setCurrentPageList, setPageSize: setPageSizeList } = usePagination(visibleItems, 10);
 
     return (
         <DashboardLayout>
@@ -344,11 +434,17 @@ export default function LandResourceList() {
                 {error && <div className="land-resource-error">{error}</div>}
 
                 <section className="land-resource-card">
-                    <div className="land-resource-card-title"><div><h2>Land Resource List</h2><p>{items.length} land resources</p></div><LandPlot size={22} /></div>
-                    {loading ? <div className="land-resource-state">Loading land resources...</div> : items.length === 0 ? <div className="land-resource-state">No land resources found.</div> : (
+                    <div className="land-resource-card-title"><div><h2>Land Resource List</h2><p>{visibleItems.length} land resources</p></div><LandPlot size={22} /></div>
+                    {loading ? <div className="land-resource-state">Loading land resources...</div> : visibleItems.length === 0 ? <div className="land-resource-state">No land resources found.</div> : (
                         <div className="land-resource-table-wrap"><table><thead><tr><th>Land code</th><th>Area</th><th>Size</th><th>Location</th><th>Soil type</th><th>Status</th><th>Actions</th></tr></thead><tbody>
-                            {items.map((item) => <tr key={item.landId}><td><strong>{item.landCode}</strong></td><td>{item.areaName || `Area #${item.areaId}`}</td><td>{item.areaSize.toLocaleString("vi-VN")} ha</td><td>{item.location || "-"}</td><td>{item.soilType}</td><td><span className={statusClass(item.status)}>{item.status === "InUse" ? "In Use" : item.status}</span></td><td><div className="land-resource-actions">{canManage ? <><button type="button" className="action-btn-pill edit" title="Edit" onClick={() => openEdit(item)}><Pencil size={12} /><span>Edit</span></button><button type="button" className="action-btn-pill delete" disabled={deletingId === item.landId} title="Delete" onClick={() => void handleDelete(item)}><Trash2 size={12} /><span>Delete</span></button></> : <span>View only</span>}</div></td></tr>)}
-                        </tbody></table></div>
+                            {paginatedItemsList.map((item) => {
+                                const status = effectiveStatuses.get(item.landId) || item.status;
+
+                                return <tr key={item.landId}><td><strong>{item.landCode}</strong></td><td>{item.areaName || `Area #${item.areaId}`}</td><td>{item.areaSize.toLocaleString("vi-VN")} ha</td><td>{item.location || "-"}</td><td>{item.soilType}</td><td><span className={statusClass(status)}>{status === "InUse" ? "In Use" : status}</span></td><td><div className="land-resource-actions">{canManage ? <><button type="button" className="action-btn-pill edit" title="Edit" onClick={() => openEdit(item)}><Pencil size={12} /><span>Edit</span></button><button type="button" className="action-btn-pill delete" disabled={deletingId === item.landId} title="Delete" onClick={() => void handleDelete(item)}><Trash2 size={12} /><span>Delete</span></button></> : <span>View only</span>}</div></td></tr>;
+                            })}
+                        </tbody></table>
+
+      <Pagination currentPage={currentPageList} totalItems={visibleItems.length} pageSize={pageSizeList} onPageChange={setCurrentPageList} onPageSizeChange={setPageSizeList} /></div>
                     )}
                 </section>
 

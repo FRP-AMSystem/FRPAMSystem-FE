@@ -46,7 +46,7 @@ import "./AllocationDetail.css";
 import { usePopup } from "../../context/PopupContext";
 
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
-type ResourceTab = "equipment" | "human" | "land" | "phases";
+type ResourceTab = "equipment" | "human" | "land" | "phases" | "schedule";
 
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return "-";
@@ -84,11 +84,25 @@ function getPriorityLabel(priority?: number | null): string {
   }
 }
 
+function getPhaseDisplayName(phaseName?: string | null, phaseId?: number | null): string {
+  const trimmed = (phaseName ?? "").trim();
+
+  if (trimmed) {
+    return trimmed;
+  }
+
+  if (typeof phaseId === "number" && Number.isFinite(phaseId)) {
+    return `Phase #${phaseId}`;
+  }
+
+  return "-";
+}
+
 export default function AllocationDetail() {
   const { showConfirm, showAlert } = usePopup();
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const allocationPlanId = Number(id);
+  const { allocationPlanId: allocationPlanIdParam } = useParams<{ allocationPlanId: string }>();
+  const allocationPlanId = Number(allocationPlanIdParam);
 
   const currentUser = useMemo(() => getCurrentUserTokenInfo(), []);
   const role = (currentUser.role || "Seasonal") as Role;
@@ -250,21 +264,58 @@ export default function AllocationDetail() {
 
   const canApprove = role === "Manager" && plan?.approveStatus === "Pending";
   const canReject = role === "Manager" && plan?.approveStatus === "Pending";
-  const canCancel = (role === "Manager" || role === "Researcher") && plan?.approveStatus === "Pending";
+  const canAllocateResources =
+    role === "Manager" && plan?.approveStatus === "Approved";
+  const canCancel =
+    (role === "Manager" || role === "Researcher") &&
+    plan?.approveStatus === "Pending";
   const canEdit = role === "Researcher" && plan?.approveStatus === "Draft";
+
+  // Researcher already requests and persists the concrete resources before submission.
+  // Manager only reviews/approves/rejects that request; Manager must not allocate them again.
+
+  // After approval, Researcher can assign work schedules to the approved personnel.
   const canAssignSchedule =
-    (role === "Admin" || role === "Manager" || role === "Researcher") &&
-    (plan?.approveStatus === "Approved" || plan?.approveStatus === "Pending");
+    role === "Researcher" &&
+    plan?.approveStatus === "Approved" &&
+    humanDetails.length > 0;
+
+  // Schedule navigation is intentionally isolated here.
+  // Opening /allocation/:allocationPlanId never redirects to CreateSchedule.
+  const openWorkSchedule = (options?: { personnelId?: number | null; phaseId?: number | null }) => {
+    if (!plan || !canAssignSchedule) return;
+
+    const params = new URLSearchParams({
+      allocationPlanId: String(plan.allocationPlanId),
+    });
+
+    if (options?.personnelId) {
+      params.set("personnelId", String(options.personnelId));
+    }
+
+    if (options?.phaseId) {
+      params.set("phaseId", String(options.phaseId));
+    }
+
+    navigate(`/schedules/create?${params.toString()}`);
+  };
 
   const handleApprove = async () => {
     if (!plan || !canApprove || actionLoading) return;
-    if (!await showConfirm("Approve this Resource Allocation Plan?")) return;
+    if (!await showConfirm("Approve this resource allocation request?")) return;
 
     try {
       setActionLoading(true);
       setError("");
       await approveAllocationPlan(plan.allocationPlanId);
-      showToast("Kế hoạch phân bổ đã được phê duyệt thành công.", "success", "Phê duyệt thành công");
+
+      // Experiment đã được Manager duyệt ở bước trước và đang ở trạng thái Ready.
+      // Ở đây chỉ duyệt Allocation Plan, không thay đổi Experiment status lần nữa.
+      showToast(
+        "Kế hoạch phân bổ đã được phê duyệt.",
+        "success",
+        "Phê duyệt thành công"
+      );
       await loadAllocationDetail();
     } catch (err: any) {
       showToast(err?.response?.data?.message || "Không thể phê duyệt kế hoạch phân bổ.", "error");
@@ -275,7 +326,7 @@ export default function AllocationDetail() {
 
   const handleReject = async () => {
     if (!plan || !canReject || actionLoading) return;
-    if (!await showConfirm("Reject this Resource Allocation Plan?")) return;
+    if (!await showConfirm("Reject this resource allocation request?")) return;
 
     try {
       setActionLoading(true);
@@ -338,9 +389,11 @@ export default function AllocationDetail() {
     );
   }
 
-  const equipCount = equipmentDetails.length;
-  const humanCount = humanDetails.length;
-  const landCount = landDetails.length;
+  // Prefer persisted details; otherwise show the experiment requirement counts
+  // returned by getAllocationPlanById so list and detail counts stay consistent.
+  const equipCount = equipmentDetails.length || plan.equipmentDetailCount || 0;
+  const humanCount = humanDetails.length || plan.humanDetailCount || 0;
+  const landCount = landDetails.length || plan.landDetailCount || 0;
   const phaseCount = phases.length || 1;
 
   const statusKey = (plan.approveStatus || "Pending").toLowerCase();
@@ -359,7 +412,7 @@ export default function AllocationDetail() {
               <ArrowLeft size={15} /> Back to Allocations
             </button>
             <p className="allocation-breadcrumb">Dashboard / Allocations / Plan Detail</p>
-            <h1>Resource Allocation Plan</h1>
+            <h1>{plan.approveStatus === "Pending" ? "Resource Allocation Request" : "Resource Allocation Plan"}</h1>
             <p className="allocation-subtitle">
               {plan.experimentName || experiment?.experimentName || "Target Experiment Resource Allocation"}
             </p>
@@ -371,7 +424,7 @@ export default function AllocationDetail() {
                 type="button"
                 className="alloc-btn alloc-btn-approve"
                 style={{ width: "auto", padding: "8px 16px", fontSize: "12.5px" }}
-                onClick={() => navigate(`/schedules/create?allocationPlanId=${plan.allocationPlanId}`)}
+                onClick={() => openWorkSchedule()}
               >
                 <CalendarPlus size={15} /> Assign Work Schedule
               </button>
@@ -390,8 +443,8 @@ export default function AllocationDetail() {
             <div className="alloc-card">
               <div className="alloc-card-header">
                 <div>
-                  <span className="alloc-card-header-eyebrow">Allocation Summary</span>
-                  <h3>Key Resource Metrics</h3>
+                  <span className="alloc-card-header-eyebrow">Decision Summary</span>
+                  <h3>{plan.approveStatus === "Pending" ? "Resource Request Summary" : "Allocated Resource Summary"}</h3>
                 </div>
               </div>
 
@@ -505,8 +558,8 @@ export default function AllocationDetail() {
             <div className="alloc-card">
               <div className="alloc-card-header">
                 <div>
-                  <span className="alloc-card-header-eyebrow">Assigned Resources</span>
-                  <h3>Resource Allocation Details</h3>
+                  <span className="alloc-card-header-eyebrow">{plan.approveStatus === "Pending" ? "Requested Resources" : "Assigned Resources"}</span>
+                  <h3>{plan.approveStatus === "Pending" ? "Resource Request Details" : "Resource Allocation Details"}</h3>
                 </div>
               </div>
 
@@ -544,8 +597,17 @@ export default function AllocationDetail() {
                   onClick={() => setActiveTab("phases")}
                   className={`alloc-tab-btn ${activeTab === "phases" ? "active" : ""}`}
                 >
-                  <Layers size={14} /> Phases & Schedule
+                  <Layers size={14} /> Phases
                   <span className="alloc-tab-badge">{phaseCount}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("schedule")}
+                  className={`alloc-tab-btn ${activeTab === "schedule" ? "active" : ""}`}
+                >
+                  <Calendar size={14} /> Schedule
+                  <span className="alloc-tab-badge">{plan.scheduleCount ?? 0}</span>
                 </button>
               </div>
 
@@ -554,7 +616,9 @@ export default function AllocationDetail() {
                 <div className="alloc-table-wrapper">
                   {equipmentDetails.length === 0 ? (
                     <div className="alloc-empty-box">
-                      No persisted equipment allocation details were found for this plan.
+                      {equipCount > 0
+                        ? `No persisted equipment allocation details were found. Experiment requirements: ${equipCount}.`
+                        : "No persisted equipment allocation details were found for this plan."}
                     </div>
                   ) : (
                     <table className="alloc-resource-table alloc-resource-table-detailed">
@@ -606,7 +670,7 @@ export default function AllocationDetail() {
                             </td>
 
                             <td>
-                              <div>{eq.phaseName || "-"}</div>
+                              <div>{getPhaseDisplayName(eq.phaseName, eq.phaseId)}</div>
                               {eq.phaseId && (
                                 <div className="alloc-secondary-text">
                                   Phase ID: {eq.phaseId}
@@ -642,7 +706,7 @@ export default function AllocationDetail() {
 
                             <td>
                               <span className="badge-available">
-                                {eq.status || "Allocated"}
+                                {plan.approveStatus === "Pending" ? "Requested" : (eq.status || "Allocated")}
                               </span>
                             </td>
                           </tr>
@@ -658,7 +722,9 @@ export default function AllocationDetail() {
                 <div className="alloc-table-wrapper">
                   {humanDetails.length === 0 ? (
                     <div className="alloc-empty-box">
-                      No persisted personnel allocation details were found for this plan.
+                      {humanCount > 0
+                        ? `No persisted personnel allocation details were found. Experiment requirements: ${humanCount}.`
+                        : "No persisted personnel allocation details were found for this plan."}
                     </div>
                   ) : (
                     <table className="alloc-resource-table alloc-resource-table-detailed">
@@ -718,7 +784,7 @@ export default function AllocationDetail() {
                             </td>
 
                             <td>
-                              <div>{h.phaseName || "-"}</div>
+                              <div>{getPhaseDisplayName(h.phaseName, h.phaseId)}</div>
                               {h.phaseId && (
                                 <div className="alloc-secondary-text">
                                   Phase ID: {h.phaseId}
@@ -747,7 +813,7 @@ export default function AllocationDetail() {
 
                             <td>
                               <span className="badge-available">
-                                {h.status || "Allocated"}
+                                {plan.approveStatus === "Pending" ? "Requested" : (h.status || "Allocated")}
                               </span>
                             </td>
 
@@ -757,11 +823,10 @@ export default function AllocationDetail() {
                                   type="button"
                                   className="alloc-assign-schedule-btn"
                                   onClick={() =>
-                                    navigate(
-                                      `/schedules/create?allocationPlanId=${plan.allocationPlanId}&personnelId=${
-                                        h.humanResourceId || h.userId
-                                      }${h.phaseId ? `&phaseId=${h.phaseId}` : ""}`
-                                    )
+                                    openWorkSchedule({
+                                      personnelId: h.humanResourceId || h.userId,
+                                      phaseId: h.phaseId,
+                                    })
                                   }
                                 >
                                   <CalendarPlus size={13} />
@@ -782,7 +847,9 @@ export default function AllocationDetail() {
                 <div className="alloc-land-grid">
                   {landDetails.length === 0 ? (
                     <div className="alloc-empty-box">
-                      No persisted land allocation details were found for this plan.
+                      {landCount > 0
+                        ? `No persisted land allocation details were found. Experiment requirements: ${landCount}.`
+                        : "No persisted land allocation details were found for this plan."}
                     </div>
                   ) : (
                     landDetails.map((land, idx) => (
@@ -803,7 +870,7 @@ export default function AllocationDetail() {
                           </div>
 
                           <span className="badge-available">
-                            {land.status || "Allocated"}
+                            {plan.approveStatus === "Pending" ? "Requested" : (land.status || "Allocated")}
                           </span>
                         </div>
 
@@ -858,60 +925,125 @@ export default function AllocationDetail() {
                 </div>
               )}
 
-              {/* Tab 4: Phases & Timeline */}
+              {/* Tab 4: Phases */}
               {activeTab === "phases" && (
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                    <h4 style={{ margin: 0, fontSize: "14px", color: "#0f172a", fontWeight: 600 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <h4
+                      style={{
+                        margin: 0,
+                        fontSize: "14px",
+                        color: "#0f172a",
+                        fontWeight: 600,
+                      }}
+                    >
                       Experiment Phases ({phases.length})
                     </h4>
+                  </div>
+
+                  {phases.length === 0 ? (
+                    <div className="alloc-empty-box">
+                      No experiment phases were found.
+                    </div>
+                  ) : (
+                    <div className="alloc-phase-timeline-list">
+                      {phases.map((p) => (
+                        <div
+                          key={p.experimentPhaseId}
+                          className="alloc-phase-timeline-item"
+                        >
+                          <div>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                color: "#15803d",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              Phase #{p.phaseOrder ?? 1}
+                            </span>
+
+                            <div
+                              style={{
+                                fontSize: "13.5px",
+                                fontWeight: 550,
+                                color: "#0f172a",
+                              }}
+                            >
+                              {p.phaseName}
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#64748b",
+                                marginTop: "2px",
+                              }}
+                            >
+                              {formatDate(p.expectedStartDate)} →{" "}
+                              {formatDate(p.expectedEndDate)}
+                            </div>
+                          </div>
+
+                          <span className="alloc-phase-badge">
+                            {p.status || "Planned"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 5: Schedule */}
+              {activeTab === "schedule" && (
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <h4
+                      style={{
+                        margin: 0,
+                        fontSize: "14px",
+                        color: "#0f172a",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Work Schedules ({plan.scheduleCount ?? 0})
+                    </h4>
+
                     {canAssignSchedule && (
                       <button
                         type="button"
                         className="alloc-create-schedule-btn"
-                        onClick={() => navigate(`/schedules/create?allocationPlanId=${plan.allocationPlanId}`)}
+                        onClick={() => openWorkSchedule()}
                       >
-                        <Plus size={13} /> Create Schedule for Plan
+                        <Plus size={13} /> Create Work Schedule
                       </button>
                     )}
                   </div>
-                  {phases.length === 0 ? (
-                    <div className="alloc-empty-box">No phased schedules defined for this experiment.</div>
+
+                  {(plan.scheduleCount ?? 0) === 0 ? (
+                    <div className="alloc-empty-box">
+                      No work schedules have been created for this allocation plan.
+                    </div>
                   ) : (
-                    <div className="alloc-phase-timeline-list">
-                      {phases.map((p) => (
-                        <div key={p.experimentPhaseId} className="alloc-phase-timeline-item">
-                          <div>
-                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#15803d", textTransform: "uppercase" }}>
-                              Phase #{p.phaseOrder ?? 1}
-                            </span>
-                            <div style={{ fontSize: "13.5px", fontWeight: 550, color: "#0f172a" }}>
-                              {p.phaseName}
-                            </div>
-                            <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                              {formatDate(p.expectedStartDate)} → {formatDate(p.expectedEndDate)}
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span className="alloc-phase-badge">
-                              {p.status || "Planned"}
-                            </span>
-                            {canAssignSchedule && (
-                              <button
-                                type="button"
-                                className="alloc-phase-assign-btn"
-                                onClick={() =>
-                                  navigate(
-                                    `/schedules/create?allocationPlanId=${plan.allocationPlanId}&phaseId=${p.experimentPhaseId}`
-                                  )
-                                }
-                              >
-                                <Plus size={12} /> Assign Task
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="alloc-empty-box">
+                      This allocation plan has {plan.scheduleCount ?? 0} work
+                      schedule(s). Open the Schedule module to view their full details.
                     </div>
                   )}
                 </div>
@@ -972,8 +1104,8 @@ export default function AllocationDetail() {
             <div className="alloc-card">
               <div className="alloc-card-header">
                 <div>
-                  <span className="alloc-card-header-eyebrow">Workflow</span>
-                  <h3>Approval History</h3>
+                  <span className="alloc-card-header-eyebrow">Manager Decision</span>
+                  <h3>{plan.approveStatus === "Pending" ? "Review Resource Request" : "Approval History"}</h3>
                 </div>
               </div>
 
@@ -985,17 +1117,17 @@ export default function AllocationDetail() {
 
                 <div className="alloc-side-info-row">
                   <span>Equipment Details</span>
-                  <strong>{equipmentDetails.length}</strong>
+                  <strong>{equipCount}</strong>
                 </div>
 
                 <div className="alloc-side-info-row">
                   <span>Personnel Details</span>
-                  <strong>{humanDetails.length}</strong>
+                  <strong>{humanCount}</strong>
                 </div>
 
                 <div className="alloc-side-info-row">
                   <span>Land Details</span>
-                  <strong>{landDetails.length}</strong>
+                  <strong>{landCount}</strong>
                 </div>
 
                 <div className="alloc-side-info-row">
@@ -1038,13 +1170,18 @@ export default function AllocationDetail() {
               </div>
 
               {/* Action Buttons */}
-              {(canApprove || canReject || canCancel || canEdit || canAssignSchedule) && (
+              {(canApprove ||
+                canReject ||
+                canCancel ||
+                canEdit ||
+                canAllocateResources ||
+                canAssignSchedule) && (
                 <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
                   <div className="alloc-action-bar">
                     {canAssignSchedule && (
                       <button
                         type="button"
-                        onClick={() => navigate(`/schedules/create?allocationPlanId=${plan.allocationPlanId}`)}
+                        onClick={() => openWorkSchedule()}
                         className="alloc-btn alloc-btn-approve"
                       >
                         <CalendarPlus size={15} /> Assign Work Schedule
@@ -1058,7 +1195,22 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-approve"
                       >
-                        <CheckCircle2 size={15} /> Approve Allocation Plan
+                        <CheckCircle2 size={15} /> Approve Resource Request
+                      </button>
+                    )}
+
+                    {canAllocateResources && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `/allocation/create?experimentId=${plan.experimentId}&allocationPlanId=${plan.allocationPlanId}`
+                          )
+                        }
+                        disabled={actionLoading}
+                        className="alloc-btn alloc-btn-approve"
+                      >
+                        <Plus size={15} /> Allocate Resources
                       </button>
                     )}
 
@@ -1069,7 +1221,7 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-reject"
                       >
-                        <XCircle size={15} /> Reject Allocation Plan
+                        <XCircle size={15} /> Reject Resource Request
                       </button>
                     )}
 

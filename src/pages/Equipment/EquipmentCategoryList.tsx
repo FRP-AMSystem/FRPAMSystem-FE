@@ -31,6 +31,8 @@ import type {
 import "./EquipmentCategoryList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
     | "Admin"
@@ -396,6 +398,9 @@ export default function EquipmentCategoryList() {
         }
     };
 
+
+    const { currentPage: currentPageList, pageSize: pageSizeList, paginatedItems: paginatedItemsList, setCurrentPage: setCurrentPageList, setPageSize: setPageSizeList } = usePagination(items, 10);
+
     return (
         <DashboardLayout>
             <div className="equipment-category-page">
@@ -523,7 +528,7 @@ export default function EquipmentCategoryList() {
                                 </thead>
 
                                 <tbody>
-                                    {items.map(
+                                    {paginatedItemsList.map(
                                         (item) => (
                                             <tr
                                                 key={
@@ -597,6 +602,8 @@ export default function EquipmentCategoryList() {
                                     )}
                                 </tbody>
                             </table>
+
+      <Pagination currentPage={currentPageList} totalItems={items.length} pageSize={pageSizeList} onPageChange={setCurrentPageList} onPageSizeChange={setPageSizeList} />
                         </div>
                     )}
                 </section>

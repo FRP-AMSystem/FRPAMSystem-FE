@@ -34,6 +34,8 @@ import type {
 } from "../../types/scheduleConflict";
 
 import "./ConflictList.css";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type ConflictTypeFilter =
   | ""
@@ -466,6 +468,9 @@ export default function ConflictList() {
       startDateTo
     );
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(conflicts, 10);
+
   return (
     <DashboardLayout>
       <div className="conflict-list-page">
@@ -763,7 +768,7 @@ export default function ConflictList() {
                 </thead>
 
                 <tbody>
-                  {conflicts.map(
+                  {paginatedItems.map(
                     (conflict) => (
                       <tr
                         key={
@@ -981,6 +986,13 @@ export default function ConflictList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={conflicts.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

@@ -69,6 +69,8 @@ import type {
 import "./HumanResourceProfileList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -102,6 +104,23 @@ const humanResourceStatuses: HumanResourceStatus[] = [
   "Busy",
   "Inactive",
 ];
+
+function getEffectiveHumanResourceStatus(
+  profile: Pick<
+    HumanResourceProfile,
+    "status" | "currentWorkload" | "maxWorkingHoursPerDay"
+  >
+): HumanResourceStatus {
+  if (profile.status === "Inactive") {
+    return "Inactive";
+  }
+
+  const workload = Number(profile.currentWorkload) || 0;
+
+  return workload > 0
+    ? "Busy"
+    : "Available";
+}
 
 const skillLevels: SkillLevel[] = [
   "Beginner",
@@ -674,10 +693,6 @@ export default function HumanResourceProfileList() {
               appliedKeyword ||
               undefined,
 
-            status:
-              statusFilter ||
-              undefined,
-
             page: 1,
             size: 300,
           }).catch(
@@ -999,7 +1014,7 @@ export default function HumanResourceProfileList() {
           finalItems =
             finalItems.filter(
               (item) =>
-                item.status ===
+                getEffectiveHumanResourceStatus(item) ===
                 statusFilter
             );
         }
@@ -1533,6 +1548,9 @@ export default function HumanResourceProfileList() {
       statusFilter
     );
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(items, 10);
+
   return (
     <DashboardLayout>
       <div className="human-profile-page">
@@ -1689,7 +1707,7 @@ export default function HumanResourceProfileList() {
                 </thead>
 
                 <tbody>
-                  {items.map(
+                  {paginatedItems.map(
                     (item) => {
                       const itemSkills =
                         skillRowsForResource(
@@ -1790,15 +1808,20 @@ export default function HumanResourceProfileList() {
                           </td>
 
                           <td>
+                            {(() => {
+                              const effectiveStatus =
+                                getEffectiveHumanResourceStatus(item);
+
+                              return (
                             <span
                               className={getStatusClassName(
-                                item.status
+                                effectiveStatus
                               )}
                             >
-                              {
-                                item.status
-                              }
+                              {effectiveStatus}
                             </span>
+                              );
+                            })()}
                           </td>
 
                           <td>
@@ -1877,6 +1900,13 @@ export default function HumanResourceProfileList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={items.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

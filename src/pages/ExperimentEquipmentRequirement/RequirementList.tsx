@@ -22,6 +22,8 @@ import type { ExperimentEquipmentRequirement } from "../../types/experimentEquip
 import "./RequirementList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role = "Admin" | "Manager" | "Researcher" | "Technician" | "Student" | "Seasonal";
 
@@ -170,6 +172,9 @@ export default function RequirementList() {
     }
   };
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(requirements, 10);
+
   return (
     <DashboardLayout>
       <div className="requirement-page">
@@ -276,7 +281,7 @@ export default function RequirementList() {
                 </thead>
 
                 <tbody>
-                  {requirements.map((item) => {
+                  {paginatedItems.map((item) => {
                     const id = item.expEquipmentReqId;
                     const isDeleting = deletingId === id;
                     const actionDisabled = deletingId !== null;
@@ -379,6 +384,13 @@ export default function RequirementList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={requirements.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </div>

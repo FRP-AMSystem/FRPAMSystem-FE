@@ -35,6 +35,8 @@ import type {
 import "./ExperimentPhaseList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -396,6 +398,9 @@ export default function ExperimentPhaseList() {
       status
     );
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(phases, 10);
+
   return (
     <DashboardLayout>
       <div className="experiment-phase-list-page">
@@ -601,7 +606,7 @@ export default function ExperimentPhaseList() {
                 </thead>
 
                 <tbody>
-                  {phases.map(
+                  {paginatedItems.map(
                     (phase) => (
                       <tr
                         key={
@@ -745,6 +750,13 @@ export default function ExperimentPhaseList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={phases.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

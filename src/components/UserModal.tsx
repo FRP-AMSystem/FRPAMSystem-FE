@@ -14,6 +14,26 @@ interface UserModalProps {
   onError?: (message: string) => void;
 }
 
+function getRoleNameValue(role: unknown): string {
+  if (typeof role === "string") {
+    return role.trim();
+  }
+
+  if (role && typeof role === "object") {
+    const roleObject = role as {
+      roleName?: string;
+      name?: string;
+      role?: string;
+    };
+
+    return String(
+      roleObject.roleName ?? roleObject.name ?? roleObject.role ?? ""
+    ).trim();
+  }
+
+  return "";
+}
+
 export default function UserModal({
   isOpen,
   roles,
@@ -42,7 +62,7 @@ export default function UserModal({
         setPassword("");
         setStatus(editUser.status || "Active");
 
-        const userRoleName = (editUser.role || "").toLowerCase();
+        const userRoleName = getRoleNameValue(editUser.role).toLowerCase();
         const matchedRole = roles.find(
           (r) =>
             r.name.toLowerCase() === userRoleName ||

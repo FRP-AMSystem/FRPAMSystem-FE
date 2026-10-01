@@ -10,10 +10,10 @@ interface StepItem {
 
 const STEPS: StepItem[] = [
   { id: 1, label: "Experiment Info", description: "Metadata & timeline" },
-  { id: 2, label: "Phases", description: "Execution phases" },
-  { id: 3, label: "Equipment", description: "Equipment requirements" },
-  { id: 4, label: "Human Resources", description: "Personnel & skill needs" },
-  { id: 5, label: "Land & Area", description: "Land & soil requirements" },
+  { id: 2, label: "Land & Area", description: "Land & soil requirements" },
+  { id: 3, label: "Phases", description: "Execution phases" },
+  { id: 4, label: "Equipment", description: "Equipment requirements" },
+  { id: 5, label: "Human Resources", description: "Personnel & skill needs" },
 ];
 
 interface PlanningStepperProps {
@@ -54,6 +54,7 @@ export const PlanningStepper: React.FC<PlanningStepperProps> = ({
               >
                 {isCompleted ? <Check size={18} /> : step.id}
               </div>
+
               <div className="planning-step-info">
                 <span
                   className={`planning-step-title ${
@@ -66,7 +67,10 @@ export const PlanningStepper: React.FC<PlanningStepperProps> = ({
                 >
                   {step.label}
                 </span>
-                <span className="planning-step-desc">{step.description}</span>
+
+                <span className="planning-step-desc">
+                  {step.description}
+                </span>
               </div>
             </div>
           );

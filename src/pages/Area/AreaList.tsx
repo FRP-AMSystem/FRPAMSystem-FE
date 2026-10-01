@@ -32,6 +32,8 @@ import type {
 import "./AreaList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -391,6 +393,9 @@ export default function AreaList() {
     }
   };
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(areas, 10);
+
   return (
     <DashboardLayout>
       <div className="area-page">
@@ -518,7 +523,7 @@ export default function AreaList() {
                 </thead>
 
                 <tbody>
-                  {areas.map(
+                  {paginatedItems.map(
                     (area) => (
                       <tr
                         key={
@@ -592,6 +597,13 @@ export default function AreaList() {
                   )}
                 </tbody>
               </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={areas.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
             </div>
           )}
         </section>

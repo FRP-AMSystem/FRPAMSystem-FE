@@ -138,6 +138,7 @@ export default function AuditLogsPage() {
     }
   };
 
+
   return (
     <DashboardLayout>
       <div className="audit-logs-page">
@@ -274,8 +275,7 @@ export default function AuditLogsPage() {
               )}
             </tbody>
           </table>
-
-          {/* Pagination */}
+{/* Pagination */}
           {!isLoading && totalPages > 1 && (
             <div className="audit-page-pagination">
               <span className="audit-pagination-info">

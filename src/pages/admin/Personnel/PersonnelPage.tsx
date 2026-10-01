@@ -35,6 +35,8 @@ import type {
 import "./PersonnelPage.css";
 
 import { usePopup } from "../../../context/PopupContext";
+import Pagination from "../../../components/Pagination";
+import usePagination from "../../../hooks/usePagination";
 
 interface ToastState {
   message: string;
@@ -79,6 +81,18 @@ function getNormalizedHrRoleName(roleName?: string | null): string {
   if (normalizedRole === "seasonal") return "Seasonal";
 
   return roleName || "Staff";
+}
+
+function getEffectiveHrStatus(profile: HumanResourceProfile): HumanResourceStatus {
+  if (profile.status === "Inactive") {
+    return "Inactive";
+  }
+
+  if (Number(profile.currentWorkload) > 0) {
+    return "Busy";
+  }
+
+  return profile.status === "Busy" ? "Available" : profile.status;
 }
 
 function getUserId(user: User): number {
@@ -492,6 +506,9 @@ export default function PersonnelPage() {
     return userId > 0 && !existingProfileUserIds.has(userId);
   });
 
+
+  const { currentPage: currentPageProfiles, pageSize: pageSizeProfiles, paginatedItems: paginatedItemsProfiles, setCurrentPage: setCurrentPageProfiles, setPageSize: setPageSizeProfiles } = usePagination(filteredProfiles, 10);
+
   return (
     <DashboardLayout>
       <div className="personnel-page-container">
@@ -588,10 +605,11 @@ export default function PersonnelPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredProfiles.map((profile) => {
+                      {paginatedItemsProfiles.map((profile) => {
                         const staffSkills = assignedSkills.filter(
                           (as) => as.humanResourceId === profile.humanResourceId
                         );
+                        const effectiveStatus = getEffectiveHrStatus(profile);
 
                         return (
                           <tr key={profile.humanResourceId}>
@@ -654,7 +672,7 @@ export default function PersonnelPage() {
                             </td>
                             <td>
                               <span
-                                className={`personnel-status-badge ${profile.status.toLowerCase()}`}
+                                className={`personnel-status-badge ${effectiveStatus.toLowerCase()}`}
                               >
                                 <span
                                   style={{
@@ -665,7 +683,7 @@ export default function PersonnelPage() {
                                     display: "inline-block",
                                   }}
                                 />
-                                {profile.status}
+                                {effectiveStatus}
                               </span>
                             </td>
                             <td>
@@ -717,6 +735,8 @@ export default function PersonnelPage() {
                       })}
                     </tbody>
                   </table>
+
+    <Pagination currentPage={currentPageProfiles} totalItems={filteredProfiles.length} pageSize={pageSizeProfiles} onPageChange={setCurrentPageProfiles} onPageSizeChange={setPageSizeProfiles} />
                 </div>
               )}
             </>

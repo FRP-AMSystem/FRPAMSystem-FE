@@ -34,6 +34,8 @@ import {
 import "./ExperimentList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
   | "Admin"
@@ -553,6 +555,9 @@ export default function ExperimentList() {
       selectedStatus,
     ]);
 
+  const { currentPage, pageSize, paginatedItems, setCurrentPage, setPageSize } =
+    usePagination(filteredExperiments, 10);
+
   return (
     <DashboardLayout>
       <div className="experiment-page">
@@ -681,6 +686,7 @@ export default function ExperimentList() {
               experiments...
             </p>
           ) : (
+            <>
             <table className="experiment-table">
               <thead>
                 <tr>
@@ -736,7 +742,7 @@ export default function ExperimentList() {
                     </td>
                   </tr>
                 ) : (
-                  filteredExperiments.map(
+                  paginatedItems.map(
                     (
                       item
                     ) => {
@@ -927,6 +933,14 @@ export default function ExperimentList() {
                 )}
               </tbody>
             </table>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={filteredExperiments.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
+                      </>
           )}
         </div>
       </div>

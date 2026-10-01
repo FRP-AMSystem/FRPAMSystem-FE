@@ -21,6 +21,8 @@ import {
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
+import api from "../../services/api";
+import { getAllAllocationEquipmentDetails } from "../../services/allocationDetailService";
 
 import {
     getEquipmentTypes,
@@ -46,10 +48,13 @@ import type {
     EquipmentInstanceRequest,
     EquipmentInstanceStatus,
 } from "../../types/equipmentInstance";
+import type { AllocationEquipmentDetail } from "../../types/allocationDetail";
 
 import "./EquipmentInstanceList.css";
 
 import { usePopup } from "../../context/PopupContext";
+import Pagination from "../../components/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 type Role =
     | "Admin"
@@ -280,6 +285,10 @@ export default function EquipmentInstanceList() {
         setItems,
     ] = useState<
         EquipmentInstance[]
+    >([]);
+
+    const [allocationDetails, setAllocationDetails] = useState<
+        AllocationEquipmentDetail[]
     >([]);
 
     const [
@@ -538,10 +547,6 @@ export default function EquipmentInstanceList() {
                             )
                             : undefined,
 
-                    status:
-                        statusFilter ||
-                        undefined,
-
                     conditionLevel:
                         conditionFilter ||
                         undefined,
@@ -553,6 +558,7 @@ export default function EquipmentInstanceList() {
                 const [
                     instanceData,
                     typeData,
+                    allocationDetailsData,
                 ] = await Promise.all([
                     getEquipmentInstances(
                         query
@@ -562,7 +568,57 @@ export default function EquipmentInstanceList() {
                         page: 1,
                         size: 300,
                     }),
+
+                    getAllAllocationEquipmentDetails().catch(() => []),
                 ]);
+
+                const currentTimestamp = Date.now();
+                const currentlyAllocatedDetails = (
+                    Array.isArray(allocationDetailsData)
+                        ? allocationDetailsData
+                        : []
+                ).filter((detail) => {
+                    const status = String(detail.status || "").toLowerCase();
+                    const start = new Date(detail.startDate).getTime();
+                    const end = new Date(detail.endDate).getTime();
+
+                    return (
+                        detail.equipmentInstanceId != null &&
+                        ["allocated", "reserved", "inuse"].includes(status) &&
+                        Number.isFinite(start) &&
+                        Number.isFinite(end) &&
+                        start <= currentTimestamp &&
+                        currentTimestamp <= end
+                    );
+                });
+
+                const planIds = [...new Set(
+                    currentlyAllocatedDetails.map((detail) => detail.allocationPlanId)
+                )];
+                const planStatuses = await Promise.all(
+                    planIds.map(async (planId) => {
+                        try {
+                            const response = await api.get(`/AllocationPlans/${planId}`);
+                            const plan =
+                                response.data?.data ||
+                                response.data?.result ||
+                                response.data;
+                            return [
+                                planId,
+                                String(plan?.approveStatus || "").toLowerCase(),
+                            ] as const;
+                        } catch {
+                            return [planId, "unknown"] as const;
+                        }
+                    })
+                );
+                const inactivePlanIds = new Set(
+                    planStatuses
+                        .filter(([, status]) =>
+                            status === "rejected" || status === "cancelled"
+                        )
+                        .map(([planId]) => planId)
+                );
 
                 setItems(
                     Array.isArray(
@@ -570,6 +626,11 @@ export default function EquipmentInstanceList() {
                     )
                         ? instanceData
                         : []
+                );
+                setAllocationDetails(
+                    currentlyAllocatedDetails.filter(
+                        (detail) => !inactivePlanIds.has(detail.allocationPlanId)
+                    )
                 );
 
                 setEquipmentTypes(
@@ -599,7 +660,6 @@ export default function EquipmentInstanceList() {
         }, [
             appliedKeyword,
             typeFilter,
-            statusFilter,
             conditionFilter,
         ]);
 
@@ -887,6 +947,34 @@ export default function EquipmentInstanceList() {
             conditionFilter
         );
 
+
+    const displayedStatusByInstanceId = useMemo(() => {
+        const allocatedInstanceIds = new Set(
+            allocationDetails.map((detail) => Number(detail.equipmentInstanceId))
+        );
+
+        return new Map(
+            items.map((item) => [
+                item.equipmentInstanceId,
+                allocatedInstanceIds.has(item.equipmentInstanceId) &&
+                    (item.status === "Available" || item.status === "Reserved")
+                    ? "InUse"
+                    : item.status,
+            ])
+        );
+    }, [items, allocationDetails]);
+
+    const visibleItems = useMemo(
+        () => items.filter(
+            (item) =>
+                !statusFilter ||
+                displayedStatusByInstanceId.get(item.equipmentInstanceId) === statusFilter
+        ),
+        [items, statusFilter, displayedStatusByInstanceId]
+    );
+
+    const { currentPage: currentPageList, pageSize: pageSizeList, paginatedItems: paginatedItemsList, setCurrentPage: setCurrentPageList, setPageSize: setPageSizeList } = usePagination(visibleItems, 10);
+
     return (
         <DashboardLayout>
             <div className="equipment-instance-page">
@@ -1101,7 +1189,7 @@ export default function EquipmentInstanceList() {
                                 </thead>
 
                                 <tbody>
-                                    {items.map(
+                                    {paginatedItemsList.map(
                                         (item) => (
                                             <tr
                                                 key={
@@ -1143,11 +1231,15 @@ export default function EquipmentInstanceList() {
                                                 <td>
                                                     <span
                                                         className={getStatusClassName(
-                                                            item.status
+                                                            displayedStatusByInstanceId.get(
+                                                                item.equipmentInstanceId
+                                                            ) || item.status
                                                         )}
                                                     >
                                                         {getStatusLabel(
-                                                            item.status
+                                                            displayedStatusByInstanceId.get(
+                                                                item.equipmentInstanceId
+                                                            ) || item.status
                                                         )}
                                                     </span>
                                                 </td>
@@ -1243,6 +1335,8 @@ export default function EquipmentInstanceList() {
                                     )}
                                 </tbody>
                             </table>
+
+      <Pagination currentPage={currentPageList} totalItems={items.length} pageSize={pageSizeList} onPageChange={setCurrentPageList} onPageSizeChange={setPageSizeList} />
                         </div>
                     )}
                 </section>
