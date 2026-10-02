@@ -425,17 +425,6 @@ export default function AppRoutes() {
       />
 
       <Route
-        path="/experiments/:id"
-        element={
-          <ProtectedRoute
-            allowedRoles={operationalViewRoles}
-          >
-            <ExperimentDetail />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
         path="/experiments/:id/ai-suggestions"
         element={
           <ProtectedRoute
@@ -447,34 +436,12 @@ export default function AppRoutes() {
       />
 
       <Route
-        path="/experiments/ai-suggestions"
+        path="/experiments/:id"
         element={
           <ProtectedRoute
-            allowedRoles={researcherOnly}
+            allowedRoles={operationalViewRoles}
           >
-            <AISuggestionPage />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/planning/ai-suggestions"
-        element={
-          <ProtectedRoute
-            allowedRoles={researcherOnly}
-          >
-            <AISuggestionPage />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/planning/:id/ai-suggestions"
-        element={
-          <ProtectedRoute
-            allowedRoles={researcherOnly}
-          >
-            <AISuggestionPage />
+            <ExperimentDetail />
           </ProtectedRoute>
         }
       />
@@ -715,6 +682,17 @@ export default function AppRoutes() {
             allowedRoles={researcherOnly}
           >
             <EditAllocation />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/allocation/:allocationPlanId/ai-suggestions"
+        element={
+          <ProtectedRoute
+            allowedRoles={researcherOnly}
+          >
+            <AISuggestionPage />
           </ProtectedRoute>
         }
       />

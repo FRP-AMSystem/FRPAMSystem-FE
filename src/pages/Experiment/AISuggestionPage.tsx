@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { ChevronRight, AlertTriangle, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { useNotification } from "../../context/NotificationContext";
@@ -12,6 +18,9 @@ import type { ExperimentPhase } from "../../types/experimentPhase";
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
 import type { ExperimentHumanRequirement } from "../../types/experimentHumanRequirement";
 import type { ExperimentLandRequirement } from "../../types/experimentLandRequirement";
+import type { AllocationEquipmentDetail } from "../../types/allocationDetail";
+import type { AllocationHumanDetail } from "../../types/allocationHumanDetail";
+import type { AllocationLandDetail } from "../../types/allocationLand";
 
 import {
   getExperimentById,
@@ -30,9 +39,11 @@ import {
   getExperimentLandRequirements,
 } from "../../services/experimentLandRequirementService";
 import {
+  approveAllocationPlan,
   createAllocationPlan,
   evaluateAllocationPlan,
   getAllocationPlanById,
+  rejectAllocationPlan,
   submitAllocationPlan,
 } from "../../services/allocationPlanService";
 import {
@@ -230,6 +241,94 @@ function getVisibleCandidateSignature(plan: AISuggestionPlan): string {
   return JSON.stringify({ equipment, humans, lands, timeline });
 }
 
+type AllocationResourceSignatures = {
+  equipment: string[];
+  personnel: string[];
+  land: string[];
+};
+
+type AllocationResourceComparison = {
+  equipment: boolean;
+  personnel: boolean;
+  land: boolean;
+  allMatch: boolean;
+};
+
+function allocationPhaseKey(phaseId?: number | null, phaseName?: string | null): string {
+  return Number(phaseId) > 0
+    ? `phase:${Number(phaseId)}`
+    : `phase:${normalizeCandidateValue(phaseName)}`;
+}
+
+function createResearcherResourceSignatures(
+  equipment: AllocationEquipmentDetail[],
+  personnel: AllocationHumanDetail[],
+  land: AllocationLandDetail[]
+): AllocationResourceSignatures {
+  return {
+    equipment: equipment.map((detail) => [
+      Number(detail.equipmentInstanceId || 0),
+      Number(detail.allocatedEquipmentTypeId || 0),
+      allocationPhaseKey(detail.phaseId, detail.phaseName),
+      normalizeCandidateDate(detail.startDate),
+      normalizeCandidateDate(detail.endDate),
+    ].join("|")),
+    personnel: personnel.map((detail) => [
+      Number(detail.humanResourceId || 0),
+      allocationPhaseKey(detail.phaseId, detail.phaseName),
+      normalizeCandidateDate(detail.startDate),
+      normalizeCandidateDate(detail.endDate),
+    ].join("|")),
+    land: land.map((detail) => [
+      Number(detail.landId || 0),
+      normalizeCandidateDate(detail.startDate),
+      normalizeCandidateDate(detail.endDate),
+    ].join("|")),
+  };
+}
+
+function compareSignatures(left: string[], right: string[]): boolean {
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+  return sortedLeft.length === sortedRight.length &&
+    sortedLeft.every((value, index) => value === sortedRight[index]);
+}
+
+function compareCandidateToResearcherPlan(
+  researcher: AllocationResourceSignatures,
+  candidate: AISuggestionPlan
+): AllocationResourceComparison {
+  const equipment = compareSignatures(
+    researcher.equipment,
+    candidate.allocatedEquipment.map((item) => [
+      Number(item.equipmentInstanceId || 0),
+      Number(item.allocatedEquipmentTypeId || item.requiredEquipmentTypeId || 0),
+      allocationPhaseKey(item.phaseId, item.phaseName),
+      normalizeCandidateDate(item.startDate),
+      normalizeCandidateDate(item.endDate),
+    ].join("|"))
+  );
+  const personnel = compareSignatures(
+    researcher.personnel,
+    candidate.allocatedHumans.map((item) => [
+      Number(item.humanResourceId || 0),
+      allocationPhaseKey(item.phaseId, item.phaseName),
+      normalizeCandidateDate(item.startDate),
+      normalizeCandidateDate(item.endDate),
+    ].join("|"))
+  );
+  const land = compareSignatures(
+    researcher.land,
+    candidate.allocatedLands.map((item) => [
+      Number(item.landId || 0),
+      normalizeCandidateDate(item.startDate),
+      normalizeCandidateDate(item.endDate),
+    ].join("|"))
+  );
+
+  return { equipment, personnel, land, allMatch: equipment && personnel && land };
+}
+
 function deduplicateVisibleCandidates(
   plans: AISuggestionPlan[],
 ): AISuggestionPlan[] {
@@ -271,13 +370,31 @@ function deduplicateVisibleCandidates(
 
 export default function AISuggestionPage() {
   const { showConfirm } = usePopup();
-  const { id } = useParams<{ id?: string }>();
+  const { id, allocationPlanId: routeAllocationPlanId } = useParams<{
+    id?: string;
+    allocationPlanId?: string;
+  }>();
   const navigate = useNavigate();
   const { sendLocalNotification, fetchUnreadCount } = useNotification();
+  const currentUser = getCurrentUserTokenInfo();
+  const isManagerRole = currentUser.role === "Manager";
+  const queryParams = new URLSearchParams(window.location.search);
+  const managerAllocationPlanId = Number(
+    queryParams.get("allocationPlanId") || routeAllocationPlanId || 0
+  );
+  const isManagerReviewMode =
+    isManagerRole &&
+    managerAllocationPlanId > 0;
+  const isResearcherComparisonMode =
+    currentUser.role === "Researcher" &&
+    managerAllocationPlanId > 0;
+  const hasPlanComparisonContext =
+    isManagerReviewMode || isResearcherComparisonMode;
+  const initialExperimentId = Number(queryParams.get("experimentId") || id || 0);
 
   // Selected experiment ID
   const [selectedExpId, setSelectedExpId] = useState<number | null>(
-    id ? Number(id) : null
+    initialExperimentId > 0 ? initialExperimentId : null
   );
 
   // Experiment & Requirements State
@@ -288,6 +405,15 @@ export default function AISuggestionPage() {
   const [equipReqs, setEquipReqs] = useState<ExperimentEquipmentRequirement[]>([]);
   const [humanReqs, setHumanReqs] = useState<ExperimentHumanRequirement[]>([]);
   const [landReqs, setLandReqs] = useState<ExperimentLandRequirement[]>([]);
+  const [researcherResourceSignatures, setResearcherResourceSignatures] =
+    useState<AllocationResourceSignatures | null>(null);
+  const [researcherPlanDetails, setResearcherPlanDetails] = useState<{
+    equipment: AllocationEquipmentDetail[];
+    personnel: AllocationHumanDetail[];
+    land: AllocationLandDetail[];
+  } | null>(null);
+  const [loadingResearcherResources, setLoadingResearcherResources] = useState(false);
+  const [researcherResourcesError, setResearcherResourcesError] = useState<string | null>(null);
 
   // AI Suggestions State
   const [suggestions, setSuggestions] = useState<AISuggestionPlan[]>([]);
@@ -460,7 +586,176 @@ export default function AISuggestionPage() {
     }
   }, [selectedExpId, loadDataAndRunAI, settings]);
 
+  useEffect(() => {
+    if (!hasPlanComparisonContext) return;
+
+    let cancelled = false;
+    setLoadingResearcherResources(true);
+    setResearcherResourcesError(null);
+
+    Promise.all([
+      getAllocationEquipmentDetails({ allocationPlanId: managerAllocationPlanId, page: 1, size: 500 }),
+      getAllocationHumanDetails({ allocationPlanId: managerAllocationPlanId, page: 1, size: 500 }),
+      getAllocationLandDetails({ allocationPlanId: managerAllocationPlanId, page: 1, size: 500 }),
+    ])
+      .then(([equipment, personnel, land]) => {
+        if (cancelled) return;
+        setResearcherPlanDetails({ equipment, personnel, land });
+        setResearcherResourceSignatures(
+          createResearcherResourceSignatures(equipment, personnel, land)
+        );
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setResearcherResourcesError(
+          err?.response?.data?.message ||
+          err?.message ||
+          "Could not load the Researcher's requested resources for comparison."
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingResearcherResources(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPlanComparisonContext, managerAllocationPlanId]);
+
   const selectedPlan = suggestions.find((s) => s.id === selectedPlanId);
+  const selectedPlanComparison =
+    selectedPlan && researcherResourceSignatures
+      ? compareCandidateToResearcherPlan(researcherResourceSignatures, selectedPlan)
+      : null;
+  const formatAssignmentContext = (
+    phaseName: string | null | undefined,
+    startDate: string | null | undefined,
+    endDate: string | null | undefined
+  ) => {
+    const dates = [normalizeCandidateDate(startDate), normalizeCandidateDate(endDate)]
+      .filter(Boolean)
+      .join(" → ");
+    return [phaseName, dates].filter(Boolean).join(" · ");
+  };
+  const researcherComparisonRows = researcherPlanDetails && researcherResourceSignatures
+    ? [
+        {
+          label: "Equipment",
+          researcherItems: researcherPlanDetails.equipment.map((detail) => {
+            const name = detail.assetCode || detail.equipmentInstanceName || `Equipment #${detail.equipmentInstanceId}`;
+            const context = formatAssignmentContext(detail.phaseName, detail.startDate, detail.endDate);
+            return context ? `${name} · ${context}` : name;
+          }),
+          candidates: suggestions.map((plan) => ({
+            id: plan.id,
+            rank: plan.rank,
+            matches: compareCandidateToResearcherPlan(researcherResourceSignatures, plan).equipment,
+            items: plan.allocatedEquipment.map((item) => {
+              const name = item.assetCode || item.equipmentTypeName || `Equipment #${item.equipmentInstanceId}`;
+              const context = formatAssignmentContext(item.phaseName, item.startDate, item.endDate);
+              return context ? `${name} · ${context}` : name;
+            }),
+          })),
+        },
+        {
+          label: "Personnel",
+          researcherItems: researcherPlanDetails.personnel.map((detail) => {
+            const name = detail.fullName || detail.humanResourceName || `Person #${detail.humanResourceId}`;
+            const context = formatAssignmentContext(detail.phaseName, detail.startDate, detail.endDate);
+            return context ? `${name} · ${context}` : name;
+          }),
+          candidates: suggestions.map((plan) => ({
+            id: plan.id,
+            rank: plan.rank,
+            matches: compareCandidateToResearcherPlan(researcherResourceSignatures, plan).personnel,
+            items: plan.allocatedHumans.map((item) => {
+              const name = item.fullName || item.roleName || `Person #${item.humanResourceId}`;
+              const context = formatAssignmentContext(item.phaseName, item.startDate, item.endDate);
+              return context ? `${name} · ${context}` : name;
+            }),
+          })),
+        },
+        {
+          label: "Land",
+          researcherItems: researcherPlanDetails.land.map((detail) => {
+            const name = detail.landCode || detail.landName || `Plot #${detail.landId}`;
+            const context = formatAssignmentContext(null, detail.startDate, detail.endDate);
+            return context ? `${name} · ${context}` : name;
+          }),
+          candidates: suggestions.map((plan) => ({
+            id: plan.id,
+            rank: plan.rank,
+            matches: compareCandidateToResearcherPlan(researcherResourceSignatures, plan).land,
+            items: plan.allocatedLands.map((item) => {
+              const name = item.landCode || item.soilType || `Plot #${item.landId}`;
+              const context = formatAssignmentContext(item.phaseName, item.startDate, item.endDate);
+              return context ? `${name} · ${context}` : name;
+            }),
+          })),
+        },
+      ]
+    : [];
+
+  const handleManagerRequestDecision = async (
+    decision: "approve" | "reject"
+  ) => {
+    if (!isManagerReviewMode || applying) return;
+
+    const isApprove = decision === "approve";
+    const confirmed = await showConfirm(
+      isApprove
+        ? `Approve Researcher Allocation Plan #${managerAllocationPlanId} without applying an AI candidate?`
+        : `Reject Researcher Allocation Plan #${managerAllocationPlanId}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setApplying(true);
+      setError(null);
+
+      const currentPlan = await getAllocationPlanById(managerAllocationPlanId);
+      if (String(currentPlan.approveStatus || "").toLowerCase() !== "pending") {
+        throw new Error("Only a Pending Researcher allocation plan can be approved or rejected.");
+      }
+
+      if (isApprove) {
+        await approveAllocationPlan(managerAllocationPlanId);
+      } else {
+        await rejectAllocationPlan(managerAllocationPlanId);
+      }
+
+      const message = isApprove
+        ? `Researcher Allocation Plan #${managerAllocationPlanId} was approved.`
+        : `Researcher Allocation Plan #${managerAllocationPlanId} was rejected.`;
+      sendLocalNotification({
+        title: isApprove ? "Allocation Plan Approved" : "Allocation Plan Rejected",
+        message,
+        notificationType: isApprove ? "Success" : "Warning",
+        referenceType: "AllocationPlan",
+        referenceId: managerAllocationPlanId,
+      });
+      void fetchUnreadCount();
+      navigate(`/allocation/${managerAllocationPlanId}`, {
+        state: { message },
+      });
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.title ||
+        err?.message ||
+        `Unable to ${decision} the Researcher allocation plan.`;
+      setError(message);
+      sendLocalNotification({
+        title: isApprove ? "Approval Failed" : "Rejection Failed",
+        message,
+        notificationType: "Error",
+        referenceType: "AllocationPlan",
+        referenceId: managerAllocationPlanId,
+      });
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const ensureAllocationPlan = async (): Promise<number> => {
     if (!experiment) {
@@ -1068,8 +1363,8 @@ export default function AISuggestionPage() {
     }
   };
 
-  // Apply the Researcher's chosen AI candidate to a Draft Allocation Plan,
-  // persist its exact Fitness Score, then submit Draft -> Pending for Manager.
+  // Researchers submit their selected AI candidate. Managers compare it with
+  // the Pending Researcher plan and approve it or replace it with a new plan.
   const handleApplySelectedPlan = async () => {
     if (!experiment || !selectedPlan) return;
 
@@ -1084,15 +1379,113 @@ export default function AISuggestionPage() {
       return;
     }
 
-    const confirmed = await showConfirm(
-      `Submit AI Candidate #${selectedPlan.rank} with Fitness Score ${fitnessScore.toFixed(2)} for Manager review?`
-    );
-
-    if (!confirmed) return;
-
     try {
       setApplying(true);
       setError(null);
+
+      if (isManagerReviewMode) {
+        const researcherPlan = await getAllocationPlanById(
+          managerAllocationPlanId
+        );
+        const sourceStatus = String(
+          researcherPlan.approveStatus || ""
+        ).toLowerCase();
+        const isRetryingReplacement =
+          sourceStatus === "rejected" && createdDraftPlanId !== null;
+
+        if (sourceStatus !== "pending" && !isRetryingReplacement) {
+          throw new Error(
+            "AI candidate review must start from a Pending Researcher allocation plan. Approved plans cannot be rejected."
+          );
+        }
+
+        const [sourceEquipment, sourceHumans, sourceLands] = await Promise.all([
+          getAllocationEquipmentDetails({
+            allocationPlanId: managerAllocationPlanId,
+            page: 1,
+            size: 500,
+          }),
+          getAllocationHumanDetails({
+            allocationPlanId: managerAllocationPlanId,
+            page: 1,
+            size: 500,
+          }),
+          getAllocationLandDetails({
+            allocationPlanId: managerAllocationPlanId,
+            page: 1,
+            size: 500,
+          }),
+        ]);
+
+        const comparison = compareCandidateToResearcherPlan(
+          createResearcherResourceSignatures(sourceEquipment, sourceHumans, sourceLands),
+          selectedPlan
+        );
+        const matchesResearcherResources = comparison.allMatch;
+
+        const confirmed = await showConfirm(
+          matchesResearcherResources && !isRetryingReplacement
+            ? `AI Candidate #${selectedPlan.rank} matches the Researcher's selected equipment, personnel, and land. Approve Allocation Plan #${managerAllocationPlanId}?`
+            : `AI Candidate #${selectedPlan.rank} differs from the Researcher's selected resources. Reject Allocation Plan #${managerAllocationPlanId} and approve this candidate as its replacement?`
+        );
+
+        if (!confirmed) return;
+
+        if (matchesResearcherResources && !isRetryingReplacement) {
+          await approveAllocationPlan(managerAllocationPlanId);
+          sendLocalNotification({
+            title: "Allocation Plan Approved",
+            message: `Allocation Plan #${managerAllocationPlanId} matches AI Candidate #${selectedPlan.rank} and was approved.`,
+            notificationType: "Success",
+            referenceType: "AllocationPlan",
+            referenceId: managerAllocationPlanId,
+          });
+          void fetchUnreadCount();
+          navigate(`/allocation/${managerAllocationPlanId}`, {
+            state: {
+              message: `Allocation Plan #${managerAllocationPlanId} matched AI Candidate #${selectedPlan.rank} and was approved.`,
+              planningMethod: "AI",
+            },
+          });
+          return;
+        }
+
+        const replacementPlanId = await ensureAllocationPlan();
+        if (sourceStatus === "pending") {
+          await rejectAllocationPlan(managerAllocationPlanId);
+        }
+
+        await clearDraftAllocationResources(replacementPlanId);
+        await persistSelectedAIResources(replacementPlanId);
+        const replacementEvaluation = await evaluateAllocationPlan(
+          replacementPlanId,
+          settings
+        );
+        await submitAllocationPlan(replacementPlanId);
+        await approveAllocationPlan(replacementPlanId);
+
+        sendLocalNotification({
+          title: "AI Allocation Approved",
+          message: `Allocation Plan #${managerAllocationPlanId} differed from AI Candidate #${selectedPlan.rank} and was rejected. Replacement Plan #${replacementPlanId} was approved with Fitness Score ${Number(replacementEvaluation.fitnessScore ?? fitnessScore).toFixed(2)}.`,
+          notificationType: "Success",
+          referenceType: "AllocationPlan",
+          referenceId: replacementPlanId,
+        });
+        void fetchUnreadCount();
+        navigate(`/allocation/${replacementPlanId}`, {
+          state: {
+            message: `The Researcher's Allocation Plan #${managerAllocationPlanId} was rejected. AI Candidate #${selectedPlan.rank} was approved as replacement Plan #${replacementPlanId}.`,
+            planningMethod: "AI",
+          },
+        });
+        return;
+      }
+
+      const confirmed = await showConfirm(
+        `Submit AI Candidate #${selectedPlan.rank} with Fitness Score ${fitnessScore.toFixed(2)} for Manager review?`
+      );
+
+      if (!confirmed) return;
 
       const planId = await ensureAllocationPlan();
 
@@ -1143,6 +1536,21 @@ export default function AISuggestionPage() {
     }
   };
 
+  if (isManagerRole && !isManagerReviewMode) {
+    return (
+      <DashboardLayout>
+        <div className="ai-page-container" style={{ padding: "32px 20px" }}>
+          <div className="ai-exp-summary-card" style={{ border: "1px solid #fde68a", background: "#fffdf7" }}>
+            <h2 style={{ margin: 0, fontSize: "22px" }}>Open AI suggestions from an allocation request</h2>
+            <p style={{ margin: "10px 0 0", color: "#5b5b5b", lineHeight: 1.6 }}>
+              Managers should open AI suggestions from a Pending Researcher request. Researchers can open comparison from their own Pending allocation plan.
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="ai-page-container">
@@ -1150,14 +1558,28 @@ export default function AISuggestionPage() {
         <div className="ai-page-breadcrumb">
           <Link to="/dashboard">Dashboard</Link>
           <ChevronRight size={14} />
-          <Link to="/experiments">Experiments</Link>
-          <ChevronRight size={14} />
-          {experiment ? (
-            <Link to={`/experiments/${experiment.experimentId}`}>
-              {experiment.experimentName}
-            </Link>
+          {hasPlanComparisonContext ? (
+            <>
+              <Link to="/allocation">Allocations</Link>
+              <ChevronRight size={14} />
+              <Link
+                to={`/allocation/${managerAllocationPlanId}`}
+              >
+                {isManagerReviewMode ? "Request Review" : "My Allocation Plan"}
+              </Link>
+            </>
           ) : (
-            <span>Experiment Planning</span>
+            <>
+              <Link to="/experiments">Experiments</Link>
+              <ChevronRight size={14} />
+              {experiment ? (
+                <Link to={`/experiments/${experiment.experimentId}`}>
+                  {experiment.experimentName}
+                </Link>
+              ) : (
+                <span>Experiment Planning</span>
+              )}
+            </>
           )}
           <ChevronRight size={14} />
           <span style={{ color: "#0f172a", fontWeight: 700 }}>
@@ -1180,7 +1602,9 @@ export default function AISuggestionPage() {
             <button
               type="button"
               onClick={() => {
-                if (experiment) {
+                if (hasPlanComparisonContext) {
+                  navigate(`/allocation/${managerAllocationPlanId}`);
+                } else if (experiment) {
                   navigate(`/experiments/${experiment.experimentId}`);
                 } else {
                   navigate("/experiments");
@@ -1189,7 +1613,11 @@ export default function AISuggestionPage() {
               className="btn-secondary-white"
               style={{ fontSize: "13px" }}
             >
-              Back to Experiment
+              {isManagerReviewMode
+                ? "Back to Request"
+                : isResearcherComparisonMode
+                  ? "Back to Allocation Plan"
+                  : "Back to Experiment"}
             </button>
 
             <button
@@ -1237,6 +1665,7 @@ export default function AISuggestionPage() {
               <select
                 id="experiment-picker-select"
                 value={selectedExpId || ""}
+                disabled={hasPlanComparisonContext}
                 onChange={(e) => {
                   const newId = Number(e.target.value);
                   setSelectedExpId(newId);
@@ -1626,6 +2055,171 @@ export default function AISuggestionPage() {
                 );
               })}
             </div>
+
+            {hasPlanComparisonContext && (
+              <section
+                aria-label="Researcher plan compared with AI suggestions"
+                style={{
+                  marginBottom: "16px",
+                  padding: "14px 16px",
+                  border: "1px solid #dbe4ee",
+                  borderRadius: "8px",
+                  background: "#ffffff",
+                }}
+              >
+                <div style={{ marginBottom: "12px" }}>
+                  <h3 style={{ margin: 0, color: "#0f172a", fontSize: "14px" }}>
+                    Researcher vs AI Suggestions
+                  </h3>
+                  <span style={{ display: "block", marginTop: "4px", color: "#64748b", fontSize: "12px" }}>
+                    Compare equipment, personnel, and land in the Researcher plan with every generated candidate.
+                  </span>
+                </div>
+
+                {loadingResearcherResources ? (
+                  <div style={{ padding: "18px 8px", color: "#64748b", fontSize: "12px" }}>
+                    Loading Researcher plan resources...
+                  </div>
+                ) : researcherResourcesError ? (
+                  <div role="alert" style={{ padding: "12px", color: "#b91c1c", background: "#fef2f2", borderRadius: "6px", fontSize: "12px" }}>
+                    {researcherResourcesError}
+                  </div>
+                ) : researcherPlanDetails ? (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", minWidth: "1040px", borderCollapse: "separate", borderSpacing: 0, fontSize: "11.5px" }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: "120px", padding: "10px", borderBottom: "1px solid #e2e8f0", textAlign: "left", color: "#475569" }}>
+                            Resource
+                          </th>
+                          <th style={{ minWidth: "220px", padding: "10px", borderBottom: "1px solid #e2e8f0", textAlign: "left", background: "#f8fafc", color: "#0f172a" }}>
+                            Researcher Plan
+                          </th>
+                          {suggestions.map((plan) => (
+                            <th
+                              key={plan.id}
+                              style={{ minWidth: "190px", padding: "10px", borderBottom: "1px solid #e2e8f0", textAlign: "left", color: plan.id === selectedPlanId ? "#15803d" : "#475569" }}
+                            >
+                              AI Candidate #{plan.rank}
+                              {plan.id === selectedPlanId ? " · Selected" : ""}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {researcherComparisonRows.map((row) => (
+                          <tr key={row.label}>
+                            <th style={{ padding: "10px", borderBottom: "1px solid #edf2f7", textAlign: "left", color: "#334155", verticalAlign: "top" }}>
+                              {row.label}
+                            </th>
+                            <td style={{ padding: "10px", borderBottom: "1px solid #edf2f7", background: "#f8fafc", verticalAlign: "top" }}>
+                              <div style={{ display: "grid", gap: "5px", color: "#334155" }}>
+                                {row.researcherItems.length > 0
+                                  ? row.researcherItems.map((item, index) => <span key={`${item}-${index}`}>{item}</span>)
+                                  : <span style={{ color: "#94a3b8" }}>No resource selected</span>}
+                              </div>
+                            </td>
+                            {suggestions.map((plan) => {
+                              const candidate = row.candidates.find((item) => item.id === plan.id);
+                              const matches = candidate?.matches ?? false;
+
+                              return (
+                                <td
+                                  key={plan.id}
+                                  style={{
+                                    padding: "10px",
+                                    borderBottom: "1px solid #edf2f7",
+                                    background: matches ? "#f0fdf4" : "#fff7ed",
+                                    verticalAlign: "top",
+                                  }}
+                                >
+                                  <div style={{ display: "grid", gap: "6px" }}>
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: matches ? "#15803d" : "#c2410c", fontSize: "10.5px", fontWeight: 700 }}>
+                                      {matches ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                                      {matches ? "MATCH" : "DIFFERENT"}
+                                    </span>
+                                    <div style={{ display: "grid", gap: "5px", color: "#334155" }}>
+                                      {candidate?.items.length
+                                        ? candidate.items.map((item, index) => <span key={`${item}-${index}`}>{item}</span>)
+                                        : <span style={{ color: "#94a3b8" }}>No resource selected</span>}
+                                    </div>
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </section>
+            )}
+
+            {hasPlanComparisonContext && (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  margin: "0 0 16px",
+                  padding: "14px 16px",
+                  border: `1px solid ${selectedPlanComparison?.allMatch ? "#86efac" : "#fed7aa"}`,
+                  borderRadius: "8px",
+                  background: selectedPlanComparison?.allMatch ? "#f0fdf4" : "#fff7ed",
+                }}
+              >
+                <strong style={{ display: "block", marginBottom: "10px", color: "#0f172a", fontSize: "13px" }}>
+                  Researcher Plan Comparison
+                </strong>
+                {loadingResearcherResources ? (
+                  <span style={{ color: "#64748b", fontSize: "12px" }}>
+                    Loading the Researcher's requested resources...
+                  </span>
+                ) : researcherResourcesError ? (
+                  <span style={{ color: "#b91c1c", fontSize: "12px" }}>
+                    {researcherResourcesError}
+                  </span>
+                ) : !selectedPlanComparison ? (
+                  <span style={{ color: "#64748b", fontSize: "12px" }}>
+                    Select a candidate to compare its resources with the Researcher's request.
+                  </span>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {[
+                        { label: "Equipment", matches: selectedPlanComparison.equipment },
+                        { label: "Personnel", matches: selectedPlanComparison.personnel },
+                        { label: "Land", matches: selectedPlanComparison.land },
+                      ].map(({ label, matches }) => (
+                        <span
+                          key={label}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            padding: "5px 9px",
+                            borderRadius: "5px",
+                            border: `1px solid ${matches ? "#86efac" : "#fdba74"}`,
+                            background: matches ? "#ffffff" : "#ffffff",
+                            color: matches ? "#15803d" : "#c2410c",
+                            fontSize: "12px",
+                            fontWeight: 650,
+                          }}
+                        >
+                          {matches ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                          {label}: {matches ? "Same as Researcher" : "Different"}
+                        </span>
+                      ))}
+                    </div>
+                    <p style={{ margin: "9px 0 0", color: selectedPlanComparison.allMatch ? "#15803d" : "#c2410c", fontSize: "12px", fontWeight: 600 }}>
+                      {selectedPlanComparison.allMatch
+                        ? "All compared resources, phases, and dates match. Approve the Researcher Plan."
+                        : "At least one resource, phase, or date differs. Reject the Researcher Plan or use this candidate as its replacement."}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Selected Plan Detailed Workspace Card */}
             {selectedPlan && (
@@ -2226,44 +2820,95 @@ export default function AISuggestionPage() {
             )}
 
             {/* Sticky Bottom Action Bar */}
-            {selectedPlan && (
+            {(selectedPlan || hasPlanComparisonContext) && (
               <div className="ai-sticky-action-bar">
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                   <button
                     type="button"
                     onClick={() => {
-                      if (experiment) navigate(`/experiments/${experiment.experimentId}`);
+                      if (hasPlanComparisonContext) {
+                        navigate(`/allocation/${managerAllocationPlanId}`);
+                      } else if (experiment) {
+                        navigate(`/experiments/${experiment.experimentId}`);
+                      }
                     }}
                     className="btn-secondary-white"
                   >
-                    Back to Experiment
+                    {isManagerReviewMode
+                      ? "Back to Request"
+                      : isResearcherComparisonMode
+                        ? "Back to Allocation Plan"
+                        : "Back to Experiment"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (experiment) navigate(`/experiments/${experiment.experimentId}/edit`);
-                    }}
-                    className="btn-secondary-white"
-                  >
-                    Switch to Manual Planning
-                  </button>
+                  {isManagerReviewMode && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleManagerRequestDecision("approve")}
+                        disabled={
+                          applying ||
+                          loadingResearcherResources ||
+                          Boolean(researcherResourcesError) ||
+                          Boolean(selectedPlan && !selectedPlanComparison?.allMatch)
+                        }
+                        className="btn-secondary-white"
+                        style={{ borderColor: "#16a34a", color: "#15803d" }}
+                      >
+                        <CheckCircle2 size={14} /> Approve Researcher Plan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleManagerRequestDecision("reject")}
+                        disabled={applying}
+                        className="btn-secondary-white"
+                        style={{ borderColor: "#ef4444", color: "#b91c1c" }}
+                      >
+                        <XCircle size={14} /> Reject Researcher Plan
+                      </button>
+                    </>
+                  )}
+                  {!hasPlanComparisonContext && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (experiment) navigate(`/experiments/${experiment.experimentId}/edit`);
+                      }}
+                      className="btn-secondary-white"
+                    >
+                      Switch to Manual Planning
+                    </button>
+                  )}
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                  <span style={{ fontSize: "13px", color: "#64748b" }}>
-                    Applying plan will submit experiment for Manager review.
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "14px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "12px", color: "#64748b", maxWidth: "460px" }}>
+                    {isManagerReviewMode
+                      ? "Matching resources approves the request; different resources reject it and submit this candidate as a replacement."
+                      : isResearcherComparisonMode
+                        ? "Comparison only. Return to your allocation plan to keep or revise your request."
+                        : "Applying plan will submit experiment for Manager review."}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => void handleApplySelectedPlan()}
-                    disabled={applying}
-                    className="btn-primary-green"
-                    style={{ padding: "12px 28px", fontSize: "14.5px" }}
-                  >
-                    {applying
-                      ? "Applying & Submitting Plan..."
-                      : `Apply & Submit Candidate #${selectedPlan.rank}`}
-                  </button>
+                  {!isResearcherComparisonMode && (
+                    <button
+                      type="button"
+                      onClick={() => void handleApplySelectedPlan()}
+                      disabled={applying || !selectedPlan}
+                      className="btn-primary-green"
+                      style={{ padding: "12px 28px", fontSize: "14.5px" }}
+                    >
+                      {applying
+                        ? isManagerReviewMode
+                          ? "Processing Candidate..."
+                          : "Applying..."
+                        : isManagerReviewMode
+                          ? selectedPlan
+                            ? `Use Candidate #${selectedPlan.rank}`
+                            : "Select AI Candidate"
+                          : selectedPlan
+                            ? `Apply & Submit Candidate #${selectedPlan.rank}`
+                            : "Select AI Candidate"}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

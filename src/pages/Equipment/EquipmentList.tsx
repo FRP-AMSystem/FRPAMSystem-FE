@@ -18,7 +18,9 @@ import {
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
+  createEquipmentType,
   getEquipmentTypes,
+  type EquipmentTrackingType,
 } from "../../services/equipmentService";
 
 import {
@@ -87,6 +89,15 @@ interface InstanceFormState {
   note: string;
 }
 
+interface TypeFormState {
+  equipmentCategoryId: string;
+  name: string;
+  trackingType: EquipmentTrackingType;
+  totalQuantity: string;
+  baseMaintenanceIntervalHours: string;
+  description: string;
+}
+
 const emptyInstanceForm: InstanceFormState = {
   equipmentTypeId: "",
   assetCode: "",
@@ -100,6 +111,15 @@ const emptyInstanceForm: InstanceFormState = {
   effectiveMaintenanceIntervalHours: "",
   maintenanceCount: "0",
   note: "",
+};
+
+const emptyTypeForm: TypeFormState = {
+  equipmentCategoryId: "",
+  name: "",
+  trackingType: "QuantityBased",
+  totalQuantity: "0",
+  baseMaintenanceIntervalHours: "",
+  description: "",
 };
 
 const EQUIPMENT_CONDITIONS: EquipmentConditionLevel[] = [
@@ -170,6 +190,7 @@ function getCategoryName(
   category: EquipmentCategory
 ): string {
   return (
+    category.equipmentCategoryName ||
     category.categoryName ||
     category.name ||
     `Category #${category.equipmentCategoryId}`
@@ -329,7 +350,7 @@ export default function EquipmentList() {
     activeTab,
     setActiveTab,
   ] = useState<TabType>(
-    "instances"
+    "types"
   );
 
   const [
@@ -379,6 +400,23 @@ export default function EquipmentList() {
     successMessage,
     setSuccessMessage,
   ] = useState("");
+
+  const [
+    typeFormOpen,
+    setTypeFormOpen,
+  ] = useState(false);
+
+  const [
+    typeForm,
+    setTypeForm,
+  ] = useState<TypeFormState>(
+    emptyTypeForm
+  );
+
+  const [
+    creatingType,
+    setCreatingType,
+  ] = useState(false);
 
   const [
     dialogMode,
@@ -684,6 +722,21 @@ export default function EquipmentList() {
     });
 
     setDialogMode("create");
+  };
+
+  const openCreateTypeDialog = () => {
+    setError("");
+    setSuccessMessage("");
+    setTypeForm({
+      ...emptyTypeForm,
+      equipmentCategoryId:
+        categories.length > 0
+          ? String(
+              categories[0].equipmentCategoryId
+            )
+          : "",
+    });
+    setTypeFormOpen(true);
   };
 
   const openViewDialog = async (
@@ -1073,10 +1126,70 @@ export default function EquipmentList() {
   const handleChangeTab = (
     tab: TabType
   ) => {
+    if (tab === "types") {
+      setActiveTab("types");
+      setSearch("");
+      setError("");
+      setSuccessMessage("");
+      return;
+    }
+
     setActiveTab(tab);
     setSearch("");
     setError("");
     setSuccessMessage("");
+  };
+
+  const handleCreateTypeSubmit = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    const categoryId = Number(typeForm.equipmentCategoryId);
+    const totalQuantity = Number(typeForm.totalQuantity);
+    const baseMaintenanceIntervalHours = typeForm.baseMaintenanceIntervalHours.trim()
+      ? Number(typeForm.baseMaintenanceIntervalHours)
+      : null;
+
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      setError("Please select a category for the equipment type.");
+      return;
+    }
+
+    if (!typeForm.name.trim()) {
+      setError("Equipment type name is required.");
+      return;
+    }
+
+    if (!Number.isFinite(totalQuantity) || totalQuantity < 0) {
+      setError("Total quantity must be 0 or greater.");
+      return;
+    }
+
+    try {
+      setCreatingType(true);
+      setError("");
+      setSuccessMessage("");
+
+      await createEquipmentType({
+        equipmentCategoryId: categoryId,
+        name: typeForm.name.trim(),
+        trackingType: typeForm.trackingType,
+        totalQuantity,
+        baseMaintenanceIntervalHours,
+        description: typeForm.description.trim() || null,
+      });
+
+      setSuccessMessage("Equipment type created successfully.");
+      setTypeFormOpen(false);
+      setTypeForm(emptyTypeForm);
+      await loadEquipmentData();
+    } catch (createError) {
+      console.error("Create equipment type failed:", createError);
+      setError(getErrorMessage(createError));
+    } finally {
+      setCreatingType(false);
+    }
   };
 
   const selectedType =
@@ -1120,21 +1233,23 @@ export default function EquipmentList() {
             </p>
           </div>
 
-          {canManage &&
-            activeTab ===
-              "instances" && (
-              <button
-                type="button"
-                className="equipment-create-btn"
-                onClick={
-                  openCreateDialog
-                }
-              >
-                <Plus size={16} />
+          {canManage && (
+            <button
+              type="button"
+              className="equipment-create-btn"
+              onClick={
+                activeTab === "types"
+                  ? openCreateTypeDialog
+                  : openCreateDialog
+              }
+            >
+              <Plus size={16} />
 
-                Add Equipment
-              </button>
-            )}
+              {activeTab === "types"
+                ? "Create Type"
+                : "Add Equipment"}
+            </button>
+          )}
         </div>
 
         {error && (
@@ -1156,56 +1271,8 @@ export default function EquipmentList() {
         )}
 
         <div className="equipment-toolbar">
-          <div className="equipment-tabs">
-            <button
-              type="button"
-              className={
-                activeTab ===
-                "instances"
-                  ? "active"
-                  : ""
-              }
-              onClick={() =>
-                handleChangeTab(
-                  "instances"
-                )
-              }
-            >
-              Instances
-            </button>
-
-            <button
-              type="button"
-              className={
-                activeTab === "types"
-                  ? "active"
-                  : ""
-              }
-              onClick={() =>
-                handleChangeTab(
-                  "types"
-                )
-              }
-            >
-              Types
-            </button>
-
-            <button
-              type="button"
-              className={
-                activeTab ===
-                "categories"
-                  ? "active"
-                  : ""
-              }
-              onClick={() =>
-                handleChangeTab(
-                  "categories"
-                )
-              }
-            >
-              Categories
-            </button>
+          <div className="equipment-tabs" style={{ display: "none" }}>
+            <button type="button" className="active">Types</button>
           </div>
 
           <input
@@ -1217,7 +1284,7 @@ export default function EquipmentList() {
                 event.target.value
               )
             }
-            placeholder="Search equipment..."
+            placeholder="Search equipment types..."
           />
         </div>
 
@@ -1662,6 +1729,147 @@ export default function EquipmentList() {
                 </div>
               )}
           </>
+        )}
+
+        {typeFormOpen && (
+          <div
+            className="equipment-modal-overlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !creatingType) {
+                setTypeFormOpen(false);
+              }
+            }}
+          >
+            <div className="equipment-modal">
+              <div className="equipment-modal-header">
+                <div>
+                  <h2>Create Equipment Type</h2>
+                  <p>Add a new equipment type to the master catalog.</p>
+                </div>
+                <button
+                  type="button"
+                  className="equipment-modal-close"
+                  onClick={() => setTypeFormOpen(false)}
+                  disabled={creatingType}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateTypeSubmit} className="equipment-modal-body">
+                <div className="equipment-form-grid">
+                  <label>
+                    <span>Category</span>
+                    <select
+                      value={typeForm.equipmentCategoryId}
+                      onChange={(event) =>
+                        setTypeForm((current) => ({
+                          ...current,
+                          equipmentCategoryId: event.target.value,
+                        }))
+                      }
+                      disabled={creatingType}
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((category) => (
+                        <option
+                          key={category.equipmentCategoryId}
+                          value={category.equipmentCategoryId}
+                        >
+                          {getCategoryName(category)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Type Name</span>
+                    <input
+                      value={typeForm.name}
+                      onChange={(event) =>
+                        setTypeForm((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                      placeholder="e.g. Excavator"
+                      disabled={creatingType}
+                    />
+                  </label>
+
+                  <label>
+                    <span>Tracking Type</span>
+                    <select
+                      value={typeForm.trackingType}
+                      onChange={(event) =>
+                        setTypeForm((current) => ({
+                          ...current,
+                          trackingType: event.target.value as EquipmentTrackingType,
+                        }))
+                      }
+                      disabled={creatingType}
+                    >
+                      <option value="QuantityBased">Quantity Based</option>
+                      <option value="Individual">Individual</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Total Quantity</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={typeForm.totalQuantity}
+                      onChange={(event) =>
+                        setTypeForm((current) => ({
+                          ...current,
+                          totalQuantity: event.target.value,
+                        }))
+                      }
+                      disabled={creatingType}
+                    />
+                  </label>
+
+                  <label className="full-width">
+                    <span>Description</span>
+                    <textarea
+                      value={typeForm.description}
+                      onChange={(event) =>
+                        setTypeForm((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                      placeholder="Optional description"
+                      disabled={creatingType}
+                      rows={4}
+                    />
+                  </label>
+                </div>
+
+                <div className="equipment-modal-actions">
+                  <button
+                    type="button"
+                    className="equipment-secondary-btn"
+                    onClick={() => setTypeFormOpen(false)}
+                    disabled={creatingType}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="equipment-primary-btn"
+                    disabled={creatingType}
+                  >
+                    {creatingType ? "Creating..." : "Create Type"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
 
         {dialogMode && (

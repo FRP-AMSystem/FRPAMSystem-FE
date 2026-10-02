@@ -52,7 +52,7 @@ const permissions: Record<Role, RolePermission> = {
     canDelete: false,
     canApprove: true,
     canReject: true,
-    canCancel: true,
+    canCancel: false,
   },
   Researcher: {
     canCreate: true,

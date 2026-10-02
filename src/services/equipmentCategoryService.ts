@@ -106,6 +106,16 @@ function normalizeEquipmentCategory(
           ? item.name
           : "";
 
+  const categoryName =
+    equipmentCategoryName ||
+    (typeof item.categoryName ===
+    "string"
+      ? item.categoryName
+      : typeof item.name ===
+          "string"
+        ? item.name
+        : "");
+
   return {
     equipmentCategoryId: Number(
       item.equipmentCategoryId ??
@@ -114,7 +124,8 @@ function normalizeEquipmentCategory(
         0
     ),
 
-    equipmentCategoryName,
+    equipmentCategoryName: categoryName,
+    categoryName,
 
     description:
       typeof item.description ===

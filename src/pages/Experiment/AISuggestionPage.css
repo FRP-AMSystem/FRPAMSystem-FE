@@ -43,8 +43,10 @@
 
 .ai-page-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   gap: 16px;
   margin-bottom: 16px;
   flex-wrap: wrap;
@@ -587,6 +589,15 @@
 }
 
 @media (max-width: 768px) {
+  .ai-sticky-action-bar {
+    padding: 10px 12px;
+    align-items: stretch;
+  }
+
+  .ai-sticky-action-bar > div {
+    width: 100%;
+  }
+
   .ai-candidates-grid {
     grid-template-columns: 1fr;
   }
@@ -596,7 +607,7 @@
   }
 
   .ai-page-container {
-    padding: 14px 14px 90px;
+    padding: 14px 14px 150px;
   }
 }
 

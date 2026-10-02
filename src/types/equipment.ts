@@ -19,6 +19,7 @@ export type EquipmentInstanceStatus =
 export interface EquipmentCategory {
   equipmentCategoryId: number;
 
+  equipmentCategoryName: string;
   categoryName?: string | null;
   name?: string | null;
 

@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import {
+  AlertTriangle,
   CheckCircle2,
   Cpu,
   PackageCheck,
@@ -35,6 +36,7 @@ import {
 import { getAllocationPlanById } from "../../services/allocationPlanService";
 import { getExperimentById } from "../../services/experimentService";
 import { getExperimentPhases } from "../../services/experimentPhaseService";
+import { getUsers } from "../../services/userService";
 
 import {
   confirmEquipmentReturn,
@@ -152,6 +154,10 @@ export default function EquipmentReturnPage() {
   ] = useState<
     EquipmentReturn[]
   >([]);
+
+  const [returnerNamesById, setReturnerNamesById] = useState<
+    Record<number, string>
+  >({});
 
   const [handoverRecords, setHandoverRecords] = useState<
     EquipmentHandoverRecord[]
@@ -291,6 +297,7 @@ export default function EquipmentReturnPage() {
             allocationList,
             returns,
             handovers,
+            users,
           ] = await Promise.all([
             getAllocationEquipmentDetails({
               size: 400,
@@ -303,6 +310,8 @@ export default function EquipmentReturnPage() {
             getEquipmentHandovers({
               size: 400,
             }).catch(() => []),
+
+            getUsers(),
           ]);
 
           setItems(
@@ -311,6 +320,13 @@ export default function EquipmentReturnPage() {
 
           setReturnRecords(
             returns || []
+          );
+          setReturnerNamesById(
+            Object.fromEntries(
+              users
+                .filter((user) => user.userId && user.fullName)
+                .map((user) => [user.userId as number, user.fullName])
+            )
           );
           setHandoverRecords(handovers || []);
 
@@ -712,6 +728,9 @@ export default function EquipmentReturnPage() {
               item.experimentName,
               item.phaseName,
               returnRecord?.returnedByUser?.fullName ?? returnRecord?.returnedByUser?.username,
+              returnRecord?.returnedBy
+                ? returnerNamesById[returnRecord.returnedBy]
+                : undefined,
               returnRecord?.returnedBy,
               returnRecord?.receivedByUser?.fullName ?? returnRecord?.receivedByUser?.username,
               returnRecord?.note,
@@ -877,6 +896,34 @@ export default function EquipmentReturnPage() {
         ""
     );
 
+    setRejectReason(
+      returnRecord?.note ||
+        ""
+    );
+  };
+
+  const openDamagedReturnModal = (
+    item: AllocationEquipmentDetail
+  ) => {
+    const returnRecord =
+      getReturnForAllocation(
+        item.allocationEquipmentDetailId
+      );
+
+    setReturnModalItem(
+      item
+    );
+    setReturnCondition(
+      "Poor"
+    );
+    setReturnNotes(
+      returnRecord?.note ||
+        ""
+    );
+    setDamageDescription(
+      returnRecord?.damageDescription ||
+        ""
+    );
     setRejectReason(
       returnRecord?.note ||
         ""
@@ -1624,20 +1671,37 @@ export default function EquipmentReturnPage() {
         "pending"
     ) {
       return (
-        <button
-          type="button"
-          className="eq-action-btn eq-action-return"
-          onClick={() =>
-            openReturnModal(
-              item
-            )
-          }
-        >
-          <RotateCcw
-            size={15}
-          />
-          Trả thiết bị
-        </button>
+        <div className="eq-action-stack">
+          <button
+            type="button"
+            className="eq-action-btn eq-action-damaged"
+            onClick={() =>
+              openDamagedReturnModal(
+                item
+              )
+            }
+          >
+            <AlertTriangle
+              size={15}
+            />
+            Báo hỏng
+          </button>
+
+          <button
+            type="button"
+            className="eq-action-btn eq-action-return"
+            onClick={() =>
+              openReturnModal(
+                item
+              )
+            }
+          >
+            <RotateCcw
+              size={15}
+            />
+            Trả thiết bị
+          </button>
+        </div>
       );
     }
 
@@ -1692,6 +1756,10 @@ export default function EquipmentReturnPage() {
     normalizeStatus(
       currentReturnRecord?.status
     );
+
+  const isDamagedReturnFlow =
+    returnCondition === "Poor" ||
+    returnCondition === "Critical";
 
   /* =======================================================
      RENDER
@@ -2147,7 +2215,7 @@ export default function EquipmentReturnPage() {
                                 <strong>
                                   {returnRecord?.returnedByUser?.fullName || returnRecord?.returnedByUser?.username  ||
                                     (returnRecord?.returnedBy
-                                      ? `Người dùng #${returnRecord.returnedBy}`
+                                      ? returnerNamesById[returnRecord.returnedBy] || `Người dùng #${returnRecord.returnedBy}`
                                       : "-")}
                                 </strong>
 
@@ -2428,13 +2496,17 @@ export default function EquipmentReturnPage() {
                   <h2>
                     {isManager
                       ? "Xác nhận trả thiết bị"
-                      : "Trả thiết bị"}
+                      : isDamagedReturnFlow
+                        ? "Báo hỏng & trả thiết bị"
+                        : "Trả thiết bị"}
                   </h2>
 
                   <p>
                     {isManager
                       ? "Kiểm tra thông tin và tình trạng thiết bị trước khi nghiệm thu."
-                      : "Khai báo tình trạng thiết bị trước khi gửi yêu cầu trả."}
+                      : isDamagedReturnFlow
+                        ? "Ghi nhận hư hỏng và gửi yêu cầu trả thiết bị đã bị lỗi trong quá trình sử dụng."
+                        : "Khai báo tình trạng thiết bị trước khi gửi yêu cầu trả."}
                   </p>
                 </div>
 
@@ -2544,77 +2616,90 @@ export default function EquipmentReturnPage() {
                 {isManager ? (
                   <>
 
-                    <div className="eq-form-group">
-                      <label>
-                        Người gửi trả
-                      </label>
+                    <div className="eq-manager-summary-grid">
+                      <div className="eq-form-group">
+                        <label>
+                          Người gửi trả
+                        </label>
 
-                      <input
-                        type="text"
-                        value={
-                          currentReturnRecord?.returnedByUser?.fullName || currentReturnRecord?.returnedByUser?.username  ||
-                          (currentReturnRecord?.returnedBy
-                            ? `Người dùng #${currentReturnRecord.returnedBy}`
-                            : "-")
-                        }
-                        disabled
-                      />
+                        <input
+                          type="text"
+                          className="eq-readonly-input"
+                          value={
+                            currentReturnRecord?.returnedByUser?.fullName || currentReturnRecord?.returnedByUser?.username  ||
+                            (currentReturnRecord?.returnedBy
+                              ? returnerNamesById[currentReturnRecord.returnedBy] || `Người dùng #${currentReturnRecord.returnedBy}`
+                              : "-")
+                          }
+                          disabled
+                        />
+                      </div>
+
+                      <div className="eq-form-group">
+                        <label>
+                          Ngày gửi trả
+                        </label>
+
+                        <input
+                          type="text"
+                          className="eq-readonly-input"
+                          value={formatDate(
+                            currentReturnRecord?.returnDate
+                          )}
+                          disabled
+                        />
+                      </div>
                     </div>
 
-                    <div className="eq-form-group">
-                      <label>
-                        Ngày gửi trả
-                      </label>
+                    <div className="eq-manager-summary-grid">
+                      <div className="eq-form-group">
+                        <label>
+                          Tình trạng sau sử
+                          dụng
+                        </label>
 
-                      <input
-                        type="text"
-                        value={formatDate(
-                          currentReturnRecord?.returnDate
-                        )}
-                        disabled
-                      />
-                    </div>
+                        <input
+                          type="text"
+                          className="eq-readonly-input"
+                          value={
+                            currentReturnRecord?.conditionAfter ||
+                            "-"
+                          }
+                          disabled
+                        />
+                      </div>
 
-                    <div className="eq-form-group">
-                      <label>
-                        Tình trạng sau sử
-                        dụng
-                      </label>
+                      <div className="eq-form-group">
+                        <label>
+                          Có hư hỏng
+                        </label>
 
-                      <input
-                        type="text"
-                        value={
-                          currentReturnRecord?.conditionAfter ||
-                          "-"
-                        }
-                        disabled
-                      />
-                    </div>
-
-                    <div className="eq-form-group">
-                      <label>
-                        Có hư hỏng
-                      </label>
-
-                      <input
-                        type="text"
-                        value={
-                          currentReturnRecord?.isDamaged
-                            ? "Có"
-                            : "Không"
-                        }
-                        disabled
-                      />
+                        <input
+                          type="text"
+                          className={
+                            currentReturnRecord?.isDamaged
+                              ? "eq-readonly-input eq-readonly-input-danger"
+                              : "eq-readonly-input eq-readonly-input-success"
+                          }
+                          value={
+                            currentReturnRecord?.isDamaged
+                              ? "Có"
+                              : "Không"
+                          }
+                          disabled
+                        />
+                      </div>
                     </div>
 
                     {currentReturnRecord?.damageDescription && (
-                      <div className="eq-form-group">
+                      <div className="eq-form-group eq-form-group-highlight">
 
                         <label>
                           Mô tả hư hỏng
                         </label>
 
                         <textarea
+                          className="eq-readonly-textarea"
                           value={
                             currentReturnRecord.damageDescription
                           }
@@ -2633,6 +2718,7 @@ export default function EquipmentReturnPage() {
                       </label>
 
                       <textarea
+                        className="eq-readonly-textarea"
                         value={
                           currentReturnRecord?.note ||
                           ""
@@ -2941,7 +3027,9 @@ export default function EquipmentReturnPage() {
 
                     {actionLoading
                       ? "Đang gửi..."
-                      : "Gửi yêu cầu trả"}
+                      : isDamagedReturnFlow
+                        ? "Gửi báo hỏng & trả thiết bị"
+                        : "Gửi yêu cầu trả"}
                   </button>
                 )}
 

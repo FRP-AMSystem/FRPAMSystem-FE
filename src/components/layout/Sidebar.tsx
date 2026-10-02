@@ -115,11 +115,6 @@ const planningItems: MenuItem[] = [
     path: "/allocation",
     icon: CalendarDays,
   },
-  {
-    name: "AI Suggestions",
-    path: "/experiments/ai-suggestions",
-    icon: Sparkles,
-  },
 ];
 
 const humanResourceItems: MenuItem[] = [
@@ -188,11 +183,6 @@ const standardOperations: MenuItem[] = [
     name: "Equipment Return",
     path: "/equipment-return",
     icon: RotateCcw,
-  },
-  {
-    name: "Conflicts",
-    path: "/conflicts",
-    icon: AlertTriangle,
   },
   {
     name: "Reports",

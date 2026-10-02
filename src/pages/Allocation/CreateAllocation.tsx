@@ -33,6 +33,7 @@ import {
   createAllocationPlan,
   evaluateAllocationPlan,
   getAllocationPlanById,
+  getAllocationPlans,
   simulateAllocationPlanFitness,
   submitAllocationPlan,
 } from "../../services/allocationPlanService";
@@ -529,8 +530,11 @@ export default function CreateAllocation() {
   const currentUserInfo =
     getCurrentUserTokenInfo();
 
+  const isManagerRole =
+    currentUserInfo.role === "Manager";
+
   const isManagerAllocation =
-    currentUserInfo.role === "Manager" &&
+    isManagerRole &&
     initialPlanId > 0;
 
   // In Manager allocation mode, allocationPlanId is the source of truth.
@@ -865,12 +869,23 @@ export default function CreateAllocation() {
           role,
         } = currentUser;
 
+        if (isManagerRole && !initialPlanId) {
+          setAllExperiments([]);
+          setSelectedExpId(0);
+          setError(
+            "Manager allocation must start from an approved Allocation Plan. Please open this page from the plan detail screen."
+          );
+          setLoading(false);
+          return;
+        }
+
         const isPrivileged =
           role === "Admin" ||
           role === "Manager";
 
         const [
           expRes,
+          approvedPlansRes,
           equipRes,
           equipmentAllocationsRes,
           substitutionRes,
@@ -888,6 +903,11 @@ export default function CreateAllocation() {
                   : undefined,
 
               size: 100,
+            }).catch(() => []),
+
+            getAllocationPlans({
+              approveStatus: "Approved",
+              size: 500,
             }).catch(() => []),
 
             getEquipmentInstances({
@@ -922,6 +942,19 @@ export default function CreateAllocation() {
             : (expRes as any)
                 ?.items || [];
 
+        const approvedExperimentIds = new Set(
+          (Array.isArray(approvedPlansRes)
+            ? approvedPlansRes
+            : []
+          )
+            .map((plan) => Number(plan.experimentId))
+            .filter(
+              (experimentId) =>
+                Number.isFinite(experimentId) &&
+                experimentId > 0
+            )
+        );
+
         /*
          * Resource Allocation Request chỉ được tạo sau khi Experiment
          * đã được Manager approve.
@@ -946,7 +979,7 @@ export default function CreateAllocation() {
           );
 
         const exps =
-          isPrivileged
+          (isPrivileged
             ? approvedExperiments
             : approvedExperiments.filter(
                 (
@@ -972,7 +1005,13 @@ export default function CreateAllocation() {
                         )
                     )
                   )
-              );
+              )
+          ).filter(
+            (item: ExperimentResponse) =>
+              !approvedExperimentIds.has(
+                Number(item.experimentId)
+              )
+          );
 
         setAllExperiments(exps);
 
@@ -1326,8 +1365,86 @@ export default function CreateAllocation() {
         );
 
         // Reset phase selections
-        setSelectedEquipByPhase({});
-        setSelectedHumansByPhase({});
+        const initialSelectedEquipByPhase: Record<number, number[]> = {};
+        const initialSelectedHumansByPhase: Record<number, number[]> = {};
+        let initialSelectedLandId: number | null = null;
+
+        if (isManagerAllocation && initialPlanId > 0) {
+          const [managerEquipmentDetails, managerHumanDetails, managerLandDetails] = await Promise.all([
+            getAllocationEquipmentDetails({
+              allocationPlanId: initialPlanId,
+              size: 500,
+            }).catch(() => []),
+            getAllocationHumanDetails({
+              allocationPlanId: initialPlanId,
+              size: 500,
+            }).catch(() => []),
+            getAllocationLandDetails({
+              allocationPlanId: initialPlanId,
+              size: 500,
+            }).catch(() => []),
+          ]);
+
+          for (const detail of managerEquipmentDetails) {
+            const detailInstanceId = Number(detail.equipmentInstanceId ?? 0);
+            if (!detailInstanceId) {
+              continue;
+            }
+
+            let phaseId = Number(detail.phaseId ?? 0);
+            if (!phaseId && detail.phaseEquipmentReqId) {
+              const phaseRequirement = phaseEquipmentReqs.find(
+                (requirement) =>
+                  Number(requirement.phaseEquipmentReqId) === Number(detail.phaseEquipmentReqId)
+              );
+              phaseId = Number(phaseRequirement?.phaseId ?? 0);
+            }
+            if (!phaseId && matchedPhases.length === 1) {
+              phaseId = matchedPhases[0].experimentPhaseId;
+            }
+            if (!phaseId) {
+              continue;
+            }
+
+            initialSelectedEquipByPhase[phaseId] = [
+              ...(initialSelectedEquipByPhase[phaseId] || []),
+              detailInstanceId,
+            ];
+          }
+
+          for (const detail of managerHumanDetails) {
+            const humanId = Number(detail.humanResourceId ?? 0);
+            if (!humanId) {
+              continue;
+            }
+
+            let phaseId = Number(detail.phaseId ?? 0);
+            if (!phaseId && detail.phaseHumanReqId) {
+              const phaseRequirement = phaseHumanReqs.find(
+                (requirement) =>
+                  Number(requirement.phaseHumanReqId) === Number(detail.phaseHumanReqId)
+              );
+              phaseId = Number(phaseRequirement?.phaseId ?? 0);
+            }
+            if (!phaseId && matchedPhases.length === 1) {
+              phaseId = matchedPhases[0].experimentPhaseId;
+            }
+            if (!phaseId) {
+              continue;
+            }
+
+            initialSelectedHumansByPhase[phaseId] = [
+              ...(initialSelectedHumansByPhase[phaseId] || []),
+              humanId,
+            ];
+          }
+
+          initialSelectedLandId = managerLandDetails.find((detail) => detail.landId)?.landId ?? null;
+        }
+
+        setSelectedEquipByPhase(initialSelectedEquipByPhase);
+        setSelectedHumansByPhase(initialSelectedHumansByPhase);
+        setSelectedLandId(initialSelectedLandId);
 
         /*
          * FLOW MỚI:
@@ -1351,7 +1468,6 @@ export default function CreateAllocation() {
           setDraftPlanId(null);
         }
 
-        setSelectedLandId(null);
         setFitnessScore(null);
         setFitnessEvaluationMessage("");
         setFitnessBreakdown(null);
@@ -3968,37 +4084,6 @@ export default function CreateAllocation() {
       }
     };
 
-  // AI Allocation Handler
-  const handleStartAIAllocation =
-    () => {
-      if (
-        !selectedExpId
-      ) {
-        setError(
-          "Please select an experiment first."
-        );
-
-        return;
-      }
-
-      /*
-       * AI resource optimizer thuộc bước Manager allocation.
-       */
-      if (
-        !isManagerAllocation
-      ) {
-        setError(
-          "AI Resource Optimizer is available after Manager approves the Allocation Plan."
-        );
-
-        return;
-      }
-
-      navigate(
-        `/experiments/${selectedExpId}/ai-suggestions?allocationPlanId=${initialPlanId}`
-      );
-    };
-
   return (
     <DashboardLayout>
       <div className="create-allocation-page">
@@ -4128,15 +4213,19 @@ export default function CreateAllocation() {
             </button>
 
             <h1>
-              {isManagerAllocation
-                ? "Allocate Resources"
-                : "Request Allocation Resources"}
+              {isManagerRole && !isManagerAllocation
+                ? "Manager Allocation Review"
+                : isManagerAllocation
+                  ? "Allocate Resources"
+                  : "Request Allocation Resources"}
             </h1>
 
             <p>
-              {isManagerAllocation
-                ? "Allocate personnel, equipment and land to the approved Allocation Plan."
-                : "Select proposed resources and submit the resource allocation request for Manager approval."}
+              {isManagerRole && !isManagerAllocation
+                ? "Manager approval is required before allocation can start. Open this page from an approved allocation plan to continue."
+                : isManagerAllocation
+                  ? "Allocate personnel, equipment and land to the approved Allocation Plan."
+                  : "Select proposed resources and submit the resource allocation request for Manager approval."}
             </p>
           </div>
         </div>
@@ -4144,6 +4233,17 @@ export default function CreateAllocation() {
         {loading ? (
           <div className="alloc-loading">
             Loading resource inventory...
+          </div>
+        ) : isManagerRole && !isManagerAllocation ? (
+          <div className="alloc-section">
+            <div className="alloc-section-header">
+              <div>
+                <h2>Manager allocation is plan-driven</h2>
+                <p>
+                  This screen is only for approved Allocation Plans. Please open it from the approved plan detail page to continue with resource assignment.
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           <>
@@ -5439,219 +5539,8 @@ export default function CreateAllocation() {
               </>
             )}
 
-            <div
-              className="alloc-section-card full-width"
-              style={{
-                marginBottom: "20px",
-                padding: "16px 18px",
-              }}
-            >
-              <div className="alloc-section-header">
-                <div>
-                  <h4>4. Fitness Score</h4>
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      color: "#64748b",
-                      fontWeight: 400,
-                    }}
-                  >
-                    Simulate the current resource selection before submitting.
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => void handleEvaluateFitnessScore()}
-                  disabled={
-                    evaluatingFitness ||
-                    submitting ||
-                    !selectedExpId ||
-                    Math.abs(evaluationWeightTotal - 100) > 0.001
-                  }
-                  className="alloc-btn-ai"
-                >
-                  <Sparkles size={15} />
-                  {evaluatingFitness
-                    ? "Simulating..."
-                    : "Simulate Fitness Score"}
-                </button>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: "12px",
-                  marginTop: "14px",
-                }}
-              >
-                {[
-                  { key: "equipmentWeight", label: "Equipment Weight" },
-                  { key: "humanWeight", label: "Personnel Weight" },
-                  { key: "landWeight", label: "Land Weight" },
-                ].map(({ key, label }) => (
-                  <label
-                    key={key}
-                    style={{
-                      display: "grid",
-                      gap: "5px",
-                      color: "#475569",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {label} (%)
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      inputMode="numeric"
-                      value={weightInputs[key as keyof EvaluationWeightPlan]}
-                      onChange={(event) =>
-                        handleWeightInputChange(
-                          key as keyof EvaluationWeightPlan,
-                          event.target.value
-                        )
-                      }
-                      onBlur={() =>
-                        handleWeightBlur(key as keyof EvaluationWeightPlan)
-                      }
-                      aria-label={`${label} percentage`}
-                      style={{
-                        width: "100%",
-                        minHeight: "38px",
-                        boxSizing: "border-box",
-                        padding: "8px 10px",
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "6px",
-                        backgroundColor: "#ffffff",
-                        color: "#0f172a",
-                        colorScheme: "light",
-                        fontSize: "14px",
-                        fontWeight: 500,
-                      }}
-                    />
-                  </label>
-                ))}
-              </div>
-
-              <div
-                role="status"
-                aria-live="polite"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                  marginTop: "10px",
-                  color:
-                    Math.abs(evaluationWeightTotal - 100) <= 0.001
-                      ? "#15803d"
-                      : "#b45309",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                }}
-              >
-                <span>Weight total</span>
-                <span>
-                  {evaluationWeightTotal}% / 100%
-                  {Math.abs(evaluationWeightTotal - 100) <= 0.001
-                    ? " · Ready"
-                    : " · Adjust weights to exactly 100%"}
-                </span>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "14px",
-                  marginTop: "12px",
-                  padding: "12px 14px",
-                  border: "1px solid #dbeafe",
-                  borderRadius: "7px",
-                  background: "#f8fbff",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#64748b",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Fitness Score
-                  </div>
-                  <strong
-                    style={{
-                      display: "block",
-                      marginTop: "3px",
-                      color: fitnessScore === null ? "#64748b" : "#15803d",
-                      fontSize: "24px",
-                    }}
-                  >
-                    {fitnessScore === null
-                      ? "Not calculated"
-                      : Number(fitnessScore).toFixed(2)}
-                  </strong>
-                </div>
-              </div>
-
-              {fitnessBreakdown && (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                    gap: "10px",
-                    marginTop: "10px",
-                  }}
-                >
-                  {[
-                    { label: "Equipment", result: fitnessBreakdown.equipment },
-                    { label: "Personnel", result: fitnessBreakdown.human },
-                    { label: "Land", result: fitnessBreakdown.land },
-                  ].map(({ label, result }) => (
-                    <div
-                      key={label}
-                      style={{
-                        padding: "10px 12px",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "7px",
-                        background: "#fff",
-                      }}
-                    >
-                      <span style={{ color: "#64748b", fontSize: "11px" }}>
-                        {label}
-                      </span>
-                      {result.score !== null && (
-                        <strong
-                          style={{
-                            display: "block",
-                            marginTop: "4px",
-                            color: "#0f172a",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {`${result.score.toFixed(2)}%`}
-                        </strong>
-                      )}
-                      <span style={{ color: "#64748b", fontSize: "11px" }}>
-                        Weight {result.weight}%
-                        {result.contribution === null
-                          ? ""
-                          : ` · Contribution ${result.contribution.toFixed(2)}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* =========================================================
-                5. BOTTOM ACTION
+                4. BOTTOM ACTION
             ========================================================= */}
 
             <div className="alloc-summary-card">
@@ -5688,32 +5577,15 @@ export default function CreateAllocation() {
               )}
 
               <div className="alloc-action-buttons">
-                {isManagerAllocation && (
-                  <button
-                    type="button"
-                    onClick={
-                      handleStartAIAllocation
-                    }
-                    disabled={
-                      !selectedExpId ||
-                      submitting
-                    }
-                    className="alloc-btn-manual"
-                  >
-                    Use AI Suggestion Optimizer
-                  </button>
-                )}
-
                 <button
                   type="button"
-                  onClick={() =>
-                    void handleSaveAndSubmitPlan()
-                  }
+                  onClick={() => void handleSaveAndSubmitPlan()}
                   disabled={
                     submitting ||
                     evaluatingFitness ||
                     initializingDraftPlan ||
-                    !selectedExpId
+                    !selectedExpId ||
+                    (isManagerRole && !isManagerAllocation)
                   }
                   className="alloc-btn-ai"
                 >

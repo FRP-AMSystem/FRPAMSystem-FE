@@ -264,10 +264,12 @@ export default function AllocationDetail() {
 
   const canApprove = role === "Manager" && plan?.approveStatus === "Pending";
   const canReject = role === "Manager" && plan?.approveStatus === "Pending";
+  const canReviewAISuggestions = role === "Manager" && plan?.approveStatus === "Pending";
+  const canCompareAISuggestions = role === "Researcher" && plan?.approveStatus === "Pending";
   const canAllocateResources =
     role === "Manager" && plan?.approveStatus === "Approved";
   const canCancel =
-    (role === "Manager" || role === "Researcher") &&
+    role === "Researcher" &&
     plan?.approveStatus === "Pending";
   const canEdit = role === "Researcher" && plan?.approveStatus === "Draft";
 
@@ -1172,6 +1174,8 @@ export default function AllocationDetail() {
               {/* Action Buttons */}
               {(canApprove ||
                 canReject ||
+                canReviewAISuggestions ||
+                canCompareAISuggestions ||
                 canCancel ||
                 canEdit ||
                 canAllocateResources ||
@@ -1196,6 +1200,36 @@ export default function AllocationDetail() {
                         className="alloc-btn alloc-btn-approve"
                       >
                         <CheckCircle2 size={15} /> Approve Resource Request
+                      </button>
+                    )}
+
+                    {canReviewAISuggestions && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `/allocation/${plan.allocationPlanId}/ai-suggestions?experimentId=${plan.experimentId}&allocationPlanId=${plan.allocationPlanId}`
+                          )
+                        }
+                        disabled={actionLoading}
+                        className="alloc-btn alloc-btn-approve"
+                      >
+                        <Sparkles size={15} /> AI Suggestion
+                      </button>
+                    )}
+
+                    {canCompareAISuggestions && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `/allocation/${plan.allocationPlanId}/ai-suggestions?experimentId=${plan.experimentId}&allocationPlanId=${plan.allocationPlanId}`
+                          )
+                        }
+                        disabled={actionLoading}
+                        className="alloc-btn alloc-btn-edit"
+                      >
+                        <Sparkles size={15} /> Compare AI Suggestions
                       </button>
                     )}
 

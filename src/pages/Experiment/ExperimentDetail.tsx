@@ -1839,7 +1839,7 @@ export default function ExperimentDetail() {
                         className="btn-primary-green"
                         style={{ whiteSpace: "nowrap" }}
                       >
-                        Start Resource Allocation
+                        Send Resource Allocation Request
                       </button>
 
                       <button
