@@ -94,7 +94,7 @@ export const ResearcherKpiCards: React.FC<ResearcherKpiCardsProps> = ({
       {/* 3. AI Optimization Quality */}
       <div className="researcher-kpi-card">
         <div className="researcher-kpi-header">
-          <span className="researcher-kpi-title">Avg. AI Match Score</span>
+          <span className="researcher-kpi-title">Avg.Fitness Score</span>
           <div className="researcher-kpi-icon icon-purple">
             <Sparkles size={18} />
           </div>
@@ -116,7 +116,7 @@ export const ResearcherKpiCards: React.FC<ResearcherKpiCardsProps> = ({
         style={{ cursor: "pointer" }}
       >
         <div className="researcher-kpi-header">
-          <span className="researcher-kpi-title">Upcoming Tasks (14d)</span>
+          <span className="researcher-kpi-title">Upcoming Tasks</span>
           <div className="researcher-kpi-icon icon-blue">
             <Calendar size={18} />
           </div>

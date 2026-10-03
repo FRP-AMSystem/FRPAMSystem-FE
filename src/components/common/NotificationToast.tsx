@@ -48,6 +48,10 @@ export default function NotificationToast() {
     // Navigate to notification page or target detail
     if (latestToast.referenceType && latestToast.referenceId) {
       const refType = latestToast.referenceType.toLowerCase();
+      if (latestToast.isLocal && refType.includes("equipment")) {
+        navigate("/equipment-return");
+        return;
+      }
       if (refType.includes("experiment")) {
         navigate(`/experiments/${latestToast.referenceId}`);
         return;

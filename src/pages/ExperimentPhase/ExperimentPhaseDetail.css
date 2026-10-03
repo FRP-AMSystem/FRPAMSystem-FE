@@ -102,6 +102,39 @@
   transform: translateY(-1px);
 }
 
+.experiment-phase-detail-start-button,
+.experiment-phase-detail-complete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid #16a34a;
+  border-radius: 10px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all .18s ease;
+}
+
+.experiment-phase-detail-start-button:hover:not(:disabled),
+.experiment-phase-detail-complete-button:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #15803d;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, .22);
+  transform: translateY(-1px);
+}
+
+.experiment-phase-detail-start-button:disabled,
+.experiment-phase-detail-complete-button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
 /* =========================
    SUMMARY BANNER CARD
 ========================= */
@@ -335,7 +368,9 @@
   }
 
   .experiment-phase-detail-back-button,
-  .experiment-phase-detail-edit-button {
+  .experiment-phase-detail-edit-button,
+  .experiment-phase-detail-start-button,
+  .experiment-phase-detail-complete-button {
     flex: 1;
     justify-content: center;
   }
@@ -367,7 +402,9 @@
   }
 
   .experiment-phase-detail-back-button,
-  .experiment-phase-detail-edit-button {
+  .experiment-phase-detail-edit-button,
+  .experiment-phase-detail-start-button,
+  .experiment-phase-detail-complete-button {
     width: 100%;
     flex: unset;
   }

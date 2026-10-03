@@ -1,6 +1,7 @@
 import {
   useEffect,
   useState,
+  type FormEvent,
 } from "react";
 
 import {
@@ -22,12 +23,15 @@ import {
   Trash2,
   UserRound,
   X,
+  Ban,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import ToastPopup, { type ToastType } from "../../components/common/ToastPopup";
 
 import {
+  cancelSchedule,
+  completeSchedule,
   deleteSchedule,
   getScheduleById,
   updateScheduleStatus,
@@ -268,6 +272,7 @@ export default function ScheduleDetail() {
 
   const canManage =
     role === "Admin" || role === "Manager" || role === "Researcher";
+  const canCompleteOrCancel = role === "Technician" || role === "Seasonal";
 
   const [
     schedule,
@@ -322,6 +327,53 @@ export default function ScheduleDetail() {
   const [selectedStatus, setSelectedStatus] = useState<ScheduleStatus>("InProgress");
   const [updateNotes, setUpdateNotes] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [scheduleActionLoading, setScheduleActionLoading] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+
+  const handleCompleteSchedule = async () => {
+    if (!schedule || !canCompleteOrCancel || scheduleActionLoading) return;
+    if (!await showConfirm(`Mark schedule "${schedule.title || `#${schedule.scheduleId}`}" as completed?`)) return;
+
+    try {
+      setScheduleActionLoading(true);
+      setError("");
+      const updated = await completeSchedule(schedule.scheduleId, schedule.notes || undefined);
+      setSchedule(updated);
+      setToast({ visible: true, type: "success", title: "Schedule Completed", message: "This schedule has been marked as completed." });
+    } catch (actionError) {
+      const message = getErrorMessage(actionError);
+      setError(message);
+      setToast({ visible: true, type: "error", title: "Unable to Complete Schedule", message });
+    } finally {
+      setScheduleActionLoading(false);
+    }
+  };
+
+  const handleCancelSchedule = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!schedule || !canCompleteOrCancel || scheduleActionLoading) return;
+    if (!cancelReason.trim()) {
+      setError("Please provide a reason for cancelling this schedule.");
+      return;
+    }
+
+    try {
+      setScheduleActionLoading(true);
+      setError("");
+      const updated = await cancelSchedule(schedule.scheduleId, cancelReason);
+      setSchedule(updated);
+      setCancelModalOpen(false);
+      setCancelReason("");
+      setToast({ visible: true, type: "success", title: "Schedule Cancelled", message: "This schedule has been cancelled." });
+    } catch (actionError) {
+      const message = getErrorMessage(actionError);
+      setError(message);
+      setToast({ visible: true, type: "error", title: "Unable to Cancel Schedule", message });
+    } finally {
+      setScheduleActionLoading(false);
+    }
+  };
 
   const handleStatusModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -558,6 +610,29 @@ export default function ScheduleDetail() {
               <FileText size={16} />
               <span>Update Status & Notes</span>
             </button>
+
+            {canCompleteOrCancel && (schedule.status === "Planned" || schedule.status === "InProgress") && (
+              <>
+                <button
+                  type="button"
+                  className="schedule-detail-field-action complete"
+                  onClick={() => void handleCompleteSchedule()}
+                  disabled={scheduleActionLoading}
+                >
+                  <CheckCircle size={16} />
+                  {scheduleActionLoading ? "Processing..." : "Complete"}
+                </button>
+                <button
+                  type="button"
+                  className="schedule-detail-field-action cancel"
+                  onClick={() => { setError(""); setCancelReason(""); setCancelModalOpen(true); }}
+                  disabled={scheduleActionLoading}
+                >
+                  <Ban size={16} />
+                  Cancel Schedule
+                </button>
+              </>
+            )}
 
             {canManage && (
               <>
@@ -978,6 +1053,48 @@ export default function ScheduleDetail() {
                     disabled={updatingStatus}
                   >
                     {updatingStatus ? "Saving..." : "Update Progress"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {cancelModalOpen && (
+          <div
+            className="schedule-status-modal-backdrop"
+            onClick={() => !scheduleActionLoading && setCancelModalOpen(false)}
+          >
+            <div className="schedule-status-modal" onClick={(event) => event.stopPropagation()}>
+              <div className="schedule-status-modal-header">
+                <div className="schedule-status-modal-header-icon"><Ban size={20} /></div>
+                <div>
+                  <h3 className="schedule-status-modal-title">Cancel Schedule</h3>
+                  <p className="schedule-status-modal-subtitle">Please provide a reason for cancelling this assignment.</p>
+                </div>
+                <button type="button" className="schedule-status-modal-close" onClick={() => !scheduleActionLoading && setCancelModalOpen(false)} disabled={scheduleActionLoading}>
+                  <X size={18} />
+                </button>
+              </div>
+              <form onSubmit={(event) => void handleCancelSchedule(event)}>
+                <div className="schedule-status-modal-body">
+                  <div className="schedule-status-modal-field">
+                    <label className="schedule-status-modal-label">Cancellation Reason <span className="schedule-status-modal-required">*</span></label>
+                    <textarea
+                      className="schedule-status-modal-textarea"
+                      rows={4}
+                      value={cancelReason}
+                      onChange={(event) => setCancelReason(event.target.value)}
+                      placeholder="Explain why this schedule cannot be completed..."
+                      disabled={scheduleActionLoading}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="schedule-status-modal-actions">
+                  <button type="button" className="schedule-status-modal-cancel-btn" onClick={() => setCancelModalOpen(false)} disabled={scheduleActionLoading}>Keep Schedule</button>
+                  <button type="submit" className="schedule-detail-field-action cancel" disabled={scheduleActionLoading || !cancelReason.trim()}>
+                    {scheduleActionLoading ? "Cancelling..." : "Confirm Cancellation"}
                   </button>
                 </div>
               </form>

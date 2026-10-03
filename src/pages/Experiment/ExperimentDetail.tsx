@@ -27,6 +27,7 @@ import {
   Clock3,
   AlertTriangle,
   Sparkles,
+  Play,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
@@ -38,6 +39,8 @@ import {
   updateExperiment,
   approveExperiment,
   rejectExperiment,
+  startExperiment,
+  completeExperiment,
 } from "../../services/experimentService";
 
 
@@ -956,6 +959,71 @@ export default function ExperimentDetail() {
     }
   };
 
+  const handleStartExperiment = async () => {
+    if (!experiment || !isResearcher || experiment.status !== "Ready" || actionProcessing) return;
+
+    const confirmed = await showConfirm(
+      `Start experiment "${experiment.experimentName}"? Its status will change to Running.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setActionProcessing(true);
+      setError("");
+      const updated = await startExperiment(experiment.experimentId);
+      setExperiment(updated);
+      sendLocalNotification({
+        title: "Experiment Started",
+        message: `Experiment "${experiment.experimentName}" is now running.`,
+        notificationType: "Success",
+        referenceType: "Experiment",
+        referenceId: experiment.experimentId,
+      });
+      void fetchUnreadCount();
+      await loadExperiment();
+    } catch (startError) {
+      console.error("Start experiment failed:", startError);
+      setError(getErrorMessage(startError));
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
+  const handleCompleteExperiment = async () => {
+    if (
+      !experiment ||
+      !isResearcher ||
+      (experiment.status !== "Ready" && experiment.status !== "Running") ||
+      actionProcessing
+    ) return;
+
+    const confirmed = await showConfirm(
+      `Complete experiment "${experiment.experimentName}"? This action will mark the experiment as Completed.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setActionProcessing(true);
+      setError("");
+      const updated = await completeExperiment(experiment.experimentId);
+      setExperiment(updated);
+      sendLocalNotification({
+        title: "Experiment Completed",
+        message: `Experiment "${experiment.experimentName}" has been completed.`,
+        notificationType: "Success",
+        referenceType: "Experiment",
+        referenceId: experiment.experimentId,
+      });
+      void fetchUnreadCount();
+      await loadExperiment();
+    } catch (completeError) {
+      console.error("Complete experiment failed:", completeError);
+      setError(getErrorMessage(completeError));
+    } finally {
+      setActionProcessing(false);
+    }
+  };
+
   const handleDeletePhase =
     async (
       phase: ExperimentPhase
@@ -1805,9 +1873,43 @@ export default function ExperimentDetail() {
                   experiment.status !== "Cancelled" &&
                   experiment.status !== "Rejected" && (
                     <>
-                      {((isManagerOrAdmin &&
+                      {isResearcher && experiment.status === "Running" ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleCompleteExperiment()}
+                          disabled={actionProcessing}
+                          className="experiment-detail-edit-btn"
+                          style={{ whiteSpace: "nowrap" }}
+                        >
+                          <CheckCircle2 size={15} />
+                          {actionProcessing ? "Processing..." : "Complete Experiment"}
+                        </button>
+                      ) : isResearcher && experiment.status === "Ready" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleStartExperiment()}
+                            disabled={actionProcessing}
+                            className="btn-primary-green"
+                            style={{ whiteSpace: "nowrap" }}
+                          >
+                            <Play size={15} />
+                            {actionProcessing ? "Processing..." : "Start Experiment"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleCompleteExperiment()}
+                            disabled={actionProcessing}
+                            className="experiment-detail-edit-btn"
+                            style={{ whiteSpace: "nowrap" }}
+                          >
+                            <CheckCircle2 size={15} />
+                            {actionProcessing ? "Processing..." : "Complete Experiment"}
+                          </button>
+                        </>
+                      ) : ((isManagerOrAdmin &&
                         (experiment.status === "Planning" || experiment.status === "Ready")) ||
-                        isResearcher) && (
+                        (isResearcher && experiment.status !== "Ready")) && (
                         <button
                           type="button"
                           onClick={() =>

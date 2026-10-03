@@ -34,7 +34,6 @@ export const roleMenus = {
   ],
 
   Seasonal: [
-    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Equipment Tracking", path: "/equipment", icon: Truck },
     { name: "Schedules", path: "/schedules", icon: CalendarDays },
   ],

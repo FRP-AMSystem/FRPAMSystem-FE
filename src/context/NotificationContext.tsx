@@ -19,6 +19,19 @@ import {
   deleteNotification as apiDeleteNotification,
 } from "../services/notificationService";
 import { getToken, isTokenExpired } from "../utils/storage";
+import { getCurrentUserTokenInfo } from "../utils/storage";
+import { getStoredRole } from "../config/rolePermissions";
+import {
+  getEquipmentChangeRequests,
+  getEquipmentExtensionRequests,
+} from "../services/equipmentRequestService";
+import {
+  addLocalNotification,
+  getEquipmentRequestSnapshot,
+  getLocalNotifications,
+  saveEquipmentRequestSnapshot,
+  updateLocalNotification,
+} from "../services/localNotificationStore";
 
 interface NotificationContextType {
   unreadCount: number;
@@ -56,7 +69,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const count = await getUnreadNotificationCount();
+      const [serverCount, userId] = [
+        await getUnreadNotificationCount(),
+        getCurrentUserTokenInfo().userId,
+      ];
+      const count = serverCount + getLocalNotifications(userId).filter((item) => !item.isRead).length;
       setUnreadCount(count);
       return count;
     } catch (err: unknown) {
@@ -79,7 +96,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       try {
         const result = await getNotifications(query);
-        setNotifications(result.items);
+        const local = getLocalNotifications(getCurrentUserTokenInfo().userId);
+        const merged = [...local, ...result.items].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setNotifications(merged);
         return result;
       } catch (err) {
         console.error("Failed to fetch notifications:", err);
@@ -93,7 +114,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markAsRead = useCallback(async (id: number): Promise<void> => {
     try {
-      await apiMarkAsRead(id);
+      const userId = getCurrentUserTokenInfo().userId;
+      const localNotification = getLocalNotifications(userId).find((item) => item.notificationId === id);
+      if (localNotification) {
+        updateLocalNotification(userId, id, { isRead: true, readAt: new Date().toISOString() });
+      } else {
+        await apiMarkAsRead(id);
+      }
       setNotifications((prev) =>
         prev.map((n) =>
           n.notificationId === id
@@ -111,7 +138,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markAllAsRead = useCallback(async (): Promise<number> => {
     try {
-      const updatedCount = await apiMarkAllAsRead();
+      const userId = getCurrentUserTokenInfo().userId;
+      const localItems = getLocalNotifications(userId);
+      const updatedLocalCount = localItems.filter((item) => !item.isRead).length;
+      localItems.forEach((item) => updateLocalNotification(userId, item.notificationId, {
+        isRead: true,
+        readAt: item.readAt || new Date().toISOString(),
+      }));
+      const updatedCount = (await apiMarkAllAsRead()) + updatedLocalCount;
       setNotifications((prev) =>
         prev.map((n) => ({
           ...n,
@@ -130,13 +164,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const deleteNotif = useCallback(async (id: number): Promise<void> => {
     try {
-      await apiDeleteNotification(id);
+      const userId = getCurrentUserTokenInfo().userId;
+      const localNotification = getLocalNotifications(userId).find((item) => item.notificationId === id);
+      if (localNotification) updateLocalNotification(userId, id, null);
+      else await apiDeleteNotification(id);
       setNotifications((prev) => {
         const target = prev.find((n) => n.notificationId === id);
         if (target && !target.isRead) {
           setUnreadCount((c) => Math.max(0, c - 1));
         }
-        return prev.filter((n) => n.notificationId === id);
+        return prev.filter((n) => n.notificationId !== id);
       });
       window.dispatchEvent(new Event("notification-updated"));
     } catch (err) {
@@ -154,8 +191,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       notifData: Partial<Notification> & { title: string; message: string }
     ) => {
       const newNotif: Notification = {
-        notificationId: notifData.notificationId || Date.now(),
-        userId: notifData.userId || 0,
+        notificationId: notifData.notificationId || -Date.now(),
+        userId: notifData.userId || getCurrentUserTokenInfo().userId,
         title: notifData.title,
         message: notifData.message,
         notificationType: notifData.notificationType || "General",
@@ -166,7 +203,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         isDeleted: false,
         deletedAt: null,
         createdAt: notifData.createdAt || new Date().toISOString(),
+        isLocal: true,
+        localKey: notifData.localKey,
       };
+
+      if (newNotif.localKey) {
+        const stored = addLocalNotification(newNotif.userId, {
+          title: newNotif.title,
+          message: newNotif.message,
+          notificationType: newNotif.notificationType,
+          referenceType: newNotif.referenceType,
+          referenceId: newNotif.referenceId,
+          createdAt: newNotif.createdAt,
+          localKey: newNotif.localKey,
+        });
+        if (!stored) return;
+        Object.assign(newNotif, stored);
+      } else if (newNotif.userId) {
+        const local = getLocalNotifications(newNotif.userId);
+        if (!local.some((item) => item.notificationId === newNotif.notificationId)) {
+          localStorage.setItem(
+            `frpam.localNotifications.${newNotif.userId}`,
+            JSON.stringify([newNotif, ...local].slice(0, 200))
+          );
+        }
+      }
 
       setNotifications((prev) => [newNotif, ...prev]);
       setUnreadCount((prev) => prev + 1);
@@ -176,27 +237,139 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  // The API currently exposes notification read/list endpoints but no create
+  // endpoint. Watch equipment request state and persist per-user workflow
+  // notifications locally so both sides can see the events in Notification List.
+  useEffect(() => {
+    let stopped = false;
+    let inFlight = false;
+
+    const syncEquipmentRequestNotifications = async () => {
+      if (stopped || inFlight) return;
+      const token = getToken();
+      const { userId } = getCurrentUserTokenInfo();
+      const role = getStoredRole();
+      if (!token || isTokenExpired(token) || !userId || !["Manager", "Admin", "Researcher"].includes(role)) {
+        return;
+      }
+      inFlight = true;
+      try {
+        const isManager = role === "Manager" || role === "Admin";
+        const [extensions, changes] = await Promise.all([
+          getEquipmentExtensionRequests({
+            requestedBy: isManager ? undefined : userId,
+            size: 400,
+          }),
+          getEquipmentChangeRequests({
+            requestedBy: isManager ? undefined : userId,
+            size: 400,
+          }),
+        ]);
+
+        if (stopped) return;
+        const previous = getEquipmentRequestSnapshot(userId);
+        const next: Record<string, string> = {};
+        const discovered: Notification[] = [];
+
+        const inspectRequests = (
+          kind: "extension" | "change",
+          requests: Array<{ id: number; status?: string | null }>
+        ) => {
+          for (const request of requests) {
+            if (!Number.isInteger(request.id) || request.id <= 0) continue;
+            const key = `${kind}:${request.id}`;
+            const status = String(request.status || "pending").trim().toLowerCase();
+            const previousStatus = previous[key];
+            next[key] = status;
+
+            const isNewPending = isManager && !previousStatus && status === "pending";
+            const wasUpdated = Boolean(previousStatus && previousStatus !== status);
+            const researcherGotDecision = !isManager &&
+              (status === "approved" || status === "rejected") &&
+              (!previousStatus || previousStatus === "pending") &&
+              (!previousStatus || previousStatus !== status);
+
+            if (!isNewPending && !wasUpdated && !researcherGotDecision) continue;
+
+            let title: string;
+            let message: string;
+            let notificationType: string;
+            if (isManager && isNewPending) {
+              title = kind === "extension" ? "Equipment Extension Request" : "Equipment Change Request";
+              message = `A researcher submitted an equipment ${kind} request. Open Equipment Return to review it.`;
+              notificationType = "EquipmentRequestPending";
+            } else if (!isManager && (status === "approved" || status === "rejected")) {
+              title = kind === "extension" ? "Equipment Extension Request Updated" : "Equipment Change Request Updated";
+              message = `Your equipment ${kind} request was ${status}.`;
+              notificationType = status === "approved" ? "EquipmentRequestApproved" : "EquipmentRequestRejected";
+            } else {
+              title = kind === "extension" ? "Equipment Extension Request Updated" : "Equipment Change Request Updated";
+              message = `An equipment ${kind} request status changed to ${status}.`;
+              notificationType = `EquipmentRequest${status}`;
+            }
+
+            const notification = addLocalNotification(userId, {
+              title,
+              message,
+              notificationType,
+              referenceType: kind === "extension" ? "EquipmentExtensionRequest" : "EquipmentChangeRequest",
+              referenceId: request.id,
+              createdAt: new Date().toISOString(),
+              localKey: `equipment-request:${userId}:${key}:${status}:${isManager ? "manager" : "researcher"}`,
+            });
+            if (notification) discovered.push(notification);
+          }
+        };
+
+        inspectRequests("extension", extensions);
+        inspectRequests("change", changes);
+        saveEquipmentRequestSnapshot(userId, next);
+
+        if (discovered.length) {
+          setNotifications((current) => [...discovered, ...current]);
+          setUnreadCount((current) => current + discovered.length);
+          setLatestToast(discovered[0]);
+          window.dispatchEvent(new Event("notification-updated"));
+        }
+      } catch (error) {
+        console.warn("Unable to sync equipment request notifications:", error);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void syncEquipmentRequestNotifications();
+    const interval = window.setInterval(() => void syncEquipmentRequestNotifications(), 20000);
+    const handleFocus = () => void syncEquipmentRequestNotifications();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
   // Initialize Unread Count & Periodic Sync when authenticated
   useEffect(() => {
-    const token = getToken();
-    if (!token || isTokenExpired(token)) return;
+    const syncIfAuthenticated = () => {
+      const token = getToken();
+      if (token && !isTokenExpired(token)) {
+        void fetchUnreadCount();
+      } else {
+        setUnreadCount(0);
+      }
+    };
 
-    // Fetch initial unread count
-    void fetchUnreadCount();
+    syncIfAuthenticated();
 
     // Poll unread count every 30 seconds
     const interval = setInterval(() => {
-      const currentToken = getToken();
-      if (currentToken && !isTokenExpired(currentToken)) {
-        void fetchUnreadCount();
-      }
+      syncIfAuthenticated();
     }, 30000);
 
     const handleSync = () => {
-      const currentToken = getToken();
-      if (currentToken && !isTokenExpired(currentToken)) {
-        void fetchUnreadCount();
-      }
+      syncIfAuthenticated();
     };
 
     window.addEventListener("notification-updated", handleSync);

@@ -808,7 +808,7 @@ export default function AppRoutes() {
         path="/equipment-return"
         element={
           <ProtectedRoute
-            allowedRoles={operationalViewRoles}
+            allowedRoles={["Admin", "Manager", "Researcher"]}
           >
             <EquipmentReturnPage />
           </ProtectedRoute>

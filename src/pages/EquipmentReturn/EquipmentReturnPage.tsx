@@ -2,14 +2,18 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   AlertTriangle,
+  CalendarClock,
+  CalendarDays,
   CheckCircle2,
   Cpu,
   PackageCheck,
+  Replace,
   RotateCcw,
   Search,
   Truck,
@@ -17,6 +21,7 @@ import {
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
+import { useNotification } from "../../context/NotificationContext";
 
 import ToastPopup, {
   type ToastType,
@@ -44,6 +49,12 @@ import {
 import { getExperimentPhases } from "../../services/experimentPhaseService";
 import { getExperimentEquipmentRequirements } from "../../services/experimentEquipmentRequirementService";
 import { getUsers } from "../../services/userService";
+import { getEquipmentTypes, type EquipmentType } from "../../services/equipmentService";
+import { getAvailableEquipmentInstances } from "../../services/equipmentInstanceService";
+import {
+  createEquipmentChangeRequest,
+  createEquipmentExtensionRequest,
+} from "../../services/equipmentRequestService";
 
 import {
   confirmEquipmentReturn,
@@ -60,6 +71,7 @@ import type { EquipmentConditionLevel } from "../../types/equipmentInstance";
 import type { EquipmentReturn } from "../../types/equipmentReturn";
 import type { ExperimentPhase } from "../../types/experimentPhase";
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
+import type { EquipmentInstance } from "../../types/equipmentInstance";
 
 import "./EquipmentReturnPage.css";
 
@@ -236,11 +248,13 @@ function getPlanReturnerName(
 ========================================================= */
 
 export default function EquipmentReturnPage() {
+  const { sendLocalNotification } = useNotification();
   const role = getStoredRole();
 
   const isManager =
     role === "Manager" ||
     role === "Admin";
+  const isResearcher = role === "Researcher";
 
   /* =======================================================
      DATA
@@ -264,6 +278,19 @@ export default function EquipmentReturnPage() {
   const [handoverRecords, setHandoverRecords] = useState<
     EquipmentHandoverRecord[]
   >([]);
+
+  const [equipmentRequestModal, setEquipmentRequestModal] = useState<{
+    kind: "extension" | "change";
+    item: AllocationEquipmentDetail;
+  } | null>(null);
+  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
+  const [availableChangeInstances, setAvailableChangeInstances] = useState<EquipmentInstance[]>([]);
+  const [loadingChangeInstances, setLoadingChangeInstances] = useState(false);
+  const [requestedEndDate, setRequestedEndDate] = useState("");
+  const [requestedEquipmentTypeId, setRequestedEquipmentTypeId] = useState("");
+  const [requestedEquipmentInstanceId, setRequestedEquipmentInstanceId] = useState("");
+  const [equipmentRequestReason, setEquipmentRequestReason] = useState("");
+  const equipmentRequestDateRef = useRef<HTMLInputElement | null>(null);
 
   const [experimentPhasesMap, setExperimentPhasesMap] = useState<
     Record<number, ExperimentPhase[]>
@@ -489,6 +516,12 @@ export default function EquipmentReturnPage() {
           getEquipmentReturns({
             returnedBy: currentUser.userId,
             size: 400,
+          }).catch((returnsError) => {
+            console.warn(
+              "Unable to load the current user's equipment return history; continuing with assigned equipment.",
+              returnsError
+            );
+            return [] as EquipmentReturn[];
           }),
           getAllocationPlans({
             size: 400,
@@ -544,6 +577,43 @@ export default function EquipmentReturnPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!isResearcher) return;
+    void getEquipmentTypes({ page: 1, size: 300 })
+      .then(setEquipmentTypes)
+      .catch(() => setEquipmentTypes([]));
+  }, [isResearcher]);
+
+  useEffect(() => {
+    if (equipmentRequestModal?.kind !== "change" || !requestedEquipmentTypeId) {
+      setAvailableChangeInstances([]);
+      setRequestedEquipmentInstanceId("");
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingChangeInstances(true);
+    void getAvailableEquipmentInstances(Number(requestedEquipmentTypeId))
+      .then((instances) => {
+        if (!cancelled) {
+          setAvailableChangeInstances(
+            instances.filter((instance) => instance.equipmentInstanceId !== equipmentRequestModal.item.equipmentInstanceId)
+          );
+        }
+      })
+      .catch((error: any) => {
+        if (!cancelled) {
+          setAvailableChangeInstances([]);
+          showToast(error?.response?.data?.message || "Unable to load available equipment.", "error");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingChangeInstances(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [equipmentRequestModal, requestedEquipmentTypeId]);
 
   useEffect(() => {
     const experimentIds = [...new Set(
@@ -1742,6 +1812,86 @@ export default function EquipmentReturnPage() {
     }
   };
 
+  const openEquipmentRequest = (
+    item: AllocationEquipmentDetail,
+    kind: "extension" | "change"
+  ) => {
+    setRequestedEndDate(item.endDate ? item.endDate.slice(0, 10) : "");
+    setRequestedEquipmentTypeId(String(item.allocatedEquipmentTypeId || ""));
+    setRequestedEquipmentInstanceId("");
+    setEquipmentRequestReason("");
+    setEquipmentRequestModal({ kind, item });
+  };
+
+  const closeEquipmentRequest = () => {
+    if (actionLoading) return;
+    setEquipmentRequestModal(null);
+    setRequestedEndDate("");
+    setRequestedEquipmentTypeId("");
+    setRequestedEquipmentInstanceId("");
+    setEquipmentRequestReason("");
+  };
+
+  const handleSubmitEquipmentRequest = async () => {
+    if (!equipmentRequestModal || !isResearcher) return;
+    const { item, kind } = equipmentRequestModal;
+
+    try {
+      setActionLoading(true);
+      if (kind === "extension") {
+        if (!requestedEndDate) throw new Error("Please select a new end date.");
+        const endDate = new Date(`${requestedEndDate}T23:59:59`);
+        if (!Number.isFinite(endDate.getTime()) || endDate.getTime() <= new Date(item.endDate).getTime()) {
+          throw new Error("The new end date must be after the current end date.");
+        }
+        await createEquipmentExtensionRequest({
+          allocationEquipmentDetailId: item.allocationEquipmentDetailId,
+          requestedEndDate: endDate.toISOString(),
+          reason: equipmentRequestReason,
+        });
+        sendLocalNotification({
+          title: "Equipment Extension Request Submitted",
+          message: `Your extension request for ${getEquipmentDisplayName(item)} was submitted for manager review.`,
+          notificationType: "EquipmentRequestPending",
+          referenceType: "EquipmentExtensionRequest",
+          referenceId: item.allocationEquipmentDetailId,
+          localKey: `extension:${item.allocationEquipmentDetailId}:${Date.now()}`,
+        });
+      } else {
+        const typeId = Number(requestedEquipmentTypeId);
+        if (!Number.isInteger(typeId) || typeId <= 0) throw new Error("Please select an equipment type.");
+        if (!equipmentRequestReason.trim()) throw new Error("Please provide a reason for the equipment change.");
+        await createEquipmentChangeRequest({
+          allocationEquipmentDetailId: item.allocationEquipmentDetailId,
+          requestedEquipmentTypeId: typeId,
+          requestedEquipmentInstanceId: requestedEquipmentInstanceId ? Number(requestedEquipmentInstanceId) : null,
+          reason: equipmentRequestReason,
+        });
+        sendLocalNotification({
+          title: "Equipment Change Request Submitted",
+          message: `Your equipment change request for ${getEquipmentDisplayName(item)} was submitted for manager review.`,
+          notificationType: "EquipmentRequestPending",
+          referenceType: "EquipmentChangeRequest",
+          referenceId: item.allocationEquipmentDetailId,
+          localKey: `change:${item.allocationEquipmentDetailId}:${Date.now()}`,
+        });
+      }
+
+      showToast("Your equipment request was submitted for manager review.", "success");
+      setEquipmentRequestModal(null);
+    } catch (error: any) {
+      const validationMessages = error?.response?.data?.errors
+        ? Object.values(error.response.data.errors).flat().join(" ")
+        : "";
+      showToast(
+        validationMessages || error?.response?.data?.message || error?.message || "Unable to submit the equipment request.",
+        "error"
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const renderActions = (
     item: AllocationEquipmentDetail
   ) => {
@@ -1915,6 +2065,28 @@ export default function EquipmentReturnPage() {
     ) {
       return (
         <div className="eq-action-stack">
+          {isResearcher && (
+            <>
+              <button
+                type="button"
+                className="eq-action-btn eq-action-request"
+                onClick={() => openEquipmentRequest(item, "extension")}
+                disabled={actionLoading}
+              >
+                <CalendarClock size={15} />
+                Request Extension
+              </button>
+              <button
+                type="button"
+                className="eq-action-btn eq-action-request eq-action-change"
+                onClick={() => openEquipmentRequest(item, "change")}
+                disabled={actionLoading}
+              >
+                <Replace size={15} />
+                Request Equipment Change
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="eq-action-btn eq-action-return"
@@ -2517,6 +2689,135 @@ export default function EquipmentReturnPage() {
             )}
 
         </section>
+
+        {equipmentRequestModal && isResearcher && (
+          <div
+            className="eq-modal-overlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) closeEquipmentRequest();
+            }}
+          >
+            <div className="eq-modal eq-return-modal">
+              <div className="eq-modal-header">
+                <div>
+                  <h2>{equipmentRequestModal.kind === "extension" ? "Equipment Extension Request" : "Equipment Change Request"}</h2>
+                  <p>Submit this request for manager review. Your current allocation will not change until approved.</p>
+                </div>
+                <button type="button" className="eq-modal-close" onClick={closeEquipmentRequest} disabled={actionLoading} aria-label="Close">×</button>
+              </div>
+
+              <div className="eq-modal-body">
+                <div className="eq-modal-device">
+                  <div className="eq-device-icon">
+                    {equipmentRequestModal.kind === "extension" ? <CalendarClock size={20} /> : <Replace size={20} />}
+                  </div>
+                  <div>
+                    <strong>{getEquipmentDisplayName(equipmentRequestModal.item)}</strong>
+                    <span>{equipmentRequestModal.item.assetCode || "No asset code"} · {equipmentRequestModal.item.experimentName || "No experiment"}</span>
+                  </div>
+                </div>
+
+                {equipmentRequestModal.kind === "extension" ? (
+                  <div className="eq-form-group">
+                    <label htmlFor="equipment-request-end-date">New End Date <span>*</span></label>
+                    <div className="eq-date-input-wrap">
+                      <input
+                        ref={equipmentRequestDateRef}
+                        id="equipment-request-end-date"
+                        type="date"
+                        value={requestedEndDate}
+                        min={equipmentRequestModal.item.endDate.slice(0, 10)}
+                        onChange={(event) => setRequestedEndDate(event.target.value)}
+                        disabled={actionLoading}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="eq-date-picker-button"
+                        aria-label="Open calendar"
+                        onClick={() => {
+                          const input = equipmentRequestDateRef.current;
+                          if (input?.showPicker) input.showPicker();
+                          else input?.focus();
+                        }}
+                        disabled={actionLoading}
+                      >
+                        <CalendarDays size={18} />
+                      </button>
+                    </div>
+                    <small className="eq-request-hint">Current end date: {formatDate(equipmentRequestModal.item.endDate)}</small>
+                  </div>
+                ) : (
+                  <>
+                    <div className="eq-form-group">
+                      <label htmlFor="equipment-request-type">Requested Equipment Type <span>*</span></label>
+                      <select
+                        id="equipment-request-type"
+                        value={requestedEquipmentTypeId}
+                        onChange={(event) => {
+                          setRequestedEquipmentTypeId(event.target.value);
+                          setRequestedEquipmentInstanceId("");
+                        }}
+                        disabled={actionLoading}
+                      >
+                        <option value="">Select an equipment type</option>
+                        {equipmentTypes.map((type) => (
+                          <option key={type.equipmentTypeId} value={type.equipmentTypeId}>
+                            {type.name || type.equipmentTypeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="eq-form-group">
+                      <label htmlFor="equipment-request-instance">Specific Unit (Optional)</label>
+                      <select
+                        id="equipment-request-instance"
+                        value={requestedEquipmentInstanceId}
+                        onChange={(event) => setRequestedEquipmentInstanceId(event.target.value)}
+                        disabled={actionLoading || loadingChangeInstances || !requestedEquipmentTypeId}
+                      >
+                        <option value="">Let the manager choose an available unit</option>
+                        {availableChangeInstances.map((instance) => (
+                          <option key={instance.equipmentInstanceId} value={instance.equipmentInstanceId}>
+                            {instance.assetCode}{instance.serialNumber ? ` · SN ${instance.serialNumber}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {loadingChangeInstances && <small className="eq-request-hint">Loading available equipment...</small>}
+                    </div>
+                  </>
+                )}
+
+                <div className="eq-form-group">
+                  <label htmlFor="equipment-request-reason">Reason {equipmentRequestModal.kind === "change" && <span>*</span>}</label>
+                  <textarea
+                    id="equipment-request-reason"
+                    value={equipmentRequestReason}
+                    onChange={(event) => setEquipmentRequestReason(event.target.value)}
+                    placeholder={equipmentRequestModal.kind === "extension"
+                      ? "Explain why you need additional time..."
+                      : "For example: the current unit is damaged and cannot be used..."}
+                    maxLength={1000}
+                    disabled={actionLoading}
+                    required={equipmentRequestModal.kind === "change"}
+                  />
+                </div>
+              </div>
+
+              <div className="eq-modal-footer">
+                <button type="button" className="eq-modal-btn-cancel" onClick={closeEquipmentRequest} disabled={actionLoading}>Cancel</button>
+                <button
+                  type="button"
+                  className="eq-modal-btn-handover"
+                  onClick={() => void handleSubmitEquipmentRequest()}
+                  disabled={actionLoading || (equipmentRequestModal.kind === "change" && (loadingChangeInstances || !equipmentRequestReason.trim()))}
+                >
+                  {actionLoading ? "Submitting..." : "Submit Request"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* =================================================
             HANDOVER MODAL

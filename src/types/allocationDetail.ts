@@ -45,7 +45,7 @@ export interface AllocationEquipmentDetail {
 export interface AllocationEquipmentDetailRequest {
   allocationPlanId: number;
 
-  expEquipmentReqId: number;
+  expEquipmentReqId: number | null;
   phaseEquipmentReqId?: number | null;
 
   allocatedEquipmentTypeId: number;

@@ -297,6 +297,26 @@ export async function getExperimentPhaseById(
   );
 }
 
+export async function startExperimentPhase(
+  id: number
+): Promise<ExperimentPhase> {
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("Experiment phase ID is invalid.");
+  }
+  const response = await api.post(`/ExperimentPhases/${id}/start`);
+  return normalizeExperimentPhase(extractSingleData(response.data));
+}
+
+export async function completeExperimentPhase(
+  id: number
+): Promise<ExperimentPhase> {
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("Experiment phase ID is invalid.");
+  }
+  const response = await api.post(`/ExperimentPhases/${id}/complete`);
+  return normalizeExperimentPhase(extractSingleData(response.data));
+}
+
 export async function createExperimentPhase(
   payload: ExperimentPhaseRequest
 ): Promise<ExperimentPhase> {

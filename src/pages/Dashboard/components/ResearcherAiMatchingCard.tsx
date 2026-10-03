@@ -25,7 +25,7 @@ export const ResearcherAiMatchingCard: React.FC<ResearcherAiMatchingCardProps> =
         <div>
           <h3 className="researcher-card-title">
             <Sparkles size={18} style={{ color: "#9333ea" }} />
-            AI Genetic Resource Optimization
+            Fitness Score Resource Optimization
           </h3>
           <p className="researcher-card-subtitle">
             Multi-objective resource matching quality across your experiments

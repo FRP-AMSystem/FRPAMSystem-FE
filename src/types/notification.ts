@@ -11,6 +11,8 @@ export interface Notification {
   isDeleted: boolean;
   deletedAt: string | null;
   createdAt: string;
+  isLocal?: boolean;
+  localKey?: string;
 }
 
 export interface NotificationQuery {

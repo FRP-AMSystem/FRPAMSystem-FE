@@ -424,3 +424,25 @@ export async function updateScheduleStatus(
     return updated;
   }
 }
+
+export async function completeSchedule(
+  id: number,
+  notes?: string
+): Promise<Schedule> {
+  validateId(id, "Schedule ID");
+  const response = await api.patch(`/Schedules/${id}/complete`, {
+    notes: notes?.trim() || null,
+  });
+  return normalizeSchedule(unwrapResponse<unknown>(response.data));
+}
+
+export async function cancelSchedule(
+  id: number,
+  reason?: string
+): Promise<Schedule> {
+  validateId(id, "Schedule ID");
+  const response = await api.patch(`/Schedules/${id}/cancel`, {
+    reason: reason?.trim() || null,
+  });
+  return normalizeSchedule(unwrapResponse<unknown>(response.data));
+}

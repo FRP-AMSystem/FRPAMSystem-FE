@@ -92,6 +92,49 @@
   box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);
 }
 
+.schedule-detail-field-action {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all .18s ease;
+}
+
+.schedule-detail-field-action.complete {
+  color: #ffffff;
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.schedule-detail-field-action.complete:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.schedule-detail-field-action.cancel {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.schedule-detail-field-action.cancel:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.schedule-detail-field-action:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
 .schedule-detail-delete-button:hover:not(:disabled) {
   background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);

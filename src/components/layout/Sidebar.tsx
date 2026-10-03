@@ -309,7 +309,11 @@ const researcherMenuGroups: MenuGroup[] = [
     id: "operations",
     title: "Operations",
     icon: Calendar,
-    items: standardOperations,
+    items: standardOperations.map((item) =>
+      item.path === "/equipment-return"
+        ? { ...item, name: "Equipment Requests" }
+        : item
+    ),
   },
 ];
 
@@ -322,7 +326,6 @@ const technicianMenuGroups: MenuGroup[] = [
     items: standardOperations.filter((item) =>
       [
         "/schedules",
-        "/equipment-return",
         "/notifications",
       ].includes(item.path)
     ),
@@ -338,7 +341,6 @@ const studentMenuGroups: MenuGroup[] = [
     items: standardOperations.filter((item) =>
       [
         "/schedules",
-        "/equipment-return",
         "/notifications",
       ].includes(item.path)
     ),
@@ -718,7 +720,7 @@ export default function Sidebar() {
         className="sidebar-nav"
         onScroll={handleNavScroll}
       >
-        {role !== "Student" && role !== "Technician" && (
+        {role !== "Student" && role !== "Seasonal" && role !== "Technician" && (
           <NavLink
             to="/dashboard"
             className={({ isActive }) =>

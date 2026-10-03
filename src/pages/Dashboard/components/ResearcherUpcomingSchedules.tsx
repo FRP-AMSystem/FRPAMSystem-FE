@@ -77,10 +77,10 @@ export const ResearcherUpcomingSchedules: React.FC<ResearcherUpcomingSchedulesPr
           <div style={{ textAlign: "center", padding: "36px 16px", color: "#94a3b8" }}>
             <Clock size={32} style={{ margin: "0 auto 8px", opacity: 0.6, color: "#16a34a" }} />
             <strong style={{ display: "block", color: "#0f172a", fontSize: "14px", marginBottom: 4 }}>
-              Không có lịch thực địa trong 14 ngày tới
+              No field visits scheduled for the next 14 days.
             </strong>
             <p style={{ margin: 0, fontSize: "12.5px", color: "#64748b" }}>
-              Hiện tại không có giai đoạn hoặc ca làm việc nào cần triển khai trong 14 ngày tới.
+              There are currently no phases or shifts scheduled for implementation within the next 14 days.
             </p>
           </div>
         ) : (

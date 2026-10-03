@@ -11,18 +11,23 @@ import {
 import {
   ArrowLeft,
   CalendarDays,
+  CheckCircle2,
   ClipboardList,
   FlaskConical,
   Hash,
   Layers3,
   Pencil,
+  Play,
 } from "lucide-react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
+  completeExperimentPhase,
   getExperimentPhaseById,
+  startExperimentPhase,
 } from "../../services/experimentPhaseService";
+import { usePopup } from "../../context/PopupContext";
 
 import type {
   ExperimentPhase,
@@ -200,6 +205,7 @@ function getStatusClassName(
 }
 
 export default function ExperimentPhaseDetail() {
+  const { showConfirm } = usePopup();
   const navigate =
     useNavigate();
 
@@ -234,6 +240,34 @@ export default function ExperimentPhaseDetail() {
     error,
     setError,
   ] = useState("");
+
+  const [actionProcessing, setActionProcessing] = useState(false);
+
+  const handlePhaseAction = async (action: "start" | "complete") => {
+    if (!phase || !canEdit || actionProcessing) return;
+
+    const isStart = action === "start";
+    const confirmed = await showConfirm(
+      isStart
+        ? `Start phase "${phase.phaseName}"? Its status will change to In Progress.`
+        : `Complete phase "${phase.phaseName}"? This will mark the phase as Completed.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setActionProcessing(true);
+      setError("");
+      const updatedPhase = isStart
+        ? await startExperimentPhase(phase.experimentPhaseId)
+        : await completeExperimentPhase(phase.experimentPhaseId);
+      setPhase(updatedPhase);
+    } catch (actionError) {
+      console.error(`Unable to ${action} experiment phase:`, actionError);
+      setError(getErrorMessage(actionError));
+    } finally {
+      setActionProcessing(false);
+    }
+  };
 
   useEffect(() => {
     async function loadPhase() {
@@ -384,6 +418,30 @@ export default function ExperimentPhaseDetail() {
                 <Pencil size={18} />
 
                 Edit Phase
+              </button>
+            )}
+
+            {canEdit && phase.status === "Planned" && (
+              <button
+                type="button"
+                className="experiment-phase-detail-start-button"
+                onClick={() => void handlePhaseAction("start")}
+                disabled={actionProcessing}
+              >
+                <Play size={17} />
+                {actionProcessing ? "Processing..." : "Start Phase"}
+              </button>
+            )}
+
+            {canEdit && phase.status === "InProgress" && (
+              <button
+                type="button"
+                className="experiment-phase-detail-complete-button"
+                onClick={() => void handlePhaseAction("complete")}
+                disabled={actionProcessing}
+              >
+                <CheckCircle2 size={17} />
+                {actionProcessing ? "Processing..." : "Complete Phase"}
               </button>
             )}
           </div>

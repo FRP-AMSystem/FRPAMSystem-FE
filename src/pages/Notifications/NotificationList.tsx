@@ -41,6 +41,11 @@ import {
 import type {
   Notification,
 } from "../../types/notification";
+import { getCurrentUserTokenInfo } from "../../utils/storage";
+import {
+  getLocalNotifications,
+  updateLocalNotification,
+} from "../../services/localNotificationStore";
 
 import "./NotificationList.css";
 
@@ -336,6 +341,10 @@ function getNotificationTypeLabel(
 function getNotificationTargetPath(
   notification: Notification
 ): string | null {
+  if (notification.isLocal && normalizeText(notification.referenceType).includes("equipment")) {
+    return "/equipment-return";
+  }
+
   const referenceId = notification.referenceId;
   const referenceType = normalizeText(notification.referenceType);
 
@@ -505,20 +514,30 @@ export default function NotificationList() {
             getUnreadNotificationCount(),
           ]);
 
-          setNotifications(
-            notificationResult.items
-          );
+          const localNotifications = getLocalNotifications(getCurrentUserTokenInfo().userId)
+            .filter((item) => {
+              if (isReadQuery !== undefined && item.isRead !== isReadQuery) return false;
+              if (notificationType && item.notificationType !== notificationType) return false;
+              return true;
+            });
+          const combined = (page === 1
+            ? [...localNotifications, ...notificationResult.items]
+            : notificationResult.items
+          ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          const allTotal = notificationResult.total + localNotifications.length;
+
+          setNotifications(combined.slice(0, PAGE_SIZE));
 
           setTotal(
-            notificationResult.total
+            allTotal
           );
 
           setTotalPages(
-            notificationResult.totalPages
+            Math.ceil(allTotal / PAGE_SIZE)
           );
 
           setUnreadCount(
-            unreadResult
+            unreadResult + getLocalNotifications(getCurrentUserTokenInfo().userId).filter((item) => !item.isRead).length
           );
         } catch (loadError) {
           console.error(
@@ -549,6 +568,12 @@ export default function NotificationList() {
 
   useEffect(() => {
     void loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const handleNotificationUpdated = () => void loadNotifications(false);
+    window.addEventListener("notification-updated", handleNotificationUpdated);
+    return () => window.removeEventListener("notification-updated", handleNotificationUpdated);
   }, [loadNotifications]);
 
   useEffect(() => {
@@ -649,9 +674,14 @@ export default function NotificationList() {
 
         setError("");
 
-        await markNotificationAsRead(
-          notification.notificationId
-        );
+        if (notification.isLocal) {
+          updateLocalNotification(getCurrentUserTokenInfo().userId, notification.notificationId, {
+            isRead: true,
+            readAt: new Date().toISOString(),
+          });
+        } else {
+          await markNotificationAsRead(notification.notificationId);
+        }
 
         notifyNotificationChanged();
 
@@ -730,6 +760,13 @@ export default function NotificationList() {
         setMarkingAll(true);
         setError("");
 
+        const userId = getCurrentUserTokenInfo().userId;
+        getLocalNotifications(userId).filter((item) => !item.isRead).forEach((item) => {
+          updateLocalNotification(userId, item.notificationId, {
+            isRead: true,
+            readAt: item.readAt || new Date().toISOString(),
+          });
+        });
         await markAllNotificationsAsRead();
 
         notifyNotificationChanged();
@@ -795,9 +832,11 @@ export default function NotificationList() {
 
         setError("");
 
-        await deleteNotification(
-          notification.notificationId
-        );
+        if (notification.isLocal) {
+          updateLocalNotification(getCurrentUserTokenInfo().userId, notification.notificationId, null);
+        } else {
+          await deleteNotification(notification.notificationId);
+        }
 
         notifyNotificationChanged();
 

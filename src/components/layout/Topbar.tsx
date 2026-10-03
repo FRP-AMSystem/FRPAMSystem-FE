@@ -84,6 +84,10 @@ export default function Topbar() {
 
     if (notif.referenceType && notif.referenceId) {
       const ref = notif.referenceType.toLowerCase();
+      if (notif.isLocal && ref.includes("equipment")) {
+        navigate("/equipment-return");
+        return;
+      }
       if (ref.includes("experiment")) {
         navigate(`/experiments/${notif.referenceId}`);
         return;
