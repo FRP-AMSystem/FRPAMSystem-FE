@@ -13,9 +13,10 @@ interface ApiErrorResponse {
 
 const envApiUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
-const API_BASE_URL = envApiUrl
-  ? `${envApiUrl.replace(/\/$/, "")}/api`
-  : "/api";
+const API_BASE_URL =
+  envApiUrl && !envApiUrl.includes("forestryresourceplanning.runasp.net")
+    ? `${envApiUrl.replace(/\/$/, "")}/api`
+    : "/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
