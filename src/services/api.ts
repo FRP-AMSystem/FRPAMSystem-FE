@@ -4,7 +4,6 @@ import axios, {
 } from "axios";
 import { clearAuth, getToken } from "../utils/storage";
 
-
 interface ApiErrorResponse {
   message?: string;
   error?: string;
@@ -17,11 +16,13 @@ const isLocalhost =
   (window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1");
 
+const envApiUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+
 const API_BASE_URL = isLocalhost
   ? "/api"
-  : (import.meta.env.VITE_API_BASE_URL as string)
-  ? (import.meta.env.VITE_API_BASE_URL as string) + "/api"
-  : "http://forestryresourceplanning.runasp.net/api";
+  : envApiUrl
+    ? `${envApiUrl.replace(/\/$/, "")}/api`
+    : "https://forestryresourceplanning.runasp.net/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -70,4 +71,3 @@ api.interceptors.response.use(
 
 export const apiClient = api;
 export default api;
-
