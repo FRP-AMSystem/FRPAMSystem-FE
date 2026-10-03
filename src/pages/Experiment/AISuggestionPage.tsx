@@ -508,6 +508,8 @@ export default function AISuggestionPage() {
             status: "Draft",
           },
           experimentPhases: pList.map((p) => ({
+            phaseId: p.experimentPhaseId,
+            experimentPhaseId: p.experimentPhaseId,
             phaseName: p.phaseName,
             phaseDescription: p.phaseDescription,
             phaseOrder: p.phaseOrder,
@@ -2358,13 +2360,19 @@ export default function AISuggestionPage() {
                         fitnessScore={selectedPlan.fitnessScore}
                         penaltyScore={selectedPlan.penaltyScore}
                         bonusScore={selectedPlan.bonusScore}
-                        experimentPhases={selectedPlan.experimentPhases}
+                        experimentPhases={phases.length > 0 ? phases : selectedPlan.experimentPhases}
+                        equipmentTypes={equipReqs.length > 0 ? equipReqs : undefined}
                       />
 
                       {/* Constraint Evaluation Report */}
                       <AIConstraintReportCard
                         constraintReport={selectedPlan.constraintReport}
+                        fitnessBreakdown={selectedPlan.fitnessBreakdown}
+                        penalties={selectedPlan.fitnessBreakdown?.penalties}
                         conflictCount={selectedPlan.conflictCount}
+                        allocatedHumans={selectedPlan.allocatedHumans}
+                        allocatedEquipment={selectedPlan.allocatedEquipment}
+                        experimentPhases={phases.length > 0 ? phases : selectedPlan.experimentPhases}
                       />
 
                       {/* Timeline Execution List */}
@@ -2745,33 +2753,6 @@ export default function AISuggestionPage() {
                         ? "Back to Allocation Plan"
                         : "Back to Experiment"}
                   </button>
-                  {isManagerReviewMode && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => void handleManagerRequestDecision("approve")}
-                        disabled={
-                          applying ||
-                          loadingResearcherResources ||
-                          Boolean(researcherResourcesError) ||
-                          Boolean(selectedPlan && !selectedPlanComparison?.allMatch)
-                        }
-                        className="btn-secondary-white"
-                        style={{ borderColor: "#16a34a", color: "#15803d" }}
-                      >
-                        <CheckCircle2 size={14} /> Approve Researcher Plan
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleManagerRequestDecision("reject")}
-                        disabled={applying}
-                        className="btn-secondary-white"
-                        style={{ borderColor: "#ef4444", color: "#b91c1c" }}
-                      >
-                        <XCircle size={14} /> Reject Researcher Plan
-                      </button>
-                    </>
-                  )}
                   {!hasPlanComparisonContext && (
                     <button
                       type="button"

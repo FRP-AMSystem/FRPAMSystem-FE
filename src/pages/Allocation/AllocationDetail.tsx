@@ -142,8 +142,8 @@ export default function AllocationDetail() {
         (type === "error"
           ? "Lỗi thực thi (Action Error)"
           : type === "success"
-          ? "Thành công (Success)"
-          : "Thông báo (Notice)"),
+            ? "Thành công (Success)"
+            : "Thông báo (Notice)"),
       message,
     });
   };
@@ -181,12 +181,12 @@ export default function AllocationDetail() {
       ]);
 
       setPlan(planRes);
-      setEquipmentDetails(Array.isArray(equipData) ? equipData : []);
+      const rawEquip = Array.isArray(equipData) ? equipData : [];
       setHumanDetails(Array.isArray(humanData) ? humanData : []);
       setLandDetails(Array.isArray(landData) ? landData : []);
 
       if (planRes.experimentId) {
-        const [expRes, phaseRes] = await Promise.all([
+        const [expRes, phaseRes, expEquipReqRes] = await Promise.all([
           api
             .get(`/Experiments/${planRes.experimentId}`)
             .catch(() => null),
@@ -195,13 +195,18 @@ export default function AllocationDetail() {
               `/ExperimentPhases?ExperimentId=${planRes.experimentId}&size=100`
             )
             .catch(() => null),
+          api
+            .get(
+              `/ExperimentEquipmentRequirements?ExperimentId=${planRes.experimentId}&size=200`
+            )
+            .catch(() => null),
         ]);
 
         if (expRes?.data) {
           setExperiment(
             expRes.data?.data ||
-              expRes.data?.result ||
-              expRes.data
+            expRes.data?.result ||
+            expRes.data
           );
         } else {
           setExperiment(null);
@@ -220,16 +225,80 @@ export default function AllocationDetail() {
                   ? phasePayload.data.items
                   : [];
 
-        setPhases(
-          rawPhases.filter(
-            (phase: ExperimentPhase) =>
-              Number(phase.experimentId) ===
-              Number(planRes.experimentId)
-          )
+        const filteredPhases = rawPhases.filter(
+          (phase: ExperimentPhase) =>
+            Number(phase.experimentId) ===
+            Number(planRes.experimentId)
         );
+        setPhases(filteredPhases);
+
+        const reqPayload = expEquipReqRes?.data;
+        const reqList = Array.isArray(reqPayload?.data?.items)
+          ? reqPayload.data.items
+          : Array.isArray(reqPayload?.data)
+            ? reqPayload.data
+            : Array.isArray(reqPayload?.items)
+              ? reqPayload.items
+              : Array.isArray(reqPayload)
+                ? reqPayload
+                : [];
+
+        // Enrich equipmentDetails with phase information if missing from backend
+        const enrichedEquip = rawEquip.map((eq: AllocationEquipmentDetail) => {
+          if (eq.phaseName || eq.phaseId) return eq;
+
+          let matchedPhaseId = eq.phaseId;
+          let matchedPhaseName = eq.phaseName;
+
+          // 1. Try matching through expEquipmentReqId note
+          if (eq.expEquipmentReqId) {
+            const req = reqList.find(
+              (r: any) => Number(r.expEquipmentReqId) === Number(eq.expEquipmentReqId)
+            );
+            if (req?.note) {
+              const p = filteredPhases.find((phase: any) => {
+                const pId = phase.phaseId || phase.experimentPhaseId;
+                const pName = phase.phaseName || `Phase #${pId}`;
+                return (
+                  req.note.includes(pName) ||
+                  req.note.includes(`Phase ${phase.phaseOrder}:`) ||
+                  (pId && req.note.includes(String(pId)))
+                );
+              });
+              if (p) {
+                matchedPhaseId = p.phaseId || p.experimentPhaseId;
+                matchedPhaseName = p.phaseName;
+              }
+            }
+          }
+
+          // 2. Try matching by dates
+          if (!matchedPhaseName && eq.startDate) {
+            const eqStart = eq.startDate.slice(0, 10);
+            const eqEnd = eq.endDate ? eq.endDate.slice(0, 10) : "";
+            const p = filteredPhases.find((phase: any) => {
+              const pStart = phase.expectedStartDate ? phase.expectedStartDate.slice(0, 10) : "";
+              const pEnd = phase.expectedEndDate ? phase.expectedEndDate.slice(0, 10) : "";
+              return eqStart === pStart || (eqStart >= pStart && eqEnd <= pEnd);
+            });
+            if (p) {
+              matchedPhaseId = matchedPhaseId || p.phaseId || p.experimentPhaseId;
+              matchedPhaseName = matchedPhaseName || p.phaseName;
+            }
+          }
+
+          return {
+            ...eq,
+            phaseId: matchedPhaseId,
+            phaseName: matchedPhaseName,
+          };
+        });
+
+        setEquipmentDetails(enrichedEquip);
       } else {
         setExperiment(null);
         setPhases([]);
+        setEquipmentDetails(rawEquip);
       }
     } catch (loadErr: any) {
       console.error(
@@ -419,20 +488,33 @@ export default function AllocationDetail() {
   return (
     <DashboardLayout>
       <div className="allocation-detail-page">
-        {/* Top Header */}
+        {/* Top Header Navigation */}
         <div className="allocation-detail-header">
-          <div>
-            <button
-              type="button"
-              className="allocation-back-button"
-              onClick={() => navigate("/allocation")}
-            >
-              <ArrowLeft size={15} /> Back to Allocations
-            </button>
-            <p className="allocation-breadcrumb">Dashboard / Allocations / Plan Detail</p>
-            <h1>{plan.approveStatus === "Pending" ? "Resource Allocation Request" : "Resource Allocation Plan"}</h1>
+          <div className="allocation-header-left">
+            <div className="allocation-nav-breadcrumbs">
+              <button
+                type="button"
+                className="allocation-back-button"
+                onClick={() => navigate("/allocation")}
+              >
+                <ArrowLeft size={13} /> Back to Allocations
+              </button>
+              <span className="allocation-breadcrumb-divider">/</span>
+              <span className="allocation-breadcrumb-text">Plan #{plan.allocationPlanId}</span>
+            </div>
+
+            <div className="allocation-title-row">
+              <h1>
+                {plan.approveStatus === "Pending"
+                  ? "Resource Allocation Request"
+                  : "Resource Allocation Plan"}
+              </h1>
+              <span className={`alloc-status-pill alloc-status-${statusKey}`}>
+                <ShieldCheck size={13} /> {plan.approveStatus || "Submitted"}
+              </span>
+            </div>
             <p className="allocation-subtitle">
-              {plan.experimentName || experiment?.experimentName || "Target Experiment Resource Allocation"}
+              Exp #{plan.experimentId} • {plan.experimentName || experiment?.experimentName || "Target Experiment"}
             </p>
           </div>
 
@@ -441,15 +523,116 @@ export default function AllocationDetail() {
               <button
                 type="button"
                 className="alloc-btn alloc-btn-approve"
-                style={{ width: "auto", padding: "8px 16px", fontSize: "12.5px" }}
+                style={{ width: "auto", padding: "7px 14px", fontSize: "12px" }}
                 onClick={() => openWorkSchedule()}
               >
-                <CalendarPlus size={15} /> Assign Work Schedule
+                <CalendarPlus size={14} /> Assign Work Schedule
               </button>
             )}
-            <span className={`alloc-status-pill alloc-status-${statusKey}`}>
-              <ShieldCheck size={14} /> {plan.approveStatus || "Submitted"}
-            </span>
+            {canApprove && (
+              <button
+                type="button"
+                onClick={() => void handleApprove()}
+                disabled={actionLoading}
+                className="alloc-btn alloc-btn-approve"
+                style={{ width: "auto", padding: "7px 14px", fontSize: "12px" }}
+              >
+                <CheckCircle2 size={14} /> Approve Request
+              </button>
+            )}
+            {canReject && (
+              <button
+                type="button"
+                onClick={() => void handleReject()}
+                disabled={actionLoading}
+                className="alloc-btn alloc-btn-reject"
+                style={{ width: "auto", padding: "7px 14px", fontSize: "12px" }}
+              >
+                <XCircle size={14} /> Reject
+              </button>
+            )}
+            {canReviewAISuggestions && (
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(
+                    `/allocation/${plan.allocationPlanId}/ai-suggestions?experimentId=${plan.experimentId}&allocationPlanId=${plan.allocationPlanId}`
+                  )
+                }
+                disabled={actionLoading}
+                className="alloc-btn alloc-btn-ai"
+                style={{ width: "auto", padding: "7px 14px", fontSize: "12px" }}
+              >
+                <Sparkles size={14} /> AI Suggestions
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Executive KPI Ribbon */}
+        <div className="alloc-kpi-ribbon">
+          <div className="alloc-kpi-item">
+            <div className="alloc-kpi-icon alloc-kpi-icon-equip">
+              <Cpu size={15} />
+            </div>
+            <div className="alloc-kpi-meta">
+              <span className="alloc-kpi-label">Equipment Units</span>
+              <span className="alloc-kpi-val">
+                <strong>{equipCount}</strong> <small>units</small>
+              </span>
+            </div>
+          </div>
+
+          <div className="alloc-kpi-item">
+            <div className="alloc-kpi-icon alloc-kpi-icon-human">
+              <Users size={15} />
+            </div>
+            <div className="alloc-kpi-meta">
+              <span className="alloc-kpi-label">Field Personnel</span>
+              <span className="alloc-kpi-val">
+                <strong>{humanCount}</strong> <small>staff</small>
+              </span>
+            </div>
+          </div>
+
+          <div className="alloc-kpi-item">
+            <div className="alloc-kpi-icon alloc-kpi-icon-land">
+              <MapPin size={15} />
+            </div>
+            <div className="alloc-kpi-meta">
+              <span className="alloc-kpi-label">Land Plots</span>
+              <span className="alloc-kpi-val">
+                <strong>{landCount}</strong> <small>plot(s)</small>
+              </span>
+            </div>
+          </div>
+
+          <div className="alloc-kpi-item">
+            <div className="alloc-kpi-icon alloc-kpi-icon-phase">
+              <Layers size={15} />
+            </div>
+            <div className="alloc-kpi-meta">
+              <span className="alloc-kpi-label">Experiment Phases</span>
+              <span className="alloc-kpi-val">
+                <strong>{phaseCount}</strong> <small>phases</small>
+              </span>
+            </div>
+          </div>
+
+          <div className="alloc-kpi-item alloc-kpi-item-fitness">
+            <div className="alloc-kpi-icon alloc-kpi-icon-fitness">
+              <Sparkles size={15} />
+            </div>
+            <div className="alloc-kpi-meta">
+              <span className="alloc-kpi-label">Fitness Score</span>
+              <span className="alloc-kpi-val">
+                <strong className="alloc-fitness-score-text">
+                  {plan.fitnessScore != null
+                    ? Number(plan.fitnessScore).toFixed(2)
+                    : "Not evaluated"}
+                </strong>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -457,176 +640,69 @@ export default function AllocationDetail() {
         <div className="allocation-layout-grid">
           {/* Main Left Column */}
           <div className="allocation-main-col">
-            {/* Key Metrics Card */}
-            <div className="alloc-card">
-              <div className="alloc-card-header">
-                <div>
-                  <span className="alloc-card-header-eyebrow">Decision Summary</span>
-                  <h3>{plan.approveStatus === "Pending" ? "Resource Request Summary" : "Allocated Resource Summary"}</h3>
-                </div>
-              </div>
-
-              <div className="alloc-metrics-grid">
-                <div className="alloc-metric-item">
-                  <span className="alloc-metric-label">Equipment Units</span>
-                  <div className="alloc-metric-value">{equipCount}</div>
-                </div>
-
-                <div className="alloc-metric-item">
-                  <span className="alloc-metric-label">Field Personnel</span>
-                  <div className="alloc-metric-value">{humanCount}</div>
-                </div>
-
-                <div className="alloc-metric-item">
-                  <span className="alloc-metric-label">Land Plots</span>
-                  <div className="alloc-metric-value">{landCount}</div>
-                </div>
-
-                <div className="alloc-metric-item">
-                  <span className="alloc-metric-label">Experiment Phases</span>
-                  <div className="alloc-metric-value">{phaseCount}</div>
-                </div>
-
-                <div className="alloc-metric-item">
-                  <span className="alloc-metric-label">Fitness Score</span>
-                  <div
-                    className="alloc-metric-value"
-                    style={{
-                      color: plan.fitnessScore != null ? "#15803d" : "#94a3b8",
-                    }}
-                  >
-                    {plan.fitnessScore != null
-                      ? Number(plan.fitnessScore).toFixed(2)
-                      : "-"}
-                  </div>
-                </div>
-
-                <div className="alloc-metric-item">
-                  <span className="alloc-metric-label">Schedules</span>
-                  <div className="alloc-metric-value">
-                    {plan.scheduleCount ?? 0}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="alloc-card">
-              <div className="alloc-card-header">
-                <div>
+            {/* Phased Resource Details Tabs Card */}
+            <div className="alloc-card alloc-card-resources">
+              <div className="alloc-card-header-with-tabs">
+                <div className="alloc-card-title-group">
                   <span className="alloc-card-header-eyebrow">
-                    Plan Information
+                    {plan.approveStatus === "Pending"
+                      ? "Requested Resources"
+                      : "Assigned Resources"}
                   </span>
-                  <h3>Allocation Plan Details</h3>
-                </div>
-              </div>
-
-              <div className="alloc-detail-field-grid alloc-plan-detail-grid">
-                <div>
-                  <span>Allocation Plan ID</span>
-                  <strong>#{plan.allocationPlanId}</strong>
+                  <h3>
+                    {plan.approveStatus === "Pending"
+                      ? "Resource Request Details"
+                      : "Resource Allocation Details"}
+                  </h3>
                 </div>
 
-                <div>
-                  <span>Experiment ID</span>
-                  <strong>#{plan.experimentId}</strong>
+                {/* Tabs Bar */}
+                <div className="alloc-tabs-bar">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("equipment")}
+                    className={`alloc-tab-btn ${activeTab === "equipment" ? "active" : ""}`}
+                  >
+                    <Cpu size={13} /> Equipment
+                    <span className="alloc-tab-badge">{equipCount}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("human")}
+                    className={`alloc-tab-btn ${activeTab === "human" ? "active" : ""}`}
+                  >
+                    <Users size={13} /> Personnel
+                    <span className="alloc-tab-badge">{humanCount}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("land")}
+                    className={`alloc-tab-btn ${activeTab === "land" ? "active" : ""}`}
+                  >
+                    <MapPin size={13} /> Land Plot
+                    <span className="alloc-tab-badge">{landCount}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("phases")}
+                    className={`alloc-tab-btn ${activeTab === "phases" ? "active" : ""}`}
+                  >
+                    <Layers size={13} /> Phases
+                    <span className="alloc-tab-badge">{phaseCount}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("schedule")}
+                    className={`alloc-tab-btn ${activeTab === "schedule" ? "active" : ""}`}
+                  >
+                    <Calendar size={13} /> Schedule
+                    <span className="alloc-tab-badge">{plan.scheduleCount ?? 0}</span>
+                  </button>
                 </div>
-
-                <div>
-                  <span>Approval Status</span>
-                  <strong>{plan.approveStatus || "-"}</strong>
-                </div>
-
-                <div>
-                  <span>Fitness Score</span>
-                  <strong>
-                    {plan.fitnessScore != null
-                      ? Number(plan.fitnessScore).toFixed(2)
-                      : "Not evaluated"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Created By</span>
-                  <strong>{plan.createdByName || `User #${plan.createdBy}`}</strong>
-                </div>
-
-                <div>
-                  <span>Created At</span>
-                  <strong>{formatDateTime(plan.createdAt)}</strong>
-                </div>
-
-                <div>
-                  <span>Last Updated</span>
-                  <strong>{formatDateTime(plan.updatedAt)}</strong>
-                </div>
-
-                <div>
-                  <span>Approved By</span>
-                  <strong>{plan.approveByName || "-"}</strong>
-                </div>
-
-                <div>
-                  <span>Approved At</span>
-                  <strong>{formatDateTime(plan.approvedAt)}</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive Phased Resource Details Tabs */}
-            <div className="alloc-card">
-              <div className="alloc-card-header">
-                <div>
-                  <span className="alloc-card-header-eyebrow">{plan.approveStatus === "Pending" ? "Requested Resources" : "Assigned Resources"}</span>
-                  <h3>{plan.approveStatus === "Pending" ? "Resource Request Details" : "Resource Allocation Details"}</h3>
-                </div>
-              </div>
-
-              {/* Tabs Bar */}
-              <div className="alloc-tabs-bar">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("equipment")}
-                  className={`alloc-tab-btn ${activeTab === "equipment" ? "active" : ""}`}
-                >
-                  <Cpu size={14} /> Equipment
-                  <span className="alloc-tab-badge">{equipCount}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("human")}
-                  className={`alloc-tab-btn ${activeTab === "human" ? "active" : ""}`}
-                >
-                  <Users size={14} /> Personnel
-                  <span className="alloc-tab-badge">{humanCount}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("land")}
-                  className={`alloc-tab-btn ${activeTab === "land" ? "active" : ""}`}
-                >
-                  <MapPin size={14} /> Land Plot
-                  <span className="alloc-tab-badge">{landCount}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("phases")}
-                  className={`alloc-tab-btn ${activeTab === "phases" ? "active" : ""}`}
-                >
-                  <Layers size={14} /> Phases
-                  <span className="alloc-tab-badge">{phaseCount}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("schedule")}
-                  className={`alloc-tab-btn ${activeTab === "schedule" ? "active" : ""}`}
-                >
-                  <Calendar size={14} /> Schedule
-                  <span className="alloc-tab-badge">{plan.scheduleCount ?? 0}</span>
-                </button>
               </div>
 
               {/* Tab 1: Equipment */}
@@ -1093,123 +1169,114 @@ export default function AllocationDetail() {
 
           {/* Side Right Column */}
           <div className="allocation-side-col">
-            {/* Experiment Information Card */}
-            <div className="alloc-card">
-              <div className="alloc-card-header">
-                <div>
-                  <span className="alloc-card-header-eyebrow">Experiment</span>
-                  <h3>Experiment Context</h3>
+            <div className="alloc-card alloc-sidebar-card">
+              {/* Section 1: Experiment Context */}
+              <div className="alloc-sidebar-section">
+                <div className="alloc-sidebar-sec-header">
+                  <span className="alloc-sidebar-eyebrow">Experiment</span>
+                  <h4>Experiment Context</h4>
+                </div>
+
+                <div className="alloc-side-info-list">
+                  <div className="alloc-side-info-row">
+                    <span>Experiment Name</span>
+                    <strong>{experiment?.experimentName || plan.experimentName || "-"}</strong>
+                  </div>
+
+                  <div className="alloc-side-info-row">
+                    <span>Experiment ID</span>
+                    <strong>#{plan.experimentId}</strong>
+                  </div>
+
+                  <div className="alloc-side-info-row">
+                    <span>Timeline</span>
+                    <strong>
+                      {formatDate(experiment?.expectStartDate || plan.createdAt)} → {formatDate(experiment?.expectEndDate)}
+                    </strong>
+                  </div>
+
+                  <div className="alloc-side-info-row">
+                    <span>Deadline</span>
+                    <strong>{formatDate(experiment?.deadline)}</strong>
+                  </div>
+
+                  <div className="alloc-side-info-row">
+                    <span>Priority</span>
+                    <span className={`alloc-prio-tag prio-${(getPriorityLabel(experiment?.priority)).toLowerCase()}`}>
+                      {getPriorityLabel(experiment?.priority)}
+                    </span>
+                  </div>
+
+                  <div className="alloc-side-info-row">
+                    <span>Researcher</span>
+                    <strong>{experiment?.researcherName || plan.createdByName || "-"}</strong>
+                  </div>
                 </div>
               </div>
 
-              <div className="alloc-side-info-list">
-                <div className="alloc-side-info-row">
-                  <span>Experiment Name</span>
-                  <strong>{experiment?.experimentName || plan.experimentName || "-"}</strong>
+              {/* Section 2: Allocation Plan Audit */}
+              <div className="alloc-sidebar-section">
+                <div className="alloc-sidebar-sec-header">
+                  <span className="alloc-sidebar-eyebrow">Audit & Metadata</span>
+                  <h4>Allocation Details</h4>
                 </div>
 
-                <div className="alloc-side-info-row">
-                  <span>Experiment ID</span>
-                  <strong>#{plan.experimentId}</strong>
-                </div>
+                <div className="alloc-side-info-list">
+                  <div className="alloc-side-info-row">
+                    <span>Plan ID</span>
+                    <strong>#{plan.allocationPlanId}</strong>
+                  </div>
 
-                <div className="alloc-side-info-row">
-                  <span>Start Date</span>
-                  <strong>{formatDate(experiment?.expectStartDate || plan.createdAt)}</strong>
-                </div>
+                  <div className="alloc-side-info-row">
+                    <span>Approval Status</span>
+                    <span className={`alloc-status-pill alloc-status-${statusKey} alloc-status-pill-sm`}>
+                      {plan.approveStatus || "Submitted"}
+                    </span>
+                  </div>
 
-                <div className="alloc-side-info-row">
-                  <span>End Date</span>
-                  <strong>{formatDate(experiment?.expectEndDate)}</strong>
-                </div>
+                  <div className="alloc-side-info-row">
+                    <span>Fitness Score</span>
+                    <strong style={{ color: plan.fitnessScore != null ? "#15803d" : undefined }}>
+                      {plan.fitnessScore != null
+                        ? Number(plan.fitnessScore).toFixed(2)
+                        : "Not evaluated"}
+                    </strong>
+                  </div>
 
-                <div className="alloc-side-info-row">
-                  <span>Deadline</span>
-                  <strong>{formatDate(experiment?.deadline)}</strong>
-                </div>
+                  <div className="alloc-side-info-row">
+                    <span>Created By</span>
+                    <strong>{plan.createdByName || (plan.createdBy ? `User #${plan.createdBy}` : "-")}</strong>
+                  </div>
 
-                <div className="alloc-side-info-row">
-                  <span>Priority</span>
-                  <strong>{getPriorityLabel(experiment?.priority)}</strong>
-                </div>
+                  <div className="alloc-side-info-row">
+                    <span>Created Date</span>
+                    <strong>{formatDateTime(plan.createdAt)}</strong>
+                  </div>
 
-                <div className="alloc-side-info-row">
-                  <span>Researcher</span>
-                  <strong>{experiment?.researcherName || plan.createdByName || "-"}</strong>
-                </div>
-              </div>
-            </div>
+                  {plan.updatedAt && (
+                    <div className="alloc-side-info-row">
+                      <span>Last Updated</span>
+                      <strong>{formatDateTime(plan.updatedAt)}</strong>
+                    </div>
+                  )}
 
-            {/* Workflow & Approval Information Card */}
-            <div className="alloc-card">
-              <div className="alloc-card-header">
-                <div>
-                  <span className="alloc-card-header-eyebrow">Manager Decision</span>
-                  <h3>{plan.approveStatus === "Pending" ? "Review Resource Request" : "Approval History"}</h3>
-                </div>
-              </div>
+                  {plan.approveByName && (
+                    <div className="alloc-side-info-row">
+                      <span>Approved By</span>
+                      <strong>{plan.approveByName}</strong>
+                    </div>
+                  )}
 
-              <div className="alloc-side-info-list">
-                <div className="alloc-side-info-row">
-                  <span>Approval Status</span>
-                  <strong>{plan.approveStatus}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Equipment Details</span>
-                  <strong>{equipCount}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Personnel Details</span>
-                  <strong>{humanCount}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Land Details</span>
-                  <strong>{landCount}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Schedules</span>
-                  <strong>{plan.scheduleCount ?? 0}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Fitness Score</span>
-                  <strong
-                    style={{
-                      color: plan.fitnessScore != null ? "#15803d" : undefined,
-                    }}
-                  >
-                    {plan.fitnessScore != null
-                      ? Number(plan.fitnessScore).toFixed(2)
-                      : "-"}
-                  </strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Created By</span>
-                  <strong>{plan.createdByName || "-"}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Created Date</span>
-                  <strong>{formatDateTime(plan.createdAt)}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Approved By</span>
-                  <strong>{plan.approveByName || "-"}</strong>
-                </div>
-
-                <div className="alloc-side-info-row">
-                  <span>Approved Date</span>
-                  <strong>{formatDateTime(plan.approvedAt)}</strong>
+                  {plan.approvedAt && (
+                    <div className="alloc-side-info-row">
+                      <span>Approved Date</span>
+                      <strong>{formatDateTime(plan.approvedAt)}</strong>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Action Buttons */}
+              {/* Section 3: Action Buttons */}
               {(canApprove ||
                 canReject ||
                 canReviewAISuggestions ||
@@ -1218,7 +1285,12 @@ export default function AllocationDetail() {
                 canEdit ||
                 canAllocateResources ||
                 canAssignSchedule) && (
-                <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
+                <div className="alloc-sidebar-section alloc-sidebar-actions-sec">
+                  <div className="alloc-sidebar-sec-header">
+                    <span className="alloc-sidebar-eyebrow">Actions</span>
+                    <h4>Plan Actions</h4>
+                  </div>
+
                   <div className="alloc-action-bar">
                     {canAssignSchedule && (
                       <button
@@ -1226,7 +1298,7 @@ export default function AllocationDetail() {
                         onClick={() => openWorkSchedule()}
                         className="alloc-btn alloc-btn-approve"
                       >
-                        <CalendarPlus size={15} /> Assign Work Schedule
+                        <CalendarPlus size={14} /> Assign Work Schedule
                       </button>
                     )}
 
@@ -1237,7 +1309,7 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-approve"
                       >
-                        <CheckCircle2 size={15} /> Approve Resource Request
+                        <CheckCircle2 size={14} /> Approve Resource Request
                       </button>
                     )}
 
@@ -1250,9 +1322,9 @@ export default function AllocationDetail() {
                           )
                         }
                         disabled={actionLoading}
-                        className="alloc-btn alloc-btn-approve"
+                        className="alloc-btn alloc-btn-ai"
                       >
-                        <Sparkles size={15} /> AI Suggestion
+                        <Sparkles size={14} /> AI Suggestion
                       </button>
                     )}
 
@@ -1267,7 +1339,7 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-edit"
                       >
-                        <Sparkles size={15} /> Compare AI Suggestions
+                        <Sparkles size={14} /> Compare AI Suggestions
                       </button>
                     )}
 
@@ -1282,7 +1354,7 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-approve"
                       >
-                        <Plus size={15} /> Allocate Resources
+                        <Plus size={14} /> Allocate Resources
                       </button>
                     )}
 
@@ -1293,7 +1365,7 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-reject"
                       >
-                        <XCircle size={15} /> Reject Resource Request
+                        <XCircle size={14} /> Reject Resource Request
                       </button>
                     )}
 
@@ -1304,7 +1376,7 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-cancel"
                       >
-                        <Ban size={15} /> Cancel Plan
+                        <Ban size={14} /> Cancel Plan
                       </button>
                     )}
 
@@ -1315,7 +1387,7 @@ export default function AllocationDetail() {
                         disabled={actionLoading}
                         className="alloc-btn alloc-btn-edit"
                       >
-                        <Pencil size={15} /> Edit Allocation
+                        <Pencil size={14} /> Edit Allocation
                       </button>
                     )}
                   </div>

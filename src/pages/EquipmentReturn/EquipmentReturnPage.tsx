@@ -33,9 +33,16 @@ import {
   handoverEquipmentDetail,
   type EquipmentHandoverRecord,
 } from "../../services/allocationDetailService";
-import { getAllocationPlanById } from "../../services/allocationPlanService";
-import { getExperimentById } from "../../services/experimentService";
+import {
+  getAllocationPlanById,
+  getAllocationPlans,
+} from "../../services/allocationPlanService";
+import {
+  getExperimentById,
+  getExperiments,
+} from "../../services/experimentService";
 import { getExperimentPhases } from "../../services/experimentPhaseService";
+import { getExperimentEquipmentRequirements } from "../../services/experimentEquipmentRequirementService";
 import { getUsers } from "../../services/userService";
 
 import {
@@ -51,6 +58,8 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 import type { AllocationEquipmentDetail } from "../../types/allocationDetail";
 import type { EquipmentConditionLevel } from "../../types/equipmentInstance";
 import type { EquipmentReturn } from "../../types/equipmentReturn";
+import type { ExperimentPhase } from "../../types/experimentPhase";
+import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
 
 import "./EquipmentReturnPage.css";
 
@@ -104,29 +113,122 @@ function getEquipmentDisplayName(
   );
 }
 
-function getPhaseDisplayName(
-  phaseName?: string | null,
-  phaseId?: number | null,
-  experimentPhaseNames: string[] = []
-): string {
-  const trimmed = (phaseName ?? "").trim();
+function cleanPhaseName(name?: string | null): string {
+  if (!name) return "";
+  let cleaned = name.trim();
+  if (cleaned.endsWith(":")) {
+    cleaned = cleaned.slice(0, -1).trim();
+  }
+  return cleaned;
+}
 
-  if (trimmed) {
-    return trimmed;
+function resolvePhaseDisplayName(
+  item: AllocationEquipmentDetail,
+  phases: ExperimentPhase[] = [],
+  reqs: ExperimentEquipmentRequirement[] = []
+): string {
+  // 1. Direct phaseName from detail item
+  if (item.phaseName && item.phaseName.trim()) {
+    return cleanPhaseName(item.phaseName);
   }
 
-  if (experimentPhaseNames.length > 0) {
-    const firstPhase = experimentPhaseNames[0]?.trim();
-    if (firstPhase) {
-      return firstPhase;
+  // 2. Direct phaseId
+  if (item.phaseId) {
+    const match = phases.find(
+      (p) => (p.experimentPhaseId || (p as any).phaseId) === item.phaseId
+    );
+    if (match && match.phaseName) {
+      return cleanPhaseName(match.phaseName);
     }
   }
 
-  if (typeof phaseId === "number" && Number.isFinite(phaseId)) {
-    return `Phase #${phaseId}`;
+  // 3. Match from expEquipmentReqId note (contains "[Phase X: ...]")
+  if (item.expEquipmentReqId && reqs && reqs.length > 0) {
+    const req = reqs.find(
+      (r) => (r.expEquipmentReqId || (r as any).id) === item.expEquipmentReqId
+    );
+    if (req && req.note) {
+      const match = req.note.match(/\[(Phase\s*\d+[^\]]*)\]/i);
+      if (match && match[1]) {
+        return cleanPhaseName(match[1]);
+      }
+    }
   }
 
-  return "Không có phase";
+  // 4. Match by date overlap with phases
+  if (item.startDate && item.endDate && phases.length > 0) {
+    const itemStart = new Date(item.startDate).getTime();
+    const itemEnd = new Date(item.endDate).getTime();
+
+    if (!Number.isNaN(itemStart) && !Number.isNaN(itemEnd)) {
+      let bestPhase: ExperimentPhase | null = null;
+      let maxOverlap = 0;
+
+      for (const phase of phases) {
+        if (!phase.expectedStartDate || !phase.expectedEndDate) continue;
+        const pStart = new Date(phase.expectedStartDate).getTime();
+        const pEnd = new Date(phase.expectedEndDate).getTime();
+        if (Number.isNaN(pStart) || Number.isNaN(pEnd)) continue;
+
+        const overlapStart = Math.max(itemStart, pStart);
+        const overlapEnd = Math.min(itemEnd, pEnd);
+        const overlap = overlapEnd - overlapStart;
+
+        if (overlap > maxOverlap) {
+          maxOverlap = overlap;
+          bestPhase = phase;
+        }
+      }
+
+      if (bestPhase && maxOverlap > 0 && bestPhase.phaseName) {
+        return cleanPhaseName(bestPhase.phaseName);
+      }
+
+      // Boundary match within 1 day
+      const matchingPhase = phases.find((p) => {
+        if (!p.expectedStartDate || !p.expectedEndDate) return false;
+        const pStart = new Date(p.expectedStartDate).getTime();
+        const pEnd = new Date(p.expectedEndDate).getTime();
+        if (Number.isNaN(pStart) || Number.isNaN(pEnd)) return false;
+        return (
+          Math.abs(itemStart - pStart) <= 86400000 ||
+          Math.abs(itemEnd - pEnd) <= 86400000
+        );
+      });
+
+      if (matchingPhase && matchingPhase.phaseName) {
+        return cleanPhaseName(matchingPhase.phaseName);
+      }
+    }
+  }
+
+  // 5. Single phase fallback
+  if (phases.length === 1 && phases[0].phaseName) {
+    return cleanPhaseName(phases[0].phaseName);
+  }
+
+  if (typeof item.phaseId === "number" && Number.isFinite(item.phaseId)) {
+    return `Phase #${item.phaseId}`;
+  }
+
+  return "No phase";
+}
+
+function getPlanReturnerName(
+  item: AllocationEquipmentDetail,
+  returnRecord?: EquipmentReturn,
+  planResearcherMap: Record<number, string> = {},
+  experimentResearcherMap: Record<number, string> = {},
+  returnerNamesById: Record<number, string> = {}
+): string {
+  return (
+    (item.allocationPlanId ? planResearcherMap[item.allocationPlanId] : "") ||
+    (item.experimentId ? experimentResearcherMap[item.experimentId] : "") ||
+    returnRecord?.returnedByUser?.fullName ||
+    returnRecord?.returnedByUser?.username ||
+    (returnRecord?.returnedBy ? returnerNamesById[returnRecord.returnedBy] : "") ||
+    (returnRecord?.returnedBy ? `User #${returnRecord.returnedBy}` : "-")
+  );
 }
 
 /* =========================================================
@@ -163,8 +265,20 @@ export default function EquipmentReturnPage() {
     EquipmentHandoverRecord[]
   >([]);
 
-  const [experimentPhaseNamesMap, setExperimentPhaseNamesMap] = useState<
-    Record<number, string[]>
+  const [experimentPhasesMap, setExperimentPhasesMap] = useState<
+    Record<number, ExperimentPhase[]>
+  >({});
+
+  const [experimentReqsMap, setExperimentReqsMap] = useState<
+    Record<number, ExperimentEquipmentRequirement[]>
+  >({});
+
+  const [planResearcherMap, setPlanResearcherMap] = useState<
+    Record<number, string>
+  >({});
+
+  const [experimentResearcherMap, setExperimentResearcherMap] = useState<
+    Record<number, string>
   >({});
 
   const [
@@ -271,10 +385,10 @@ export default function EquipmentReturnPage() {
       title:
         title ||
         (type === "success"
-          ? "Thành công"
+          ? "Success"
           : type === "error"
-            ? "Lỗi xử lý"
-            : "Thông báo"),
+            ? "Processing error"
+            : "Notification"),
       message,
     });
   };
@@ -298,6 +412,8 @@ export default function EquipmentReturnPage() {
             returns,
             handovers,
             users,
+            plans,
+            experiments,
           ] = await Promise.all([
             getAllocationEquipmentDetails({
               size: 400,
@@ -312,6 +428,14 @@ export default function EquipmentReturnPage() {
             }).catch(() => []),
 
             getUsers(),
+
+            getAllocationPlans({
+              size: 400,
+            }).catch(() => []),
+
+            getExperiments({
+              size: 400,
+            }).catch(() => []),
           ]);
 
           setItems(
@@ -330,6 +454,22 @@ export default function EquipmentReturnPage() {
           );
           setHandoverRecords(handovers || []);
 
+          const pMap: Record<number, string> = {};
+          plans.forEach((p) => {
+            if (p.allocationPlanId && p.createdByName) {
+              pMap[p.allocationPlanId] = p.createdByName;
+            }
+          });
+          setPlanResearcherMap(pMap);
+
+          const eMap: Record<number, string> = {};
+          experiments.forEach((e) => {
+            if (e.experimentId && (e.researcherName || e.createdByName)) {
+              eMap[e.experimentId] = e.researcherName || e.createdByName || "";
+            }
+          });
+          setExperimentResearcherMap(eMap);
+
           return;
         }
 
@@ -338,7 +478,7 @@ export default function EquipmentReturnPage() {
         ================================================= */
 
         const currentUser = getCurrentUserTokenInfo();
-        const [allocationList, handovers, returns] = await Promise.all([
+        const [allocationList, handovers, returns, plans, experiments] = await Promise.all([
           getMyAllocationEquipmentDetails({
             size: 400,
           }),
@@ -350,6 +490,12 @@ export default function EquipmentReturnPage() {
             returnedBy: currentUser.userId,
             size: 400,
           }),
+          getAllocationPlans({
+            size: 400,
+          }).catch(() => []),
+          getExperiments({
+            size: 400,
+          }).catch(() => []),
         ]);
 
         const safeList =
@@ -364,12 +510,28 @@ export default function EquipmentReturnPage() {
             .filter((record) => normalizeStatus(record.status) === "pending")
             .map((record) => record.allocationEquipmentDetailId)
         );
+
+        const pMap: Record<number, string> = {};
+        plans.forEach((p) => {
+          if (p.allocationPlanId && p.createdByName) {
+            pMap[p.allocationPlanId] = p.createdByName;
+          }
+        });
+        setPlanResearcherMap(pMap);
+
+        const eMap: Record<number, string> = {};
+        experiments.forEach((e) => {
+          if (e.experimentId && (e.researcherName || e.createdByName)) {
+            eMap[e.experimentId] = e.researcherName || e.createdByName || "";
+          }
+        });
+        setExperimentResearcherMap(eMap);
       } catch (error: any) {
         showToast(
           error?.response?.data
             ?.message ||
-            error?.message ||
-            "Không thể tải danh sách thiết bị.",
+          error?.message ||
+          "Unable to load the equipment list.",
           "error"
         );
       } finally {
@@ -391,7 +553,8 @@ export default function EquipmentReturnPage() {
     )];
 
     if (experimentIds.length === 0) {
-      setExperimentPhaseNamesMap({});
+      setExperimentPhasesMap({});
+      setExperimentReqsMap({});
       return;
     }
 
@@ -399,29 +562,38 @@ export default function EquipmentReturnPage() {
 
     void Promise.all(
       experimentIds.map(async (experimentId) => {
-        const phases = await getExperimentPhases({
-          experimentId,
-          size: 200,
-        }).catch(() => []);
+        const [phases, reqs] = await Promise.all([
+          getExperimentPhases({
+            experimentId,
+            size: 200,
+          }).catch(() => []),
+          getExperimentEquipmentRequirements({
+            experimentId,
+            size: 200,
+          }).catch(() => []),
+        ]);
 
         return {
           experimentId,
-          phaseNames: phases
-            .map((phase) => (phase.phaseName || "").trim())
-            .filter(Boolean),
+          phases,
+          reqs,
         };
       })
     ).then((results) => {
       if (cancelled) return;
 
-      const nextMap: Record<number, string[]> = {};
-      results.forEach(({ experimentId, phaseNames }) => {
-        nextMap[experimentId] = phaseNames;
+      const nextPhaseMap: Record<number, ExperimentPhase[]> = {};
+      const nextReqMap: Record<number, ExperimentEquipmentRequirement[]> = {};
+      results.forEach(({ experimentId, phases, reqs }) => {
+        nextPhaseMap[experimentId] = phases;
+        nextReqMap[experimentId] = reqs;
       });
-      setExperimentPhaseNamesMap(nextMap);
+      setExperimentPhasesMap(nextPhaseMap);
+      setExperimentReqsMap(nextReqMap);
     }).catch(() => {
       if (!cancelled) {
-        setExperimentPhaseNamesMap({});
+        setExperimentPhasesMap({});
+        setExperimentReqsMap({});
       }
     });
 
@@ -429,6 +601,43 @@ export default function EquipmentReturnPage() {
       cancelled = true;
     };
   }, [items]);
+
+  useEffect(() => {
+    const missingPlanIds = [...new Set(
+      items
+        .map((item) => Number(item.allocationPlanId))
+        .filter((id) => Number.isFinite(id) && id > 0 && !planResearcherMap[id])
+    )];
+
+    if (missingPlanIds.length === 0) return;
+
+    let cancelled = false;
+    void Promise.all(
+      missingPlanIds.map(async (planId) => {
+        try {
+          const plan = await getAllocationPlanById(planId);
+          return { planId, createdByName: plan?.createdByName };
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      setPlanResearcherMap((prev) => {
+        const next = { ...prev };
+        results.forEach((r) => {
+          if (r && r.createdByName) {
+            next[r.planId] = r.createdByName;
+          }
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items, planResearcherMap]);
 
   /* =======================================================
      FIND LATEST RETURN RECORD
@@ -460,15 +669,15 @@ export default function EquipmentReturnPage() {
             const aDate =
               a.returnDate
                 ? new Date(
-                    a.returnDate
-                  ).getTime()
+                  a.returnDate
+                ).getTime()
                 : 0;
 
             const bDate =
               b.returnDate
                 ? new Date(
-                    b.returnDate
-                  ).getTime()
+                  b.returnDate
+                ).getTime()
                 : 0;
 
             if (
@@ -553,9 +762,9 @@ export default function EquipmentReturnPage() {
         items.filter(
           (item) =>
             item.status ===
-              "Allocated" ||
+            "Allocated" ||
             item.status ===
-              "Reserved"
+            "Reserved"
         ).length;
 
       return {
@@ -576,7 +785,7 @@ export default function EquipmentReturnPage() {
       items.filter(
         (item) =>
           item.status ===
-            "InUse" &&
+          "InUse" &&
           !submittedReturnIds.includes(
             item.allocationEquipmentDetailId
           )
@@ -586,9 +795,9 @@ export default function EquipmentReturnPage() {
       items.filter(
         (item) =>
           item.status ===
-            "Allocated" ||
+          "Allocated" ||
           item.status ===
-            "Reserved"
+          "Reserved"
       ).length;
 
     const completed =
@@ -657,9 +866,9 @@ export default function EquipmentReturnPage() {
           ) {
             matchesTab =
               item.status ===
-                "Allocated" ||
+              "Allocated" ||
               item.status ===
-                "Reserved";
+              "Reserved";
           }
 
           /* ===============================================
@@ -677,7 +886,7 @@ export default function EquipmentReturnPage() {
             } else {
               matchesTab =
                 item.status ===
-                  "InUse" &&
+                "InUse" &&
                 !submittedLocally;
             }
           }
@@ -718,6 +927,17 @@ export default function EquipmentReturnPage() {
             return true;
           }
 
+          const phases = experimentPhasesMap[item.experimentId ?? 0] || [];
+          const reqs = experimentReqsMap[item.experimentId ?? 0] || [];
+          const resolvedPhase = resolvePhaseDisplayName(item, phases, reqs);
+          const returner = getPlanReturnerName(
+            item,
+            returnRecord,
+            planResearcherMap,
+            experimentResearcherMap,
+            returnerNamesById
+          );
+
           const searchable =
             [
               item.allocatedEquipmentTypeName,
@@ -727,6 +947,8 @@ export default function EquipmentReturnPage() {
               item.serialNumber,
               item.experimentName,
               item.phaseName,
+              resolvedPhase,
+              returner,
               returnRecord?.returnedByUser?.fullName ?? returnRecord?.returnedByUser?.username,
               returnRecord?.returnedBy
                 ? returnerNamesById[returnRecord.returnedBy]
@@ -744,7 +966,23 @@ export default function EquipmentReturnPage() {
             keyword
           );
         }
-      );
+      ).sort((a, b) => {
+        // Sort newest plan first (highest planId)
+        const planA = Number(a.allocationPlanId || 0);
+        const planB = Number(b.allocationPlanId || 0);
+        if (planB !== planA) {
+          return planB - planA;
+        }
+
+        // Within same plan, sort by start date ascending (chronological phases)
+        const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+        if (dateA !== dateB) {
+          return dateA - dateB;
+        }
+
+        return Number(b.allocationEquipmentDetailId || 0) - Number(a.allocationEquipmentDetailId || 0);
+      });
     }, [
       items,
       tabFilter,
@@ -752,6 +990,11 @@ export default function EquipmentReturnPage() {
       isManager,
       submittedReturnIds,
       getReturnForAllocation,
+      experimentPhasesMap,
+      experimentReqsMap,
+      planResearcherMap,
+      experimentResearcherMap,
+      returnerNamesById,
     ]);
 
   /* =======================================================
@@ -823,16 +1066,16 @@ export default function EquipmentReturnPage() {
         );
 
         showToast(
-          `Đã tiếp nhận thiết bị "${getEquipmentDisplayName(
+          `Equipment received "${getEquipmentDisplayName(
             handoverModalItem
-          )}" vào sử dụng.`,
+          )}" and is now in use.`,
           "success",
-          "Tiếp nhận thiết bị thành công"
+          "Equipment received successfully"
         );
 
         /*
-         * Không dùng closeHandoverModal()
-         * vì actionLoading đang true.
+         * Do not use closeHandoverModal()
+         * because actionLoading is true.
          */
         setHandoverModalItem(
           null
@@ -843,8 +1086,8 @@ export default function EquipmentReturnPage() {
         showToast(
           error?.response?.data
             ?.message ||
-            error?.message ||
-            "Không thể tiếp nhận thiết bị.",
+          error?.message ||
+          "Unable to receive the equipment.",
           "error"
         );
       } finally {
@@ -888,17 +1131,17 @@ export default function EquipmentReturnPage() {
 
     setReturnNotes(
       returnRecord?.note ||
-        ""
+      ""
     );
 
     setDamageDescription(
       returnRecord?.damageDescription ||
-        ""
+      ""
     );
 
     setRejectReason(
       returnRecord?.note ||
-        ""
+      ""
     );
   };
 
@@ -918,15 +1161,15 @@ export default function EquipmentReturnPage() {
     );
     setReturnNotes(
       returnRecord?.note ||
-        ""
+      ""
     );
     setDamageDescription(
       returnRecord?.damageDescription ||
-        ""
+      ""
     );
     setRejectReason(
       returnRecord?.note ||
-        ""
+      ""
     );
   };
 
@@ -984,7 +1227,7 @@ export default function EquipmentReturnPage() {
             !returnRecord?.id
           ) {
             throw new Error(
-              "Không tìm thấy yêu cầu trả thiết bị."
+              "Equipment return request not found."
             );
           }
 
@@ -994,7 +1237,7 @@ export default function EquipmentReturnPage() {
             ) !== "pending"
           ) {
             throw new Error(
-              "Yêu cầu trả thiết bị không còn ở trạng thái chờ xác nhận."
+              "The equipment return request is no longer pending confirmation."
             );
           }
 
@@ -1003,11 +1246,11 @@ export default function EquipmentReturnPage() {
           );
 
           showToast(
-            `Đã xác nhận nhận lại thiết bị "${getEquipmentDisplayName(
+            `Equipment return confirmed for "${getEquipmentDisplayName(
               returnModalItem
             )}".`,
             "success",
-            "Xác nhận trả thiết bị thành công"
+            "Equipment return confirmed successfully"
           );
         } else {
           /* =================================================
@@ -1019,7 +1262,7 @@ export default function EquipmentReturnPage() {
             "InUse"
           ) {
             throw new Error(
-              "Chỉ thiết bị đang sử dụng mới có thể gửi yêu cầu trả."
+              "Only equipment currently in use can be submitted for return."
             );
           }
 
@@ -1029,12 +1272,12 @@ export default function EquipmentReturnPage() {
             )
           ) {
             throw new Error(
-              "Bạn đã gửi yêu cầu trả thiết bị này."
+              "You have already submitted a return request for this equipment."
             );
           }
 
           /*
-           * EquipmentConditionLevel thực tế:
+           * Actual EquipmentConditionLevel:
            *
            * Good
            * Fair
@@ -1045,16 +1288,16 @@ export default function EquipmentReturnPage() {
 
           const isDamaged =
             returnCondition ===
-              "Poor" ||
+            "Poor" ||
             returnCondition ===
-              "Critical";
+            "Critical";
 
           if (
             isDamaged &&
             !damageDescription.trim()
           ) {
             throw new Error(
-              "Vui lòng mô tả tình trạng hư hỏng hoặc vấn đề của thiết bị."
+              "Please describe the equipment damage or issue."
             );
           }
 
@@ -1085,7 +1328,7 @@ export default function EquipmentReturnPage() {
            *   ↓
            * Pending
            *
-           * KHÔNG chuyển thẳng Completed.
+           * Do NOT move directly to Completed.
            */
 
           if (createdReturn) {
@@ -1103,7 +1346,7 @@ export default function EquipmentReturnPage() {
           }
 
           /*
-           * Giữ Pending trong session.
+           * Keep Pending in the session.
            */
           setSubmittedReturnIds(
             (previous) => {
@@ -1126,19 +1369,19 @@ export default function EquipmentReturnPage() {
           );
 
           showToast(
-            `Đã gửi yêu cầu trả thiết bị "${getEquipmentDisplayName(
+            `Equipment return request submitted for "${getEquipmentDisplayName(
               returnModalItem
-            )}". Yêu cầu đang chờ quản lý xác nhận.`,
+            )}". The request is waiting for manager confirmation.`,
             "success",
-            "Gửi yêu cầu trả thành công"
+            "Equipment return request submitted successfully"
           );
         }
 
         /*
-         * RESET MODAL TRỰC TIẾP.
+         * RESET THE MODAL DIRECTLY.
          *
-         * Không gọi closeReturnModal()
-         * vì actionLoading đang true.
+         * Do not call closeReturnModal()
+         * because actionLoading is true.
          */
         setReturnModalItem(
           null
@@ -1161,8 +1404,8 @@ export default function EquipmentReturnPage() {
         showToast(
           error?.response?.data
             ?.message ||
-            error?.message ||
-            "Không thể thực hiện thao tác trả thiết bị.",
+          error?.message ||
+          "Unable to process the equipment return.",
           "error"
         );
       } finally {
@@ -1192,7 +1435,7 @@ export default function EquipmentReturnPage() {
         !returnRecord?.id
       ) {
         showToast(
-          "Không tìm thấy yêu cầu trả thiết bị.",
+          "Equipment return request not found.",
           "error"
         );
 
@@ -1205,7 +1448,7 @@ export default function EquipmentReturnPage() {
         ) !== "pending"
       ) {
         showToast(
-          "Yêu cầu này không còn ở trạng thái chờ xử lý.",
+          "This request is no longer pending.",
           "error"
         );
 
@@ -1216,7 +1459,7 @@ export default function EquipmentReturnPage() {
         !rejectReason.trim()
       ) {
         showToast(
-          "Vui lòng nhập lý do từ chối.",
+          "Please enter a rejection reason.",
           "error"
         );
 
@@ -1235,15 +1478,15 @@ export default function EquipmentReturnPage() {
         );
 
         showToast(
-          `Đã từ chối yêu cầu trả thiết bị "${getEquipmentDisplayName(
+          `Equipment return request rejected for "${getEquipmentDisplayName(
             returnModalItem
           )}".`,
           "success",
-          "Đã từ chối yêu cầu"
+          "Request rejected"
         );
 
         /*
-         * Reset modal trực tiếp.
+         * Reset the modal directly.
          */
         setReturnModalItem(
           null
@@ -1266,8 +1509,8 @@ export default function EquipmentReturnPage() {
         showToast(
           error?.response?.data
             ?.message ||
-            error?.message ||
-            "Không thể từ chối yêu cầu trả thiết bị.",
+          error?.message ||
+          "Unable to reject the equipment return request.",
           "error"
         );
       } finally {
@@ -1303,17 +1546,17 @@ export default function EquipmentReturnPage() {
 
     /*
      * EquipmentReturn status
-     * ưu tiên hơn Allocation status.
+     * takes priority over the Allocation status.
      */
 
     if (
       returnStatus ===
-        "pending" ||
+      "pending" ||
       submittedLocally
     ) {
       return (
         <span className="eq-status-badge eq-status-pending">
-          Chờ xác nhận trả
+          Pending return confirmation
         </span>
       );
     }
@@ -1324,7 +1567,7 @@ export default function EquipmentReturnPage() {
     ) {
       return (
         <span className="eq-status-badge eq-status-completed">
-          Đã xác nhận trả
+          Return confirmed
         </span>
       );
     }
@@ -1335,7 +1578,7 @@ export default function EquipmentReturnPage() {
     ) {
       return (
         <span className="eq-status-badge eq-status-rejected">
-          Yêu cầu trả bị từ chối
+          Return request rejected
         </span>
       );
     }
@@ -1350,8 +1593,8 @@ export default function EquipmentReturnPage() {
         return (
           <span className="eq-status-badge eq-status-pending">
             {isManager
-              ? "Bước 2: Chờ Researcher tiếp nhận"
-              : "Bước 2: Đã bàn giao - chờ tiếp nhận"}
+              ? "Step 2: Waiting for Researcher to receive"
+              : "Step 2: Handed over - waiting for receipt"}
           </span>
         );
       }
@@ -1359,14 +1602,14 @@ export default function EquipmentReturnPage() {
       if (handoverStatus === "rejected") {
         return (
           <span className="eq-status-badge eq-status-rejected">
-            Chờ bàn giao lại
+            Waiting for re-handover
           </span>
         );
       }
 
       return (
         <span className="eq-status-badge eq-status-allocated">
-          {isManager ? "Bước 1: Chờ bàn giao" : "Bước 1: Chờ Manager bàn giao"}
+          {isManager ? "Step 1: Waiting for handover" : "Step 1: Waiting for Manager handover"}
         </span>
       );
     }
@@ -1376,28 +1619,28 @@ export default function EquipmentReturnPage() {
       case "reserved":
         return (
           <span className="eq-status-badge eq-status-allocated">
-            Chờ tiếp nhận
+            Pending receipt
           </span>
         );
 
       case "InUse":
         return (
           <span className="eq-status-badge eq-status-inuse">
-            Đang sử dụng
+            In Use
           </span>
         );
 
       case "Completed":
         return (
           <span className="eq-status-badge eq-status-completed">
-            Đã hoàn trả
+            Returned
           </span>
         );
 
       case "Cancelled":
         return (
           <span className="eq-status-badge eq-status-rejected">
-            Đã hủy
+            Cancelled
           </span>
         );
 
@@ -1426,9 +1669,9 @@ export default function EquipmentReturnPage() {
 
       if (!currentUserId) {
         showToast(
-          "Không xác định được người dùng hiện tại.",
+          "Unable to identify the current user.",
           "error",
-          "Bàn giao thiết bị"
+          "Equipment Handover"
         );
         return;
       }
@@ -1474,25 +1717,25 @@ export default function EquipmentReturnPage() {
         handoverDate: new Date().toISOString(),
         quantity: Number(item.quantity || 1),
         conditionBefore: "Good",
-        note: "Manager đã bàn giao thiết bị cho Researcher.",
+        note: "Manager has handed over the equipment to the Researcher.",
         status: "Pending",
         confirmedAt: null,
       });
 
       showToast(
-        `Đã tạo yêu cầu bàn giao cho "${getEquipmentDisplayName(item)}".`,
+        `Handover request created for "${getEquipmentDisplayName(item)}".`,
         "success",
-        "Bàn giao thiết bị thành công"
+        "Equipment handed over successfully"
       );
 
       await loadData();
     } catch (error: any) {
       showToast(
         error?.response?.data?.message ||
-          error?.message ||
-          "Không thể bàn giao thiết bị.",
+        error?.message ||
+        "Unable to hand over the equipment.",
         "error",
-        "Bàn giao thiết bị"
+        "Equipment Handover"
       );
     } finally {
       setActionLoading(false);
@@ -1549,7 +1792,7 @@ export default function EquipmentReturnPage() {
             <PackageCheck
               size={15}
             />
-            Xử lý yêu cầu
+            Process Request
           </button>
         );
       }
@@ -1563,7 +1806,7 @@ export default function EquipmentReturnPage() {
             <CheckCircle2
               size={15}
             />
-            Đã nghiệm thu
+            Accepted
           </span>
         );
       }
@@ -1582,7 +1825,7 @@ export default function EquipmentReturnPage() {
               )
             }
           >
-            Xem chi tiết
+            View Details
           </button>
         );
       }
@@ -1599,7 +1842,7 @@ export default function EquipmentReturnPage() {
             disabled={actionLoading}
           >
             <Truck size={15} />
-            Bàn giao thiết bị
+            Equipment Handover
           </button>
         );
       }
@@ -1608,7 +1851,7 @@ export default function EquipmentReturnPage() {
         return (
           <span className="eq-action-pending">
             <Truck size={15} />
-            Bước 2: chờ Researcher xác nhận
+            Step 2: waiting for Researcher confirmation
           </span>
         );
       }
@@ -1626,9 +1869,9 @@ export default function EquipmentReturnPage() {
 
     if (
       item.status ===
-        "Allocated" ||
+      "Allocated" ||
       item.status ===
-        "Reserved"
+      "Reserved"
     ) {
       if (getHandoverForAllocation(item.allocationEquipmentDetailId)?.status === "Pending") {
         return (
@@ -1642,7 +1885,7 @@ export default function EquipmentReturnPage() {
             }
           >
             <Truck size={15} />
-            Tiếp nhận thiết bị
+            Receive Equipment
           </button>
         );
       }
@@ -1658,35 +1901,20 @@ export default function EquipmentReturnPage() {
           }
         >
           <Truck size={15} />
-          Tiếp nhận thiết bị
+          Receive Equipment
         </button>
       );
     }
 
     if (
       item.status ===
-        "InUse" &&
+      "InUse" &&
       !submittedLocally &&
       returnStatus !==
-        "pending"
+      "pending"
     ) {
       return (
         <div className="eq-action-stack">
-          <button
-            type="button"
-            className="eq-action-btn eq-action-damaged"
-            onClick={() =>
-              openDamagedReturnModal(
-                item
-              )
-            }
-          >
-            <AlertTriangle
-              size={15}
-            />
-            Báo hỏng
-          </button>
-
           <button
             type="button"
             className="eq-action-btn eq-action-return"
@@ -1699,7 +1927,7 @@ export default function EquipmentReturnPage() {
             <RotateCcw
               size={15}
             />
-            Trả thiết bị
+            Return Equipment
           </button>
         </div>
       );
@@ -1708,14 +1936,14 @@ export default function EquipmentReturnPage() {
     if (
       submittedLocally ||
       returnStatus ===
-        "pending"
+      "pending"
     ) {
       return (
         <span className="eq-action-pending">
           <PackageCheck
             size={15}
           />
-          Đang chờ xác nhận
+          Pending Confirmation
         </span>
       );
     }
@@ -1729,7 +1957,7 @@ export default function EquipmentReturnPage() {
           <CheckCircle2
             size={15}
           />
-          Đã hoàn trả
+          Returned
         </span>
       );
     }
@@ -1748,8 +1976,8 @@ export default function EquipmentReturnPage() {
   const currentReturnRecord =
     returnModalItem
       ? getReturnForAllocation(
-          returnModalItem.allocationEquipmentDetailId
-        )
+        returnModalItem.allocationEquipmentDetailId
+      )
       : undefined;
 
   const currentReturnStatus =
@@ -1783,14 +2011,14 @@ export default function EquipmentReturnPage() {
 
             <h1>
               {isManager
-                ? "Equipment Return Confirmation (Xác nhận trả thiết bị)"
-                : "Equipment Handover & Return (Bàn giao & Trả thiết bị)"}
+                ? "Equipment Return Confirmation"
+                : "Equipment Handover & Return"}
             </h1>
 
             <p className="eq-return-description">
               {isManager
-                ? "Kiểm tra, nghiệm thu và xác nhận các yêu cầu hoàn trả thiết bị từ nhân sự sử dụng."
-                : "Theo dõi thiết bị được phân bổ, thực hiện tiếp nhận và gửi yêu cầu trả thiết bị sau khi hoàn thành công việc."}
+                ? "Review, inspect, and confirm equipment return requests from users."
+                : "Track allocated equipment, receive equipment, and submit return requests after completing work."}
             </p>
           </div>
         </header>
@@ -1809,8 +2037,8 @@ export default function EquipmentReturnPage() {
             <div className="eq-stat-info">
               <span className="eq-stat-label">
                 {isManager
-                  ? "Tổng thiết bị phân bổ"
-                  : "Tổng thiết bị được giao"}
+                  ? "Total Allocated Equipment"
+                  : "Total Assigned Equipment"}
               </span>
 
               <span className="eq-stat-value">
@@ -1835,8 +2063,8 @@ export default function EquipmentReturnPage() {
             <div className="eq-stat-info">
               <span className="eq-stat-label">
                 {isManager
-                  ? "Yêu cầu trả đang chờ"
-                  : "Đang sử dụng (Cần trả)"}
+                  ? "Pending Return Requests"
+                  : "In Use (Needs Return)"}
               </span>
 
               <span className="eq-stat-value">
@@ -1853,8 +2081,8 @@ export default function EquipmentReturnPage() {
             <div className="eq-stat-info">
               <span className="eq-stat-label">
                 {isManager
-                  ? "Chờ nhân viên nhận"
-                  : "Chờ tiếp nhận"}
+                  ? "Waiting for User Receipt"
+                  : "Pending receipt"}
               </span>
 
               <span className="eq-stat-value">
@@ -1873,8 +2101,8 @@ export default function EquipmentReturnPage() {
             <div className="eq-stat-info">
               <span className="eq-stat-label">
                 {isManager
-                  ? "Đã nghiệm thu"
-                  : "Đã hoàn trả"}
+                  ? "Accepted"
+                  : "Returned"}
               </span>
 
               <span className="eq-stat-value">
@@ -1908,7 +2136,7 @@ export default function EquipmentReturnPage() {
                     event.target.value
                   )
                 }
-                placeholder="Tìm thiết bị, mã tài sản, thí nghiệm..."
+                placeholder="Search equipment, asset code, experiment..."
               />
             </div>
 
@@ -1925,8 +2153,8 @@ export default function EquipmentReturnPage() {
               />
 
               {loading
-                ? "Đang tải..."
-                : "Làm mới"}
+                ? "Loading..."
+                : "Refresh"}
             </button>
 
           </div>
@@ -1950,7 +2178,7 @@ export default function EquipmentReturnPage() {
                 )
               }
             >
-              Tất cả
+              All
 
               <span>
                 {stats.total}
@@ -1971,8 +2199,8 @@ export default function EquipmentReturnPage() {
               }
             >
               {isManager
-                ? "Chờ xác nhận trả"
-                : "Cần trả"}
+                ? "Pending return confirmation"
+                : "Needs Return"}
 
               <span>
                 {stats.inUse}
@@ -1983,7 +2211,7 @@ export default function EquipmentReturnPage() {
               type="button"
               className={
                 tabFilter ===
-                "allocated"
+                  "allocated"
                   ? "eq-return-tab active"
                   : "eq-return-tab"
               }
@@ -1993,7 +2221,7 @@ export default function EquipmentReturnPage() {
                 )
               }
             >
-              Chờ tiếp nhận
+              Pending receipt
 
               <span>
                 {stats.allocated}
@@ -2004,7 +2232,7 @@ export default function EquipmentReturnPage() {
               type="button"
               className={
                 tabFilter ===
-                "completed"
+                  "completed"
                   ? "eq-return-tab active"
                   : "eq-return-tab"
               }
@@ -2014,7 +2242,7 @@ export default function EquipmentReturnPage() {
                 )
               }
             >
-              Đã hoàn trả
+              Returned
 
               <span>
                 {stats.completed}
@@ -2034,33 +2262,33 @@ export default function EquipmentReturnPage() {
               <thead>
                 <tr>
                   <th>
-                    Thiết bị
+                    Equipment
                   </th>
 
                   <th>
-                    Mã tài sản
+                    Asset Code
                   </th>
 
                   <th>
-                    Thí nghiệm / Phase
+                    Experiment / Phase
                   </th>
 
                   <th>
-                    Thời gian sử dụng
+                    Usage Period
                   </th>
 
                   {isManager && (
                     <th>
-                      Người trả
+                      Returner
                     </th>
                   )}
 
                   <th>
-                    Trạng thái
+                    Status
                   </th>
 
                   <th>
-                    Thao tác
+                    Actions
                   </th>
                 </tr>
               </thead>
@@ -2077,7 +2305,7 @@ export default function EquipmentReturnPage() {
                       }
                       className="eq-table-empty"
                     >
-                      Đang tải dữ liệu...
+                      Loading data...
                     </td>
                   </tr>
                 ) : paginatedItems.length ===
@@ -2091,7 +2319,7 @@ export default function EquipmentReturnPage() {
                       }
                       className="eq-table-empty"
                     >
-                      Không có thiết bị phù hợp.
+                      No matching equipment found.
                     </td>
                   </tr>
                 ) : (
@@ -2172,10 +2400,10 @@ export default function EquipmentReturnPage() {
                               </strong>
 
                               <small>
-                                {getPhaseDisplayName(
-                                  item.phaseName,
-                                  item.phaseId,
-                                  experimentPhaseNamesMap[item.experimentId ?? 0] || []
+                                {resolvePhaseDisplayName(
+                                  item,
+                                  experimentPhasesMap[item.experimentId ?? 0] || [],
+                                  experimentReqsMap[item.experimentId ?? 0] || []
                                 )}
                               </small>
 
@@ -2213,10 +2441,13 @@ export default function EquipmentReturnPage() {
                               <div className="eq-user-cell">
 
                                 <strong>
-                                  {returnRecord?.returnedByUser?.fullName || returnRecord?.returnedByUser?.username  ||
-                                    (returnRecord?.returnedBy
-                                      ? returnerNamesById[returnRecord.returnedBy] || `Người dùng #${returnRecord.returnedBy}`
-                                      : "-")}
+                                  {getPlanReturnerName(
+                                    item,
+                                    returnRecord,
+                                    planResearcherMap,
+                                    experimentResearcherMap,
+                                    returnerNamesById
+                                  )}
                                 </strong>
 
                                 {returnRecord?.returnDate && (
@@ -2265,7 +2496,7 @@ export default function EquipmentReturnPage() {
 
           {!loading &&
             filteredItems.length >
-              0 && (
+            0 && (
               <Pagination
                 currentPage={
                   currentPage
@@ -2311,13 +2542,13 @@ export default function EquipmentReturnPage() {
 
                 <div>
                   <h2>
-                    Tiếp nhận thiết bị
+                    Receive Equipment
                   </h2>
 
                   <p>
-                    Xác nhận bạn đã nhận
-                    thiết bị và bắt đầu
-                    sử dụng.
+                    Confirm that you have received
+                    the equipment and started
+                    using it.
                   </p>
                 </div>
 
@@ -2355,7 +2586,7 @@ export default function EquipmentReturnPage() {
 
                     <span>
                       {handoverModalItem.assetCode ||
-                        "Không có mã tài sản"}
+                        "No asset code"}
                     </span>
                   </div>
 
@@ -2380,17 +2611,17 @@ export default function EquipmentReturnPage() {
                     </span>
 
                     <strong>
-                      {getPhaseDisplayName(
-                        handoverModalItem.phaseName,
-                        handoverModalItem.phaseId,
-                        experimentPhaseNamesMap[handoverModalItem.experimentId ?? 0] || []
+                      {resolvePhaseDisplayName(
+                        handoverModalItem,
+                        experimentPhasesMap[handoverModalItem.experimentId ?? 0] || [],
+                        experimentReqsMap[handoverModalItem.experimentId ?? 0] || []
                       )}
                     </strong>
                   </div>
 
                   <div>
                     <span>
-                      Bắt đầu
+                      Start
                     </span>
 
                     <strong>
@@ -2402,7 +2633,7 @@ export default function EquipmentReturnPage() {
 
                   <div>
                     <span>
-                      Kết thúc
+                      End
                     </span>
 
                     <strong>
@@ -2415,9 +2646,9 @@ export default function EquipmentReturnPage() {
                 </div>
 
                 <div className="eq-modal-notice">
-                  Sau khi xác nhận tiếp
-                  nhận, trạng thái phân
-                  bổ sẽ chuyển sang{" "}
+                  After confirming receipt,
+                  the allocation status will
+                  change to{" "}
                   <strong>
                     InUse
                   </strong>
@@ -2438,7 +2669,7 @@ export default function EquipmentReturnPage() {
                     actionLoading
                   }
                 >
-                  Hủy
+                  Cancel
                 </button>
 
                 <button
@@ -2456,8 +2687,8 @@ export default function EquipmentReturnPage() {
                   />
 
                   {actionLoading
-                    ? "Đang xử lý..."
-                    : "Xác nhận tiếp nhận"}
+                    ? "Processing..."
+                    : "Confirm Receipt"}
                 </button>
 
               </div>
@@ -2495,18 +2726,18 @@ export default function EquipmentReturnPage() {
                 <div>
                   <h2>
                     {isManager
-                      ? "Xác nhận trả thiết bị"
+                      ? "Confirm Equipment Return"
                       : isDamagedReturnFlow
-                        ? "Báo hỏng & trả thiết bị"
-                        : "Trả thiết bị"}
+                        ? "Report Damage & Return Equipment"
+                        : "Return Equipment"}
                   </h2>
 
                   <p>
                     {isManager
-                      ? "Kiểm tra thông tin và tình trạng thiết bị trước khi nghiệm thu."
+                      ? "Review the equipment information and condition before acceptance."
                       : isDamagedReturnFlow
-                        ? "Ghi nhận hư hỏng và gửi yêu cầu trả thiết bị đã bị lỗi trong quá trình sử dụng."
-                        : "Khai báo tình trạng thiết bị trước khi gửi yêu cầu trả."}
+                        ? "Record damage and submit a return request for equipment that was damaged during use."
+                        : "Report the equipment condition before submitting a return request."}
                   </p>
                 </div>
 
@@ -2550,7 +2781,7 @@ export default function EquipmentReturnPage() {
 
                     <span>
                       {returnModalItem.assetCode ||
-                        "Không có mã tài sản"}
+                        "No asset code"}
                     </span>
                   </div>
 
@@ -2577,10 +2808,10 @@ export default function EquipmentReturnPage() {
                     </span>
 
                     <strong>
-                      {getPhaseDisplayName(
-                        returnModalItem.phaseName,
-                        returnModalItem.phaseId,
-                        experimentPhaseNamesMap[returnModalItem.experimentId ?? 0] || []
+                      {resolvePhaseDisplayName(
+                        returnModalItem,
+                        experimentPhasesMap[returnModalItem.experimentId ?? 0] || [],
+                        experimentReqsMap[returnModalItem.experimentId ?? 0] || []
                       )}
                     </strong>
                   </div>
@@ -2598,7 +2829,7 @@ export default function EquipmentReturnPage() {
 
                   <div>
                     <span>
-                      Số lượng
+                      Quantity
                     </span>
 
                     <strong>
@@ -2619,16 +2850,24 @@ export default function EquipmentReturnPage() {
                     <div className="eq-manager-summary-grid">
                       <div className="eq-form-group">
                         <label>
-                          Người gửi trả
+                          Returner
                         </label>
 
                         <input
                           type="text"
                           className="eq-readonly-input"
                           value={
-                            currentReturnRecord?.returnedByUser?.fullName || currentReturnRecord?.returnedByUser?.username  ||
+                            currentReturnRecord?.returnedByUser?.fullName ||
+                            currentReturnRecord?.returnedByUser?.username ||
+                            (returnModalItem.allocationPlanId
+                              ? planResearcherMap[returnModalItem.allocationPlanId]
+                              : undefined) ||
+                            (returnModalItem.experimentId
+                              ? experimentResearcherMap[returnModalItem.experimentId]
+                              : undefined) ||
                             (currentReturnRecord?.returnedBy
-                              ? returnerNamesById[currentReturnRecord.returnedBy] || `Người dùng #${currentReturnRecord.returnedBy}`
+                              ? returnerNamesById[currentReturnRecord.returnedBy] ||
+                              `User #${currentReturnRecord.returnedBy}`
                               : "-")
                           }
                           disabled
@@ -2637,7 +2876,7 @@ export default function EquipmentReturnPage() {
 
                       <div className="eq-form-group">
                         <label>
-                          Ngày gửi trả
+                          Return Date
                         </label>
 
                         <input
@@ -2654,8 +2893,8 @@ export default function EquipmentReturnPage() {
                     <div className="eq-manager-summary-grid">
                       <div className="eq-form-group">
                         <label>
-                          Tình trạng sau sử
-                          dụng
+                          Condition After
+                          Use
                         </label>
 
                         <input
@@ -2671,7 +2910,7 @@ export default function EquipmentReturnPage() {
 
                       <div className="eq-form-group">
                         <label>
-                          Có hư hỏng
+                          Damaged
                         </label>
 
                         <input
@@ -2683,8 +2922,8 @@ export default function EquipmentReturnPage() {
                           }
                           value={
                             currentReturnRecord?.isDamaged
-                              ? "Có"
-                              : "Không"
+                              ? "Yes"
+                              : "No"
                           }
                           disabled
                         />
@@ -2695,7 +2934,7 @@ export default function EquipmentReturnPage() {
                       <div className="eq-form-group eq-form-group-highlight">
 
                         <label>
-                          Mô tả hư hỏng
+                          Damage Description
                         </label>
 
                         <textarea
@@ -2713,8 +2952,8 @@ export default function EquipmentReturnPage() {
                     <div className="eq-form-group">
 
                       <label>
-                        Ghi chú của người
-                        trả
+                        Returner's
+                        Notes
                       </label>
 
                       <textarea
@@ -2725,43 +2964,43 @@ export default function EquipmentReturnPage() {
                         }
                         disabled
                         rows={3}
-                        placeholder="Không có ghi chú"
+                        placeholder="No notes"
                       />
 
                     </div>
 
                     {currentReturnStatus ===
                       "pending" && (
-                      <div className="eq-form-group">
+                        <div className="eq-form-group">
 
-                        <label>
-                          Lý do từ chối
-                          <span>
-                            {" "}
-                            (bắt buộc nếu
-                            từ chối)
-                          </span>
-                        </label>
+                          <label>
+                            Rejection Reason
+                            <span>
+                              {" "}
+                              (required when
+                              rejecting)
+                            </span>
+                          </label>
 
-                        <textarea
-                          value={
-                            rejectReason
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            setRejectReason(
+                          <textarea
+                            value={
+                              rejectReason
+                            }
+                            onChange={(
                               event
-                                .target
-                                .value
-                            )
-                          }
-                          rows={3}
-                          placeholder="Nhập lý do nếu thiết bị chưa đủ điều kiện nghiệm thu..."
-                        />
+                            ) =>
+                              setRejectReason(
+                                event
+                                  .target
+                                  .value
+                              )
+                            }
+                            rows={3}
+                            placeholder="Enter the reason if the equipment does not meet acceptance requirements..."
+                          />
 
-                      </div>
-                    )}
+                        </div>
+                      )}
 
                     {currentReturnStatus ===
                       "rejected" &&
@@ -2769,8 +3008,8 @@ export default function EquipmentReturnPage() {
                         <div className="eq-form-group">
 
                           <label>
-                            Lý do đã từ
-                            chối
+                            Previous rejection
+                            reason
                           </label>
 
                           <textarea
@@ -2786,26 +3025,26 @@ export default function EquipmentReturnPage() {
 
                     {currentReturnStatus ===
                       "confirmed" && (
-                      <div className="eq-modal-notice">
+                        <div className="eq-modal-notice">
 
-                        <CheckCircle2
-                          size={16}
-                        />
+                          <CheckCircle2
+                            size={16}
+                          />
 
-                        <span>
-                          Yêu cầu này đã
-                          được xác nhận
-                          nghiệm thu
-                          {currentReturnRecord?.confirmedAt
-                            ? ` ngày ${formatDate(
+                          <span>
+                            This request has been
+                            confirmed and
+                            accepted
+                            {currentReturnRecord?.confirmedAt
+                              ? ` on ${formatDate(
                                 currentReturnRecord.confirmedAt
                               )}`
-                            : ""}
-                          .
-                        </span>
+                              : ""}
+                            .
+                          </span>
 
-                      </div>
-                    )}
+                        </div>
+                      )}
 
                   </>
                 ) : (
@@ -2818,8 +3057,8 @@ export default function EquipmentReturnPage() {
                     <div className="eq-form-group">
 
                       <label>
-                        Tình trạng thiết bị
-                        sau sử dụng
+                        Equipment Condition
+                        After Use
                       </label>
 
                       <select
@@ -2836,20 +3075,20 @@ export default function EquipmentReturnPage() {
                         }
                       >
                         <option value="Good">
-                          Good - Tốt
+                          Good
                         </option>
 
                         <option value="Fair">
-                          Fair - Khá
+                          Fair
                         </option>
 
                         <option value="Poor">
-                          Poor - Kém
+                          Poor
                         </option>
 
                         <option value="Critical">
-                          Critical - Nghiêm
-                          trọng
+                          Critical -
+                          Critical
                         </option>
 
                       </select>
@@ -2859,41 +3098,41 @@ export default function EquipmentReturnPage() {
                     {(returnCondition ===
                       "Poor" ||
                       returnCondition ===
-                        "Critical") && (
-                      <div className="eq-form-group">
+                      "Critical") && (
+                        <div className="eq-form-group">
 
-                        <label>
-                          Mô tả vấn đề
-                          <span>
-                            {" "}
-                            *
-                          </span>
-                        </label>
+                          <label>
+                            Issue Description
+                            <span>
+                              {" "}
+                              *
+                            </span>
+                          </label>
 
-                        <textarea
-                          value={
-                            damageDescription
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            setDamageDescription(
+                          <textarea
+                            value={
+                              damageDescription
+                            }
+                            onChange={(
                               event
-                                .target
-                                .value
-                            )
-                          }
-                          rows={4}
-                          placeholder="Mô tả hư hỏng, lỗi hoặc vấn đề cần kiểm tra/bảo dưỡng..."
-                        />
+                            ) =>
+                              setDamageDescription(
+                                event
+                                  .target
+                                  .value
+                              )
+                            }
+                            rows={4}
+                            placeholder="Describe damage, errors, or issues requiring inspection/maintenance..."
+                          />
 
-                      </div>
-                    )}
+                        </div>
+                      )}
 
                     <div className="eq-form-group">
 
                       <label>
-                        Ghi chú
+                        Notes
                       </label>
 
                       <textarea
@@ -2910,7 +3149,7 @@ export default function EquipmentReturnPage() {
                           )
                         }
                         rows={4}
-                        placeholder="Nhập ghi chú về quá trình sử dụng hoặc bàn giao..."
+                        placeholder="Enter notes about equipment use or handover..."
                       />
 
                     </div>
@@ -2918,16 +3157,16 @@ export default function EquipmentReturnPage() {
                     <div className="eq-modal-notice">
 
                       <span>
-                        Sau khi gửi yêu
-                        cầu, thiết bị sẽ ở
-                        trạng thái{" "}
+                        After submitting the
+                        request, the equipment will remain in
+                        the status{" "}
                         <strong>
-                          Chờ xác nhận trả
+                          Pending return confirmation
                         </strong>
-                        . Thiết bị chỉ được
-                        xem là đã hoàn trả
+                        . The equipment is only considered
+                        returned after
                         sau khi Manager
-                        nghiệm thu.
+                        acceptance.
                       </span>
 
                     </div>
@@ -2954,17 +3193,17 @@ export default function EquipmentReturnPage() {
                   }
                 >
                   {isManager &&
-                  currentReturnStatus !==
+                    currentReturnStatus !==
                     "pending"
-                    ? "Đóng"
-                    : "Hủy"}
+                    ? "Close"
+                    : "Cancel"}
                 </button>
 
                 {/* MANAGER PENDING */}
 
                 {isManager &&
                   currentReturnStatus ===
-                    "pending" && (
+                  "pending" && (
                     <>
 
                       <button
@@ -2982,8 +3221,8 @@ export default function EquipmentReturnPage() {
                         />
 
                         {actionLoading
-                          ? "Đang xử lý..."
-                          : "Từ chối"}
+                          ? "Processing..."
+                          : "Reject"}
                       </button>
 
                       <button
@@ -3001,8 +3240,8 @@ export default function EquipmentReturnPage() {
                         />
 
                         {actionLoading
-                          ? "Đang xử lý..."
-                          : "Xác nhận trả thiết bị"}
+                          ? "Processing..."
+                          : "Confirm Equipment Return"}
                       </button>
 
                     </>
@@ -3026,10 +3265,10 @@ export default function EquipmentReturnPage() {
                     />
 
                     {actionLoading
-                      ? "Đang gửi..."
+                      ? "Submitting..."
                       : isDamagedReturnFlow
-                        ? "Gửi báo hỏng & trả thiết bị"
-                        : "Gửi yêu cầu trả"}
+                        ? "Submit Damage Report & Return"
+                        : "Submit Return Request"}
                   </button>
                 )}
 

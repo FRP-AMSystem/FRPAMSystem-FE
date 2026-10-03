@@ -1196,13 +1196,35 @@
   gap: 6px;
 }
 
-.adj-chip.negative {
+.adj-chip {
   background: #ffffff;
-  border: 1px solid #fecaca;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.adj-chip.positive {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.adj-chip.warning {
+  background: #fffbeb;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+
+.adj-chip.negative {
+  background: #fef2f2;
+  border-color: #fecaca;
   color: #991b1b;
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-size: 11px;
 }
 
 .phase-breakdown-list {
@@ -1626,6 +1648,78 @@
 .conflict-category-card.schedule { border-color: #fde68a; }
 .conflict-category-card.maintenance { border-color: #fed7aa; }
 
+.conflict-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.conflict-section-header .section-heading {
+  margin: 0;
+}
+
+.conflict-filter-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.conflict-filter-bar .filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #64748b;
+  margin-right: 2px;
+}
+
+.conflict-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.conflict-filter-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.conflict-filter-btn.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.conflict-filter-btn.hard.active {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.2);
+}
+
+.conflict-filter-btn.soft.active {
+  background: #d97706;
+  color: #ffffff;
+  border-color: #d97706;
+  box-shadow: 0 1px 2px rgba(217, 119, 6, 0.2);
+}
+
 .category-header {
   display: flex;
   justify-content: space-between;
@@ -1663,22 +1757,102 @@
 .conflict-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 7px 10px;
+  gap: 3px;
+  padding: 8px 12px;
   background: #f8fafc;
-  border-radius: 5px;
+  border-radius: 6px;
   font-size: 12px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.15s ease;
+}
+
+.conflict-item.hard {
+  border-left: 4px solid #ef4444;
+  background: #fffafa;
+  border-color: #fee2e2;
+}
+
+.conflict-item.soft {
+  border-left: 4px solid #f59e0b;
+  background: #fffdfa;
+  border-color: #fef3c7;
+}
+
+.conflict-header-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.violation-severity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1.5px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+}
+
+.violation-severity-badge.hard {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.violation-severity-badge.soft {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.conflict-severity-note {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
 }
 
 .conflict-item .item-text {
   font-weight: 600;
-  color: #7f1d1d;
+  color: #0f172a;
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 
 .conflict-item .action-hint {
   font-size: 11px;
-  color: #16a34a;
+  color: #15803d;
   font-weight: 550;
+  line-height: 1.35;
+}
+
+.conflict-item .action-hint.hard {
+  color: #b91c1c;
+}
+
+.conflict-item .action-hint.soft {
+  color: #b45309;
+}
+
+.cat-badge-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.category-header .cat-badge.hard {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.category-header .cat-badge.soft {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .no-conflicts-box {

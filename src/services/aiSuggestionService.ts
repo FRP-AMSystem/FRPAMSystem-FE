@@ -210,6 +210,7 @@ function mapApiSuggestions(
     const experimentPhases =
       timeline.length > 0
         ? timeline.map((t, pIdx) => ({
+            phaseId: t.phaseId,
             phaseName: t.phaseName || `Phase ${pIdx + 1}`,
             phaseDescription: `Optimized execution window (${t.durationDays || 0} days)`,
             phaseOrder: pIdx + 1,
@@ -218,6 +219,7 @@ function mapApiSuggestions(
             status: "Planned" as const,
           }))
         : (input.experimentPhases || []).map((p, pIdx) => ({
+            phaseId: (p as any).phaseId,
             phaseName: p.phaseName,
             phaseDescription: p.phaseDescription || null,
             phaseOrder: p.phaseOrder || pIdx + 1,

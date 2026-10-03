@@ -1699,7 +1699,10 @@ export default function EquipmentInstanceList() {
                                     </label>
                                 )}
 
-                                <label htmlFor="effectiveMaintenanceIntervalHours">
+                                <label
+                                    htmlFor="effectiveMaintenanceIntervalHours"
+                                    className={editing ? "" : "wide"}
+                                >
                                     Effective maintenance interval hours
 
                                     <input
@@ -1719,76 +1722,80 @@ export default function EquipmentInstanceList() {
                                     />
                                 </label>
 
-                                <label htmlFor="lastMaintenanceDate">
-                                    Last maintenance
+                                {editing && (
+                                    <>
+                                        <label htmlFor="lastMaintenanceDate">
+                                            Last maintenance
 
-                                    <input
-                                        id="lastMaintenanceDate"
-                                        type="date"
-                                        value={
-                                            form.lastMaintenanceDate
-                                        }
-                                        max={
-                                            form.nextMaintenanceDate ||
-                                            undefined
-                                        }
-                                        onClick={(event) => {
-                                            if (!saving) {
-                                                event.currentTarget.showPicker?.();
-                                            }
-                                        }}
-                                        onChange={(event) => {
-                                            const value =
-                                                event.target.value;
+                                            <input
+                                                id="lastMaintenanceDate"
+                                                type="date"
+                                                value={
+                                                    form.lastMaintenanceDate
+                                                }
+                                                max={
+                                                    form.nextMaintenanceDate ||
+                                                    undefined
+                                                }
+                                                onClick={(event) => {
+                                                    if (!saving) {
+                                                        event.currentTarget.showPicker?.();
+                                                    }
+                                                }}
+                                                onChange={(event) => {
+                                                    const value =
+                                                        event.target.value;
 
-                                            setForm((current) => ({
-                                                ...current,
-                                                lastMaintenanceDate:
-                                                    value,
-                                                nextMaintenanceDate:
-                                                    current.nextMaintenanceDate &&
-                                                        value &&
-                                                        current.nextMaintenanceDate <
-                                                        value
-                                                        ? ""
-                                                        : current.nextMaintenanceDate,
-                                            }));
-                                        }}
-                                        disabled={
-                                            saving
-                                        }
-                                    />
-                                </label>
+                                                    setForm((current) => ({
+                                                        ...current,
+                                                        lastMaintenanceDate:
+                                                            value,
+                                                        nextMaintenanceDate:
+                                                            current.nextMaintenanceDate &&
+                                                                value &&
+                                                                current.nextMaintenanceDate <
+                                                                value
+                                                                ? ""
+                                                                : current.nextMaintenanceDate,
+                                                    }));
+                                                }}
+                                                disabled={
+                                                    saving
+                                                }
+                                            />
+                                        </label>
 
-                                <label htmlFor="nextMaintenanceDate">
-                                    Next maintenance
+                                        <label htmlFor="nextMaintenanceDate">
+                                            Next maintenance
 
-                                    <input
-                                        id="nextMaintenanceDate"
-                                        type="date"
-                                        min={
-                                            form.lastMaintenanceDate ||
-                                            undefined
-                                        }
-                                        value={
-                                            form.nextMaintenanceDate
-                                        }
-                                        onClick={(event) => {
-                                            if (!saving) {
-                                                event.currentTarget.showPicker?.();
-                                            }
-                                        }}
-                                        onChange={(event) =>
-                                            updateForm(
-                                                "nextMaintenanceDate",
-                                                event.target.value
-                                            )
-                                        }
-                                        disabled={
-                                            saving
-                                        }
-                                    />
-                                </label>
+                                            <input
+                                                id="nextMaintenanceDate"
+                                                type="date"
+                                                min={
+                                                    form.lastMaintenanceDate ||
+                                                    undefined
+                                                }
+                                                value={
+                                                    form.nextMaintenanceDate
+                                                }
+                                                onClick={(event) => {
+                                                    if (!saving) {
+                                                        event.currentTarget.showPicker?.();
+                                                    }
+                                                }}
+                                                onChange={(event) =>
+                                                    updateForm(
+                                                        "nextMaintenanceDate",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                disabled={
+                                                    saving
+                                                }
+                                            />
+                                        </label>
+                                    </>
+                                )}
 
                                 <label
                                     htmlFor="note"

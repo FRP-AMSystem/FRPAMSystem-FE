@@ -103,11 +103,7 @@ function convertDateToIso(
     return new Date().toISOString();
   }
 
-  if (d.includes("T")) {
-    return d;
-  }
-
-  const clean = d.slice(0, 10);
+  const clean = d.split("T")[0];
 
   return endOfDay
     ? `${clean}T23:59:59`
@@ -4069,6 +4065,7 @@ export default function CreateAllocation() {
 
           const key = [
             planId,
+            phaseId,
             equipmentId,
             requirement
               .expEquipmentReqId,
@@ -4094,13 +4091,16 @@ export default function CreateAllocation() {
             allocationPlanId:
               detailPlanId,
 
-            expEquipmentReqId:
-              Number(
+            expEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId
+              ? null
+              : Number(
                 requirement
                   .expEquipmentReqId
               ),
 
-            phaseEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId ?? null,
+            phaseEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId
+              ? Number(phaseEquipmentRequirement.phaseEquipmentReqId)
+              : null,
 
             // AllocationEquipmentDetailRequest requires the actual
             // equipment type being allocated, even for a substitute.
@@ -4209,7 +4209,8 @@ export default function CreateAllocation() {
 
           const key = [
             planId,
-            0,
+            phaseId,
+            equipmentTypeId,
             match.requirement.expEquipmentReqId,
             phaseEquipmentRequirement?.phaseEquipmentReqId ?? 0,
           ].join(":");
@@ -4227,8 +4228,12 @@ export default function CreateAllocation() {
 
           const equipmentAllocationPayload: AllocationEquipmentDetailRequest = {
             allocationPlanId: detailPlanId,
-            expEquipmentReqId: Number(match.requirement.expEquipmentReqId),
-            phaseEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId ?? null,
+            expEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId
+              ? null
+              : Number(match.requirement.expEquipmentReqId),
+            phaseEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId
+              ? Number(phaseEquipmentRequirement.phaseEquipmentReqId)
+              : null,
             allocatedEquipmentTypeId: equipmentTypeId,
             equipmentInstanceId: null,
             quantity,
@@ -4417,6 +4422,7 @@ export default function CreateAllocation() {
 
           const key = [
             planId,
+            phaseIdNum,
             humanId,
             requirement
               .expHumanReqId,
@@ -4436,15 +4442,15 @@ export default function CreateAllocation() {
             allocationPlanId:
               detailPlanId,
 
-            // Keep the parent ExperimentHumanRequirement together with the
-            // phase-specific requirement. The backend uses expHumanReqId as
-            // the parent FK and phaseHumanReqId as the phase-level link.
-            // Sending expHumanReqId = null for a phase allocation can cause
-            // AllocationHumanDetails POST to fail with HTTP 500.
+            // The backend requires XOR between expHumanReqId and phaseHumanReqId.
+            // When phaseHumanReqId is provided, expHumanReqId must be null
+            // (sending both causes backend internal error HTTP 500).
             expHumanReqId:
-              Number(
-                requirement.expHumanReqId
-              ),
+              phaseHumanReqId
+                ? null
+                : Number(
+                  requirement.expHumanReqId
+                ),
 
             phaseHumanReqId:
               phaseHumanReqId

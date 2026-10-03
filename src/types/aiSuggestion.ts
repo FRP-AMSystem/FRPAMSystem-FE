@@ -6,7 +6,13 @@ import type { ExperimentLandRequirementRequest } from "./experimentLandRequireme
 
 export interface AISuggestionInput {
   experiment: ExperimentCreateRequest & { experimentId?: number };
-  experimentPhases: Array<Omit<ExperimentPhaseRequest, "experimentId"> & { id?: string }>;
+  experimentPhases: Array<
+    Omit<ExperimentPhaseRequest, "experimentId"> & {
+      id?: string;
+      phaseId?: number;
+      experimentPhaseId?: number;
+    }
+  >;
   equipmentRequirements: Array<Omit<ExperimentEquipmentRequirementPayload, "experimentId"> & { id?: string; equipmentTypeName?: string }>;
   humanRequirements: Array<Omit<ExperimentHumanRequirementRequest, "experimentId"> & { id?: string; roleName?: string; requiredSkillName?: string }>;
   landRequirements: Array<Omit<ExperimentLandRequirementRequest, "experimentId"> & { id?: string }>;
@@ -129,6 +135,7 @@ export interface TimelinePhaseItem {
 }
 
 export interface AISuggestionPhaseItem {
+  phaseId?: number;
   phaseName: string;
   phaseDescription?: string | null;
   phaseOrder: number;

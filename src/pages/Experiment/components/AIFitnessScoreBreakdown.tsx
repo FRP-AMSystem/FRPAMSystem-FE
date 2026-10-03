@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Layers,
   Users,
@@ -15,6 +15,7 @@ import type {
   FitnessBreakdown,
   PillarBreakdown,
 } from "../../../types/aiSuggestion";
+import { getEquipmentTypes } from "../../../services/equipmentService";
 
 interface AIFitnessScoreBreakdownProps {
   breakdown?: FitnessBreakdown;
@@ -22,7 +23,10 @@ interface AIFitnessScoreBreakdownProps {
   penaltyScore?: number;
   bonusScore?: number;
   experimentPhases?: Array<{ phaseId?: number; phaseName?: string }>;
+  equipmentTypes?: Array<{ equipmentTypeId?: number; equipmentTypeName?: string; name?: string }>;
 }
+
+let cachedEquipmentTypes: Array<{ equipmentTypeId: number; name?: string; equipmentTypeName?: string }> | null = null;
 
 export function formatScoreNumber(
   val: number | string | null | undefined,
@@ -42,12 +46,153 @@ export function formatCalculationString(calc?: string | null): string {
   });
 }
 
+/**
+ * Transforms raw BE adjustment strings containing cryptic IDs (e.g. Type 4, Phase 65, RequiredEquipmentTypeId=6)
+ * into human-readable Vietnamese labels with actual Phase names and Equipment Type names.
+ */
+export function formatAdjustmentReason(
+  reason?: string | null,
+  phaseMap?: Map<number, string>,
+  equipTypeMap?: Map<number, string>,
+  roleMap?: Map<number, string>
+): string {
+  if (!reason || typeof reason !== "string") return reason || "";
+
+  let text = reason;
+
+  // Case 1: Substitution key-value string from backend:
+  // e.g. "RequiredEquipmentTypeId=6, AllocatedEquipmentTypeId=9, EquipmentInstanceId=14, AssetCode=PHM-2026-002, EfficiencyRate=0.80, TimeMultiplier=1.20, IsSubstitute=true."
+  if (
+    text.includes("RequiredEquipmentTypeId=") ||
+    text.includes("AllocatedEquipmentTypeId=")
+  ) {
+    const reqMatch = text.match(/RequiredEquipmentTypeId=(\d+)/i);
+    const allocMatch = text.match(/AllocatedEquipmentTypeId=(\d+)/i);
+    const assetMatch = text.match(/AssetCode=([^,;.]+)/i);
+    const effMatch = text.match(/EfficiencyRate=([\d.]+)/i);
+    const timeMatch = text.match(/TimeMultiplier=([\d.]+)/i);
+
+    const reqId = reqMatch ? Number(reqMatch[1]) : null;
+    const allocId = allocMatch ? Number(allocMatch[1]) : null;
+
+    const reqName =
+      reqId && equipTypeMap?.get(reqId)
+        ? equipTypeMap.get(reqId)!
+        : reqId
+        ? `Type #${reqId}`
+        : "Required Equipment";
+
+    const allocName =
+      allocId && equipTypeMap?.get(allocId)
+        ? equipTypeMap.get(allocId)!
+        : allocId
+        ? `Type #${allocId}`
+        : "Substitute Equipment";
+
+    const asset = assetMatch ? assetMatch[1].trim() : null;
+    const effVal = effMatch ? parseFloat(effMatch[1]) : null;
+    const eff =
+      effVal !== null ? `${Math.round(effVal * 100)}%` : null;
+    const timeVal = timeMatch ? parseFloat(timeMatch[1]) : null;
+    const time = timeVal !== null ? `${timeVal}x` : null;
+
+    const metaTokens: string[] = [];
+    if (asset) metaTokens.push(`Asset: ${asset}`);
+    if (eff) metaTokens.push(`Efficiency: ${eff}`);
+    if (time) metaTokens.push(`Time Multiplier: ${time}`);
+
+    return `Substitution: ${reqName} ➔ ${allocName}${
+      metaTokens.length > 0 ? ` (${metaTokens.join(" • ")})` : ""
+    }`;
+  }
+
+  // Case 2: Equipment quantity fulfillment:
+  // e.g. "Phase 65 equipment requirement (Type 4) quantity fulfillment: 1/1."
+  // e.g. "Phase 67 equipment requirement (Type 6) quantity fulfillment: 2/10."
+  text = text.replace(
+    /Phase\s+(\d+)\s+equipment\s+requirement\s+\(Type\s+(\d+)\)\s+quantity\s+fulfillment:\s*(\d+\/\d+)\.?/gi,
+    (_, pId, tId, ratio) => {
+      const pName = phaseMap?.get(Number(pId)) || `Phase #${pId}`;
+      const tName = equipTypeMap?.get(Number(tId)) || `Type #${tId}`;
+      const parts = ratio.split("/");
+      const isComplete = parts[0] === parts[1] && parts[0] !== "0";
+      const isZero = parts[0] === "0";
+      const statusLabel = isComplete
+        ? `Fulfillment: ${ratio} (Complete)`
+        : isZero
+        ? `Unallocated (${ratio})`
+        : `Partial fulfillment (${ratio})`;
+      return `[${pName}] ${tName} — ${statusLabel}`;
+    }
+  );
+
+  // Case 3: Human requirement fulfillment:
+  // e.g. "Phase 65 human requirement (Role 2) quantity fulfillment: 1/1."
+  text = text.replace(
+    /Phase\s+(\d+)\s+human\s+requirement\s+\(Role\s+(\d+)\)\s+quantity\s+fulfillment:\s*(\d+\/\d+)\.?/gi,
+    (_, pId, rId, ratio) => {
+      const pName = phaseMap?.get(Number(pId)) || `Phase #${pId}`;
+      const rName = roleMap?.get(Number(rId)) || `Role #${rId}`;
+      return `[${pName}] Personnel (${rName}) — Fulfillment: ${ratio}`;
+    }
+  );
+
+  // Case 4: Insufficient equipment/human:
+  // e.g. "Phase 65 has insufficient equipment quantity."
+  text = text.replace(
+    /Phase\s+(\d+)\s+has\s+insufficient\s+equipment\s+quantity\.?/gi,
+    (_, pId) => {
+      const pName = phaseMap?.get(Number(pId)) || `Phase #${pId}`;
+      return `[${pName}] Insufficient equipment quantity required`;
+    }
+  );
+  text = text.replace(
+    /Phase\s+(\d+)\s+has\s+insufficient\s+human\s+quantity\.?/gi,
+    (_, pId) => {
+      const pName = phaseMap?.get(Number(pId)) || `Phase #${pId}`;
+      return `[${pName}] Insufficient personnel headcount required`;
+    }
+  );
+
+  // Case 5: Land overlap:
+  text = text.replace(
+    /The candidate assigns the same land to overlapping phases\.?/gi,
+    "Land Conflict: Same land plot assigned to overlapping phases"
+  );
+
+  // Case 6: Fallback for any remaining "Phase (\d+)"
+  text = text.replace(/\bPhase\s+(\d+)\b/gi, (match, pId) => {
+    const pName = phaseMap?.get(Number(pId));
+    return pName ? `[${pName}]` : match;
+  });
+
+  // Case 7: Fallback for any remaining "(Type (\d+))" or "Type (\d+)"
+  text = text.replace(/\(Type\s+(\d+)\)/gi, (match, tId) => {
+    const tName = equipTypeMap?.get(Number(tId));
+    return tName ? `(${tName})` : match;
+  });
+
+  text = text.replace(/\bType\s+(\d+)\b/gi, (match, tId) => {
+    const tName = equipTypeMap?.get(Number(tId));
+    return tName ? tName : match;
+  });
+
+  // Case 8: Fallback for Role (\d+)
+  text = text.replace(/\bRole\s+(\d+)\b/gi, (match, rId) => {
+    const rName = roleMap?.get(Number(rId));
+    return rName ? rName : match;
+  });
+
+  return text;
+}
+
 export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = ({
   breakdown,
   fitnessScore = 0,
   penaltyScore = 0,
   bonusScore = 0,
   experimentPhases = [],
+  equipmentTypes,
 }) => {
   const [selectedPillarFilter, setSelectedPillarFilter] = useState<
     "all" | "land" | "human" | "equipment" | "maintenance"
@@ -65,6 +210,88 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
       [key]: !prev[key],
     }));
   };
+
+  // 1. Build Phase Map
+  const phaseMap = useMemo(() => {
+    const map = new Map<number, string>();
+    experimentPhases.forEach((p, idx) => {
+      const id = (p as any).phaseId ?? (p as any).experimentPhaseId ?? (p as any).id;
+      const order = (p as any).phaseOrder;
+      const name = p.phaseName || `Phase ${order || idx + 1}`;
+      if (id !== undefined && id !== null) {
+        map.set(Number(id), name);
+      }
+      if (order !== undefined && order !== null) {
+        if (!map.has(Number(order))) {
+          map.set(Number(order), name);
+        }
+      }
+    });
+    const pillarPhases = [
+      ...(breakdown?.equipment?.phases || []),
+      ...(breakdown?.land?.phases || []),
+      ...(breakdown?.human?.phases || []),
+      ...(breakdown?.maintenance?.phases || []),
+    ];
+    pillarPhases.forEach((ph, idx) => {
+      const phId = (ph as any).phaseId ?? (ph as any).experimentPhaseId ?? (ph as any).id;
+      if (phId && !map.has(Number(phId))) {
+        map.set(Number(phId), ph.phaseName || `Phase ${idx + 1}`);
+      }
+    });
+    return map;
+  }, [experimentPhases, breakdown]);
+
+  // 2. Build Equipment Types Map with preloading
+  const [loadedEquipTypes, setLoadedEquipTypes] = useState<
+    Array<{ equipmentTypeId: number; name?: string; equipmentTypeName?: string }>
+  >([]);
+
+  useEffect(() => {
+    if (equipmentTypes && equipmentTypes.length > 0) return;
+    if (cachedEquipmentTypes && cachedEquipmentTypes.length > 0) {
+      setLoadedEquipTypes(cachedEquipmentTypes);
+      return;
+    }
+    let cancelled = false;
+    getEquipmentTypes({ size: 100 })
+      .then((items) => {
+        if (!cancelled && Array.isArray(items)) {
+          cachedEquipmentTypes = items;
+          setLoadedEquipTypes(items);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to preload equipment types for breakdown:", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [equipmentTypes]);
+
+  const equipTypeMap = useMemo(() => {
+    const map = new Map<number, string>();
+    const list = equipmentTypes && equipmentTypes.length > 0 ? equipmentTypes : loadedEquipTypes;
+    list.forEach((t) => {
+      const id = t.equipmentTypeId;
+      const name = t.equipmentTypeName || t.name;
+      if (id && name) {
+        map.set(Number(id), name);
+      }
+    });
+    return map;
+  }, [equipmentTypes, loadedEquipTypes]);
+
+  // 3. Build Role Map
+  const roleMap = useMemo(() => {
+    return new Map<number, string>([
+      [1, "Admin"],
+      [2, "Manager"],
+      [3, "Researcher"],
+      [4, "Technician"],
+      [5, "Seasonal Worker"],
+    ]);
+  }, []);
 
   // 4 Pillar values
   const landScore = breakdown?.landScore ?? breakdown?.land?.finalScore ?? 0;
@@ -89,8 +316,10 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
 
   const getPhaseName = (phaseId?: number) => {
     if (!phaseId) return "All Phases";
-    const found = experimentPhases.find((p) => p.phaseId === phaseId);
-    return found?.phaseName || `Phase #${phaseId}`;
+    const found = phaseMap.get(phaseId);
+    if (found) return found;
+    const foundProp = experimentPhases.find((p) => p.phaseId === phaseId);
+    return foundProp?.phaseName || `Phase #${phaseId}`;
   };
 
   return (
@@ -418,6 +647,9 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
               getPhaseName={getPhaseName}
               expandedPhases={expandedPhases}
               togglePhaseExpand={togglePhaseExpand}
+              phaseMap={phaseMap}
+              equipTypeMap={equipTypeMap}
+              roleMap={roleMap}
             />
           )}
 
@@ -432,6 +664,9 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
               getPhaseName={getPhaseName}
               expandedPhases={expandedPhases}
               togglePhaseExpand={togglePhaseExpand}
+              phaseMap={phaseMap}
+              equipTypeMap={equipTypeMap}
+              roleMap={roleMap}
             />
           )}
 
@@ -446,6 +681,9 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
               getPhaseName={getPhaseName}
               expandedPhases={expandedPhases}
               togglePhaseExpand={togglePhaseExpand}
+              phaseMap={phaseMap}
+              equipTypeMap={equipTypeMap}
+              roleMap={roleMap}
             />
           )}
 
@@ -460,6 +698,9 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
               getPhaseName={getPhaseName}
               expandedPhases={expandedPhases}
               togglePhaseExpand={togglePhaseExpand}
+              phaseMap={phaseMap}
+              equipTypeMap={equipTypeMap}
+              roleMap={roleMap}
             />
           )}
         </div>
@@ -477,7 +718,9 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
                     <span className="badge-type">{pen.type || "Penalty"}</span>
                     <span className="badge-math">{formatCalculationString(pen.calculation)}</span>
                   </div>
-                  <p className="badge-reason">{pen.reason}</p>
+                  <p className="badge-reason">
+                    {formatAdjustmentReason(pen.reason, phaseMap, equipTypeMap, roleMap)}
+                  </p>
                 </div>
               ))}
 
@@ -489,7 +732,9 @@ export const AIFitnessScoreBreakdown: React.FC<AIFitnessScoreBreakdownProps> = (
                     <span className="badge-type">{bon.type || "Bonus"}</span>
                     <span className="badge-math">{formatCalculationString(bon.calculation)}</span>
                   </div>
-                  <p className="badge-reason">{bon.reason}</p>
+                  <p className="badge-reason">
+                    {formatAdjustmentReason(bon.reason, phaseMap, equipTypeMap, roleMap)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -509,6 +754,9 @@ interface PillarDeepCardProps {
   getPhaseName: (id?: number) => string;
   expandedPhases: Record<string, boolean>;
   togglePhaseExpand: (key: string) => void;
+  phaseMap: Map<number, string>;
+  equipTypeMap: Map<number, string>;
+  roleMap: Map<number, string>;
 }
 
 const PillarDeepCard: React.FC<PillarDeepCardProps> = ({
@@ -520,6 +768,9 @@ const PillarDeepCard: React.FC<PillarDeepCardProps> = ({
   getPhaseName,
   expandedPhases,
   togglePhaseExpand,
+  phaseMap,
+  equipTypeMap,
+  roleMap,
 }) => {
   const finalScore = pillarData?.finalScore ?? fallbackScore;
   const phases = pillarData?.phases ?? [];
@@ -549,12 +800,25 @@ const PillarDeepCard: React.FC<PillarDeepCardProps> = ({
             <span>Pillar-level Adjustments & Deductions:</span>
           </div>
           <div className="adj-chips">
-            {adjustments.map((adj, idx) => (
-              <span key={idx} className="adj-chip negative">
-                <strong>{adj.factor}:</strong> {formatScoreNumber(adj.points, 2)} pts ({adj.reason})
-                {adj.calculation ? ` [${formatCalculationString(adj.calculation)}]` : ""}
-              </span>
-            ))}
+            {adjustments.map((adj, idx) => {
+              const formattedReason = formatAdjustmentReason(
+                adj.reason,
+                phaseMap,
+                equipTypeMap,
+                roleMap
+              );
+              const points = typeof adj.points === "number" ? adj.points : Number(adj.points || 0);
+              const isPositive = points >= 80;
+              const isPartial = points > 0 && points < 80;
+              const chipClass = isPositive ? "positive" : isPartial ? "warning" : "negative";
+
+              return (
+                <span key={idx} className={`adj-chip ${chipClass}`}>
+                  <strong>{adj.factor}:</strong> {formatScoreNumber(adj.points, 2)} pts ({formattedReason})
+                  {adj.calculation ? ` [${formatCalculationString(adj.calculation)}]` : ""}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -628,7 +892,9 @@ const PillarDeepCard: React.FC<PillarDeepCardProps> = ({
                                     {formatCalculationString(sub.calculation) || "-"}
                                   </code>
                                 </td>
-                                <td className="reason-cell">{sub.reason || "-"}</td>
+                                <td className="reason-cell">
+                                  {formatAdjustmentReason(sub.reason, phaseMap, equipTypeMap, roleMap) || "-"}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -652,7 +918,9 @@ const PillarDeepCard: React.FC<PillarDeepCardProps> = ({
                             <div key={paIdx} className="ph-adj-item">
                               <span className="pa-factor">{pa.factor}:</span>
                               <span className="pa-points">{formatScoreNumber(pa.points, 2)} pts</span>
-                              <span className="pa-reason">{pa.reason}</span>
+                              <span className="pa-reason">
+                                {formatAdjustmentReason(pa.reason, phaseMap, equipTypeMap, roleMap)}
+                              </span>
                               {pa.calculation && (
                                 <code className="pa-math">({formatCalculationString(pa.calculation)})</code>
                               )}

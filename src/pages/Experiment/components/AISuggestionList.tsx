@@ -536,6 +536,8 @@ export const AISuggestionList: React.FC<AISuggestionListProps> = ({
                         fitnessScore={selectedPlan.fitnessScore}
                         penaltyScore={selectedPlan.penaltyScore}
                         bonusScore={selectedPlan.bonusScore}
+                        experimentPhases={selectedPlan.timeline || selectedPlan.experimentPhases}
+                        equipmentTypes={selectedPlan.equipmentRequirements}
                       />
 
                       {/* Advantages & Bottlenecks Grid */}
@@ -825,7 +827,12 @@ export const AISuggestionList: React.FC<AISuggestionListProps> = ({
                   {activeTab === "conflicts" && (
                     <AIConstraintReportCard
                       constraintReport={selectedPlan.constraintReport}
+                      fitnessBreakdown={selectedPlan.fitnessBreakdown}
+                      penalties={selectedPlan.fitnessBreakdown?.penalties}
                       conflictCount={selectedPlan.conflictCount}
+                      allocatedHumans={selectedPlan.allocatedHumans}
+                      allocatedEquipment={selectedPlan.allocatedEquipment}
+                      experimentPhases={selectedPlan.timeline || selectedPlan.experimentPhases}
                     />
                   )}
                 </div>
