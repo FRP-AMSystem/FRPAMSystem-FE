@@ -384,6 +384,19 @@ export async function deleteAllocationEquipmentDetail(
   );
 }
 
+export async function deleteMyAllocationEquipmentDetail(
+  id: number
+): Promise<void> {
+  validateId(
+    id,
+    "Allocation equipment detail ID"
+  );
+
+  await api.delete(
+    `/AllocationEquipmentDetails/mine/${id}`
+  );
+}
+
 /* =========================================================
    MY EQUIPMENT ALLOCATIONS
 ========================================================= */

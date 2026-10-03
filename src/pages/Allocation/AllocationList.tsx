@@ -46,7 +46,7 @@ const permissions: Record<Role, RolePermission> = {
     canCancel: false,
   },
   Manager: {
-    canCreate: false,
+    canCreate: true,
     canView: true,
     canEdit: false,
     canDelete: false,
@@ -132,7 +132,7 @@ function getPageDescription(role: Role): string {
     case "Admin":
       return "View and monitor all allocation plans across the system.";
     case "Manager":
-      return "Review pending allocation plans and approve, reject, or cancel them.";
+      return "Create allocation plans from approved experiments, then review and approve allocation requests.";
     case "Researcher":
       return "Create and submit allocation plans, then track approval status.";
     case "Technician":

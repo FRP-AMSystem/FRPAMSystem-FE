@@ -54,7 +54,6 @@ export interface EquipmentInstanceRequest {
   assetCode: string;
   serialNumber?: string | null;
   totalUsageHours?: number;
-  usageHours?: number;
   lastMaintenanceDate?: string | null;
   usageHoursSinceMaintenance?: number;
   nextMaintenanceDate?: string | null;

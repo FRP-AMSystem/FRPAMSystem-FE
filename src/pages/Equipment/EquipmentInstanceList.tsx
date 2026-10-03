@@ -69,13 +69,16 @@ interface FormState {
 
     assetCode: string;
     serialNumber: string;
-
-    usageHours: string;
+    totalUsageHours: string;
+    usageHoursSinceMaintenance: string;
+    maintenanceCount: string;
+    status: EquipmentInstanceStatus;
 
     lastMaintenanceDate: string;
     nextMaintenanceDate: string;
 
     conditionLevel: EquipmentConditionLevel;
+    effectiveMaintenanceIntervalHours: string;
 
     note: string;
 }
@@ -85,16 +88,16 @@ const equipmentStatuses: EquipmentInstanceStatus[] = [
     "Reserved",
     "InUse",
     "Maintenance",
-    "Broken",
-    "Unavailable",
+    "Damaged",
+    "Missing",
+    "Returned",
 ];
 
 const conditionLevels: EquipmentConditionLevel[] = [
-    "New",
     "Good",
     "Fair",
     "Poor",
-    "Damaged",
+    "Critical",
 ];
 
 const emptyForm: FormState = {
@@ -102,13 +105,16 @@ const emptyForm: FormState = {
 
     assetCode: "",
     serialNumber: "",
-
-    usageHours: "0",
+    totalUsageHours: "0",
+    usageHoursSinceMaintenance: "0",
+    maintenanceCount: "0",
+    status: "Available",
 
     lastMaintenanceDate: "",
     nextMaintenanceDate: "",
 
     conditionLevel: "Good",
+    effectiveMaintenanceIntervalHours: "",
 
     note: "",
 };
@@ -145,6 +151,7 @@ function getErrorMessage(
                         message?: string;
                         error?: string;
                         title?: string;
+                        detail?: string;
 
                         errors?: Record<
                             string,
@@ -166,6 +173,7 @@ function getErrorMessage(
         return (
             response?.data?.message ||
             response?.data?.error ||
+            response?.data?.detail ||
             response?.data?.title ||
             "Unable to complete the request."
         );
@@ -705,10 +713,21 @@ export default function EquipmentInstanceList() {
             serialNumber:
                 item.serialNumber || "",
 
-            usageHours:
+            totalUsageHours:
                 String(
-                    item.usageHours ?? 0
+                    item.totalUsageHours ??
+                    item.usageHours ??
+                    0
                 ),
+
+            usageHoursSinceMaintenance:
+                String(item.usageHoursSinceMaintenance ?? 0),
+
+            maintenanceCount:
+                String(item.maintenanceCount ?? 0),
+
+            status:
+                item.status || "Available",
 
             lastMaintenanceDate:
                 toDateInputValue(
@@ -723,6 +742,11 @@ export default function EquipmentInstanceList() {
             conditionLevel:
                 item.conditionLevel ||
                 "Good",
+
+            effectiveMaintenanceIntervalHours:
+                item.effectiveMaintenanceIntervalHours == null
+                    ? ""
+                    : String(item.effectiveMaintenanceIntervalHours),
 
             note:
                 item.note || "",
@@ -768,10 +792,22 @@ export default function EquipmentInstanceList() {
                 form.equipmentTypeId
             );
 
-        const usageHours =
-            Number(
-                form.usageHours
-            );
+        const effectiveMaintenanceIntervalHours =
+            form.effectiveMaintenanceIntervalHours.trim()
+                ? Number(
+                    form.effectiveMaintenanceIntervalHours
+                        .trim()
+                        .replace(",", ".")
+                )
+                : null;
+
+        const totalUsageHours =
+            Number(form.totalUsageHours.trim().replace(",", "."));
+
+        const usageHoursSinceMaintenance =
+            Number(form.usageHoursSinceMaintenance.trim().replace(",", "."));
+
+        const maintenanceCount = Number(form.maintenanceCount);
 
         if (
             !Number.isInteger(
@@ -786,6 +822,16 @@ export default function EquipmentInstanceList() {
             return;
         }
 
+        if (!selectedEquipmentType) {
+            setError("Selected equipment type was not found.");
+            return;
+        }
+
+        if (selectedEquipmentType.trackingType !== "Individual") {
+            setError("Only individual equipment types can have instances.");
+            return;
+        }
+
         if (
             !form.assetCode.trim()
         ) {
@@ -797,13 +843,61 @@ export default function EquipmentInstanceList() {
         }
 
         if (
-            !Number.isFinite(
-                usageHours
-            ) ||
-            usageHours < 0
+            !Number.isFinite(totalUsageHours) ||
+            totalUsageHours < 0
+        ) {
+            setError("Usage hours must be zero or greater.");
+            return;
+        }
+
+        if (
+            !Number.isFinite(usageHoursSinceMaintenance) ||
+            usageHoursSinceMaintenance < 0
+        ) {
+            setError("Usage hours since maintenance must be zero or greater.");
+            return;
+        }
+
+        if (!Number.isInteger(maintenanceCount) || maintenanceCount < 0) {
+            setError("Maintenance count must be a non-negative whole number.");
+            return;
+        }
+
+        const normalizedAssetCode =
+            form.assetCode.trim().toLocaleLowerCase();
+        const normalizedSerialNumber =
+            form.serialNumber.trim().toLocaleLowerCase();
+        const existingAssetCode = items.some(
+            (item) =>
+                item.equipmentInstanceId !== editing?.equipmentInstanceId &&
+                item.assetCode.trim().toLocaleLowerCase() === normalizedAssetCode
+        );
+
+        if (existingAssetCode) {
+            setError("Asset code already exists.");
+            return;
+        }
+
+        const existingSerialNumber =
+            normalizedSerialNumber &&
+            items.some(
+                (item) =>
+                    item.equipmentInstanceId !== editing?.equipmentInstanceId &&
+                    item.serialNumber?.trim().toLocaleLowerCase() === normalizedSerialNumber
+            );
+
+        if (existingSerialNumber) {
+            setError("Serial number already exists.");
+            return;
+        }
+
+        if (
+            effectiveMaintenanceIntervalHours === null ||
+            !Number.isFinite(effectiveMaintenanceIntervalHours) ||
+            effectiveMaintenanceIntervalHours <= 0
         ) {
             setError(
-                "Usage hours must be zero or greater."
+                "Effective maintenance interval hours is required and must be greater than zero."
             );
 
             return;
@@ -833,7 +927,9 @@ export default function EquipmentInstanceList() {
                 form.serialNumber.trim() ||
                 null,
 
-            usageHours,
+            totalUsageHours,
+
+            usageHoursSinceMaintenance,
 
             lastMaintenanceDate:
                 form.lastMaintenanceDate ||
@@ -846,9 +942,11 @@ export default function EquipmentInstanceList() {
             conditionLevel:
                 form.conditionLevel,
 
-            status:
-                editing?.status ||
-                "Available",
+            status: form.status,
+
+            effectiveMaintenanceIntervalHours,
+
+            maintenanceCount,
 
             note:
                 form.note.trim() ||
@@ -1272,25 +1370,11 @@ export default function EquipmentInstanceList() {
 
                                                 <td>
                                                     <div className="equipment-instance-actions">
-                                                        {item.receiptConfirmed ? (
+                                                        {item.receiptConfirmed && (
                                                             <span className="receipt-status-confirmed" title={`Notes: ${item.receiptNotes || 'None'}`}>
                                                                 <CheckCircle size={14} color="#16a34a" />
                                                                 <span>Confirmed</span>
                                                             </span>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                className="action-btn-pill confirm-btn"
-                                                                title="Confirm Receipt"
-                                                                onClick={(event) => {
-                                                                    event.preventDefault();
-                                                                    event.stopPropagation();
-                                                                    openConfirmReceipt(item);
-                                                                }}
-                                                            >
-                                                                <CheckCircle size={12} />
-                                                                <span>Confirm Receipt</span>
-                                                            </button>
                                                         )}
 
                                                         {canManage && (
@@ -1531,29 +1615,106 @@ export default function EquipmentInstanceList() {
                                     </select>
                                 </label>
 
-                                <label htmlFor="usageHours">
-                                    Usage hours
+                                {editing && (
+                                    <label htmlFor="status">
+                                        Status
+
+                                        <select
+                                            id="status"
+                                            value={form.status}
+                                            onChange={(event) =>
+                                                updateForm(
+                                                    "status",
+                                                    event.target.value as EquipmentInstanceStatus
+                                                )
+                                            }
+                                            disabled={saving}
+                                        >
+                                            {equipmentStatuses.map((status) => (
+                                                <option key={status} value={status}>
+                                                    {getStatusLabel(status)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                )}
+
+                                {editing && (
+                                    <label htmlFor="totalUsageHours">
+                                        Usage hours
+
+                                        <input
+                                            id="totalUsageHours"
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            value={form.totalUsageHours}
+                                            onChange={(event) =>
+                                                updateForm("totalUsageHours", event.target.value)
+                                            }
+                                            disabled={saving}
+                                            required
+                                        />
+                                    </label>
+                                )}
+
+                                {editing && (
+                                    <label htmlFor="usageHoursSinceMaintenance">
+                                        Usage hours since maintenance
+
+                                        <input
+                                            id="usageHoursSinceMaintenance"
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            value={form.usageHoursSinceMaintenance}
+                                            onChange={(event) =>
+                                                updateForm(
+                                                    "usageHoursSinceMaintenance",
+                                                    event.target.value
+                                                )
+                                            }
+                                            disabled={saving}
+                                            required
+                                        />
+                                    </label>
+                                )}
+
+                                {editing && (
+                                    <label htmlFor="maintenanceCount">
+                                        Maintenance count
+
+                                        <input
+                                            id="maintenanceCount"
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            value={form.maintenanceCount}
+                                            onChange={(event) =>
+                                                updateForm("maintenanceCount", event.target.value)
+                                            }
+                                            disabled={saving}
+                                            required
+                                        />
+                                    </label>
+                                )}
+
+                                <label htmlFor="effectiveMaintenanceIntervalHours">
+                                    Effective maintenance interval hours
 
                                     <input
-                                        id="usageHours"
+                                        id="effectiveMaintenanceIntervalHours"
                                         type="number"
-                                        min="0"
+                                        min="0.1"
                                         step="0.1"
-                                        value={
-                                            form.usageHours
-                                        }
-                                        onChange={(
-                                            event
-                                        ) =>
+                                        value={form.effectiveMaintenanceIntervalHours}
+                                        onChange={(event) =>
                                             updateForm(
-                                                "usageHours",
-                                                event.target
-                                                    .value
+                                                "effectiveMaintenanceIntervalHours",
+                                                event.target.value
                                             )
                                         }
-                                        disabled={
-                                            saving
-                                        }
+                                        disabled={saving}
                                         required
                                     />
                                 </label>

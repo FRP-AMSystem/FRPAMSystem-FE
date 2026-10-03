@@ -502,7 +502,7 @@ export default function CreateSchedule() {
   // Do NOT depend on getExperiments({ researcherId }) here: that list can be
   // filtered by experiment status and can incorrectly hide a valid approved plan.
   const allowedAllocationPlans = useMemo(() => {
-    if (role !== "Researcher") {
+    if (role !== "Researcher" && role !== "Manager") {
       return [];
     }
 
@@ -518,11 +518,14 @@ export default function CreateSchedule() {
       const createdById = Number(plan.createdBy || 0);
       const createdByName = (plan.createdByName || "").trim().toLowerCase();
 
-      // Prefer the Allocation Plan owner fields. Some backend responses do not
-      // expose createdBy consistently, so fall back to experiment ownership only
-      // when we actually have matching experiment data.
+      // Schedule permission follows Allocation Plan ownership.
+      // A Manager must NOT see an approved Researcher plan here merely because
+      // the Manager approved it. The Manager can schedule only plans created by
+      // that Manager (manual Manager plan or AI replacement plan).
       const ownedByUserId =
-        Boolean(currentUserId) && createdById > 0 && createdById === currentUserId;
+        Boolean(currentUserId) &&
+        createdById > 0 &&
+        createdById === currentUserId;
 
       const ownedByName =
         Boolean(normalizedFullName) &&
@@ -531,10 +534,14 @@ export default function CreateSchedule() {
           createdByName.includes(normalizedFullName) ||
           normalizedFullName.includes(createdByName));
 
-      const ownedExperiment = myExperiments.some(
-        (experiment) =>
-          Number(experiment.experimentId) === Number(plan.experimentId)
-      );
+      // Keep the experiment fallback only for Researcher accounts.
+      // For Manager it would incorrectly grant access to Researcher plans.
+      const ownedExperiment =
+        role === "Researcher" &&
+        myExperiments.some(
+          (experiment) =>
+            Number(experiment.experimentId) === Number(plan.experimentId)
+        );
 
       return ownedByUserId || ownedByName || ownedExperiment;
     });
@@ -676,7 +683,9 @@ export default function CreateSchedule() {
         );
       } else {
         showToast(
-          `Allocation Plan #${planId} does not belong to the current Researcher.`,
+          role === "Manager"
+            ? `Allocation Plan #${planId} does not belong to the current Manager. A Manager can schedule only a Manager-owned Allocation Plan.`
+            : `Allocation Plan #${planId} does not belong to the current Researcher.`,
           "warning"
         );
       }
@@ -911,15 +920,56 @@ export default function CreateSchedule() {
     }
 
     const approvedPlan = allAllocationPlans.find(
-      (plan) => plan.allocationPlanId === planId && plan.approveStatus === "Approved"
+      (plan) =>
+        Number(plan.allocationPlanId) === planId &&
+        String(plan.approveStatus || "").trim().toLowerCase() === "approved"
     );
+
     if (!approvedPlan) {
-      showToast("Work schedules can only be assigned to an Allocation Plan approved by the Manager.", "warning");
+      showToast(
+        "Work schedules can only be assigned to an Allocation Plan approved by the Manager.",
+        "warning"
+      );
       return;
     }
 
-    if (role !== "Researcher") {
-      showToast("Only a Researcher can assign work schedules to allocated personnel.", "warning");
+    // Schedule permission follows the Allocation Plan owner.
+    // Researcher-created + Manager-approved -> Researcher assigns.
+    // Manager-created (manual or AI replacement) + Approved -> Manager assigns.
+    // Being a Manager who approved a Researcher plan is NOT enough.
+    const createdById = Number(approvedPlan.createdBy || 0);
+    const createdByName = String(approvedPlan.createdByName || "").trim().toLowerCase();
+    const normalizedFullName = String(currentUser.fullName || "").trim().toLowerCase();
+
+    const ownedByUserId =
+      Boolean(currentUserId) &&
+      createdById > 0 &&
+      createdById === currentUserId;
+
+    const ownedByName =
+      Boolean(normalizedFullName) &&
+      Boolean(createdByName) &&
+      (createdByName === normalizedFullName ||
+        createdByName.includes(normalizedFullName) ||
+        normalizedFullName.includes(createdByName));
+
+    const isPlanOwnedByCurrentUser = ownedByUserId || ownedByName;
+
+    if (!isPlanOwnedByCurrentUser) {
+      showToast(
+        role === "Manager"
+          ? "This Allocation Plan belongs to the Researcher. A Manager can assign a work schedule only to an Allocation Plan created by that Manager."
+          : "This Allocation Plan does not belong to the current Researcher.",
+        "warning"
+      );
+      return;
+    }
+
+    if (role !== "Researcher" && role !== "Manager") {
+      showToast(
+        "Only the owner of an approved Allocation Plan can assign work schedules.",
+        "warning"
+      );
       return;
     }
 
@@ -1147,7 +1197,7 @@ export default function CreateSchedule() {
                     );
                   })}
                 </select>
-                {role === "Researcher" && allowedAllocationPlans.length === 0 && (
+                {(role === "Researcher" || role === "Manager") && allowedAllocationPlans.length === 0 && (
                   <p style={{ fontSize: "12px", color: "#b45309", margin: "4px 0 0" }}>
                     No allocation plans found for your experiments. Please create an allocation plan first.
                   </p>

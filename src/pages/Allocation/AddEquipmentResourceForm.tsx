@@ -15,6 +15,11 @@ import {
 } from "../../services/equipmentInstanceService";
 
 import {
+  getEquipmentTypeById,
+  type EquipmentType,
+} from "../../services/equipmentService";
+
+import {
   getExperimentEquipmentRequirements,
 } from "../../services/experimentEquipmentRequirementService";
 
@@ -178,6 +183,16 @@ export default function AddEquipmentResourceForm({
   >([]);
 
   const [
+    selectedEquipmentType,
+    setSelectedEquipmentType,
+  ] = useState<EquipmentType | null>(null);
+
+  const [
+    loadingEquipmentType,
+    setLoadingEquipmentType,
+  ] = useState(false);
+
+  const [
     form,
     setForm,
   ] = useState<FormState>({
@@ -324,91 +339,99 @@ export default function AddEquipmentResourceForm({
   useEffect(() => {
     let active = true;
 
-    async function loadEquipmentInstances() {
+    async function loadEquipmentForRequirement() {
       if (!selectedRequirement) {
         setEquipmentInstances([]);
-
-        setForm(
-          (current) => ({
-            ...current,
-            equipmentInstanceId: "",
-          })
-        );
-
+        setSelectedEquipmentType(null);
+        setForm((current) => ({
+          ...current,
+          equipmentInstanceId: "",
+        }));
         return;
       }
 
-      const equipmentTypeId =
-        selectedRequirement.equipmentTypeId;
+      const equipmentTypeId = selectedRequirement.equipmentTypeId;
 
       if (
-        !Number.isInteger(
-          equipmentTypeId
-        ) ||
+        !Number.isInteger(equipmentTypeId) ||
         equipmentTypeId <= 0
       ) {
         setEquipmentInstances([]);
-
+        setSelectedEquipmentType(null);
         setError(
           "The selected requirement has an invalid equipment type ID."
         );
-
         return;
       }
 
       try {
-        setLoadingInstances(
-          true
-        );
-
+        setLoadingEquipmentType(true);
+        setLoadingInstances(true);
+        setSelectedEquipmentType(null);
+        setEquipmentInstances([]);
         setError("");
 
-        const data =
-          await getAvailableEquipmentInstances(
-            equipmentTypeId
-          );
+        const equipmentType = await getEquipmentTypeById(
+          equipmentTypeId
+        );
 
         if (!active) {
           return;
         }
 
-        setEquipmentInstances(
-          Array.isArray(data)
-            ? data
-            : []
-        );
+        setSelectedEquipmentType(equipmentType);
+        setForm((current) => ({
+          ...current,
+          equipmentInstanceId: "",
+          quantity:
+            equipmentType.trackingType === "Individual"
+              ? "1"
+              : String(
+                  Math.min(
+                    current.quantity ? Number(current.quantity) : 1,
+                    Math.max(
+                      0,
+                      Number(equipmentType.availableQuantity ?? 0)
+                    )
+                  )
+                ),
+        }));
 
-        setForm(
-          (current) => ({
-            ...current,
-            equipmentInstanceId: "",
-          })
-        );
+        if (equipmentType.trackingType === "Individual") {
+          const data = await getAvailableEquipmentInstances(
+            equipmentTypeId
+          );
+
+          if (!active) {
+            return;
+          }
+
+          setEquipmentInstances(
+            Array.isArray(data) ? data : []
+          );
+        } else {
+          setEquipmentInstances([]);
+        }
       } catch (loadError) {
         console.error(
-          "Load available equipment instances failed:",
+          "Load equipment type/availability failed:",
           loadError
         );
 
         if (active) {
           setEquipmentInstances([]);
-
-          setError(
-            getErrorMessage(
-              loadError
-            )
-          );
+          setSelectedEquipmentType(null);
+          setError(getErrorMessage(loadError));
         }
       } finally {
         if (active) {
-          setLoadingInstances(
-            false
-          );
+          setLoadingEquipmentType(false);
+          setLoadingInstances(false);
         }
       }
     }
 
-    void loadEquipmentInstances();
+    void loadEquipmentForRequirement();
 
     return () => {
       active = false;
@@ -592,7 +615,25 @@ export default function AddEquipmentResourceForm({
       return;
     }
 
+    if (!selectedEquipmentType) {
+      setError(
+        "The selected equipment type could not be loaded."
+      );
+      return;
+    }
+
     if (
+      selectedEquipmentType.trackingType === "QuantityBased" &&
+      quantity > Number(selectedEquipmentType.availableQuantity ?? 0)
+    ) {
+      setError(
+        `Only ${selectedEquipmentType.availableQuantity ?? 0} unit(s) of this quantity-based equipment are currently available.`
+      );
+      return;
+    }
+
+    if (
+      selectedEquipmentType.trackingType === "Individual" &&
       equipmentInstanceId !==
         null &&
       (
@@ -610,6 +651,7 @@ export default function AddEquipmentResourceForm({
     }
 
     if (
+      selectedEquipmentType.trackingType === "Individual" &&
       equipmentInstanceId !==
         null &&
       quantity !== 1
@@ -622,6 +664,7 @@ export default function AddEquipmentResourceForm({
     }
 
     if (
+      selectedEquipmentType.trackingType === "Individual" &&
       equipmentInstanceId !==
         null &&
       !selectedEquipmentInstance
@@ -630,6 +673,16 @@ export default function AddEquipmentResourceForm({
         "The selected equipment instance is no longer available."
       );
 
+      return;
+    }
+
+    if (
+      selectedEquipmentType.trackingType === "Individual" &&
+      equipmentInstanceId === null
+    ) {
+      setError(
+        "Please select a specific equipment instance for Individual tracking."
+      );
       return;
     }
 
@@ -881,68 +934,76 @@ export default function AddEquipmentResourceForm({
           </small>
         )}
 
-        <label htmlFor="equipmentInstanceId">
-          Equipment Instance
-        </label>
+        {selectedEquipmentType?.trackingType === "Individual" ? (
+          <>
+            <label htmlFor="equipmentInstanceId">
+              Equipment Instance
+            </label>
 
-        <select
-          id="equipmentInstanceId"
-          name="equipmentInstanceId"
-          value={
-            form.equipmentInstanceId
-          }
-          onChange={
-            handleInputChange
-          }
-          disabled={
-            saving ||
-            !selectedRequirement ||
-            loadingInstances
-          }
-        >
-          <option value="">
-            {loadingInstances
-              ? "Loading available equipment..."
-              : "Allocate by quantity only"}
-          </option>
-
-          {equipmentInstances.map(
-            (instance) => (
-              <option
-                key={
-                  instance.equipmentInstanceId
-                }
-                value={
-                  instance.equipmentInstanceId
-                }
-              >
-                {getEquipmentInstanceLabel(
-                  instance
-                )}
+            <select
+              id="equipmentInstanceId"
+              name="equipmentInstanceId"
+              value={form.equipmentInstanceId}
+              onChange={handleInputChange}
+              disabled={
+                saving ||
+                !selectedRequirement ||
+                loadingInstances ||
+                loadingEquipmentType
+              }
+            >
+              <option value="">
+                {loadingInstances
+                  ? "Loading available equipment..."
+                  : "Select an equipment instance"}
               </option>
-            )
-          )}
-        </select>
 
-        {!selectedRequirement && (
+              {equipmentInstances.map((instance) => (
+                <option
+                  key={instance.equipmentInstanceId}
+                  value={instance.equipmentInstanceId}
+                >
+                  {getEquipmentInstanceLabel(instance)}
+                </option>
+              ))}
+            </select>
+
+            {selectedRequirement &&
+              !loadingInstances &&
+              equipmentInstances.length === 0 && (
+                <small>
+                  No available individual equipment instance was found
+                  for this equipment type.
+                </small>
+              )}
+          </>
+        ) : selectedEquipmentType?.trackingType === "QuantityBased" ? (
+          <div
+            style={{
+              margin: "8px 0 12px",
+              padding: "10px 12px",
+              border: "1px solid #dcfce7",
+              background: "#f0fdf4",
+              borderRadius: "7px",
+            }}
+          >
+            <strong>Quantity-based equipment</strong>
+            <div style={{ marginTop: "4px" }}>
+              Available stock:{" "}
+              {selectedEquipmentType.availableQuantity ?? 0} unit(s)
+            </div>
+            <div>
+              This equipment is allocated by quantity; no individual
+              asset/serial number is required.
+            </div>
+          </div>
+        ) : (
           <small>
-            Select an equipment
-            requirement first.
+            {loadingEquipmentType
+              ? "Loading equipment tracking type..."
+              : "Select an equipment requirement first."}
           </small>
         )}
-
-        {selectedRequirement &&
-          !loadingInstances &&
-          equipmentInstances.length ===
-            0 && (
-            <small>
-              No available individual
-              equipment instance was found
-              for this equipment type. The
-              allocation can still be
-              created by quantity.
-            </small>
-          )}
 
         {selectedEquipmentInstance && (
           <div className="resource-preview">
@@ -1017,9 +1078,12 @@ export default function AddEquipmentResourceForm({
           name="quantity"
           min="1"
           max={
-            selectedEquipmentInstance
+            selectedEquipmentType?.trackingType === "Individual"
               ? 1
-              : selectedRequirement?.quantity
+              : Math.min(
+                  selectedRequirement?.quantity ?? 0,
+                  selectedEquipmentType?.availableQuantity ?? 0
+                )
           }
           value={
             form.quantity
@@ -1029,20 +1093,22 @@ export default function AddEquipmentResourceForm({
           }
           disabled={
             saving ||
-            Boolean(
-              selectedEquipmentInstance
-            )
+            selectedEquipmentType?.trackingType === "Individual"
           }
           required
         />
 
-        {selectedEquipmentInstance && (
+        {selectedEquipmentType?.trackingType === "Individual" ? (
           <small>
-            Quantity is fixed at 1
-            because a specific equipment
-            instance is selected.
+            Quantity is fixed at 1 because one specific equipment
+            instance represents one unit.
           </small>
-        )}
+        ) : selectedEquipmentType?.trackingType === "QuantityBased" ? (
+          <small>
+            Enter the number of units to allocate from the available
+            quantity-based stock.
+          </small>
+        ) : null}
 
         <label className="resource-checkbox">
           <input

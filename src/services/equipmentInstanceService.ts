@@ -278,6 +278,18 @@ function validateEquipmentTypeId(
   }
 }
 
+function toApiDateTime(
+  value?: string | null
+): string | null {
+  if (!value) {
+    return null;
+  }
+
+  return value.length === 10
+    ? `${value}T00:00:00`
+    : value;
+}
+
 function toApiPayload(
   payload: EquipmentInstanceRequest
 ) {
@@ -290,8 +302,7 @@ function toApiPayload(
       payload.equipmentTypeId,
 
     assetCode:
-      payload.assetCode.trim() ||
-      null,
+      payload.assetCode.trim(),
 
     serialNumber:
       payload.serialNumber?.trim() ||
@@ -299,14 +310,11 @@ function toApiPayload(
 
     totalUsageHours:
       Number(
-        payload.totalUsageHours ??
-        payload.usageHours ??
-        0
+        payload.totalUsageHours ?? 0
       ),
 
     lastMaintenanceDate:
-      payload.lastMaintenanceDate ||
-      null,
+      toApiDateTime(payload.lastMaintenanceDate),
 
     usageHoursSinceMaintenance:
       Number(
@@ -315,8 +323,7 @@ function toApiPayload(
       ),
 
     nextMaintenanceDate:
-      payload.nextMaintenanceDate ||
-      null,
+      toApiDateTime(payload.nextMaintenanceDate),
 
     conditionLevel:
       payload.conditionLevel,

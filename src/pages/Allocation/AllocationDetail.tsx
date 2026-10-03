@@ -276,11 +276,20 @@ export default function AllocationDetail() {
   // Researcher already requests and persists the concrete resources before submission.
   // Manager only reviews/approves/rejects that request; Manager must not allocate them again.
 
-  // After approval, Researcher can assign work schedules to the approved personnel.
+  // Schedule ownership rule:
+  // - Researcher-created + Manager-approved plan -> Researcher assigns.
+  // - Manager-created plan (manual or AI replacement) + Approved -> Manager assigns.
+  // - Manager viewing an approved Researcher plan -> view only; no schedule action.
+  // The persisted Allocation Plan owner is the source of truth.
+  const isPlanOwner =
+    Number(currentUser.userId || 0) > 0 &&
+    Number(plan?.createdBy || 0) === Number(currentUser.userId);
+
   const canAssignSchedule =
-    role === "Researcher" &&
+    humanDetails.length > 0 &&
+    (role === "Researcher" || role === "Manager") &&
     plan?.approveStatus === "Approved" &&
-    humanDetails.length > 0;
+    isPlanOwner;
 
   // Schedule navigation is intentionally isolated here.
   // Opening /allocation/:allocationPlanId never redirects to CreateSchedule.
@@ -393,7 +402,14 @@ export default function AllocationDetail() {
 
   // Prefer persisted details; otherwise show the experiment requirement counts
   // returned by getAllocationPlanById so list and detail counts stay consistent.
-  const equipCount = equipmentDetails.length || plan.equipmentDetailCount || 0;
+  const persistedEquipmentUnits = equipmentDetails.reduce(
+    (sum, detail) => sum + Math.max(0, Number(detail.quantity ?? 0)),
+    0
+  );
+  const equipCount =
+    persistedEquipmentUnits ||
+    plan.equipmentDetailCount ||
+    0;
   const humanCount = humanDetails.length || plan.humanDetailCount || 0;
   const landCount = landDetails.length || plan.landDetailCount || 0;
   const phaseCount = phases.length || 1;
@@ -642,19 +658,41 @@ export default function AllocationDetail() {
                         {equipmentDetails.map((eq, idx) => (
                           <tr key={eq.allocationEquipmentDetailId || idx}>
                             <td>
-                              <div className="alloc-primary-text">
-                                {eq.equipmentInstanceName ||
-                                  eq.assetCode ||
-                                  `Equipment #${eq.equipmentInstanceId || "-"}`}
-                              </div>
+                              {eq.equipmentInstanceId ? (
+                                <>
+                                  <div className="alloc-primary-text">
+                                    {eq.equipmentInstanceName ||
+                                      eq.assetCode ||
+                                      `Equipment #${eq.equipmentInstanceId}`}
+                                  </div>
 
-                              <div className="alloc-secondary-text">
-                                Asset Code: {eq.assetCode || "-"}
-                              </div>
+                                  <div className="alloc-secondary-text">
+                                    Asset Code: {eq.assetCode || "-"}
+                                  </div>
 
-                              <div className="alloc-secondary-text">
-                                Serial: {eq.serialNumber || "-"}
-                              </div>
+                                  <div className="alloc-secondary-text">
+                                    Serial: {eq.serialNumber || "-"}
+                                  </div>
+
+                                  <div className="alloc-secondary-text">
+                                    Tracking: Individual
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="alloc-primary-text">
+                                    Quantity-based stock
+                                  </div>
+
+                                  <div className="alloc-secondary-text">
+                                    Quantity: {eq.quantity ?? 0} unit(s)
+                                  </div>
+
+                                  <div className="alloc-secondary-text">
+                                    Tracking: Quantity Based
+                                  </div>
+                                </>
+                              )}
                             </td>
 
                             <td>

@@ -16,6 +16,9 @@ export interface EquipmentType {
   trackingType: EquipmentTrackingType;
   baseMaintenanceIntervalHours?: number | null;
   totalQuantity: number;
+  availableQuantity: number;
+  damagedQuantity: number;
+  missingQuantity: number;
   description?: string | null;
 
   createdAt?: string;
@@ -140,6 +143,11 @@ function normalizeEquipmentType(
         ? "Individual"
         : "QuantityBased",
     totalQuantity: Number(item.totalQuantity ?? 0),
+    availableQuantity: Number(
+      item.availableQuantity ?? item.totalQuantity ?? 0
+    ),
+    damagedQuantity: Number(item.damagedQuantity ?? 0),
+    missingQuantity: Number(item.missingQuantity ?? 0),
     baseMaintenanceIntervalHours:
       item.baseMaintenanceIntervalHours === null ||
         item.baseMaintenanceIntervalHours === undefined

@@ -201,10 +201,7 @@ export default function ExperimentList() {
   const role =
     currentUser.role as Role;
 
-  const isResearcher =
-    role === "Admin" ||
-    role === "Manager" ||
-    role === "Researcher";
+  const isResearcher = role === "Researcher";
 
   const isPrivileged =
     role === "Admin" ||

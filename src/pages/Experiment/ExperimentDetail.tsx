@@ -40,9 +40,6 @@ import {
   rejectExperiment,
 } from "../../services/experimentService";
 
-import {
-  createAllocationPlan,
-} from "../../services/allocationPlanService";
 
 import {
   createExperimentPhase,
@@ -428,7 +425,7 @@ export default function ExperimentDetail() {
       : "Seasonal";
 
   const canManageExperiment =
-    role === "Admin" || role === "Manager" || role === "Researcher";
+    role === "Admin" || role === "Researcher";
 
   const [
     loading,
@@ -731,17 +728,6 @@ export default function ExperimentDetail() {
       // 5. Submit experiment to Manager
       const updated = await submitExperiment(experiment.experimentId);
 
-      // 6. Automatically generate a Pending Allocation Plan from this AI Suggestion
-      try {
-        await createAllocationPlan({
-          experimentId: experiment.experimentId,
-          fitnessScore: selectedPlan.totalResourceScore || 85,
-          approveStatus: "Pending",
-        });
-      } catch (allocErr) {
-        console.warn("Auto allocation plan creation failed:", allocErr);
-      }
-
       setExperiment(updated);
       sendLocalNotification({
         title: "AI Plan Applied Successfully",
@@ -789,16 +775,6 @@ export default function ExperimentDetail() {
       }
 
       const updated = await submitExperiment(experiment.experimentId);
-
-      try {
-        await createAllocationPlan({
-          experimentId: experiment.experimentId,
-          fitnessScore: 80,
-          approveStatus: "Pending",
-        });
-      } catch (allocErr) {
-        console.warn("Auto allocation plan creation notice:", allocErr);
-      }
 
       setExperiment(updated);
       sendLocalNotification({
@@ -1762,7 +1738,7 @@ export default function ExperimentDetail() {
         </div>
 
         {/* Submit / Resource Allocation Action Card */}
-        {isResearcher && (
+        {(isResearcher || isManagerOrAdmin) && (
           <div
             className="experiment-detail-card"
             style={{ marginTop: "28px", marginBottom: "24px" }}
@@ -1829,18 +1805,24 @@ export default function ExperimentDetail() {
                   experiment.status !== "Cancelled" &&
                   experiment.status !== "Rejected" && (
                     <>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/allocation/create?experimentId=${experiment.experimentId}`
-                          )
-                        }
-                        className="btn-primary-green"
-                        style={{ whiteSpace: "nowrap" }}
-                      >
-                        Send Resource Allocation Request
-                      </button>
+                      {((isManagerOrAdmin &&
+                        (experiment.status === "Planning" || experiment.status === "Ready")) ||
+                        isResearcher) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              `/allocation/create?experimentId=${experiment.experimentId}`
+                            )
+                          }
+                          className="btn-primary-green"
+                          style={{ whiteSpace: "nowrap" }}
+                        >
+                          {role === "Manager"
+                            ? "Create Allocation Plan"
+                            : "Create Allocation Plan"}
+                        </button>
+                      )}
 
                       <button
                         type="button"

@@ -8,6 +8,7 @@ import api from "../../services/api";
 
 import { getExperimentById, getExperiments } from "../../services/experimentService";
 import { getEquipmentInstances } from "../../services/equipmentInstanceService";
+import { getEquipmentTypes, type EquipmentType } from "../../services/equipmentService";
 import { getEquipmentSubstitutions } from "../../services/equipmentSubstitutionService";
 import { getHumanResourceProfiles } from "../../services/humanResourceProfileService";
 import { getHumanResourceSkills } from "../../services/humanResourceSkillService";
@@ -42,6 +43,8 @@ import {
   createAllocationEquipmentDetail,
   createAllocationHumanDetail,
   createAllocationLandDetail,
+  deleteAllocationEquipmentDetail,
+  deleteMyAllocationEquipmentDetail,
   deleteAllocationHumanDetail,
   getAllAllocationEquipmentDetails,
   getAllAllocationLandDetails,
@@ -533,13 +536,14 @@ export default function CreateAllocation() {
   const isManagerRole =
     currentUserInfo.role === "Manager";
 
-  const isManagerAllocation =
-    isManagerRole &&
-    initialPlanId > 0;
+  // Every Manager session is a resource-allocation session. The manager
+  // can start from an approved Experiment, either by passing experimentId
+  // from Experiment Detail or by choosing an approved Experiment here.
+  const isManagerAllocation = isManagerRole;
 
-  // In Manager allocation mode, allocationPlanId is the source of truth.
-  // The experimentId in the URL may be stale/wrong, so never trust it to
-  // decide which Experiment receives resources.
+  // If an approved allocationPlanId is supplied for backward compatibility,
+  // its experiment remains the source of truth. Otherwise experimentId (or
+  // the manager's selection from the approved list) determines the target.
   useEffect(() => {
     if (!isManagerAllocation || initialPlanId <= 0) {
       return;
@@ -649,6 +653,7 @@ export default function CreateAllocation() {
   ] = useState<
     EquipmentInstance[]
   >([]);
+  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
 
   const [existingEquipmentAllocations, setExistingEquipmentAllocations] =
     useState<AllocationEquipmentDetail[]>([]);
@@ -749,6 +754,8 @@ export default function CreateAllocation() {
   ] = useState<
     Record<number, number[]>
   >({});
+  const [selectedQuantityEquipmentByPhase, setSelectedQuantityEquipmentByPhase] =
+    useState<Record<number, Record<number, number>>>({});
 
   const [
     selectedHumansByPhase,
@@ -881,16 +888,6 @@ export default function CreateAllocation() {
           role,
         } = currentUser;
 
-        if (isManagerRole && !initialPlanId) {
-          setAllExperiments([]);
-          setSelectedExpId(0);
-          setError(
-            "Manager allocation must start from an approved Allocation Plan. Please open this page from the plan detail screen."
-          );
-          setLoading(false);
-          return;
-        }
-
         const isPrivileged =
           role === "Admin" ||
           role === "Manager";
@@ -899,6 +896,7 @@ export default function CreateAllocation() {
           expRes,
           approvedPlansRes,
           equipRes,
+          equipmentTypesRes,
           equipmentAllocationsRes,
           substitutionRes,
           humanRes,
@@ -923,6 +921,11 @@ export default function CreateAllocation() {
             }).catch(() => []),
 
             getEquipmentInstances({
+              size: 500,
+            }).catch(() => []),
+
+            getEquipmentTypes({
+              page: 1,
               size: 500,
             }).catch(() => []),
 
@@ -1047,6 +1050,12 @@ export default function CreateAllocation() {
           availEquips
         );
 
+        setEquipmentTypes(
+          Array.isArray(equipmentTypesRes)
+            ? equipmentTypesRes
+            : []
+        );
+
         setExistingEquipmentAllocations(
           Array.isArray(equipmentAllocationsRes)
             ? equipmentAllocationsRes
@@ -1127,31 +1136,19 @@ export default function CreateAllocation() {
             : []
         );
 
-        // Researcher create-plan mode may initialize from the URL/default list.
-        // Manager allocation mode is different: allocationPlanId is the source
-        // of truth, so this loader must never overwrite selectedExpId.
-        if (!isManagerAllocation) {
-          if (
-            initialExpId &&
-            exps.some(
-              (
-                e: ExperimentResponse
-              ) =>
-                e.experimentId ===
-                initialExpId
-            )
-          ) {
-            setSelectedExpId(
-              initialExpId
-            );
-          } else if (
-            exps.length > 0
-          ) {
-            setSelectedExpId(
-              exps[0]
-                .experimentId
-            );
-          }
+        // For a manager, initialize from the requested Experiment when it is
+        // present in the approved list; otherwise let the first approved
+        // Experiment become the default selection.
+        if (
+          initialExpId &&
+          exps.some(
+            (e: ExperimentResponse) =>
+              e.experimentId === initialExpId
+          )
+        ) {
+          setSelectedExpId(initialExpId);
+        } else if (exps.length > 0 && !initialPlanId) {
+          setSelectedExpId(exps[0].experimentId);
         }
       } catch (err: any) {
         console.error(
@@ -1378,6 +1375,7 @@ export default function CreateAllocation() {
 
         // Reset phase selections
         const initialSelectedEquipByPhase: Record<number, number[]> = {};
+        const initialSelectedQuantityEquipmentByPhase: Record<number, Record<number, number>> = {};
         const initialSelectedHumansByPhase: Record<number, number[]> = {};
         let initialSelectedLandId: number | null = null;
 
@@ -1399,9 +1397,6 @@ export default function CreateAllocation() {
 
           for (const detail of managerEquipmentDetails) {
             const detailInstanceId = Number(detail.equipmentInstanceId ?? 0);
-            if (!detailInstanceId) {
-              continue;
-            }
 
             let phaseId = Number(detail.phaseId ?? 0);
             if (!phaseId && detail.phaseEquipmentReqId) {
@@ -1418,10 +1413,24 @@ export default function CreateAllocation() {
               continue;
             }
 
-            initialSelectedEquipByPhase[phaseId] = [
-              ...(initialSelectedEquipByPhase[phaseId] || []),
-              detailInstanceId,
-            ];
+            if (detailInstanceId > 0) {
+              initialSelectedEquipByPhase[phaseId] = [
+                ...(initialSelectedEquipByPhase[phaseId] || []),
+                detailInstanceId,
+              ];
+              continue;
+            }
+
+            const equipmentTypeId = Number(detail.allocatedEquipmentTypeId ?? 0);
+            const quantity = Math.max(0, Number(detail.quantity ?? 0));
+            if (equipmentTypeId > 0 && quantity > 0) {
+              initialSelectedQuantityEquipmentByPhase[phaseId] = {
+                ...(initialSelectedQuantityEquipmentByPhase[phaseId] || {}),
+                [equipmentTypeId]:
+                  (initialSelectedQuantityEquipmentByPhase[phaseId]?.[equipmentTypeId] || 0) +
+                  quantity,
+              };
+            }
           }
 
           for (const detail of managerHumanDetails) {
@@ -1455,6 +1464,7 @@ export default function CreateAllocation() {
         }
 
         setSelectedEquipByPhase(initialSelectedEquipByPhase);
+        setSelectedQuantityEquipmentByPhase(initialSelectedQuantityEquipmentByPhase);
         setSelectedHumansByPhase(initialSelectedHumansByPhase);
         setSelectedLandId(initialSelectedLandId);
 
@@ -1743,6 +1753,69 @@ export default function CreateAllocation() {
           !bestMatch ||
           effectiveEfficiency >
           bestMatch.effectiveEfficiency
+        ) {
+          bestMatch = {
+            requirement,
+            substitution,
+            isSubstitute: true,
+            effectiveEfficiency,
+          };
+        }
+      }
+    }
+
+    return bestMatch;
+  };
+
+  const findQuantityEquipmentMatch = (
+    phaseId: number,
+    equipmentType: EquipmentType
+  ): EquipmentRequirementMatch | null => {
+    const requirements = getEquipmentRequirementsForPhase(phaseId);
+
+    for (const requirement of requirements) {
+      if (requirement.equipmentTypeId !== equipmentType.equipmentTypeId) {
+        continue;
+      }
+
+      const effectiveEfficiency = 1;
+      const minimumEfficiency = normalizeEfficiency(
+        requirement.minAcceptableEfficiency
+      );
+      if (effectiveEfficiency >= minimumEfficiency) {
+        return {
+          requirement,
+          isSubstitute: false,
+          effectiveEfficiency,
+        };
+      }
+    }
+
+    let bestMatch: EquipmentRequirementMatch | null = null;
+    for (const requirement of requirements) {
+      if (!requirement.allowSubstitute) {
+        continue;
+      }
+
+      for (const substitution of equipmentSubstitutions.filter(
+        (item) =>
+          item.primaryEquipmentTypeId === requirement.equipmentTypeId &&
+          item.subEquipmentTypeId === equipmentType.equipmentTypeId
+      )) {
+        const effectiveEfficiency = normalizeEfficiency(
+          substitution.efficiencyRate
+        );
+        const minimumEfficiency = normalizeEfficiency(
+          requirement.minAcceptableEfficiency
+        );
+
+        if (effectiveEfficiency < minimumEfficiency) {
+          continue;
+        }
+
+        if (
+          !bestMatch ||
+          effectiveEfficiency > bestMatch.effectiveEfficiency
         ) {
           bestMatch = {
             requirement,
@@ -2057,7 +2130,10 @@ export default function CreateAllocation() {
     const relevantEquipment = availableEquipment.filter(
       (equipment) =>
         equipment.equipmentTypeId != null &&
-        allowedTypeIds.has(equipment.equipmentTypeId)
+        allowedTypeIds.has(equipment.equipmentTypeId) &&
+        equipmentTypes.find(
+          (type) => type.equipmentTypeId === equipment.equipmentTypeId
+        )?.trackingType !== "QuantityBased"
     );
 
     return relevantEquipment.map((equipment) => {
@@ -2197,8 +2273,146 @@ export default function CreateAllocation() {
     activePhaseId,
     activePhaseEquipmentRequirements,
     availableEquipment,
+    equipmentTypes,
     blockedEquipmentInstanceIds,
     equipmentSubstitutions,
+  ]);
+
+  type QuantityEquipmentEligibilityItem = {
+    equipmentType: EquipmentType;
+    isEligible: boolean;
+    isPrimary: boolean;
+    isSubstitute: boolean;
+    effectiveEfficiency: number;
+    selectedQuantity: number;
+    maxSelectableQuantity: number;
+    match: EquipmentRequirementMatch | null;
+    unavailabilityReason?: string;
+  };
+
+  const quantityEquipmentForActivePhase = useMemo<
+    QuantityEquipmentEligibilityItem[]
+  >(() => {
+    if (!activePhaseId) {
+      return [];
+    }
+
+    const requirements = getEquipmentRequirementsForPhase(activePhaseId);
+    const allowedTypeIds = new Set<number>();
+    requirements.forEach((requirement) => {
+      allowedTypeIds.add(requirement.equipmentTypeId);
+      if (requirement.allowSubstitute) {
+        equipmentSubstitutions
+          .filter(
+            (item) => item.primaryEquipmentTypeId === requirement.equipmentTypeId
+          )
+          .forEach((item) => allowedTypeIds.add(item.subEquipmentTypeId));
+      }
+    });
+
+    const selectedForPhase =
+      selectedQuantityEquipmentByPhase[activePhaseId] || {};
+    const selectedInstances = selectedEquipByPhase[activePhaseId] || [];
+
+    return equipmentTypes
+      .filter(
+        (item) =>
+          item.trackingType === "QuantityBased" &&
+          allowedTypeIds.has(item.equipmentTypeId)
+      )
+      .map((equipmentType) => {
+        const match = findQuantityEquipmentMatch(activePhaseId, equipmentType);
+        const selectedQuantity = selectedForPhase[equipmentType.equipmentTypeId] || 0;
+
+        if (!match) {
+          return {
+            equipmentType,
+            isEligible: false,
+            isPrimary: false,
+            isSubstitute: false,
+            effectiveEfficiency: 0,
+            selectedQuantity,
+            maxSelectableQuantity: 0,
+            match,
+            unavailabilityReason: "Equipment type does not meet the requirement or minimum efficiency",
+          };
+        }
+
+        const selectedInstanceQuantity = selectedInstances.reduce(
+          (count, instanceId) => {
+            const instance = availableEquipment.find(
+              (item) => item.equipmentInstanceId === instanceId
+            );
+            const instanceMatch = instance
+              ? findEquipmentMatch(activePhaseId, instance)
+              : null;
+            return instanceMatch?.requirement.expEquipmentReqId ===
+              match.requirement.expEquipmentReqId
+              ? count + 1
+              : count;
+          },
+          0
+        );
+
+        const selectedOtherQuantity = Object.entries(selectedForPhase).reduce(
+          (count, [typeIdText, quantity]) => {
+            const typeId = Number(typeIdText);
+            if (typeId === equipmentType.equipmentTypeId) {
+              return count;
+            }
+            const otherType = equipmentTypes.find(
+              (item) => item.equipmentTypeId === typeId
+            );
+            const otherMatch = otherType
+              ? findQuantityEquipmentMatch(activePhaseId, otherType)
+              : null;
+            return otherMatch?.requirement.expEquipmentReqId ===
+              match.requirement.expEquipmentReqId
+              ? count + quantity
+              : count;
+          },
+          0
+        );
+
+        const requirementRemaining = Math.max(
+          0,
+          match.requirement.quantity -
+            selectedInstanceQuantity -
+            selectedOtherQuantity
+        );
+        const maxSelectableQuantity = Math.min(
+          equipmentType.availableQuantity + selectedQuantity,
+          requirementRemaining + selectedQuantity
+        );
+        const isEligible =
+          equipmentType.availableQuantity > 0 &&
+          maxSelectableQuantity > 0;
+
+        return {
+          equipmentType,
+          isEligible,
+          isPrimary: !match.isSubstitute,
+          isSubstitute: match.isSubstitute,
+          effectiveEfficiency: match.effectiveEfficiency,
+          selectedQuantity,
+          maxSelectableQuantity,
+          match,
+          unavailabilityReason:
+            equipmentType.availableQuantity <= 0
+              ? "No quantity-based stock is available"
+              : !isEligible
+                ? "The requirement quantity is already selected"
+                : undefined,
+        };
+      });
+  }, [
+    activePhaseId,
+    activePhaseEquipmentRequirements,
+    equipmentTypes,
+    equipmentSubstitutions,
+    selectedQuantityEquipmentByPhase,
+    selectedEquipByPhase,
+    availableEquipment,
   ]);
 
   // Toggle Equipment for current active phase.
@@ -2312,6 +2526,24 @@ export default function CreateAllocation() {
             }
           ).length;
 
+        const selectedQuantityForSameRequirement = Object.entries(
+          selectedQuantityEquipmentByPhase[activePhaseId] || {}
+        ).reduce((count, [typeIdText, quantity]) => {
+          const type = equipmentTypes.find(
+            (item) => item.equipmentTypeId === Number(typeIdText)
+          );
+          const quantityMatch = type
+            ? findQuantityEquipmentMatch(activePhaseId, type)
+            : null;
+          return quantityMatch?.requirement.expEquipmentReqId ===
+            targetMatch.requirement.expEquipmentReqId
+            ? count + quantity
+            : count;
+        }, 0);
+
+        const selectedRequirementQuantity =
+          selectedForSameRequirement + selectedQuantityForSameRequirement;
+
         const requiredQuantity =
           Math.max(
             0,
@@ -2323,7 +2555,7 @@ export default function CreateAllocation() {
 
         if (
           requiredQuantity > 0 &&
-          selectedForSameRequirement >=
+          selectedRequirementQuantity >=
           requiredQuantity
         ) {
           setError(
@@ -2352,6 +2584,46 @@ export default function CreateAllocation() {
         };
       }
     );
+  };
+
+  const handleQuantityEquipmentChange = (
+    equipmentTypeId: number,
+    rawQuantity: string
+  ) => {
+    if (!activePhaseId || allocationDetailsSaved) {
+      return;
+    }
+
+    const item = quantityEquipmentForActivePhase.find(
+      (equipment) => equipment.equipmentType.equipmentTypeId === equipmentTypeId
+    );
+    if (!item || !item.isEligible) {
+      return;
+    }
+
+    const parsedQuantity = Math.floor(Number(rawQuantity));
+    const quantity = Number.isFinite(parsedQuantity)
+      ? Math.min(item.maxSelectableQuantity, Math.max(0, parsedQuantity))
+      : 0;
+
+    setSelectedQuantityEquipmentByPhase((current) => {
+      const phaseSelection = { ...(current[activePhaseId] || {}) };
+      if (quantity === 0) {
+        delete phaseSelection[equipmentTypeId];
+      } else {
+        phaseSelection[equipmentTypeId] = quantity;
+      }
+      return {
+        ...current,
+        [activePhaseId]: phaseSelection,
+      };
+    });
+
+    setFitnessScore(null);
+    setFitnessBreakdown(null);
+    setFitnessEvaluationMessage("");
+    setAllocationDetailsSaved(false);
+    setError("");
   };
 
   // Get human requirements that belong to a specific phase.
@@ -2651,48 +2923,57 @@ export default function CreateAllocation() {
    *   KHÔNG reuse Draft cũ của cùng Experiment.
    *
   * Manager:
-  *   validates the approved request in initialPlanId, then creates one
-  *   Draft assignment plan because Backend does not allow details on Approved plans.
+  *   selects an Experiment that has already been approved by the Manager,
+  *   then creates a Draft assignment plan and submits it as Pending after
+  *   resources are saved. An approved source allocationPlanId remains
+  *   supported for backward compatibility.
    */
   const ensureDraftAllocationPlan =
     async (): Promise<number> => {
       /*
        * MANAGER RESOURCE ALLOCATION MODE
+       *
+       * Manager creates the Allocation Plan from an Experiment that has
+       * already been approved. An optional allocationPlanId is still
+       * supported for backward compatibility with an existing approved
+       * source plan.
        */
-      if (
-        isManagerAllocation &&
-        initialPlanId > 0
-      ) {
-        const existingPlan =
-          await getAllocationPlanById(
-            initialPlanId
-          );
+      if (isManagerAllocation) {
+        if (initialPlanId > 0) {
+          const existingPlan =
+            await getAllocationPlanById(initialPlanId);
 
-        if (
-          String(
-            existingPlan.approveStatus ||
-            ""
-          )
+          if (
+            String(existingPlan.approveStatus || "")
+              .trim()
+              .toLowerCase() !== "approved"
+          ) {
+            throw new Error(
+              "Manager can allocate resources only after the source Allocation Plan has been approved."
+            );
+          }
+
+          if (
+            Number(existingPlan.experimentId) !==
+            Number(selectedExpId)
+          ) {
+            throw new Error(
+              "This Allocation Plan does not belong to the selected experiment."
+            );
+          }
+        } else {
+          const approvedExperiment =
+            await getExperimentById(Number(selectedExpId));
+          const approvedStatus = String(approvedExperiment.status || "")
             .trim()
-            .toLowerCase() !==
-          "approved"
-        ) {
-          throw new Error(
-            "Manager can allocate resources only after the Allocation Plan has been approved."
-          );
-        }
+            .toLowerCase();
 
-        if (
-          Number(
-            existingPlan.experimentId
-          ) !==
-          Number(selectedExpId)
-        ) {
-          throw new Error(
-            "This Allocation Plan does not belong to the selected experiment."
-          );
+          if (approvedStatus !== "planning" && approvedStatus !== "ready") {
+            throw new Error(
+              "Manager can create an Allocation Plan only from an Experiment that has been approved."
+            );
+          }
         }
-
       }
 
       /*
@@ -2945,20 +3226,26 @@ export default function CreateAllocation() {
 
   const totalEquipmentCount =
     useMemo(
-      () =>
-        Object.values(
-          selectedEquipByPhase
-        ).reduce(
-          (
-            sum,
-            list
-          ) =>
-            sum +
-            list.length,
+      () => {
+        const individualCount = Object.values(selectedEquipByPhase).reduce(
+          (sum, list) => sum + list.length,
           0
-        ),
+        );
+        const quantityCount = Object.values(selectedQuantityEquipmentByPhase).reduce(
+          (sum, quantities) =>
+            sum +
+            Object.values(quantities).reduce(
+              (quantitySum, quantity) => quantitySum + Math.max(0, Number(quantity) || 0),
+              0
+            ),
+          0
+        );
+
+        return individualCount + quantityCount;
+      },
       [
         selectedEquipByPhase,
+        selectedQuantityEquipmentByPhase,
       ]
     );
 
@@ -2980,6 +3267,41 @@ export default function CreateAllocation() {
         selectedHumansByPhase,
       ]
     );
+
+  const filteredIndividualEquipmentForActivePhase = useMemo(
+    () =>
+      allEquipmentForActivePhase.filter((item) => {
+        if (equipmentFilterTab === "available") return item.isEligible;
+        if (equipmentFilterTab === "unavailable") return !item.isEligible;
+        return true;
+      }),
+    [allEquipmentForActivePhase, equipmentFilterTab]
+  );
+
+  const filteredQuantityEquipmentForActivePhase = useMemo(
+    () =>
+      quantityEquipmentForActivePhase.filter((item) => {
+        if (equipmentFilterTab === "available") return item.isEligible;
+        if (equipmentFilterTab === "unavailable") return !item.isEligible;
+        return true;
+      }),
+    [quantityEquipmentForActivePhase, equipmentFilterTab]
+  );
+
+  const equipmentFilterCounts = useMemo(
+    () => ({
+      all:
+        allEquipmentForActivePhase.length +
+        quantityEquipmentForActivePhase.length,
+      available:
+        allEquipmentForActivePhase.filter((item) => item.isEligible).length +
+        quantityEquipmentForActivePhase.filter((item) => item.isEligible).length,
+      unavailable:
+        allEquipmentForActivePhase.filter((item) => !item.isEligible).length +
+        quantityEquipmentForActivePhase.filter((item) => !item.isEligible).length,
+    }),
+    [allEquipmentForActivePhase, quantityEquipmentForActivePhase]
+  );
 
   const evaluationWeightTotal =
     useMemo(
@@ -3065,6 +3387,8 @@ export default function CreateAllocation() {
           );
 
         const created =
+          response.data?.data ??
+          response.data?.result ??
           response.data;
 
         const createdId =
@@ -3136,7 +3460,8 @@ export default function CreateAllocation() {
 
   const persistAllocationDetails =
     async (
-      planId: number
+      planId: number,
+      createdEquipmentDetailIds: number[]
     ) => {
       const plan =
         await getAllocationPlanById(
@@ -3378,13 +3703,115 @@ export default function CreateAllocation() {
             equipmentAllocationPayload
           );
 
-          await createAllocationEquipmentDetail(
+          const createdEquipmentDetail =
+            await createAllocationEquipmentDetail(
             equipmentAllocationPayload
+          );
+
+          createdEquipmentDetailIds.push(
+            createdEquipmentDetail.allocationEquipmentDetailId
           );
 
           existingEquipmentKeys.add(
             key
           );
+        }
+      }
+
+      /*
+       * --------------------------------------------------------
+       * QUANTITY-BASED EQUIPMENT
+       * --------------------------------------------------------
+       *
+       * QuantityBased equipment has no EquipmentInstanceId.
+       * The allocation detail stores the selected stock quantity
+       * against the allocated equipment type.
+       */
+      for (const [phaseIdText, quantities] of Object.entries(
+        selectedQuantityEquipmentByPhase
+      )) {
+        const phaseId = Number(phaseIdText);
+        const phase = phases.find(
+          (item) => item.experimentPhaseId === phaseId
+        );
+        if (!phase) continue;
+
+        const startDate = convertDateToIso(
+          phase.expectedStartDate || selectedExp?.expectStartDate
+        );
+        const endDate = convertDateToIso(
+          phase.expectedEndDate || selectedExp?.expectEndDate,
+          true
+        );
+
+        for (const [equipmentTypeIdText, rawQuantity] of Object.entries(quantities)) {
+          const equipmentTypeId = Number(equipmentTypeIdText);
+          const quantity = Math.max(0, Math.floor(Number(rawQuantity) || 0));
+          if (equipmentTypeId <= 0 || quantity <= 0) continue;
+
+          const equipmentType = equipmentTypes.find(
+            (item) => item.equipmentTypeId === equipmentTypeId
+          );
+          if (!equipmentType || equipmentType.trackingType !== "QuantityBased") {
+            throw new Error(
+              `Equipment type #${equipmentTypeId} is not configured as Quantity Based.`
+            );
+          }
+
+          const match = findQuantityEquipmentMatch(phaseId, equipmentType);
+          if (!match) {
+            throw new Error(
+              `${equipmentType.name || equipmentType.equipmentTypeName || `Equipment Type #${equipmentTypeId}`} does not satisfy the requirement for ${phase.phaseName}.`
+            );
+          }
+
+          const key = [
+            planId,
+            0,
+            match.requirement.expEquipmentReqId,
+            0,
+          ].join(":");
+
+          if (existingEquipmentKeys.has(key)) {
+            continue;
+          }
+
+          const maxAvailable = Number(equipmentType.availableQuantity ?? 0);
+          if (quantity > maxAvailable) {
+            throw new Error(
+              `${equipmentType.name || equipmentType.equipmentTypeName || `Equipment Type #${equipmentTypeId}`} has only ${maxAvailable} unit(s) available.`
+            );
+          }
+
+          const equipmentAllocationPayload: AllocationEquipmentDetailRequest = {
+            allocationPlanId: Number(planId),
+            expEquipmentReqId: Number(match.requirement.expEquipmentReqId),
+            phaseEquipmentReqId: null,
+            allocatedEquipmentTypeId: equipmentTypeId,
+            equipmentInstanceId: null,
+            quantity,
+            efficiencyRate: Number(match.effectiveEfficiency.toFixed(4)),
+            isSubstitute: Boolean(match.isSubstitute),
+            startDate,
+            endDate,
+            status: "Allocated",
+          };
+
+          console.debug(
+            "Creating QuantityBased AllocationEquipmentDetail:",
+            equipmentAllocationPayload
+          );
+
+          const createdEquipmentDetail =
+            await createAllocationEquipmentDetail(
+              equipmentAllocationPayload
+            );
+
+          createdEquipmentDetailIds.push(
+            createdEquipmentDetail.allocationEquipmentDetailId
+          );
+
+          existingEquipmentKeys.add(key);
         }
       }
 
@@ -3598,6 +4025,13 @@ export default function CreateAllocation() {
             status:
               "Allocated",
           };
+
+          if (import.meta.env.DEV) {
+            console.debug(
+              "AllocationHumanDetail POST payload:",
+              humanAllocationPayload
+            );
+          }
 
           await createAllocationHumanDetail(
             humanAllocationPayload
@@ -3924,6 +4358,52 @@ export default function CreateAllocation() {
           });
         });
 
+        const quantityEquipmentDetails = Object.entries(
+          selectedQuantityEquipmentByPhase
+        ).flatMap(([phaseIdText, quantities]) => {
+          const phaseId = Number(phaseIdText);
+          const phase = phases.find(
+            (item) => item.experimentPhaseId === phaseId
+          );
+          if (!phase) return [];
+
+          return Object.entries(quantities).flatMap(([equipmentTypeIdText, quantity]) => {
+            const equipmentTypeId = Number(equipmentTypeIdText);
+            const selectedQuantity = Math.max(0, Math.floor(Number(quantity) || 0));
+            if (equipmentTypeId <= 0 || selectedQuantity <= 0) return [];
+
+            const equipmentType = equipmentTypes.find(
+              (item) => item.equipmentTypeId === equipmentTypeId
+            );
+            if (!equipmentType) return [];
+
+            const match = findQuantityEquipmentMatch(phaseId, equipmentType);
+            if (!match) return [];
+
+            const startDate =
+              phase.expectedStartDate || selectedExp.expectStartDate;
+            const endDate =
+              phase.expectedEndDate || selectedExp.expectEndDate;
+
+            return [{
+              equipmentTypeId,
+              equipmentInstanceId: null,
+              quantity: selectedQuantity,
+              expEquipmentReqId: match.requirement.expEquipmentReqId,
+              phaseEquipmentReqId: null,
+              isSubstitute: match.isSubstitute,
+              efficiencyRate: Number(match.effectiveEfficiency.toFixed(4)),
+              startDate: startDate ? convertDateToIso(startDate) : null,
+              endDate: endDate ? convertDateToIso(endDate, true) : null,
+            }];
+          });
+        });
+
+        const allEquipmentDetails = [
+          ...equipmentDetails,
+          ...quantityEquipmentDetails,
+        ];
+
         const humanDetails = Object.entries(
           selectedHumansByPhase
         ).flatMap(([phaseIdText, humanIds]) => {
@@ -3994,7 +4474,7 @@ export default function CreateAllocation() {
         const evaluation = await simulateAllocationPlanFitness({
           experimentId: selectedExpId,
           currentPlanId: draftPlanId ?? (initialPlanId > 0 ? initialPlanId : null),
-          equipmentDetails,
+          equipmentDetails: allEquipmentDetails,
           humanDetails,
           landDetails,
         });
@@ -4097,6 +4577,7 @@ export default function CreateAllocation() {
 
       setSubmitting(true);
       setError("");
+      const createdEquipmentDetailIds: number[] = [];
 
       try {
         const planId =
@@ -4108,36 +4589,29 @@ export default function CreateAllocation() {
          * ======================================================
          */
 
-        if (
-          isManagerAllocation
-        ) {
-          const approvedSourcePlan =
-            await getAllocationPlanById(
-              initialPlanId
-            );
+        if (isManagerAllocation) {
           const assignmentPlan = await getAllocationPlanById(planId);
+          const experimentForAllocation = await getExperimentById(
+            Number(selectedExpId)
+          );
+          const experimentStatus = String(
+            experimentForAllocation.status || ""
+          )
+            .trim()
+            .toLowerCase();
 
-          if (
-            String(
-              approvedSourcePlan
-                .approveStatus ||
-              ""
-            )
-              .trim()
-              .toLowerCase() !==
-            "approved"
-          ) {
+          if (experimentStatus !== "planning" && experimentStatus !== "ready") {
             throw new Error(
-              "Manager can allocate resources only after the source plan has been approved."
+              "Manager can create an Allocation Plan only from an Experiment that has already been approved."
             );
           }
 
           if (
-            Number(approvedSourcePlan.experimentId) !== Number(assignmentPlan.experimentId) ||
+            Number(assignmentPlan.experimentId) !== Number(selectedExpId) ||
             String(assignmentPlan.approveStatus || "").trim().toLowerCase() !== "draft"
           ) {
             throw new Error(
-              "The assignment Draft is invalid for the approved source plan."
+              "The Allocation Plan Draft is invalid for the selected approved Experiment."
             );
           }
 
@@ -4175,7 +4649,8 @@ export default function CreateAllocation() {
            * KHÔNG persist Schedule.
            */
           await persistAllocationDetails(
-            planId
+            planId,
+            createdEquipmentDetailIds
           );
 
           /*
@@ -4184,34 +4659,27 @@ export default function CreateAllocation() {
            * Nếu Manager đã Evaluate thì score đã được backend
            * cập nhật. Nếu chưa Evaluate thì vẫn cho phép lưu.
            */
+          // A Manager-created plan follows the existing Allocation workflow:
+          // save the resources to Draft, then submit it as Pending.
+          await submitAllocationPlan(planId);
+
           sendLocalNotification({
-            title:
-              "Resources Allocated",
-
+            title: "Allocation Plan Created",
             message:
-              `Personnel, equipment and land resources were allocated to Experiment #${selectedExpId}.`,
-
-            notificationType:
-              "Success",
-
-            referenceType:
-              "AllocationPlan",
-
-            referenceId:
-              planId,
+              `Allocation Plan #${planId} was created from approved Experiment #${selectedExpId} and submitted for approval.`,
+            notificationType: "Success",
+            referenceType: "AllocationPlan",
+            referenceId: planId,
           });
 
           void fetchUnreadCount();
 
-          navigate(
-            `/allocation/${planId}`,
-            {
-              state: {
-                message:
-                  `Resources were saved to assignment Draft #${planId}, created from Approved plan #${initialPlanId}.`,
-              },
-            }
-          );
+          navigate("/allocation", {
+            state: {
+              message:
+                `Allocation Plan #${planId} was created from approved Experiment "${selectedExp.experimentName}" and submitted successfully.`,
+            },
+          });
 
           return;
         }
@@ -4265,7 +4733,10 @@ export default function CreateAllocation() {
          * the Evaluate Fitness Score handler, so removing that UI also
          * removed the only call that created Equipment/Human/Land details.
          */
-        await persistAllocationDetails(planId);
+        await persistAllocationDetails(
+          planId,
+          createdEquipmentDetailIds
+        );
 
         const savedEvaluation = await evaluateAllocationPlan(
           planId,
@@ -4320,6 +4791,26 @@ export default function CreateAllocation() {
           }
         );
       } catch (err: any) {
+        if (createdEquipmentDetailIds.length > 0) {
+          const rollbackResults = await Promise.allSettled(
+            createdEquipmentDetailIds.map((detailId) =>
+              currentUserInfo.role === "Researcher"
+                ? deleteMyAllocationEquipmentDetail(detailId)
+                : deleteAllocationEquipmentDetail(detailId)
+            )
+          );
+          const rollbackFailures = rollbackResults
+            .map((result, index) => ({ result, detailId: createdEquipmentDetailIds[index] }))
+            .filter(({ result }) => result.status === "rejected");
+
+          if (rollbackFailures.length > 0) {
+            console.error(
+              "Failed to roll back allocation equipment details:",
+              rollbackFailures
+            );
+          }
+        }
+
         console.error(
           "Allocation flow failed:",
           err
@@ -4500,19 +4991,15 @@ export default function CreateAllocation() {
             </button>
 
             <h1>
-              {isManagerRole && !isManagerAllocation
-                ? "Manager Allocation Review"
-                : isManagerAllocation
-                  ? "Allocate Resources"
-                  : "Request Allocation Resources"}
+              {isManagerAllocation
+                ? "Create Allocation Plan"
+                : "Request Allocation Resources"}
             </h1>
 
             <p>
-              {isManagerRole && !isManagerAllocation
-                ? "Manager approval is required before allocation can start. Open this page from an approved allocation plan to continue."
-                : isManagerAllocation
-                  ? "Allocate personnel, equipment and land to the approved Allocation Plan."
-                  : "Select proposed resources and submit the resource allocation request for Manager approval."}
+              {isManagerAllocation
+                ? "Choose an Experiment already approved by the Manager, then assign its land, equipment and personnel resources."
+                : "Select an experiment, then prepare its proposed resource allocation."}
             </p>
           </div>
         </div>
@@ -4520,17 +5007,6 @@ export default function CreateAllocation() {
         {loading ? (
           <div className="alloc-loading">
             Loading resource inventory...
-          </div>
-        ) : isManagerRole && !isManagerAllocation ? (
-          <div className="alloc-section">
-            <div className="alloc-section-header">
-              <div>
-                <h2>Manager allocation is plan-driven</h2>
-                <p>
-                  This screen is only for approved Allocation Plans. Please open it from the approved plan detail page to continue with resource assignment.
-                </p>
-              </div>
-            </div>
           </div>
         ) : (
           <>
@@ -4543,7 +5019,7 @@ export default function CreateAllocation() {
 
                   <p>
                     {isManagerAllocation
-                      ? "Resource allocation will be saved to the approved plan."
+                      ? "Select an approved Experiment. A new Draft Allocation Plan will be created for it."
                       : "Select an experiment, then prepare its proposed resource allocation."}
                   </p>
                 </div>
@@ -4551,34 +5027,43 @@ export default function CreateAllocation() {
 
               {isManagerAllocation ? (
                 <div className="alloc-form-group">
-                  <label>Experiment</label>
+                  <label htmlFor="manager-approved-experiment">
+                    Approved Experiment
+                  </label>
 
-                  <div
-                    style={{
-                      minHeight: "42px",
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 14px",
-                      border: "1px solid #dbe3ec",
-                      borderRadius: "8px",
-                      background: "#f8fafc",
-                      color: "#0f172a",
-                      fontWeight: 600,
-                    }}
+                  <select
+                    id="manager-approved-experiment"
+                    value={selectedExpId || ""}
+                    onChange={(event) =>
+                      setSelectedExpId(Number(event.target.value) || 0)
+                    }
+                    disabled={!!initialPlanId}
                   >
-                    {selectedExp?.experimentName ||
-                      "Loading approved plan experiment..."}
-                  </div>
+                    <option value="">
+                      -- Select approved Experiment --
+                    </option>
 
-                  <div
-                    style={{
-                      marginTop: "6px",
-                      fontSize: "12px",
-                      color: "#64748b",
-                    }}
-                  >
-                    Allocation Plan #{initialPlanId} · Approved
-                  </div>
+                    {allExperiments.map((experiment) => (
+                      <option
+                        key={experiment.experimentId}
+                        value={experiment.experimentId}
+                      >
+                        {experiment.experimentName}
+                      </option>
+                    ))}
+                  </select>
+
+                  {initialPlanId > 0 && (
+                    <div
+                      style={{
+                        marginTop: "6px",
+                        fontSize: "12px",
+                        color: "#64748b",
+                      }}
+                    >
+                      Source Allocation Plan #{initialPlanId} · Approved
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="alloc-form-group">
@@ -4741,9 +5226,18 @@ export default function CreateAllocation() {
                           phase.experimentPhaseId === activePhaseId;
 
                         const equipmentCount =
-                          selectedEquipByPhase[
+                          (selectedEquipByPhase[
                             phase.experimentPhaseId
-                          ]?.length || 0;
+                          ]?.length || 0) +
+                          Object.values(
+                            selectedQuantityEquipmentByPhase[
+                              phase.experimentPhaseId
+                            ] || {}
+                          ).reduce(
+                            (sum, quantity) =>
+                              sum + Math.max(0, Number(quantity) || 0),
+                            0
+                          );
 
                         const humanCount =
                           selectedHumansByPhase[
@@ -4903,21 +5397,21 @@ export default function CreateAllocation() {
                           className={`alloc-view-filter-btn ${equipmentFilterTab === "all" ? "active" : ""}`}
                           onClick={() => setEquipmentFilterTab("all")}
                         >
-                          All ({allEquipmentForActivePhase.length})
+                          All ({equipmentFilterCounts.all})
                         </button>
                         <button
                           type="button"
                           className={`alloc-view-filter-btn ${equipmentFilterTab === "available" ? "active" : ""}`}
                           onClick={() => setEquipmentFilterTab("available")}
                         >
-                          Available ({allEquipmentForActivePhase.filter((e) => e.isEligible).length})
+                          Available ({equipmentFilterCounts.available})
                         </button>
                         <button
                           type="button"
                           className={`alloc-view-filter-btn ${equipmentFilterTab === "unavailable" ? "active warning" : ""}`}
                           onClick={() => setEquipmentFilterTab("unavailable")}
                         >
-                          Unavailable ({allEquipmentForActivePhase.filter((e) => !e.isEligible).length})
+                          Unavailable ({equipmentFilterCounts.unavailable})
                         </button>
                       </div>
 
@@ -4943,53 +5437,43 @@ export default function CreateAllocation() {
                         >
                           Checking equipment availability for this phase&apos;s dates...
                         </p>
-                      ) : allEquipmentForActivePhase.length === 0 ? (
-                        <p
-                          style={{
-                            color: "#64748b",
-                            fontSize: "12.5px",
-                            margin: "12px 0",
-                          }}
-                        >
-                          No equipment found in inventory matching this phase&apos;s requirements.
-                        </p>
                       ) : (
                         <div className="alloc-items-list">
-                          {allEquipmentForActivePhase
-                            .filter((item) => {
-                              if (equipmentFilterTab === "available") return item.isEligible;
-                              if (equipmentFilterTab === "unavailable") return !item.isEligible;
-                              return true;
-                            })
-                            .map(
-                              ({
-                                equipment,
-                                isEligible,
-                                isPrimary,
-                                isSubstitute,
-                                effectiveEfficiency,
-                                unavailabilityReason,
-                              }) => {
-                                const isChecked = (
-                                  selectedEquipByPhase[
-                                  activePhase.experimentPhaseId
-                                  ] || []
-                                ).includes(
-                                  equipment.equipmentInstanceId
-                                );
+                          {/* QuantityBased stock */}
+                          {filteredQuantityEquipmentForActivePhase.length > 0 && (
+                            <>
+                              <div
+                                style={{
+                                  padding: "8px 2px 4px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  color: "#475569",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.03em",
+                                }}
+                              >
+                                Quantity-based stock
+                              </div>
 
-                                return (
+                              {filteredQuantityEquipmentForActivePhase.map(
+                                ({
+                                  equipmentType,
+                                  isEligible,
+                                  isPrimary,
+                                  isSubstitute,
+                                  effectiveEfficiency,
+                                  selectedQuantity,
+                                  maxSelectableQuantity,
+                                  unavailabilityReason,
+                                  match,
+                                }) => (
                                   <div
-                                    key={equipment.equipmentInstanceId}
-                                    onClick={() => {
-                                      if (isEligible) {
-                                        handleToggleEquipment(
-                                          equipment.equipmentInstanceId
-                                        );
-                                      }
+                                    key={`quantity-${equipmentType.equipmentTypeId}`}
+                                    className={`alloc-item-row ${selectedQuantity > 0 ? "selected" : ""} ${!isEligible ? "disabled" : ""}`}
+                                    style={{
+                                      cursor: isEligible ? "default" : "not-allowed",
+                                      alignItems: "center",
                                     }}
-                                    className={`alloc-item-row ${isChecked ? "selected" : ""
-                                      } ${!isEligible ? "disabled" : ""}`}
                                   >
                                     <div
                                       style={{
@@ -4999,14 +5483,24 @@ export default function CreateAllocation() {
                                         flex: 1,
                                       }}
                                     >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        disabled={!isEligible}
-                                        readOnly
-                                        className="alloc-item-checkbox"
-                                        style={{ marginTop: "3px" }}
-                                      />
+                                      <div
+                                        style={{
+                                          width: "28px",
+                                          minWidth: "28px",
+                                          height: "28px",
+                                          borderRadius: "7px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          background: isEligible ? "#f0fdf4" : "#f8fafc",
+                                          border: `1px solid ${isEligible ? "#bbf7d0" : "#e2e8f0"}`,
+                                          fontSize: "11px",
+                                          fontWeight: 700,
+                                          color: isEligible ? "#15803d" : "#94a3b8",
+                                        }}
+                                      >
+                                        QTY
+                                      </div>
 
                                       <div>
                                         <div
@@ -5017,25 +5511,28 @@ export default function CreateAllocation() {
                                                 ? "#7c3aed"
                                                 : "#0284c7"
                                               : "#64748b",
-                                            fontWeight: 550,
+                                            fontWeight: 600,
                                           }}
                                         >
-                                          {equipment.assetCode ||
-                                            `EQ-${equipment.equipmentInstanceId}`}
+                                          {equipmentType.name ||
+                                            equipmentType.equipmentTypeName ||
+                                            `Equipment Type #${equipmentType.equipmentTypeId}`}
                                         </div>
 
                                         <div
                                           style={{
                                             fontSize: "11.5px",
                                             color: "#64748b",
+                                            marginTop: "2px",
                                           }}
                                         >
-                                          {equipment.equipmentTypeName ||
-                                            `Type #${equipment.equipmentTypeId}`}
+                                          Quantity Based
                                           {" • "}
-                                          {equipment.conditionLevel || "Good"}
-                                          {equipment.status !== "Available" &&
-                                            ` • Status: ${equipment.status}`}
+                                          Stock: {equipmentType.availableQuantity}
+                                          {" • "}
+                                          Required: {match?.requirement.quantity ?? "-"}
+                                          {" • "}
+                                          {Math.round((effectiveEfficiency || 0) * 100)}% Eff.
                                         </div>
 
                                         {!isEligible && unavailabilityReason && (
@@ -5048,55 +5545,250 @@ export default function CreateAllocation() {
 
                                     <div
                                       style={{
-                                        textAlign: "right",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "8px",
                                       }}
                                     >
-                                      {isPrimary && (
-                                        <div
-                                          style={{
-                                            fontSize: "10.5px",
-                                            fontWeight: 700,
-                                            color: isEligible
-                                              ? "#15803d"
-                                              : "#94a3b8",
-                                          }}
-                                        >
-                                          PRIMARY
-                                        </div>
-                                      )}
-                                      {isSubstitute && (
-                                        <div
-                                          style={{
-                                            fontSize: "10.5px",
-                                            fontWeight: 700,
-                                            color: isEligible
-                                              ? "#7c3aed"
-                                              : "#94a3b8",
-                                          }}
-                                        >
-                                          SUBSTITUTE
-                                        </div>
-                                      )}
-                                      <span
-                                        style={{
-                                          fontSize: "11.5px",
-                                          color: isEligible
-                                            ? "#16a34a"
-                                            : "#94a3b8",
-                                        }}
-                                      >
-                                        {Math.round(
-                                          (effectiveEfficiency ||
-                                            normalizeEfficiency(
-                                              equipment.efficiencyRate ?? 1
-                                            )) * 100
+                                      <div style={{ textAlign: "right" }}>
+                                        {isPrimary && (
+                                          <div
+                                            style={{
+                                              fontSize: "10.5px",
+                                              fontWeight: 700,
+                                              color: isEligible ? "#15803d" : "#94a3b8",
+                                            }}
+                                          >
+                                            PRIMARY
+                                          </div>
                                         )}
-                                        % Eff.
-                                      </span>
+                                        {isSubstitute && (
+                                          <div
+                                            style={{
+                                              fontSize: "10.5px",
+                                              fontWeight: 700,
+                                              color: isEligible ? "#7c3aed" : "#94a3b8",
+                                            }}
+                                          >
+                                            SUBSTITUTE
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={maxSelectableQuantity}
+                                        value={selectedQuantity}
+                                        disabled={
+                                          !isEligible ||
+                                          allocationDetailsSaved
+                                        }
+                                        onClick={(event) => event.stopPropagation()}
+                                        onChange={(event) =>
+                                          handleQuantityEquipmentChange(
+                                            equipmentType.equipmentTypeId,
+                                            event.target.value
+                                          )
+                                        }
+                                        style={{
+                                          width: "74px",
+                                          padding: "7px 8px",
+                                          border: "1px solid #cbd5e1",
+                                          borderRadius: "6px",
+                                          fontSize: "14px",
+                                          fontWeight: 700,
+                                          textAlign: "center",
+                                          background: !isEligible ? "#f8fafc" : "#fff",
+                                          color: "#111827",
+                                          WebkitTextFillColor: "#111827",
+                                          colorScheme: "light",
+                                          opacity: 1,
+                                        }}
+                                        aria-label={`Quantity for ${equipmentType.name || equipmentType.equipmentTypeName || `equipment type ${equipmentType.equipmentTypeId}`}`}
+                                      />
                                     </div>
                                   </div>
-                                );
-                              }
+                                )
+                              )}
+                            </>
+                          )}
+
+                          {/* Individual assets */}
+                          {filteredIndividualEquipmentForActivePhase.length > 0 && (
+                            <>
+                              <div
+                                style={{
+                                  padding: "12px 2px 4px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  color: "#475569",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.03em",
+                                }}
+                              >
+                                Individual equipment
+                              </div>
+
+                              {filteredIndividualEquipmentForActivePhase.map(
+                                ({
+                                  equipment,
+                                  isEligible,
+                                  isPrimary,
+                                  isSubstitute,
+                                  effectiveEfficiency,
+                                  unavailabilityReason,
+                                }) => {
+                                  const isChecked = (
+                                    selectedEquipByPhase[
+                                      activePhase.experimentPhaseId
+                                    ] || []
+                                  ).includes(
+                                    equipment.equipmentInstanceId
+                                  );
+
+                                  return (
+                                    <div
+                                      key={`individual-${equipment.equipmentInstanceId}`}
+                                      onClick={() => {
+                                        if (
+                                          isEligible &&
+                                          !allocationDetailsSaved
+                                        ) {
+                                          handleToggleEquipment(
+                                            equipment.equipmentInstanceId
+                                          );
+                                        }
+                                      }}
+                                      className={`alloc-item-row ${isChecked ? "selected" : ""
+                                        } ${!isEligible ? "disabled" : ""}`}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "flex-start",
+                                          gap: "10px",
+                                          flex: 1,
+                                        }}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          disabled={
+                                            !isEligible ||
+                                            allocationDetailsSaved
+                                          }
+                                          readOnly
+                                          className="alloc-item-checkbox"
+                                          style={{ marginTop: "3px" }}
+                                        />
+
+                                        <div>
+                                          <div
+                                            style={{
+                                              fontSize: "13px",
+                                              color: isEligible
+                                                ? isSubstitute
+                                                  ? "#7c3aed"
+                                                  : "#0284c7"
+                                                : "#64748b",
+                                              fontWeight: 550,
+                                            }}
+                                          >
+                                            {equipment.assetCode ||
+                                              `EQ-${equipment.equipmentInstanceId}`}
+                                          </div>
+
+                                          <div
+                                            style={{
+                                              fontSize: "11.5px",
+                                              color: "#64748b",
+                                            }}
+                                          >
+                                            {equipment.equipmentTypeName ||
+                                              `Type #${equipment.equipmentTypeId}`}
+                                            {" • "}
+                                            {equipment.conditionLevel || "Good"}
+                                            {equipment.status !== "Available" &&
+                                              ` • Status: ${equipment.status}`}
+                                            {" • Individual"}
+                                          </div>
+
+                                          {!isEligible && unavailabilityReason && (
+                                            <div className="alloc-reason-badge">
+                                              ⚠️ {unavailabilityReason}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div
+                                        style={{
+                                          textAlign: "right",
+                                        }}
+                                      >
+                                        {isPrimary && (
+                                          <div
+                                            style={{
+                                              fontSize: "10.5px",
+                                              fontWeight: 700,
+                                              color: isEligible
+                                                ? "#15803d"
+                                                : "#94a3b8",
+                                            }}
+                                          >
+                                            PRIMARY
+                                          </div>
+                                        )}
+                                        {isSubstitute && (
+                                          <div
+                                            style={{
+                                              fontSize: "10.5px",
+                                              fontWeight: 700,
+                                              color: isEligible
+                                                ? "#7c3aed"
+                                                : "#94a3b8",
+                                            }}
+                                          >
+                                            SUBSTITUTE
+                                          </div>
+                                        )}
+                                        <span
+                                          style={{
+                                            fontSize: "11.5px",
+                                            color: isEligible
+                                              ? "#16a34a"
+                                              : "#94a3b8",
+                                          }}
+                                        >
+                                          {Math.round(
+                                            (effectiveEfficiency ||
+                                              normalizeEfficiency(
+                                                equipment.efficiencyRate ?? 1
+                                              )) * 100
+                                          )}
+                                          % Eff.
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              )}
+                            </>
+                          )}
+
+                          {filteredQuantityEquipmentForActivePhase.length === 0 &&
+                            filteredIndividualEquipmentForActivePhase.length === 0 && (
+                              <p
+                                style={{
+                                  color: "#64748b",
+                                  fontSize: "12.5px",
+                                  margin: "12px 0",
+                                }}
+                              >
+                                No equipment found in inventory matching this
+                                phase&apos;s requirements.
+                              </p>
                             )}
                         </div>
                       )}

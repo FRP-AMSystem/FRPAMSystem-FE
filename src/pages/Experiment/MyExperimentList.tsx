@@ -91,7 +91,7 @@ export default function MyExperimentList() {
 
   const currentUser = useMemo(() => getCurrentUserTokenInfo(), []);
   const role = currentUser.role as Role;
-  const isResearcher = role === "Admin" || role === "Manager" || role === "Researcher";
+  const isResearcher = role === "Researcher";
   const isPrivileged = role === "Admin" || role === "Manager";
 
   const [experiments, setExperiments] = useState<ExperimentResponse[]>([]);
