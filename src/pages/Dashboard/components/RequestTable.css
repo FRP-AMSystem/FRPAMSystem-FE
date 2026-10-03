@@ -131,16 +131,17 @@
 
 .request-fitness {
   display: inline-flex;
-  min-width: 58px;
+  min-width: 64px;
   align-items: center;
   justify-content: center;
-  padding: 6px 9px;
+  padding: 5px 10px;
   border: 1px solid rgba(37, 99, 235, 0.2);
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.08);
   color: #2563eb;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .request-created-by {

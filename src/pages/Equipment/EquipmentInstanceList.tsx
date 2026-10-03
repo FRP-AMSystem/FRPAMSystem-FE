@@ -273,7 +273,7 @@ function getStatusClassName(
 }
 
 export default function EquipmentInstanceList() {
-  const { showConfirm, showAlert } = usePopup();
+    const { showConfirm, showAlert } = usePopup();
     const role =
         getCurrentRole();
 
@@ -1336,7 +1336,7 @@ export default function EquipmentInstanceList() {
                                 </tbody>
                             </table>
 
-      <Pagination currentPage={currentPageList} totalItems={items.length} pageSize={pageSizeList} onPageChange={setCurrentPageList} onPageSizeChange={setPageSizeList} />
+                            <Pagination currentPage={currentPageList} totalItems={items.length} pageSize={pageSizeList} onPageChange={setCurrentPageList} onPageSizeChange={setPageSizeList} />
                         </div>
                     )}
                 </section>
@@ -1586,8 +1586,8 @@ export default function EquipmentInstanceList() {
                                                     value,
                                                 nextMaintenanceDate:
                                                     current.nextMaintenanceDate &&
-                                                    value &&
-                                                    current.nextMaintenanceDate <
+                                                        value &&
+                                                        current.nextMaintenanceDate <
                                                         value
                                                         ? ""
                                                         : current.nextMaintenanceDate,

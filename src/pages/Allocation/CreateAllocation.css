@@ -52,7 +52,7 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
-.alloc-page-header > div {
+.alloc-page-header>div {
   width: 100%;
 }
 
@@ -172,7 +172,7 @@
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
-.alloc-experiment-summary > div {
+.alloc-experiment-summary>div {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -591,16 +591,99 @@
   .alloc-workspace-grid {
     grid-template-columns: 1fr;
   }
+
   .alloc-summary-card {
     flex-direction: column;
     align-items: stretch;
   }
+
   .alloc-action-buttons {
     flex-direction: column;
     width: 100%;
   }
-  .alloc-btn-manual, .alloc-btn-ai {
+
+  .alloc-btn-manual,
+  .alloc-btn-ai {
     width: 100%;
     text-align: center;
   }
+}
+
+
+/* =========================================================
+   UNAVAILABLE RESOURCE STYLES & REASON BADGES
+========================================================= */
+
+.alloc-item-row.disabled {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  cursor: not-allowed !important;
+  opacity: 0.82;
+}
+
+.alloc-item-row.disabled:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.alloc-reason-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  margin-top: 3px;
+  line-height: 1.3;
+}
+
+.alloc-reason-badge.warning {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.alloc-reason-badge.info {
+  background: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+
+.alloc-view-filter-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.alloc-view-filter-btn {
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.alloc-view-filter-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.alloc-view-filter-btn.active {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.alloc-view-filter-btn.active.warning {
+  background: #d97706;
+  border-color: #d97706;
+  color: #ffffff;
 }

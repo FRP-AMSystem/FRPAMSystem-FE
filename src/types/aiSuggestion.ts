@@ -12,17 +12,66 @@ export interface AISuggestionInput {
   landRequirements: Array<Omit<ExperimentLandRequirementRequest, "experimentId"> & { id?: string }>;
 }
 
+export interface SubScoreItem {
+  factor: string;
+  points: number;
+  type?: string;
+  reason?: string;
+  calculation?: string;
+}
+
+export interface AdjustmentItem {
+  factor: string;
+  points: number;
+  type?: string;
+  reason?: string;
+  calculation?: string;
+}
+
+export interface PhaseBreakdown {
+  phaseId?: number;
+  phaseName?: string;
+  baseScore?: number;
+  finalScore?: number;
+  calculation?: string;
+  subScores?: SubScoreItem[];
+  adjustments?: AdjustmentItem[];
+  bonuses?: AdjustmentItem[];
+  penalties?: AdjustmentItem[];
+}
+
+export interface PillarBreakdown {
+  baseScore?: number;
+  finalScore?: number;
+  calculation?: string;
+  adjustments?: AdjustmentItem[];
+  penalties?: AdjustmentItem[];
+  bonuses?: AdjustmentItem[];
+  phases?: PhaseBreakdown[];
+}
+
 export interface FitnessBreakdown {
   landScore?: number;
   humanScore?: number;
   equipmentScore?: number;
+  maintenanceScore?: number;
   scheduleScore?: number;
   penaltyScore?: number;
   bonusScore?: number;
   finalScore?: number;
+  overallCalculation?: string;
+  land?: PillarBreakdown;
+  human?: PillarBreakdown;
+  equipment?: PillarBreakdown;
+  maintenance?: PillarBreakdown;
+  penalties?: AdjustmentItem[];
+  bonuses?: AdjustmentItem[];
 }
 
 export interface ConstraintReport {
+  hardViolationCount?: number;
+  softViolationCount?: number;
+  isFeasible?: boolean;
   landConflicts?: string[];
   humanConflicts?: string[];
   equipmentConflicts?: string[];

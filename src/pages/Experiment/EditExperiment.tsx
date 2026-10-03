@@ -185,7 +185,7 @@ export default function EditExperiment() {
         });
 
         // Step 2: Phases
-        const loadedPhases: PhaseFormItem[] = phasesData.map((p, idx) => ({
+        const loadedPhases: PhaseFormItem[] = phasesData.map((p, idx): PhaseFormItem => ({
           id: String(p.experimentPhaseId),
           phaseName: p.phaseName || "",
           phaseDescription: p.phaseDescription || "",

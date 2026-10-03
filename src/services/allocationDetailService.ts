@@ -987,3 +987,116 @@ export async function deleteAllocationLandDetail(
     `/AllocationLandDetails/${id}`
   );
 }
+
+/* =========================================================
+   AVAILABLE RESOURCES QUERIES & ELIGIBILITY APIS
+========================================================= */
+
+export interface AvailableSubstituteEquipmentItem {
+  equipmentInstanceId: number;
+  assetCode?: string;
+  equipmentTypeId: number;
+  equipmentTypeName?: string;
+  isSubstitute: boolean;
+  efficiencyRate?: number;
+  timeMultiplier?: number;
+  conditionLevel?: string;
+  status?: string;
+  remainingMaintenanceHours?: number;
+  reason?: string;
+}
+
+export interface AvailableHumanItem {
+  humanResourceId: number;
+  userId: number;
+  fullName?: string;
+  roleName?: string;
+  hasRequiredSkill?: boolean;
+  skills?: string[];
+  maxWorkingHoursPerDay?: number;
+  currentWorkload?: number;
+  availableHoursPerDay?: number;
+  matchReason?: string;
+}
+
+export interface AvailableLandItem {
+  landId: number;
+  landCode?: string;
+  areaId?: number;
+  areaName?: string;
+  areaSize?: number;
+  soilType?: string;
+  status?: string;
+  isAreaSufficient?: boolean;
+  isSoilMatched?: boolean;
+  matchReason?: string;
+}
+
+/**
+ * Lấy danh sách thiết bị và thiết bị thay thế khả dụng theo yêu cầu & khoảng thời gian
+ * GET /api/AllocationEquipmentDetails/available-substitutes
+ */
+export async function getAvailableSubstituteEquipment(params: {
+  equipmentTypeId: number;
+  startDate: string;
+  endDate: string;
+  minAcceptableEfficiency?: number;
+  includePrimary?: boolean;
+  currentAllocationDetailId?: number;
+}): Promise<AvailableSubstituteEquipmentItem[]> {
+  const response = await api.get("/AllocationEquipmentDetails/available-substitutes", {
+    params: cleanParams({
+      EquipmentTypeId: params.equipmentTypeId,
+      StartDate: params.startDate,
+      EndDate: params.endDate,
+      MinAcceptableEfficiency: params.minAcceptableEfficiency,
+      IncludePrimary: params.includePrimary ?? true,
+      CurrentAllocationDetailId: params.currentAllocationDetailId,
+    }),
+  });
+  return normalizeList<AvailableSubstituteEquipmentItem>(response.data);
+}
+
+/**
+ * Lấy danh sách nhân sự khả dụng theo Role, Skill & khoảng thời gian
+ * GET /api/AllocationHumanDetails/available-humans
+ */
+export async function getAvailableHumans(params: {
+  roleId: number;
+  startDate: string;
+  endDate: string;
+  requiredSkillId?: number;
+}): Promise<AvailableHumanItem[]> {
+  const response = await api.get("/AllocationHumanDetails/available-humans", {
+    params: cleanParams({
+      RoleId: params.roleId,
+      StartDate: params.startDate,
+      EndDate: params.endDate,
+      RequiredSkillId: params.requiredSkillId,
+    }),
+  });
+  return normalizeList<AvailableHumanItem>(response.data);
+}
+
+/**
+ * Lấy danh sách quỹ đất khả dụng theo diện tích & loại đất
+ * GET /api/AllocationLandDetails/available-lands
+ */
+export async function getAvailableLands(params: {
+  startDate: string;
+  endDate: string;
+  requiredArea?: number;
+  requiredSoilType?: string;
+  areaId?: number;
+}): Promise<AvailableLandItem[]> {
+  const response = await api.get("/AllocationLandDetails/available-lands", {
+    params: cleanParams({
+      StartDate: params.startDate,
+      EndDate: params.endDate,
+      RequiredArea: params.requiredArea,
+      RequiredSoilType: params.requiredSoilType,
+      AreaId: params.areaId,
+    }),
+  });
+  return normalizeList<AvailableLandItem>(response.data);
+}

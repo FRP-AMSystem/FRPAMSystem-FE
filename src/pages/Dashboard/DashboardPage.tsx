@@ -1,37 +1,44 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
-import {
-  useNavigate,
-} from "react-router-dom";
-
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout";
 
+// Child Components
 import StatisticCard from "./components/StatisticCard";
-import LineChartCard from "./components/LineChartCard";
-import BreakdownCard from "./components/BreakdownCard";
+import EquipmentOperatingHoursChart from "./components/EquipmentOperatingHoursChart";
+import ResourceStatusDonutGroup from "./components/ResourceStatusDonutGroup";
+import AllocationTrendComposedChart from "./components/AllocationTrendComposedChart";
+import PersonnelWorkloadBarChart from "./components/PersonnelWorkloadBarChart";
+import EquipmentLifespanTable from "./components/EquipmentLifespanTable";
+import PendingApprovalsTable from "./components/PendingApprovalsTable";
+import LandUtilizationCard from "./components/LandUtilizationCard";
 import RequestTable from "./components/RequestTable";
 
-import {
-  getAllocationPlans,
-} from "../../services/allocationPlanService";
-
-import {
-  getExperiments,
-} from "../../services/experimentService";
-
-import {
-  getAllocationEquipmentDetails,
-  getAllocationHumanDetails,
-  getAllocationLandDetails,
-} from "../../services/allocationDetailService";
+// Services & Types
+import { fetchLiveDashboardOverview } from "../../services/dashboardService";
+import { getAllocationPlans } from "../../services/allocationPlanService";
+import { getExperiments } from "../../services/experimentService";
+import { getSchedules } from "../../services/scheduleService";
+import { ResearcherDashboardView } from "./components/ResearcherDashboardView";
 
 import type {
-  AllocationPlan,
-} from "../../types/allocationPlan";
+  DashboardOverviewData,
+} from "../../types/dashboard";
+import type { AllocationPlan } from "../../types/allocationPlan";
+import type { ExperimentResponse } from "../../types/experiment";
+import type { Schedule } from "../../types/schedule";
+
+// Icons
+import {
+  RefreshCw,
+  ShieldCheck,
+  Wrench,
+  Users,
+  MapPin,
+  Clock,
+  FileText,
+  AlertTriangle,
+  ArrowRight,
+} from "lucide-react";
 
 import "./DashboardPage.css";
 
@@ -52,67 +59,15 @@ const validRoles: Role[] = [
   "Seasonal",
 ];
 
-type ApprovalStatus =
-  AllocationPlan["approveStatus"];
-
-type DashboardStatType =
-  | "total-resources"
-  | "utilization"
-  | "active-experiments"
-  | "conflicts";
-
-interface DashboardStat {
-  id: string;
-  title: string;
-  value: string;
-
-  subtext?: string;
-
-  trend?: {
-    value: string;
-    isUp: boolean;
-  };
-
-  type: DashboardStatType;
-
-  percentage?: number;
-  conflictCount?: number;
-  avatars?: string[];
-
-  actionLabel?: string;
-  actionPath?: string;
-}
-
-interface AllocationTrendPoint {
-  month: string;
-  load: number;
-}
-
-interface ResourceBreakdownItem {
-  name: string;
-  value: number;
-  color: string;
-}
-
 function getCurrentRole(): Role {
-  const storedRole =
-    localStorage.getItem("role");
-
-  return validRoles.includes(
-    storedRole as Role
-  )
+  const storedRole = localStorage.getItem("role");
+  return validRoles.includes(storedRole as Role)
     ? (storedRole as Role)
     : "Student";
 }
 
-function getErrorMessage(
-  error: unknown
-): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "response" in error
-  ) {
+function getErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "response" in error) {
     const response = (
       error as {
         response?: {
@@ -121,37 +76,21 @@ function getErrorMessage(
             message?: string;
             error?: string;
             title?: string;
-            errors?: Record<
-              string,
-              string[]
-            >;
+            errors?: Record<string, string[]>;
           };
         };
       }
     ).response;
 
-    if (
-      response?.status === 401
-    ) {
+    if (response?.status === 401) {
       return "Your login session is invalid or expired. Please log out and sign in again.";
     }
-
-    if (
-      response?.status === 403
-    ) {
+    if (response?.status === 403) {
       return "Your account does not have permission to load dashboard information.";
     }
-
-    if (
-      response?.data?.errors
-    ) {
-      return Object.values(
-        response.data.errors
-      )
-        .flat()
-        .join(" ");
+    if (response?.data?.errors) {
+      return Object.values(response.data.errors).flat().join(" ");
     }
-
     return (
       response?.data?.message ||
       response?.data?.error ||
@@ -159,1137 +98,422 @@ function getErrorMessage(
       "Unable to load dashboard information."
     );
   }
-
-  if (
-    error instanceof Error
-  ) {
+  if (error instanceof Error) {
     return error.message;
   }
-
   return "Unable to load dashboard information.";
 }
 
-function normalizeFitnessScore(
-  value?: number | null
-): number {
-  if (
-    value === null ||
-    value === undefined ||
-    !Number.isFinite(value)
-  ) {
-    return 0;
-  }
-
-  const percentage =
-    value <= 1
-      ? value * 100
-      : value;
-
-  return Math.min(
-    100,
-    Math.max(
-      0,
-      percentage
-    )
-  );
-}
-
-function countStatus(
-  plans: AllocationPlan[],
-  status: ApprovalStatus
-): number {
-  return plans.filter(
-    (plan) =>
-      plan.approveStatus === status
-  ).length;
-}
-
-function getMonthKey(
-  date: Date
-): string {
-  return [
-    date.getFullYear(),
-
-    String(
-      date.getMonth() + 1
-    ).padStart(
-      2,
-      "0"
-    ),
-  ].join("-");
-}
-
-function getDateTime(
-  value?: string | null
-): number {
-  if (!value) {
-    return 0;
-  }
-
-  const date =
-    new Date(value);
-
-  return Number.isNaN(
-    date.getTime()
-  )
-    ? 0
-    : date.getTime();
-}
-
-function buildAllocationTrend(
-  plans: AllocationPlan[]
-): AllocationTrendPoint[] {
-  const formatter =
-    new Intl.DateTimeFormat(
-      "en-US",
-      {
-        month: "short",
-      }
-    );
-
-  const now =
-    new Date();
-
-  const months =
-    Array.from(
-      {
-        length: 6,
-      },
-      (_, index) => {
-        const date =
-          new Date(
-            now.getFullYear(),
-            now.getMonth() -
-            (5 - index),
-            1
-          );
-
-        return {
-          key:
-            getMonthKey(date),
-
-          month:
-            formatter.format(
-              date
-            ),
-
-          load: 0,
-        };
-      }
-    );
-
-  const monthMap =
-    new Map(
-      months.map(
-        (item) => [
-          item.key,
-          item,
-        ]
-      )
-    );
-
-  plans.forEach(
-    (plan) => {
-      if (!plan.createdAt) {
-        return;
-      }
-
-      const createdAt =
-        new Date(
-          plan.createdAt
-        );
-
-      if (
-        Number.isNaN(
-          createdAt.getTime()
-        )
-      ) {
-        return;
-      }
-
-      const item =
-        monthMap.get(
-          getMonthKey(
-            createdAt
-          )
-        );
-
-      if (item) {
-        item.load += 1;
-      }
-    }
-  );
-
-  return months.map(
-    ({
-      month,
-      load,
-    }) => ({
-      month,
-      load,
-    })
-  );
-}
-
-function buildResourceBreakdown(
-  plans: AllocationPlan[]
-): ResourceBreakdownItem[] {
-  const equipment =
-    plans.reduce(
-      (sum, plan) =>
-        sum +
-        (
-          plan.equipmentDetailCount ??
-          0
-        ),
-      0
-    );
-
-  const human =
-    plans.reduce(
-      (sum, plan) =>
-        sum +
-        (
-          plan.humanDetailCount ??
-          0
-        ),
-      0
-    );
-
-  const land =
-    plans.reduce(
-      (sum, plan) =>
-        sum +
-        (
-          plan.landDetailCount ??
-          0
-        ),
-      0
-    );
-
-  return [
-    {
-      name: "Equipment",
-      value: equipment,
-      color: "#2563eb",
-    },
-    {
-      name: "Human Resources",
-      value: human,
-      color: "#22c55e",
-    },
-    {
-      name: "Land",
-      value: land,
-      color: "#f59e0b",
-    },
-  ];
-}
-
-function getRoleTitle(
-  role: Role
-): string {
+function getRoleTitle(role: Role): string {
   switch (role) {
     case "Admin":
-      return "Admin Dashboard";
-
+      return "System Administration & Asset Intelligence";
     case "Manager":
-      return "Manager Dashboard";
-
+      return "Resource Planning & Operational Command Dashboard";
     case "Researcher":
-      return "Researcher Dashboard";
-
+      return "Researcher Allocation & Experiment Hub";
     case "Technician":
-      return "Technician Dashboard";
-
+      return "Field Operations & Machinery Maintenance";
     case "Student":
     case "Seasonal":
-      return "Seasonal Dashboard";
-
+      return "Field Work & Schedule Assignments";
     default:
       return "Dashboard";
   }
 }
 
-function getRoleDescription(
-  role: Role
-): string {
+function getRoleDescription(role: Role): string {
   switch (role) {
     case "Admin":
-      return "Manage users, roles, system configuration, audit information, reports, and notifications.";
-
+      return "Real-time fleet health, workforce loading, land distribution, and system-wide approval telemetry.";
     case "Manager":
-      return "Review allocation plans, approval requests and operational resource usage.";
-
+      return "Monitor multi-objective resource allocations, equipment wear thresholds, and pending experiment approvals.";
     case "Researcher":
-      return "Create experiments and monitor allocation plans through the approval workflow.";
-
+      return "Create experiments and monitor allocation plans through the AI genetic matching workflow.";
     case "Technician":
-      return "Review equipment assignments, schedules and operational resource information.";
-
+      return "Review equipment assignments, operating hours, and schedule execution.";
     case "Student":
     case "Seasonal":
-      return "View experiments, schedules and approved allocation information.";
-
+      return "View active tasks, field schedules, and assigned equipment.";
     default:
-      return "Welcome to the forestry resource planning system.";
+      return "Welcome to the Forestry Resource Planning & Asset Management System.";
   }
 }
 
 export default function DashboardPage() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
+  const role = getCurrentRole();
+  const fullName = localStorage.getItem("fullName")?.trim() || "Manager";
+  const userId = Number(localStorage.getItem("userId"));
 
-  const role =
-    getCurrentRole();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
-  const fullName =
-    localStorage
-      .getItem("fullName")
-      ?.trim() ||
-    "User";
+  const [overviewData, setOverviewData] = useState<DashboardOverviewData | null>(null);
+  const [allocationPlans, setAllocationPlans] = useState<AllocationPlan[]>([]);
+  const [myExperimentIds, setMyExperimentIds] = useState<number[]>([]);
+  const [researcherExperiments, setResearcherExperiments] = useState<ExperimentResponse[]>([]);
+  const [researcherSchedules, setResearcherSchedules] = useState<Schedule[]>([]);
 
-  const userId =
-    Number(
-      localStorage.getItem(
-        "userId"
-      )
-    );
+  // Tab state for Bottom Operational Data Center
+  const [activeBottomTab, setActiveBottomTab] = useState<
+    "equipment-matrix" | "pending-queue" | "land-overview" | "recent-activity"
+  >("equipment-matrix");
 
-  const [
-    allocationPlans,
-    setAllocationPlans,
-  ] = useState<
-    AllocationPlan[]
-  >([]);
+  // Time-range selector
+  const [timeRange, setTimeRange] = useState<"30d" | "quarter" | "year" | "all">("30d");
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    myExperimentIds,
-    setMyExperimentIds,
-  ] = useState<number[]>([]);
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [actualResourceCounts, setActualResourceCounts] = useState({
-    equipment: 0,
-    human: 0,
-    land: 0,
-  });
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadDashboard() {
-      try {
+  const loadData = useCallback(async (isManualRefresh = false) => {
+    try {
+      if (isManualRefresh) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        setError("");
+      }
+      setError("");
 
-        const data =
-          await getAllocationPlans({
-            page: 1,
-            size: 500,
-          });
+      const [overview, plans] = await Promise.all([
+        fetchLiveDashboardOverview(),
+        getAllocationPlans({ page: 1, size: 500 }).catch((err) => {
+          console.warn("Could not load plans for dashboard:", err);
+          return [];
+        }),
+      ]);
 
-        let expIds: number[] = [];
-        if (role === "Researcher" && Number.isInteger(userId) && userId > 0) {
-          const expData = await getExperiments({
-            researcherId: userId,
-            page: 1,
-            size: 500,
-          });
-          if (Array.isArray(expData)) {
-            expIds = expData
-              .filter(
-                (e) =>
-                  e.researcherId === userId ||
-                  e.createdByUserId === userId
-              )
-              .map((e) => e.experimentId);
-          }
+      let expIds: number[] = [];
+      let expList: ExperimentResponse[] = [];
+      let schedList: Schedule[] = [];
+
+      if (role === "Researcher") {
+        const [expData, schedData] = await Promise.all([
+          getExperiments({ size: 500 }).catch(() => []),
+          getSchedules({ size: 500 }).catch(() => []),
+        ]);
+
+        if (Array.isArray(expData)) {
+          expList =
+            Number.isInteger(userId) && userId > 0
+              ? expData.filter(
+                  (e) => e.researcherId === userId || e.createdByUserId === userId
+                )
+              : expData;
+          expIds = expList.map((e) => e.experimentId);
         }
 
-        if (active) {
-          setAllocationPlans(
-            Array.isArray(data)
-              ? data
-              : []
-          );
-          setMyExperimentIds(expIds);
-        }
-      } catch (loadError) {
-        console.error(
-          "Load dashboard failed:",
-          loadError
-        );
-
-        if (active) {
-          setAllocationPlans([]);
-          setMyExperimentIds([]);
-
-          setError(
-            getErrorMessage(
-              loadError
+        if (Array.isArray(schedData)) {
+          const userPlanIds = (Array.isArray(plans) ? plans : [])
+            .filter(
+              (p) => p.createdBy === userId || expIds.includes(p.experimentId)
             )
+            .map((p) => p.allocationPlanId);
+
+          const filteredSched = schedData.filter(
+            (s) =>
+              s.createdBy === userId || userPlanIds.includes(s.allocationPlanId)
           );
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
+          schedList =
+            filteredSched.length > 0
+              ? filteredSched
+              : schedData.slice(0, 10);
         }
       }
+
+      setOverviewData(overview);
+      setAllocationPlans(Array.isArray(plans) ? plans : []);
+      setMyExperimentIds(expIds);
+      setResearcherExperiments(expList);
+      setResearcherSchedules(schedList);
+    } catch (loadError) {
+      console.error("Dashboard overview load failed:", loadError);
+      setError(getErrorMessage(loadError));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    void loadDashboard();
-
-    return () => {
-      active = false;
-    };
   }, [role, userId]);
 
-  const visiblePlans =
-    useMemo(() => {
-      if (
-        role !== "Researcher" ||
-        !Number.isInteger(userId) ||
-        userId <= 0
-      ) {
-        return allocationPlans;
-      }
-
-      return allocationPlans.filter(
-        (plan) =>
-          plan.createdBy === userId ||
-          myExperimentIds.includes(plan.experimentId)
-      );
-    }, [
-      allocationPlans,
-      role,
-      userId,
-      myExperimentIds,
-    ]);
-
-  // AllocationPlan.*DetailCount is not a reliable persisted-resource count.
-  // Load the actual detail endpoints for the plans visible to this dashboard.
   useEffect(() => {
-    let active = true;
+    void loadData();
+  }, [loadData]);
 
-    async function loadActualResourceCounts() {
-      if (visiblePlans.length === 0) {
-        if (active) {
-          setActualResourceCounts({ equipment: 0, human: 0, land: 0 });
-        }
-        return;
-      }
-
-      try {
-        const counts = await Promise.all(
-          visiblePlans.map(async (plan) => {
-            const allocationPlanId = plan.allocationPlanId;
-            const [equipment, human, land] = await Promise.all([
-              getAllocationEquipmentDetails({ allocationPlanId, size: 500 }),
-              getAllocationHumanDetails({ allocationPlanId, size: 500 }),
-              getAllocationLandDetails({ allocationPlanId, size: 500 }),
-            ]);
-
-            return {
-              equipment: Array.isArray(equipment) ? equipment.length : 0,
-              human: Array.isArray(human) ? human.length : 0,
-              land: Array.isArray(land) ? land.length : 0,
-            };
-          })
-        );
-
-        if (active) {
-          setActualResourceCounts(
-            counts.reduce(
-              (total, current) => ({
-                equipment: total.equipment + current.equipment,
-                human: total.human + current.human,
-                land: total.land + current.land,
-              }),
-              { equipment: 0, human: 0, land: 0 }
-            )
-          );
-        }
-      } catch (resourceError) {
-        console.error("Load persisted resource details failed:", resourceError);
-        if (active) {
-          setActualResourceCounts({ equipment: 0, human: 0, land: 0 });
-        }
-      }
+  const visiblePlans = useMemo(() => {
+    if (role === "Admin" || role === "Manager") {
+      return allocationPlans.filter(
+        (plan) => (plan.approveStatus || "").toLowerCase() !== "draft"
+      );
     }
+    if (role !== "Researcher" || !Number.isInteger(userId) || userId <= 0) {
+      return allocationPlans;
+    }
+    return allocationPlans.filter(
+      (plan) =>
+        plan.createdBy === userId || myExperimentIds.includes(plan.experimentId)
+    );
+  }, [allocationPlans, role, userId, myExperimentIds]);
 
-    void loadActualResourceCounts();
-    return () => {
-      active = false;
-    };
+  const recentPlans = useMemo(() => {
+    return [...visiblePlans]
+      .sort((a, b) => {
+        const t1 = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const t2 = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return t2 - t1;
+      })
+      .slice(0, 10);
   }, [visiblePlans]);
 
-  const dashboardData =
-    useMemo(() => {
-      const totalPlans =
-        visiblePlans.length;
-
-      const draftPlans =
-        countStatus(
-          visiblePlans,
-          "Draft"
-        );
-
-      const pendingPlans =
-        countStatus(
-          visiblePlans,
-          "Pending"
-        );
-
-      const approvedPlans =
-        countStatus(
-          visiblePlans,
-          "Approved"
-        );
-
-      const rejectedPlans =
-        countStatus(
-          visiblePlans,
-          "Rejected"
-        );
-
-      const cancelledPlans =
-        countStatus(
-          visiblePlans,
-          "Cancelled"
-        );
-
-      const fitnessValues =
-        visiblePlans
-          .map(
-            (plan) =>
-              normalizeFitnessScore(
-                plan.fitnessScore
-              )
-          )
-          .filter(
-            (value) =>
-              value > 0
-          );
-
-      const averageFitness =
-        fitnessValues.length > 0
-          ? Number(
-            (
-              fitnessValues.reduce(
-                (
-                  sum,
-                  value
-                ) =>
-                  sum +
-                  value,
-                0
-              ) /
-              fitnessValues.length
-            ).toFixed(1)
-          )
-          : 0;
-
-      const equipmentCount = actualResourceCounts.equipment;
-      const humanCount = actualResourceCounts.human;
-      const landCount = actualResourceCounts.land;
-
-      const scheduleCount =
-        visiblePlans.reduce(
-          (sum, plan) =>
-            sum +
-            (
-              plan.scheduleCount ??
-              0
-            ),
-          0
-        );
-
-      const totalResourceDetails =
-        equipmentCount +
-        humanCount +
-        landCount;
-
-      return {
-        totalPlans,
-        draftPlans,
-        pendingPlans,
-        approvedPlans,
-        rejectedPlans,
-        cancelledPlans,
-        averageFitness,
-        equipmentCount,
-        humanCount,
-        landCount,
-        scheduleCount,
-        totalResourceDetails,
-      };
-    }, [visiblePlans, actualResourceCounts]);
-
-  const stats =
-    useMemo<
-      DashboardStat[]
-    >(() => {
-      switch (role) {
-        case "Admin":
-        case "Manager":
-          return [
-            {
-              id: "manager-total",
-
-              title:
-                "Total Allocation Plans",
-
-              value:
-                String(
-                  dashboardData.totalPlans
-                ),
-
-              type:
-                "total-resources",
-            },
-            {
-              id:
-                "manager-fitness",
-
-              title:
-                "Average Fitness",
-
-              value:
-                String(dashboardData.averageFitness),
-
-              subtext:
-                "Average allocation fitness score",
-
-              percentage:
-                dashboardData.averageFitness,
-
-              type:
-                "utilization",
-            },
-            {
-              id:
-                "manager-approved",
-
-              title:
-                "Approved Plans",
-
-              value:
-                String(
-                  dashboardData.approvedPlans
-                ),
-
-              type:
-                "active-experiments",
-            },
-            {
-              id:
-                "manager-pending",
-
-              title:
-                "Pending Approval",
-
-              value:
-                String(
-                  dashboardData.pendingPlans
-                ),
-
-              type:
-                "conflicts",
-
-              actionLabel:
-                "Review Plans",
-
-              actionPath:
-                "/allocation",
-            },
-          ];
-
-        case "Researcher":
-          return [
-            {
-              id:
-                "researcher-total",
-
-              title:
-                "My Allocation Plans",
-
-              value:
-                String(
-                  dashboardData.totalPlans
-                ),
-
-              type:
-                "total-resources",
-            },
-            {
-              id:
-                "researcher-approved",
-
-              title:
-                "Approved Plans",
-
-              value:
-                String(
-                  dashboardData.approvedPlans
-                ),
-
-              type:
-                "active-experiments",
-            },
-            {
-              id:
-                "researcher-pending",
-
-              title:
-                "Pending Review",
-
-              value:
-                String(
-                  dashboardData.pendingPlans
-                ),
-
-              type:
-                "conflicts",
-
-              actionLabel:
-                "View Plans",
-
-              actionPath:
-                "/allocation",
-            },
-          ];
-
-        case "Technician":
-          return [
-            {
-              id:
-                "technician-plans",
-
-              title:
-                "Approved Plans",
-
-              value:
-                String(
-                  dashboardData.approvedPlans
-                ),
-
-              trend: {
-                value:
-                  `${dashboardData.totalResourceDetails} assigned resource records`,
-
-                isUp: true,
-              },
-
-              type:
-                "total-resources",
-            },
-            {
-              id:
-                "technician-equipment",
-
-              title:
-                "Equipment Assignments",
-
-              value:
-                String(
-                  dashboardData.equipmentCount
-                ),
-
-              subtext:
-                "Allocated equipment records",
-
-              percentage:
-                dashboardData.totalResourceDetails >
-                  0
-                  ? Number(
-                    (
-                      (
-                        dashboardData.equipmentCount /
-                        dashboardData.totalResourceDetails
-                      ) *
-                      100
-                    ).toFixed(1)
-                  )
-                  : 0,
-
-              type:
-                "utilization",
-            },
-            {
-              id:
-                "technician-schedules",
-
-              title:
-                "Schedules",
-
-              value:
-                String(
-                  dashboardData.scheduleCount
-                ),
-
-              avatars: [
-                "",
-                "",
-                `+${dashboardData.scheduleCount}`,
-              ],
-
-              type:
-                "active-experiments",
-            },
-            {
-              id:
-                "technician-pending",
-
-              title:
-                "Pending Plans",
-
-              value:
-                String(
-                  dashboardData.pendingPlans
-                ),
-
-              conflictCount:
-                dashboardData.pendingPlans,
-
-              type:
-                "conflicts",
-
-              actionLabel:
-                "View Allocation",
-
-              actionPath:
-                "/allocation",
-            },
-          ];
-
-        case "Student":
-        case "Seasonal":
-          return [
-            {
-              id:
-                "student-plans",
-
-              title:
-                "Visible Plans",
-
-              value:
-                String(
-                  dashboardData.totalPlans
-                ),
-
-              trend: {
-                value:
-                  `${dashboardData.approvedPlans} approved plans`,
-
-                isUp: true,
-              },
-
-              type:
-                "total-resources",
-            },
-            {
-              id:
-                "student-fitness",
-
-              title:
-                "Average Fitness",
-
-              value:
-                String(dashboardData.averageFitness),
-
-              subtext:
-                "Average allocation result",
-
-              percentage:
-                dashboardData.averageFitness,
-
-              type:
-                "utilization",
-            },
-            {
-              id:
-                "student-approved",
-
-              title:
-                "Approved Plans",
-
-              value:
-                String(
-                  dashboardData.approvedPlans
-                ),
-
-              avatars: [
-                "",
-                "",
-                `+${dashboardData.approvedPlans}`,
-              ],
-
-              type:
-                "active-experiments",
-            },
-            {
-              id:
-                "student-schedules",
-
-              title:
-                "Schedules",
-
-              value:
-                String(
-                  dashboardData.scheduleCount
-                ),
-
-              conflictCount:
-                dashboardData.scheduleCount,
-
-              type:
-                "conflicts",
-
-              actionLabel:
-                "View Schedules",
-
-              actionPath:
-                "/schedules",
-            },
-          ];
-
-        default:
-          return [];
-      }
-    }, [
-      dashboardData,
-      role,
-    ]);
-
-  const allocationTrend =
-    useMemo(
-      () =>
-        buildAllocationTrend(
-          visiblePlans
-        ),
-      [visiblePlans]
-    );
-
-  const resourceBreakdown = useMemo<ResourceBreakdownItem[]>(
-    () => [
-      { name: "Equipment", value: actualResourceCounts.equipment, color: "#2563eb" },
-      { name: "Human Resources", value: actualResourceCounts.human, color: "#22c55e" },
-      { name: "Land", value: actualResourceCounts.land, color: "#f59e0b" },
-    ],
-    [actualResourceCounts]
-  );
-
-  const recentPlans =
-    useMemo(
-      () =>
-        [...visiblePlans]
-          .sort(
-            (
-              first,
-              second
-            ) =>
-              getDateTime(
-                second.createdAt
-              ) -
-              getDateTime(
-                first.createdAt
-              )
-          )
-          .slice(
-            0,
-            10
-          ),
-      [visiblePlans]
-    );
-
-  const canViewAnalytics =
-    role === "Manager" ||
-    role === "Researcher";
-
-  const isLimitedDashboardRole =
-    role === "Student" ||
-    role === "Technician";
+  const isExecutiveRole = role === "Admin" || role === "Manager";
 
   return (
     <DashboardLayout>
       <div className="dashboard-page-container">
-        <div className="dashboard-header">
-          <div>
-            <h1>
+        {/* ================================================================= */}
+        {/* 1. HEADER SECTION                                                 */}
+        {/* ================================================================= */}
+        <div className="dashboard-header-container">
+          <div className="dashboard-header-left">
+            <div className="dashboard-role-badge">
+              <ShieldCheck size={14} />
+              <span>Role: {role} Portal</span>
+            </div>
+            <h1 className="dashboard-header-title">
               {getRoleTitle(role)}
             </h1>
-
-            <p>
-              Welcome back, {fullName}.{" "}
-              {getRoleDescription(role)}
+            <p className="dashboard-header-desc">
+              Welcome back, <strong>{fullName}</strong>. {getRoleDescription(role)}
             </p>
           </div>
 
-          <div className="dashboard-header-actions">
-            {canViewAnalytics && (
+          <div className="dashboard-header-controls">
+            {/* Time range selector */}
+            <div className="dashboard-range-pills">
               <button
                 type="button"
-                className="dashboard-analytics-btn"
-                onClick={() =>
-                  navigate(
-                    "/allocation-analytics"
-                  )
-                }
+                onClick={() => setTimeRange("30d")}
+                className={`dashboard-range-btn ${timeRange === "30d" ? "active" : ""}`}
               >
-                View Analytics
+                30 Days
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeRange("quarter")}
+                className={`dashboard-range-btn ${timeRange === "quarter" ? "active" : ""}`}
+              >
+                Quarter
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeRange("year")}
+                className={`dashboard-range-btn ${timeRange === "year" ? "active" : ""}`}
+              >
+                Year
+              </button>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              type="button"
+              onClick={() => void loadData(true)}
+              disabled={refreshing || loading}
+              className="dashboard-btn-secondary"
+            >
+              <RefreshCw
+                size={14}
+                style={{
+                  animation: refreshing ? "spin 1s linear infinite" : "none",
+                }}
+              />
+              <span>{refreshing ? "Syncing..." : "Refresh"}</span>
+            </button>
+
+            {/* Quick action button */}
+            {isExecutiveRole && (
+              <button
+                type="button"
+                onClick={() => navigate("/allocation")}
+                className="dashboard-btn-primary"
+              >
+                <span>Allocation Center</span>
+                <ArrowRight size={14} />
               </button>
             )}
-
           </div>
         </div>
 
+        {/* Error Alert */}
         {error && (
           <div className="dashboard-error">
-            {error}
+            <AlertTriangle size={18} style={{ marginRight: 8, verticalAlign: "middle" }} />
+            <strong>Failed to load telemetry:</strong> {error}
           </div>
         )}
 
-        {loading ? (
+        {/* Loading State */}
+        {loading && !overviewData ? (
           <div className="dashboard-loading">
-            Loading dashboard data...
+            <RefreshCw size={24} style={{ animation: "spin 1s linear infinite", marginRight: 12 }} />
+            <span>Aggregating Resource Telemetry & Health Analytics...</span>
           </div>
-        ) : (
+        ) : role === "Researcher" ? (
+          <ResearcherDashboardView
+            experiments={researcherExperiments}
+            allocationPlans={visiblePlans}
+            schedules={researcherSchedules}
+            fullName={fullName}
+          />
+        ) : overviewData ? (
           <>
-            {!isLimitedDashboardRole && (
-              <div className="stats-grid">
-                {stats.map((stat) => {
-                  const actionPath = stat.actionPath;
+            {/* ============================================================= */}
+            {/* TIER 1: 4 EXECUTIVE KPI SCORECARDS                             */}
+            {/* ============================================================= */}
+            <section className="stats-grid-4col">
+              {overviewData.stats.map((stat) => (
+                <StatisticCard key={stat.id} stat={stat} />
+              ))}
+            </section>
 
-                  return (
-                    <StatisticCard
-                      key={stat.id}
-                      stat={stat}
-                      onAction={
-                        actionPath
-                          ? () => {
-                            navigate(actionPath);
-                          }
-                          : undefined
-                      }
-                    />
-                  );
-                })}
-              </div>
-            )}
+            {/* ============================================================= */}
+            {/* TIER 2: EQUIPMENT OPERATING HOURS & 3-PILLAR DONUTS           */}
+            {/* ============================================================= */}
+            <section className="dashboard-grid-row-2col">
+              <EquipmentOperatingHoursChart
+                data={overviewData.equipmentOperatingMetrics}
+                onSelectEquipment={(id) => navigate(`/equipment?equipmentInstanceId=${id}`)}
+              />
+              <ResourceStatusDonutGroup breakdowns={overviewData.resourceBreakdowns} />
+            </section>
 
-            {!isLimitedDashboardRole && (
-              <div className="charts-grid">
-                <LineChartCard data={allocationTrend} />
-                <BreakdownCard data={resourceBreakdown} />
-              </div>
-            )}
+            {/* ============================================================= */}
+            {/* TIER 3: ALLOCATION 6-MONTH TREND & ROLE WORKFORCE CAPACITY    */}
+            {/* ============================================================= */}
+            <section className="dashboard-grid-row-equal">
+              <AllocationTrendComposedChart data={overviewData.allocationTrends} />
+              <PersonnelWorkloadBarChart data={overviewData.roleWorkloads} />
+            </section>
 
+            {/* Admin Quick Management Banner */}
             {role === "Admin" && (
-              <div className="role-section-card">
-                <h3>Admin Workspace</h3>
-                <p>
-                  Manage users, roles, personnel profiles, system settings, audit logs, and reports.
-                </p>
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
-                  <button type="button" onClick={() => navigate("/admin/personnel")}>
+              <div
+                style={{
+                  background: "linear-gradient(90deg, rgba(22, 163, 74, 0.08) 0%, rgba(37, 99, 235, 0.08) 100%)",
+                  border: "1px solid rgba(22, 163, 74, 0.2)",
+                  borderRadius: 16,
+                  padding: "16px 20px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 750, color: "#0f172a" }}>
+                    Admin Quick Management Center
+                  </h4>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b" }}>
+                    Fast access to personnel skill matrices, user privileges, system audit logs, and global reports.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/admin/personnel")}
+                    className="dashboard-btn-secondary"
+                  >
                     Personnel & Skills
                   </button>
-                  <button type="button" onClick={() => navigate("/admin/users")}>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/admin/users")}
+                    className="dashboard-btn-secondary"
+                  >
                     User Management
                   </button>
-                  <button type="button" onClick={() => navigate("/reports")}>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/reports")}
+                    className="dashboard-btn-primary"
+                  >
                     System Reports
                   </button>
                 </div>
               </div>
             )}
 
-            {role === "Technician" && (
-              <div className="role-section-card">
-                <h3>Technician Workspace</h3>
-                <p>
-                  Review assigned tasks, update execution progress & notes, and confirm receipt of assigned equipment.
-                </p>
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/schedules")}
-                  >
-                    View & Update Tasks
-                  </button>
-                  <button
-                    type="button"
-                    style={{ background: "#16a34a", borderColor: "#16a34a" }}
-                    onClick={() => navigate("/equipment-instances")}
-                  >
-                    Confirm Equipment Receipt
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {(role === "Seasonal" || role === "Student") && (
-              <div className="role-section-card">
-                <h3>Seasonal Workspace</h3>
-                <p>
-                  View assigned tasks, update task execution notes, and confirm receipt of assigned equipment.
-                </p>
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/schedules")}
-                  >
-                    View My Schedules
-                  </button>
-                  <button
-                    type="button"
-                    style={{ background: "#16a34a", borderColor: "#16a34a" }}
-                    onClick={() => navigate("/equipment-instances")}
-                  >
-                    Confirm Equipment Receipt
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isLimitedDashboardRole && (
-              <div className="table-row-container">
-                <RequestTable
-                  requests={
-                    recentPlans
-                  }
-                />
-              </div>
-            )}
-
-            {canViewAnalytics && (
-              <div className="dashboard-action-row">
+            {/* ============================================================= */}
+            {/* TIER 4: COMPREHENSIVE OPERATIONAL DATA CENTER & TABS          */}
+            {/* ============================================================= */}
+            <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Tab Navigation */}
+              <div className="dashboard-tab-bar">
                 <button
                   type="button"
-                  className="dashboard-outline-btn"
-                  onClick={() =>
-                    navigate(
-                      "/allocation-analytics"
-                    )
-                  }
+                  onClick={() => setActiveBottomTab("equipment-matrix")}
+                  className={`dashboard-tab-item ${
+                    activeBottomTab === "equipment-matrix" ? "active-equipment" : ""
+                  }`}
                 >
-                  View Experiment Analytics
+                  <Wrench size={15} />
+                  <span>Equipment Operating Lifespan ({overviewData.equipmentOperatingMetrics.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveBottomTab("pending-queue")}
+                  className={`dashboard-tab-item ${
+                    activeBottomTab === "pending-queue" ? "active-pending" : ""
+                  }`}
+                >
+                  <Clock size={15} />
+                  <span>Pending Approvals Queue</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveBottomTab("land-overview")}
+                  className={`dashboard-tab-item ${
+                    activeBottomTab === "land-overview" ? "active-land" : ""
+                  }`}
+                >
+                  <MapPin size={15} />
+                  <span>Land & Soil Profiles</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveBottomTab("recent-activity")}
+                  className={`dashboard-tab-item ${
+                    activeBottomTab === "recent-activity" ? "active-recent" : ""
+                  }`}
+                >
+                  <FileText size={15} />
+                  <span>Recent Plans Table</span>
                 </button>
               </div>
-            )}
 
+              {/* Tab Content Display */}
+              <div>
+                {activeBottomTab === "equipment-matrix" && (
+                  <EquipmentLifespanTable data={overviewData.equipmentOperatingMetrics} />
+                )}
+
+                {activeBottomTab === "pending-queue" && (
+                  <PendingApprovalsTable plans={visiblePlans} />
+                )}
+
+                {activeBottomTab === "land-overview" && (
+                  <LandUtilizationCard data={overviewData.landUtilization} />
+                )}
+
+                {activeBottomTab === "recent-activity" && (
+                  <div className="table-row-container">
+                    <RequestTable requests={recentPlans} />
+                  </div>
+                )}
+              </div>
+            </section>
           </>
-        )}
+        ) : null}
       </div>
     </DashboardLayout>
   );

@@ -188,166 +188,166 @@ function readNumber(
   return null;
 }
 
-  const validateEquipmentInstanceAvailability = async (
-    equipmentInstanceId: number,
-    startDate: string,
-    endDate: string,
-    assetCode?: string
-  ) => {
-    let existingDetails;
+const validateEquipmentInstanceAvailability = async (
+  equipmentInstanceId: number,
+  startDate: string,
+  endDate: string,
+  assetCode?: string
+) => {
+  let existingDetails;
 
-    try {
-      existingDetails = await getAllocationEquipmentDetails({
-        equipmentInstanceId,
-        size: 300,
-      });
-    } catch (availabilityError) {
-      console.warn(
-        "Unable to pre-check equipment allocation conflicts; the API will validate availability:",
-        availabilityError
-      );
-      return;
-    }
-
-    const requestedStart = new Date(startDate).getTime();
-    const requestedEnd = new Date(endDate).getTime();
-    if (!Number.isFinite(requestedStart) || !Number.isFinite(requestedEnd)) {
-      return;
-    }
-
-    const overlappingDetails = existingDetails.filter((detail) => {
-      const status = String(detail.status || "").toLowerCase();
-      const detailStart = new Date(detail.startDate).getTime();
-      const detailEnd = new Date(detail.endDate).getTime();
-
-      return (
-        Number(detail.equipmentInstanceId) === equipmentInstanceId &&
-        status !== "cancelled" &&
-        status !== "completed" &&
-        Number.isFinite(detailStart) &&
-        Number.isFinite(detailEnd) &&
-        detailStart < requestedEnd &&
-        requestedStart < detailEnd
-      );
+  try {
+    existingDetails = await getAllocationEquipmentDetails({
+      equipmentInstanceId,
+      size: 300,
     });
+  } catch (availabilityError) {
+    console.warn(
+      "Unable to pre-check equipment allocation conflicts; the API will validate availability:",
+      availabilityError
+    );
+    return;
+  }
 
-    if (overlappingDetails.length === 0) return;
+  const requestedStart = new Date(startDate).getTime();
+  const requestedEnd = new Date(endDate).getTime();
+  if (!Number.isFinite(requestedStart) || !Number.isFinite(requestedEnd)) {
+    return;
+  }
 
-    const planStatuses = await Promise.all(
-      [...new Set(overlappingDetails.map((detail) => detail.allocationPlanId))].map(
-        async (conflictPlanId) => {
-          try {
-            const response = await api.get(
-              `/AllocationPlans/${conflictPlanId}`
-            );
-            const conflictPlan =
-              response.data?.data ||
-              response.data?.result ||
-              response.data;
+  const overlappingDetails = existingDetails.filter((detail) => {
+    const status = String(detail.status || "").toLowerCase();
+    const detailStart = new Date(detail.startDate).getTime();
+    const detailEnd = new Date(detail.endDate).getTime();
 
-            return [
-              conflictPlanId,
-              String(conflictPlan?.approveStatus || "").toLowerCase(),
-            ] as const;
-          } catch {
-            return [conflictPlanId, "unknown"] as const;
-          }
+    return (
+      Number(detail.equipmentInstanceId) === equipmentInstanceId &&
+      status !== "cancelled" &&
+      status !== "completed" &&
+      Number.isFinite(detailStart) &&
+      Number.isFinite(detailEnd) &&
+      detailStart < requestedEnd &&
+      requestedStart < detailEnd
+    );
+  });
+
+  if (overlappingDetails.length === 0) return;
+
+  const planStatuses = await Promise.all(
+    [...new Set(overlappingDetails.map((detail) => detail.allocationPlanId))].map(
+      async (conflictPlanId) => {
+        try {
+          const response = await api.get(
+            `/AllocationPlans/${conflictPlanId}`
+          );
+          const conflictPlan =
+            response.data?.data ||
+            response.data?.result ||
+            response.data;
+
+          return [
+            conflictPlanId,
+            String(conflictPlan?.approveStatus || "").toLowerCase(),
+          ] as const;
+        } catch {
+          return [conflictPlanId, "unknown"] as const;
         }
-      )
+      }
+    )
+  );
+  const rejectedPlanIds = new Set(
+    planStatuses
+      .filter(([, status]) => status === "rejected")
+      .map(([conflictPlanId]) => conflictPlanId)
+  );
+  const hasConflict = overlappingDetails.some(
+    (detail) => !rejectedPlanIds.has(detail.allocationPlanId)
+  );
+
+  if (hasConflict) {
+    throw new Error(
+      `${assetCode || `Equipment #${equipmentInstanceId}`} is already allocated in the selected date range. Choose another item or adjust the phase dates.`
     );
-    const rejectedPlanIds = new Set(
-      planStatuses
-        .filter(([, status]) => status === "rejected")
-        .map(([conflictPlanId]) => conflictPlanId)
-    );
-    const hasConflict = overlappingDetails.some(
-      (detail) => !rejectedPlanIds.has(detail.allocationPlanId)
-    );
+  }
+};
 
-    if (hasConflict) {
-      throw new Error(
-        `${assetCode || `Equipment #${equipmentInstanceId}`} is already allocated in the selected date range. Choose another item or adjust the phase dates.`
-      );
-    }
-  };
+const validateLandAvailability = async (
+  landId: number,
+  startDate: string,
+  endDate: string,
+  landCode?: string
+) => {
+  let existingDetails: AllocationLandDetail[];
 
-  const validateLandAvailability = async (
-    landId: number,
-    startDate: string,
-    endDate: string,
-    landCode?: string
-  ) => {
-    let existingDetails: AllocationLandDetail[];
-
-    try {
-      existingDetails = await getAllocationLandDetails({
-        landId,
-        size: 300,
-      });
-    } catch (availabilityError) {
-      console.warn(
-        "Unable to pre-check land allocation conflicts; the API will validate availability:",
-        availabilityError
-      );
-      return;
-    }
-
-    const requestedStart = new Date(startDate).getTime();
-    const requestedEnd = new Date(endDate).getTime();
-    if (!Number.isFinite(requestedStart) || !Number.isFinite(requestedEnd)) {
-      return;
-    }
-
-    const overlappingDetails = existingDetails.filter((detail) => {
-      const status = String(detail.status || "").toLowerCase();
-      const detailStart = new Date(detail.startDate).getTime();
-      const detailEnd = new Date(detail.endDate).getTime();
-
-      return (
-        Number(detail.landId) === landId &&
-        status !== "cancelled" &&
-        status !== "completed" &&
-        Number.isFinite(detailStart) &&
-        Number.isFinite(detailEnd) &&
-        detailStart < requestedEnd &&
-        requestedStart < detailEnd
-      );
+  try {
+    existingDetails = await getAllocationLandDetails({
+      landId,
+      size: 300,
     });
+  } catch (availabilityError) {
+    console.warn(
+      "Unable to pre-check land allocation conflicts; the API will validate availability:",
+      availabilityError
+    );
+    return;
+  }
 
-    if (overlappingDetails.length === 0) return;
+  const requestedStart = new Date(startDate).getTime();
+  const requestedEnd = new Date(endDate).getTime();
+  if (!Number.isFinite(requestedStart) || !Number.isFinite(requestedEnd)) {
+    return;
+  }
 
-    const planStatuses = await Promise.all(
-      [...new Set(overlappingDetails.map((detail) => detail.allocationPlanId))].map(
-        async (conflictPlanId) => {
-          try {
-            const response = await api.get(`/AllocationPlans/${conflictPlanId}`);
-            const conflictPlan =
-              response.data?.data || response.data?.result || response.data;
-            return [
-              conflictPlanId,
-              String(conflictPlan?.approveStatus || "").toLowerCase(),
-            ] as const;
-          } catch {
-            return [conflictPlanId, "unknown"] as const;
-          }
+  const overlappingDetails = existingDetails.filter((detail) => {
+    const status = String(detail.status || "").toLowerCase();
+    const detailStart = new Date(detail.startDate).getTime();
+    const detailEnd = new Date(detail.endDate).getTime();
+
+    return (
+      Number(detail.landId) === landId &&
+      status !== "cancelled" &&
+      status !== "completed" &&
+      Number.isFinite(detailStart) &&
+      Number.isFinite(detailEnd) &&
+      detailStart < requestedEnd &&
+      requestedStart < detailEnd
+    );
+  });
+
+  if (overlappingDetails.length === 0) return;
+
+  const planStatuses = await Promise.all(
+    [...new Set(overlappingDetails.map((detail) => detail.allocationPlanId))].map(
+      async (conflictPlanId) => {
+        try {
+          const response = await api.get(`/AllocationPlans/${conflictPlanId}`);
+          const conflictPlan =
+            response.data?.data || response.data?.result || response.data;
+          return [
+            conflictPlanId,
+            String(conflictPlan?.approveStatus || "").toLowerCase(),
+          ] as const;
+        } catch {
+          return [conflictPlanId, "unknown"] as const;
         }
-      )
-    );
-    const rejectedPlanIds = new Set(
-      planStatuses
-        .filter(([, status]) => status === "rejected")
-        .map(([conflictPlanId]) => conflictPlanId)
-    );
-    const hasConflict = overlappingDetails.some(
-      (detail) => !rejectedPlanIds.has(detail.allocationPlanId)
-    );
+      }
+    )
+  );
+  const rejectedPlanIds = new Set(
+    planStatuses
+      .filter(([, status]) => status === "rejected")
+      .map(([conflictPlanId]) => conflictPlanId)
+  );
+  const hasConflict = overlappingDetails.some(
+    (detail) => !rejectedPlanIds.has(detail.allocationPlanId)
+  );
 
-    if (hasConflict) {
-      throw new Error(
-        `${landCode || `Land #${landId}`} is already allocated in the selected date range. Choose another plot or adjust the experiment dates.`
-      );
-    }
-  };
+  if (hasConflict) {
+    throw new Error(
+      `${landCode || `Land #${landId}`} is already allocated in the selected date range. Choose another plot or adjust the experiment dates.`
+    );
+  }
+};
 
 function normalizeEvaluationScore(
   value: number | null
@@ -389,7 +389,7 @@ function parseFitnessBreakdown(
 ): FitnessBreakdown {
   const responseRoot =
     evaluation &&
-    typeof evaluation === "object"
+      typeof evaluation === "object"
       ? (evaluation as Record<string, unknown>)
       : {};
   const payload = responseRoot.data ?? responseRoot.result;
@@ -408,7 +408,7 @@ function parseFitnessBreakdown(
 
   const nested =
     nestedCandidate &&
-    typeof nestedCandidate === "object"
+      typeof nestedCandidate === "object"
       ? (nestedCandidate as Record<string, unknown>)
       : {};
 
@@ -616,7 +616,7 @@ export default function CreateAllocation() {
 
         setError(
           err?.response?.data?.message ||
-            `Unable to load Allocation Plan #${initialPlanId}.`
+          `Unable to load Allocation Plan #${initialPlanId}.`
         );
       }
     };
@@ -756,6 +756,18 @@ export default function CreateAllocation() {
   ] = useState<
     Record<number, number[]>
   >({});
+
+  const [equipmentFilterTab, setEquipmentFilterTab] = useState<
+    "all" | "available" | "unavailable"
+  >("all");
+
+  const [humanFilterTab, setHumanFilterTab] = useState<
+    "all" | "available" | "unavailable"
+  >("all");
+
+  const [landFilterTab, setLandFilterTab] = useState<
+    "all" | "available" | "unavailable"
+  >("all");
 
   const [
     draftPlanId,
@@ -898,7 +910,7 @@ export default function CreateAllocation() {
             getExperiments({
               researcherId:
                 !isPrivileged &&
-                userId > 0
+                  userId > 0
                   ? userId
                   : undefined,
 
@@ -940,7 +952,7 @@ export default function CreateAllocation() {
           Array.isArray(expRes)
             ? expRes
             : (expRes as any)
-                ?.items || [];
+              ?.items || [];
 
         const approvedExperimentIds = new Set(
           (Array.isArray(approvedPlansRes)
@@ -982,30 +994,30 @@ export default function CreateAllocation() {
           (isPrivileged
             ? approvedExperiments
             : approvedExperiments.filter(
+              (
+                item: ExperimentResponse
+              ) =>
                 (
-                  item: ExperimentResponse
-                ) =>
+                  userId > 0 &&
+                  Number(item.researcherId) ===
+                  Number(userId)
+                ) ||
+                (
+                  fullName &&
                   (
-                    userId > 0 &&
-                    Number(item.researcherId) ===
-                      Number(userId)
-                  ) ||
-                  (
-                    fullName &&
-                    (
-                      item.researcherName
-                        ?.toLowerCase()
-                        .includes(
-                          fullName.toLowerCase()
-                        ) ||
-                      item.createdByName
-                        ?.toLowerCase()
-                        .includes(
-                          fullName.toLowerCase()
-                        )
-                    )
+                    item.researcherName
+                      ?.toLowerCase()
+                      .includes(
+                        fullName.toLowerCase()
+                      ) ||
+                    item.createdByName
+                      ?.toLowerCase()
+                      .includes(
+                        fullName.toLowerCase()
+                      )
                   )
-              )
+                )
+            )
           ).filter(
             (item: ExperimentResponse) =>
               !approvedExperimentIds.has(
@@ -1019,7 +1031,7 @@ export default function CreateAllocation() {
           Array.isArray(equipRes)
             ? equipRes
             : (equipRes as any)
-                ?.items || [];
+              ?.items || [];
 
         const availEquips =
           equips.filter(
@@ -1027,7 +1039,7 @@ export default function CreateAllocation() {
               e: EquipmentInstance
             ) =>
               e.status ===
-                "Available" ||
+              "Available" ||
               !e.status
           );
 
@@ -1047,8 +1059,8 @@ export default function CreateAllocation() {
           )
             ? substitutionRes
             : (
-                substitutionRes as any
-              )?.items || [];
+              substitutionRes as any
+            )?.items || [];
 
         setEquipmentSubstitutions(
           substitutions
@@ -1058,7 +1070,7 @@ export default function CreateAllocation() {
           Array.isArray(humanRes)
             ? humanRes
             : (humanRes as any)
-                ?.items || [];
+              ?.items || [];
 
         const fieldStaff =
           humans.filter(
@@ -1094,8 +1106,8 @@ export default function CreateAllocation() {
           )
             ? humanSkillRes
             : (
-                humanSkillRes as any
-              )?.items || [];
+              humanSkillRes as any
+            )?.items || [];
 
         setHumanResourceSkills(
           skills
@@ -1105,7 +1117,7 @@ export default function CreateAllocation() {
           Array.isArray(landRes)
             ? landRes
             : (landRes as any)
-                ?.items || [];
+              ?.items || [];
 
         setLandResources(lands);
 
@@ -1157,7 +1169,7 @@ export default function CreateAllocation() {
 
     void loadInitialData();
   }, [initialExpId, isManagerAllocation]);
-    // 2. When selectedExpId changes, load specific experiment requirements & phases
+  // 2. When selectedExpId changes, load specific experiment requirements & phases
   useEffect(() => {
     if (!selectedExpId) {
       setPhases([]);
@@ -1311,7 +1323,7 @@ export default function CreateAllocation() {
             if (
               record.data &&
               typeof record.data ===
-                "object"
+              "object"
             ) {
               const nested =
                 record.data as Record<
@@ -1610,15 +1622,15 @@ export default function CreateAllocation() {
 
   type EquipmentRequirementMatch = {
     requirement:
-      ExperimentEquipmentRequirement;
+    ExperimentEquipmentRequirement;
 
     substitution?:
-      EquipmentSubstitution;
+    EquipmentSubstitution;
 
     isSubstitute: boolean;
 
     effectiveEfficiency:
-      number;
+    number;
   };
 
   // Find which requirement an equipment instance satisfies.
@@ -1643,7 +1655,7 @@ export default function CreateAllocation() {
     const instanceEfficiency =
       normalizeEfficiency(
         equipment.efficiencyRate ??
-          1
+        1
       );
 
     // Prefer the requested equipment type itself.
@@ -1700,9 +1712,9 @@ export default function CreateAllocation() {
         equipmentSubstitutions.filter(
           (substitution) =>
             substitution.primaryEquipmentTypeId ===
-              requirement.equipmentTypeId &&
+            requirement.equipmentTypeId &&
             substitution.subEquipmentTypeId ===
-              equipmentTypeId
+            equipmentTypeId
         );
 
       for (
@@ -1730,7 +1742,7 @@ export default function CreateAllocation() {
         if (
           !bestMatch ||
           effectiveEfficiency >
-            bestMatch.effectiveEfficiency
+          bestMatch.effectiveEfficiency
         ) {
           bestMatch = {
             requirement,
@@ -1924,7 +1936,7 @@ export default function CreateAllocation() {
         (equipment) => {
           if (
             equipment.status !==
-              "Available" ||
+            "Available" ||
             blockedEquipmentInstanceIds.has(
               equipment.equipmentInstanceId
             )
@@ -1940,7 +1952,7 @@ export default function CreateAllocation() {
 
           return Boolean(
             match &&
-              !match.isSubstitute
+            !match.isSubstitute
           );
         }
       );
@@ -1963,7 +1975,7 @@ export default function CreateAllocation() {
         .map((equipment) => {
           if (
             equipment.status !==
-              "Available" ||
+            "Available" ||
             blockedEquipmentInstanceIds.has(
               equipment.equipmentInstanceId
             )
@@ -1994,9 +2006,9 @@ export default function CreateAllocation() {
             item
           ): item is {
             equipment:
-              EquipmentInstance;
+            EquipmentInstance;
             match:
-              EquipmentRequirementMatch;
+            EquipmentRequirementMatch;
           } =>
             item !== null
         );
@@ -2008,6 +2020,186 @@ export default function CreateAllocation() {
       checkingEquipmentAvailability,
       equipmentSubstitutions,
     ]);
+
+  type EquipmentEligibilityItem = {
+    equipment: EquipmentInstance;
+    isEligible: boolean;
+    isPrimary: boolean;
+    isSubstitute: boolean;
+    effectiveEfficiency: number;
+    match?: EquipmentRequirementMatch;
+    unavailabilityReason?: string;
+  };
+
+  const allEquipmentForActivePhase = useMemo<EquipmentEligibilityItem[]>(() => {
+    if (!activePhaseId) {
+      return [];
+    }
+
+    const requirements = getEquipmentRequirementsForPhase(activePhaseId);
+    if (requirements.length === 0) {
+      return [];
+    }
+
+    // Collect all allowed equipment type IDs for this phase (primary + allowed substitutes)
+    const allowedTypeIds = new Set<number>();
+    requirements.forEach((req) => {
+      if (req.equipmentTypeId != null) {
+        allowedTypeIds.add(req.equipmentTypeId);
+        if (req.allowSubstitute) {
+          equipmentSubstitutions
+            .filter((s) => s.primaryEquipmentTypeId === req.equipmentTypeId)
+            .forEach((s) => allowedTypeIds.add(s.subEquipmentTypeId));
+        }
+      }
+    });
+
+    const relevantEquipment = availableEquipment.filter(
+      (equipment) =>
+        equipment.equipmentTypeId != null &&
+        allowedTypeIds.has(equipment.equipmentTypeId)
+    );
+
+    return relevantEquipment.map((equipment) => {
+      const isBlocked = blockedEquipmentInstanceIds.has(equipment.equipmentInstanceId);
+      const isAvailableStatus = equipment.status === "Available";
+      const instanceEfficiency = normalizeEfficiency(equipment.efficiencyRate ?? 1);
+
+      // 1. Check Primary Match
+      for (const requirement of requirements) {
+        if (requirement.equipmentTypeId === equipment.equipmentTypeId) {
+          const minEff = normalizeEfficiency(requirement.minAcceptableEfficiency);
+          if (!isAvailableStatus) {
+            return {
+              equipment,
+              isEligible: false,
+              isPrimary: true,
+              isSubstitute: false,
+              effectiveEfficiency: instanceEfficiency,
+              match: { requirement, isSubstitute: false, effectiveEfficiency: instanceEfficiency },
+              unavailabilityReason: `Status: "${equipment.status}" (Equipment is not available)`,
+            };
+          }
+          if (isBlocked) {
+            return {
+              equipment,
+              isEligible: false,
+              isPrimary: true,
+              isSubstitute: false,
+              effectiveEfficiency: instanceEfficiency,
+              match: { requirement, isSubstitute: false, effectiveEfficiency: instanceEfficiency },
+              unavailabilityReason: "Schedule conflict: Allocated to another plan during these phase dates",
+            };
+          }
+          if (instanceEfficiency < minEff) {
+            return {
+              equipment,
+              isEligible: false,
+              isPrimary: true,
+              isSubstitute: false,
+              effectiveEfficiency: instanceEfficiency,
+              match: { requirement, isSubstitute: false, effectiveEfficiency: instanceEfficiency },
+              unavailabilityReason: `Efficiency (${Math.round(instanceEfficiency * 100)}%) is below required minimum (${Math.round(minEff * 100)}%)`,
+            };
+          }
+          return {
+            equipment,
+            isEligible: true,
+            isPrimary: true,
+            isSubstitute: false,
+            effectiveEfficiency: instanceEfficiency,
+            match: { requirement, isSubstitute: false, effectiveEfficiency: instanceEfficiency },
+          };
+        }
+      }
+
+      // 2. Check Substitute Match
+      for (const requirement of requirements) {
+        const validRelations = equipmentSubstitutions.filter(
+          (s) =>
+            s.primaryEquipmentTypeId === requirement.equipmentTypeId &&
+            s.subEquipmentTypeId === equipment.equipmentTypeId
+        );
+
+        if (validRelations.length > 0) {
+          if (!requirement.allowSubstitute) {
+            return {
+              equipment,
+              isEligible: false,
+              isPrimary: false,
+              isSubstitute: true,
+              effectiveEfficiency: 0,
+              unavailabilityReason: `Substitute mapped, but requirement "${requirement.equipmentTypeName}" does not allow substitutes`,
+            };
+          }
+
+          for (const substitution of validRelations) {
+            const subEff = normalizeEfficiency(substitution.efficiencyRate);
+            const effectiveEff = instanceEfficiency * subEff;
+            const minEff = normalizeEfficiency(requirement.minAcceptableEfficiency);
+
+            if (!isAvailableStatus) {
+              return {
+                equipment,
+                isEligible: false,
+                isPrimary: false,
+                isSubstitute: true,
+                effectiveEfficiency: effectiveEff,
+                match: { requirement, substitution, isSubstitute: true, effectiveEfficiency: effectiveEff },
+                unavailabilityReason: `Valid substitute, but status is "${equipment.status}" (not Available)`,
+              };
+            }
+            if (isBlocked) {
+              return {
+                equipment,
+                isEligible: false,
+                isPrimary: false,
+                isSubstitute: true,
+                effectiveEfficiency: effectiveEff,
+                match: { requirement, substitution, isSubstitute: true, effectiveEfficiency: effectiveEff },
+                unavailabilityReason: "Valid substitute, but allocated to another plan in overlapping dates",
+              };
+            }
+            if (effectiveEff < minEff) {
+              return {
+                equipment,
+                isEligible: false,
+                isPrimary: false,
+                isSubstitute: true,
+                effectiveEfficiency: effectiveEff,
+                match: { requirement, substitution, isSubstitute: true, effectiveEfficiency: effectiveEff },
+                unavailabilityReason: `Substitute effective efficiency (${Math.round(effectiveEff * 100)}%) < required minimum (${Math.round(minEff * 100)}%)`,
+              };
+            }
+            return {
+              equipment,
+              isEligible: true,
+              isPrimary: false,
+              isSubstitute: true,
+              effectiveEfficiency: effectiveEff,
+              match: { requirement, substitution, isSubstitute: true, effectiveEfficiency: effectiveEff },
+            };
+          }
+        }
+      }
+
+      // 3. Type Mismatch fallback
+      return {
+        equipment,
+        isEligible: false,
+        isPrimary: false,
+        isSubstitute: false,
+        effectiveEfficiency: 0,
+        unavailabilityReason: `Type "${equipment.equipmentTypeName || `Type #${equipment.equipmentTypeId}`}" does not match phase equipment requirements`,
+      };
+    });
+  }, [
+    activePhaseId,
+    activePhaseEquipmentRequirements,
+    availableEquipment,
+    blockedEquipmentInstanceIds,
+    equipmentSubstitutions,
+  ]);
 
   // Toggle Equipment for current active phase.
   // Quantity is enforced per requirement, so a substitute counts toward
@@ -2126,24 +2318,22 @@ export default function CreateAllocation() {
             targetMatch
               .requirement
               .quantity ||
-              0
+            0
           );
 
         if (
           requiredQuantity > 0 &&
           selectedForSameRequirement >=
-            requiredQuantity
+          requiredQuantity
         ) {
           setError(
-            `Requirement "${
-              targetMatch
-                .requirement
-                .equipmentTypeName ||
-              `Equipment Type #${
-                targetMatch
-                  .requirement
-                  .equipmentTypeId
-              }`
+            `Requirement "${targetMatch
+              .requirement
+              .equipmentTypeName ||
+            `Equipment Type #${targetMatch
+              .requirement
+              .equipmentTypeId
+            }`
             }" requires only ${requiredQuantity} unit(s).`
           );
 
@@ -2242,10 +2432,10 @@ export default function CreateAllocation() {
 
   type HumanRequirementMatch = {
     requirement:
-      ExperimentHumanRequirement;
+    ExperimentHumanRequirement;
 
     matchedSkill?:
-      HumanResourceSkill;
+    HumanResourceSkill;
   };
 
   // Find which human requirement a profile satisfies.
@@ -2267,7 +2457,7 @@ export default function CreateAllocation() {
       if (
         human.roleId == null ||
         human.roleId !==
-          requirement.roleId
+        requirement.roleId
       ) {
         continue;
       }
@@ -2283,7 +2473,7 @@ export default function CreateAllocation() {
       if (
         requiredHours > 0 &&
         availableHours <
-          requiredHours
+        requiredHours
       ) {
         continue;
       }
@@ -2301,9 +2491,9 @@ export default function CreateAllocation() {
         humanResourceSkills.find(
           (skill) =>
             skill.humanResourceId ===
-              human.humanResourceId &&
+            human.humanResourceId &&
             skill.skillId ===
-              requirement.requiredSkillId
+            requirement.requiredSkillId
         );
 
       if (matchedSkill) {
@@ -2347,6 +2537,110 @@ export default function CreateAllocation() {
       humanResourceSkills,
     ]);
 
+  type HumanEligibilityItem = {
+    human: HumanResourceProfile;
+    isEligible: boolean;
+    matchedRequirement?: ExperimentHumanRequirement;
+    matchedSkill?: HumanResourceSkill;
+    unavailabilityReason?: string;
+  };
+
+  const allHumansForActivePhase = useMemo<HumanEligibilityItem[]>(() => {
+    if (!activePhaseId) {
+      return [];
+    }
+
+    const requirements = getHumanRequirementsForPhase(activePhaseId);
+    if (requirements.length === 0) {
+      return [];
+    }
+
+    const allowedRoleIds = new Set<number>();
+    requirements.forEach((req) => {
+      if (req.roleId != null) {
+        allowedRoleIds.add(req.roleId);
+      }
+    });
+
+    const relevantHumans = humanProfiles.filter(
+      (human) => human.roleId != null && allowedRoleIds.has(human.roleId)
+    );
+
+    return relevantHumans.map((human) => {
+      const isAvailableStatus =
+        human.status === "Available" || !human.status;
+
+      if (!isAvailableStatus) {
+        return {
+          human,
+          isEligible: false,
+          unavailabilityReason: `Staff status is "${human.status}" (Currently unavailable / On Leave)`,
+        };
+      }
+
+      for (const requirement of requirements) {
+        if (human.roleId == null || human.roleId !== requirement.roleId) {
+          continue;
+        }
+
+        const requiredHours = requirement.workingHoursPerDay ?? 0;
+        const availableHours = human.maxWorkingHoursPerDay ?? 0;
+        if (requiredHours > 0 && availableHours < requiredHours) {
+          return {
+            human,
+            isEligible: false,
+            matchedRequirement: requirement,
+            unavailabilityReason: `Working capacity (${availableHours}h/day) < Required (${requiredHours}h/day)`,
+          };
+        }
+
+        if (requirement.requiredSkillId == null) {
+          return {
+            human,
+            isEligible: true,
+            matchedRequirement: requirement,
+          };
+        }
+
+        const matchedSkill = humanResourceSkills.find(
+          (skill) =>
+            skill.humanResourceId === human.humanResourceId &&
+            skill.skillId === requirement.requiredSkillId
+        );
+
+        if (matchedSkill) {
+          return {
+            human,
+            isEligible: true,
+            matchedRequirement: requirement,
+            matchedSkill,
+          };
+        }
+
+        return {
+          human,
+          isEligible: false,
+          matchedRequirement: requirement,
+          unavailabilityReason: `Missing required skill: "${requirement.requiredSkillName || `Skill #${requirement.requiredSkillId}`}"`,
+        };
+      }
+
+      const requiredRoleNames = requirements
+        .map((r) => r.roleName || `Role #${r.roleId}`)
+        .join(", ");
+      return {
+        human,
+        isEligible: false,
+        unavailabilityReason: `Role is "${human.roleName || `Role #${human.roleId}`}" (Phase requires: ${requiredRoleNames})`,
+      };
+    });
+  }, [
+    activePhaseId,
+    activePhaseHumanRequirements,
+    humanProfiles,
+    humanResourceSkills,
+  ]);
+
   /*
    * ==========================================================
    * ALLOCATION PLAN INITIALIZATION
@@ -2377,7 +2671,7 @@ export default function CreateAllocation() {
         if (
           String(
             existingPlan.approveStatus ||
-              ""
+            ""
           )
             .trim()
             .toLowerCase() !==
@@ -2462,12 +2756,12 @@ export default function CreateAllocation() {
           const newPlanId =
             Number(
               createdPlan?.allocationPlanId ||
-                (
-                  createdPlan as unknown as {
-                    id?: number;
-                  }
-                )?.id ||
-                0
+              (
+                createdPlan as unknown as {
+                  id?: number;
+                }
+              )?.id ||
+              0
             );
 
           if (newPlanId <= 0) {
@@ -2539,93 +2833,81 @@ export default function CreateAllocation() {
       return landReqs[0];
     }, [landReqs]);
 
-  const filteredLandResources =
-    useMemo(() => {
-      if (!activeLandRequirement || checkingLandAvailability) {
-        return [];
+  type LandEligibilityItem = {
+    land: LandResource;
+    isEligible: boolean;
+    unavailabilityReason?: string;
+  };
+
+  const allLandForExperiment = useMemo<LandEligibilityItem[]>(() => {
+    if (!activeLandRequirement) {
+      return [];
+    }
+
+    const requiredArea =
+      Number(activeLandRequirement.requiredArea) || 0;
+
+    const requiredSoilType = (
+      activeLandRequirement.requiredSoilType || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    // 1. Filter land resources by required soil type
+    const matchingLand = landResources.filter((land) => {
+      if (!requiredSoilType || requiredSoilType === "any") {
+        return true;
+      }
+      const actualSoilType = (land.soilType || "").trim().toLowerCase();
+      return actualSoilType === requiredSoilType;
+    });
+
+    // 2. Map eligibility
+    return matchingLand.map((land) => {
+      const status = (land.status || "").trim().toLowerCase();
+      const isAvailableStatus = !status || status === "available";
+      const isBlocked = blockedLandIds.has(land.landId);
+      const landArea = Number(land.areaSize) || 0;
+      const isAreaEnough = requiredArea <= 0 || landArea >= requiredArea;
+
+      if (!isAvailableStatus) {
+        return {
+          land,
+          isEligible: false,
+          unavailabilityReason: `Status: "${land.status}" (Plot is not available)`,
+        };
       }
 
-      const requiredArea =
-        Number(
-          activeLandRequirement
-            .requiredArea
-        ) || 0;
+      if (isBlocked) {
+        return {
+          land,
+          isEligible: false,
+          unavailabilityReason: "Schedule conflict: Allocated to another plan during experiment dates",
+        };
+      }
 
-      const requiredSoilType =
-        (
-          activeLandRequirement
-            .requiredSoilType || ""
-        )
-          .trim()
-          .toLowerCase();
+      if (!isAreaEnough) {
+        return {
+          land,
+          isEligible: false,
+          unavailabilityReason: `Area (${landArea.toLocaleString()} m²) is smaller than required (${requiredArea.toLocaleString()} m²)`,
+        };
+      }
 
-      return landResources.filter(
-        (land) => {
-          const status =
-            (
-              land.status || ""
-            )
-              .trim()
-              .toLowerCase();
-
-          if (
-            status &&
-            status !==
-              "available"
-          ) {
-            return false;
-          }
-
-          if (blockedLandIds.has(land.landId)) {
-            return false;
-          }
-
-          const landArea =
-            Number(
-              land.areaSize
-            ) || 0;
-
-          if (
-            requiredArea > 0 &&
-            landArea <
-              requiredArea
-          ) {
-            return false;
-          }
-
-          if (
-            requiredSoilType
-          ) {
-            const actualSoilType =
-              (
-                land.soilType ||
-                ""
-              )
-                .trim()
-                .toLowerCase();
-
-            if (
-              actualSoilType !==
-              requiredSoilType
-            ) {
-              return false;
-            }
-          }
-
-          return true;
-        }
-      );
-    }, [
-      landResources,
-      activeLandRequirement,
-      blockedLandIds,
-      checkingLandAvailability,
-    ]);
+      return {
+        land,
+        isEligible: true,
+      };
+    });
+  }, [
+    landResources,
+    activeLandRequirement,
+    blockedLandIds,
+  ]);
 
   const handleSelectLand = (
     landId: number
   ) => {
-
     if (
       allocationDetailsSaved
     ) {
@@ -2636,6 +2918,13 @@ export default function CreateAllocation() {
       return;
     }
 
+    const landItem = allLandForExperiment.find((item) => item.land.landId === landId);
+    if (landItem && !landItem.isEligible) {
+      setError(landItem.unavailabilityReason || "This land plot is not available for allocation.");
+      return;
+    }
+
+    setError("");
     setSelectedLandId(
       (current) =>
         current === landId
@@ -2724,24 +3013,24 @@ export default function CreateAllocation() {
             Number(
               item.phaseId
             ) ===
-              Number(
-                phaseId
-              ) &&
+            Number(
+              phaseId
+            ) &&
             Number(
               item.roleId
             ) ===
-              Number(
-                requirement.roleId
-              ) &&
+            Number(
+              requirement.roleId
+            ) &&
             Number(
               item.requiredSkillId ||
-                0
+              0
             ) ===
-              Number(
-                requirement
-                  .requiredSkillId ||
-                  0
-              )
+            Number(
+              requirement
+                .requiredSkillId ||
+              0
+            )
         );
 
       if (existing) {
@@ -2782,8 +3071,8 @@ export default function CreateAllocation() {
           Number(
             created
               ?.phaseHumanReqId ||
-              created?.id ||
-              0
+            created?.id ||
+            0
           );
 
         if (
@@ -2863,12 +3152,12 @@ export default function CreateAllocation() {
       const canPersistResourceDetails =
         isManagerAllocation
           ? normalizedPlanStatus === "draft" &&
-            String(
-              (await getAllocationPlanById(initialPlanId))
-                .approveStatus || ""
-            ).trim().toLowerCase() === "approved"
+          String(
+            (await getAllocationPlanById(initialPlanId))
+              .approveStatus || ""
+          ).trim().toLowerCase() === "approved"
           : currentUserInfo.role === "Researcher" &&
-            normalizedPlanStatus === "draft";
+          normalizedPlanStatus === "draft";
 
       if (!canPersistResourceDetails) {
         throw new Error(
@@ -2911,8 +3200,8 @@ export default function CreateAllocation() {
         )
           ? existingEquipmentDetails
           : (
-              existingEquipmentDetails as any
-            )?.items || [];
+            existingEquipmentDetails as any
+          )?.items || [];
 
       const existingEquipmentKeys =
         new Set(
@@ -2932,13 +3221,13 @@ export default function CreateAllocation() {
                 Number(
                   detail
                     .expEquipmentReqId ||
-                    0
+                  0
                 ),
 
                 Number(
                   detail
                     .phaseEquipmentReqId ||
-                    0
+                  0
                 ),
               ].join(":")
           )
@@ -2991,10 +3280,9 @@ export default function CreateAllocation() {
 
           if (!match) {
             throw new Error(
-              `${
-                equipment.assetCode ||
-                equipment.equipmentTypeName ||
-                `Equipment #${equipmentId}`
+              `${equipment.assetCode ||
+              equipment.equipmentTypeName ||
+              `Equipment #${equipmentId}`
               } does not satisfy the requirement for ${phase.phaseName}.`
             );
           }
@@ -3005,15 +3293,15 @@ export default function CreateAllocation() {
           const startDate =
             convertDateToIso(
               phase.expectedStartDate ||
-                selectedExp
-                  ?.expectStartDate
+              selectedExp
+                ?.expectStartDate
             );
 
           const endDate =
             convertDateToIso(
               phase.expectedEndDate ||
-                selectedExp
-                  ?.expectEndDate,
+              selectedExp
+                ?.expectEndDate,
               true
             );
 
@@ -3041,48 +3329,48 @@ export default function CreateAllocation() {
           );
 
           const equipmentAllocationPayload: AllocationEquipmentDetailRequest = {
-              allocationPlanId:
-                Number(planId),
+            allocationPlanId:
+              Number(planId),
 
-              expEquipmentReqId:
-                Number(
-                  requirement
-                    .expEquipmentReqId
-                ),
+            expEquipmentReqId:
+              Number(
+                requirement
+                  .expEquipmentReqId
+              ),
 
-              phaseEquipmentReqId: null,
+            phaseEquipmentReqId: null,
 
-              // AllocationEquipmentDetailRequest requires the actual
-              // equipment type being allocated, even for a substitute.
-              allocatedEquipmentTypeId:
-                Number(
-                  equipment.equipmentTypeId
-                ),
+            // AllocationEquipmentDetailRequest requires the actual
+            // equipment type being allocated, even for a substitute.
+            allocatedEquipmentTypeId:
+              Number(
+                equipment.equipmentTypeId
+              ),
 
-              equipmentInstanceId:
-                Number(
-                  equipmentId
-                ),
+            equipmentInstanceId:
+              Number(
+                equipmentId
+              ),
 
-              // One selected EquipmentInstance represents one allocated unit.
-              quantity: 1,
+            // One selected EquipmentInstance represents one allocated unit.
+            quantity: 1,
 
-              // The allocation API stores efficiency as a 0..1 ratio.
-              efficiencyRate:
-                Number(
-                  match.effectiveEfficiency.toFixed(4)
-                ),
+            // The allocation API stores efficiency as a 0..1 ratio.
+            efficiencyRate:
+              Number(
+                match.effectiveEfficiency.toFixed(4)
+              ),
 
-              isSubstitute:
-                Boolean(
-                  match.isSubstitute
-                ),
+            isSubstitute:
+              Boolean(
+                match.isSubstitute
+              ),
 
-              startDate,
-              endDate,
+            startDate,
+            endDate,
 
-              status:
-                "Allocated",
+            status:
+              "Allocated",
           };
 
           console.debug(
@@ -3131,8 +3419,8 @@ export default function CreateAllocation() {
         )
           ? existingHumanDetailsResponse
           : (
-              existingHumanDetailsResponse as any
-            )?.items || [];
+            existingHumanDetailsResponse as any
+          )?.items || [];
 
       const existingHumanKeys =
         new Set(
@@ -3152,13 +3440,13 @@ export default function CreateAllocation() {
                 Number(
                   detail
                     .expHumanReqId ||
-                    0
+                  0
                 ),
 
                 Number(
                   detail
                     .phaseHumanReqId ||
-                    0
+                  0
                 ),
               ].join(":")
           )
@@ -3211,9 +3499,8 @@ export default function CreateAllocation() {
 
           if (!humanMatch) {
             throw new Error(
-              `${
-                human.fullName ||
-                `Human resource #${humanId}`
+              `${human.fullName ||
+              `Human resource #${humanId}`
               } does not satisfy the personnel requirement for ${phase.phaseName}.`
             );
           }
@@ -3231,9 +3518,9 @@ export default function CreateAllocation() {
             Number(
               requirement
                 .workingHoursPerDay ||
-                human
-                  .maxWorkingHoursPerDay ||
-                8
+              human
+                .maxWorkingHoursPerDay ||
+              8
             );
 
           /*
@@ -3245,15 +3532,15 @@ export default function CreateAllocation() {
           const humanStartDate =
             convertDateToIso(
               phase.expectedStartDate ||
-                selectedExp
-                  ?.expectStartDate
+              selectedExp
+                ?.expectStartDate
             );
 
           const humanEndDate =
             convertDateToIso(
               phase.expectedEndDate ||
-                selectedExp
-                  ?.expectEndDate,
+              selectedExp
+                ?.expectEndDate,
               true
             );
 
@@ -3263,7 +3550,7 @@ export default function CreateAllocation() {
             requirement
               .expHumanReqId,
             phaseHumanReqId ||
-              0,
+            0,
           ].join(":");
 
           if (
@@ -3275,41 +3562,41 @@ export default function CreateAllocation() {
           }
 
           const humanAllocationPayload: AllocationHumanDetailRequest = {
-              allocationPlanId:
-                Number(planId),
+            allocationPlanId:
+              Number(planId),
 
-              expHumanReqId:
-                phaseHumanReqId
-                  ? null
-                  : Number(
-                      requirement.expHumanReqId
-                    ),
-
-              phaseHumanReqId:
-                phaseHumanReqId
-                  ? Number(
-                      phaseHumanReqId
-                    )
-                  : null,
-
-              humanResourceId:
-                Number(
-                  humanId
+            expHumanReqId:
+              phaseHumanReqId
+                ? null
+                : Number(
+                  requirement.expHumanReqId
                 ),
 
-              workingHours:
-                requiredWorkingHours,
+            phaseHumanReqId:
+              phaseHumanReqId
+                ? Number(
+                  phaseHumanReqId
+                )
+                : null,
 
-              startDate:
-                humanStartDate,
+            humanResourceId:
+              Number(
+                humanId
+              ),
 
-              endDate:
-                humanEndDate,
+            workingHours:
+              requiredWorkingHours,
 
-              // Allocation detail API stores efficiency as percentage (100 = 100%).
-              // The matching logic above is normalized to 0..1, so convert it back here.
-              status:
-                "Allocated",
+            startDate:
+              humanStartDate,
+
+            endDate:
+              humanEndDate,
+
+            // Allocation detail API stores efficiency as percentage (100 = 100%).
+            // The matching logic above is normalized to 0..1, so convert it back here.
+            status:
+              "Allocated",
           };
 
           await createAllocationHumanDetail(
@@ -3361,7 +3648,7 @@ export default function CreateAllocation() {
         if (
           requiredArea > 0 &&
           actualArea <
-            requiredArea
+          requiredArea
         ) {
           throw new Error(
             `Selected land provides ${actualArea} ha but ${requiredArea} ha is required.`
@@ -3384,8 +3671,8 @@ export default function CreateAllocation() {
           )
             ? existingLandDetailsResponse
             : (
-                existingLandDetailsResponse as any
-              )?.items || [];
+              existingLandDetailsResponse as any
+            )?.items || [];
 
         const landAlreadyAllocated =
           existingLandDetails.some(
@@ -3394,24 +3681,24 @@ export default function CreateAllocation() {
                 detail
                   .allocationPlanId
               ) ===
-                Number(
-                  planId
-                ) &&
+              Number(
+                planId
+              ) &&
               Number(
                 detail.landId
               ) ===
-                Number(
-                  selectedLandId
-                ) &&
+              Number(
+                selectedLandId
+              ) &&
               Number(
                 detail
                   .expLandReqId ||
-                  0
+                0
               ) ===
-                Number(
-                  activeLandRequirement
-                    .expLandReqId
-                )
+              Number(
+                activeLandRequirement
+                  .expLandReqId
+              )
           );
 
         if (
@@ -3433,28 +3720,28 @@ export default function CreateAllocation() {
           );
 
           const landAllocationPayload: AllocationLandDetailRequest = {
-              allocationPlanId:
-                Number(planId),
+            allocationPlanId:
+              Number(planId),
 
-              expLandReqId:
-                Number(
-                  activeLandRequirement
-                    .expLandReqId
-                ),
+            expLandReqId:
+              Number(
+                activeLandRequirement
+                  .expLandReqId
+              ),
 
-              landId:
-                Number(
-                  selectedLandId
-                ),
+            landId:
+              Number(
+                selectedLandId
+              ),
 
-              startDate: landStartDate,
+            startDate: landStartDate,
 
-              endDate: landEndDate,
+            endDate: landEndDate,
 
-              // Allocation detail API stores efficiency as percentage (100 = 100%).
-              // The matching logic above is normalized to 0..1, so convert it back here.
-              status:
-                "Allocated",
+            // Allocation detail API stores efficiency as percentage (100 = 100%).
+            // The matching logic above is normalized to 0..1, so convert it back here.
+            status:
+              "Allocated",
           };
 
           await createAllocationLandDetail(
@@ -3675,8 +3962,8 @@ export default function CreateAllocation() {
               phaseHumanReqId: phaseRequirement?.phaseHumanReqId ?? null,
               workingHours: Number(
                 match.requirement.workingHoursPerDay ||
-                  human.maxWorkingHoursPerDay ||
-                  8
+                human.maxWorkingHoursPerDay ||
+                8
               ),
               startDate: startDate ? convertDateToIso(startDate) : null,
               endDate: endDate ? convertDateToIso(endDate, true) : null,
@@ -3690,18 +3977,18 @@ export default function CreateAllocation() {
         const landDetails =
           activeLandRequirement && selectedLand
             ? [{
-                landId: selectedLand.landId,
-                allocatedArea: Number(
-                  activeLandRequirement.requiredArea || selectedLand.areaSize || 0
-                ),
-                expLandReqId: activeLandRequirement.expLandReqId,
-                startDate: selectedExp.expectStartDate
-                  ? convertDateToIso(selectedExp.expectStartDate)
-                  : null,
-                endDate: selectedExp.expectEndDate
-                  ? convertDateToIso(selectedExp.expectEndDate, true)
-                  : null,
-              }]
+              landId: selectedLand.landId,
+              allocatedArea: Number(
+                activeLandRequirement.requiredArea || selectedLand.areaSize || 0
+              ),
+              expLandReqId: activeLandRequirement.expLandReqId,
+              startDate: selectedExp.expectStartDate
+                ? convertDateToIso(selectedExp.expectStartDate)
+                : null,
+              endDate: selectedExp.expectEndDate
+                ? convertDateToIso(selectedExp.expectEndDate, true)
+                : null,
+            }]
             : [];
 
         const evaluation = await simulateAllocationPlanFitness({
@@ -3743,7 +4030,7 @@ export default function CreateAllocation() {
           "Simulated for the currently selected resources. This does not save or submit the allocation."
         );
       } catch (
-        evaluationError: any
+      evaluationError: any
       ) {
         console.error(
           "Evaluate allocation fitness failed:",
@@ -3760,16 +4047,16 @@ export default function CreateAllocation() {
           responseData?.title ||
           (
             typeof responseData ===
-            "string"
+              "string"
               ? responseData
               : null
           );
 
         setError(
           backendMessage ||
-            evaluationError
-              ?.message ||
-            "Failed to evaluate Fitness Score."
+          evaluationError
+            ?.message ||
+          "Failed to evaluate Fitness Score."
         );
       } finally {
         setEvaluatingFitness(
@@ -3834,7 +4121,7 @@ export default function CreateAllocation() {
             String(
               approvedSourcePlan
                 .approveStatus ||
-                ""
+              ""
             )
               .trim()
               .toLowerCase() !==
@@ -3920,8 +4207,8 @@ export default function CreateAllocation() {
             `/allocation/${planId}`,
             {
               state: {
-                  message:
-                    `Resources were saved to assignment Draft #${planId}, created from Approved plan #${initialPlanId}.`,
+                message:
+                  `Resources were saved to assignment Draft #${planId}, created from Approved plan #${initialPlanId}.`,
               },
             }
           );
@@ -4043,12 +4330,12 @@ export default function CreateAllocation() {
 
         const responseErrors =
           responseData?.errors &&
-          typeof responseData.errors === "object"
+            typeof responseData.errors === "object"
             ? Object.entries(responseData.errors)
-                .map(([field, messages]) =>
-                  `${field}: ${Array.isArray(messages) ? messages.join(", ") : String(messages)}`
-                )
-                .join("; ")
+              .map(([field, messages]) =>
+                `${field}: ${Array.isArray(messages) ? messages.join(", ") : String(messages)}`
+              )
+              .join("; ")
             : null;
 
         const backendMessage =
@@ -4059,11 +4346,11 @@ export default function CreateAllocation() {
           responseErrors ||
           (
             typeof responseData ===
-            "string"
+              "string"
               ? responseData
-                : responseData && Object.keys(responseData).length > 0
-                  ? JSON.stringify(responseData)
-                  : null
+              : responseData && Object.keys(responseData).length > 0
+                ? JSON.stringify(responseData)
+                : null
           );
 
         console.error("Allocation API failure details:", {
@@ -4074,8 +4361,8 @@ export default function CreateAllocation() {
 
         setError(
           backendMessage ||
-            err?.message ||
-            "Failed to process Allocation Plan. Please check inputs."
+          err?.message ||
+          "Failed to process Allocation Plan. Please check inputs."
         );
       } finally {
         setSubmitting(
@@ -4410,7 +4697,7 @@ export default function CreateAllocation() {
                 </div>
               )}
             </div>
-                        {selectedExp && (
+            {selectedExp && (
               <>
                 {/* =========================================================
                     1. EXPERIMENT PHASES
@@ -4472,9 +4759,8 @@ export default function CreateAllocation() {
                                 phase.experimentPhaseId
                               )
                             }
-                            className={`alloc-phase-tab ${
-                              isSelected ? "active" : ""
-                            }`}
+                            className={`alloc-phase-tab ${isSelected ? "active" : ""
+                              }`}
                           >
                             <span className="alloc-phase-tab-badge">
                               Phase #{phase.phaseOrder ?? 1}
@@ -4492,18 +4778,18 @@ export default function CreateAllocation() {
 
                             {(equipmentCount > 0 ||
                               humanCount > 0) && (
-                              <div
-                                style={{
-                                  marginTop: "3px",
-                                  fontSize: "11px",
-                                  fontWeight: 500,
-                                  color: "#16a34a",
-                                }}
-                              >
-                                {equipmentCount} machines •{" "}
-                                {humanCount} staff
-                              </div>
-                            )}
+                                <div
+                                  style={{
+                                    marginTop: "3px",
+                                    fontSize: "11px",
+                                    fontWeight: 500,
+                                    color: "#16a34a",
+                                  }}
+                                >
+                                  {equipmentCount} machines •{" "}
+                                  {humanCount} staff
+                                </div>
+                              )}
                           </button>
                         );
                       })}
@@ -4610,6 +4896,31 @@ export default function CreateAllocation() {
                         </div>
                       )}
 
+                      {/* Filter Tabs for Equipment */}
+                      <div className="alloc-view-filter-tabs">
+                        <button
+                          type="button"
+                          className={`alloc-view-filter-btn ${equipmentFilterTab === "all" ? "active" : ""}`}
+                          onClick={() => setEquipmentFilterTab("all")}
+                        >
+                          All ({allEquipmentForActivePhase.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`alloc-view-filter-btn ${equipmentFilterTab === "available" ? "active" : ""}`}
+                          onClick={() => setEquipmentFilterTab("available")}
+                        >
+                          Available ({allEquipmentForActivePhase.filter((e) => e.isEligible).length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`alloc-view-filter-btn ${equipmentFilterTab === "unavailable" ? "active warning" : ""}`}
+                          onClick={() => setEquipmentFilterTab("unavailable")}
+                        >
+                          Unavailable ({allEquipmentForActivePhase.filter((e) => !e.isEligible).length})
+                        </button>
+                      </div>
+
                       {activePhaseEquipmentRequirements.length === 0 ? (
                         <p
                           style={{
@@ -4632,8 +4943,7 @@ export default function CreateAllocation() {
                         >
                           Checking equipment availability for this phase&apos;s dates...
                         </p>
-                      ) : primaryEquipmentForActivePhase.length === 0 &&
-                        substituteEquipmentForActivePhase.length === 0 ? (
+                      ) : allEquipmentForActivePhase.length === 0 ? (
                         <p
                           style={{
                             color: "#64748b",
@@ -4641,286 +4951,154 @@ export default function CreateAllocation() {
                             margin: "12px 0",
                           }}
                         >
-                          No available equipment matches this phase&apos;s
-                          requirements.
+                          No equipment found in inventory matching this phase&apos;s requirements.
                         </p>
                       ) : (
-                        <>
-                          <div
-                            style={{
-                              margin: "10px 0 7px",
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              color: "#0f766e",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                            }}
-                          >
-                            Requested Equipment
-                          </div>
+                        <div className="alloc-items-list">
+                          {allEquipmentForActivePhase
+                            .filter((item) => {
+                              if (equipmentFilterTab === "available") return item.isEligible;
+                              if (equipmentFilterTab === "unavailable") return !item.isEligible;
+                              return true;
+                            })
+                            .map(
+                              ({
+                                equipment,
+                                isEligible,
+                                isPrimary,
+                                isSubstitute,
+                                effectiveEfficiency,
+                                unavailabilityReason,
+                              }) => {
+                                const isChecked = (
+                                  selectedEquipByPhase[
+                                  activePhase.experimentPhaseId
+                                  ] || []
+                                ).includes(
+                                  equipment.equipmentInstanceId
+                                );
 
-                          {primaryEquipmentForActivePhase.length === 0 ? (
-                            <p
-                              style={{
-                                color: "#64748b",
-                                fontSize: "12px",
-                                margin: "8px 0 12px",
-                              }}
-                            >
-                              No primary equipment is currently available.
-                            </p>
-                          ) : (
-                            <div className="alloc-items-list">
-                              {primaryEquipmentForActivePhase.map(
-                                (equipment) => {
-                                  const match =
-                                    findEquipmentMatch(
-                                      activePhase.experimentPhaseId,
-                                      equipment
-                                    );
-
-                                  const isChecked = (
-                                    selectedEquipByPhase[
-                                      activePhase.experimentPhaseId
-                                    ] || []
-                                  ).includes(
-                                    equipment.equipmentInstanceId
-                                  );
-
-                                  return (
-                                    <div
-                                      key={
-                                        equipment.equipmentInstanceId
-                                      }
-                                      onClick={() =>
+                                return (
+                                  <div
+                                    key={equipment.equipmentInstanceId}
+                                    onClick={() => {
+                                      if (isEligible) {
                                         handleToggleEquipment(
                                           equipment.equipmentInstanceId
-                                        )
+                                        );
                                       }
-                                      className={`alloc-item-row ${
-                                        isChecked ? "selected" : ""
-                                      }`}
+                                    }}
+                                    className={`alloc-item-row ${isChecked ? "selected" : ""
+                                      } ${!isEligible ? "disabled" : ""}`}
+                                  >
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        gap: "10px",
+                                        flex: 1,
+                                      }}
                                     >
-                                      <div
-                                        style={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                        }}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          readOnly
-                                          className="alloc-item-checkbox"
-                                        />
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        disabled={!isEligible}
+                                        readOnly
+                                        className="alloc-item-checkbox"
+                                        style={{ marginTop: "3px" }}
+                                      />
 
-                                        <div>
-                                          <div
-                                            style={{
-                                              fontSize: "13px",
-                                              color: "#0284c7",
-                                              fontWeight: 550,
-                                            }}
-                                          >
-                                            {equipment.assetCode ||
-                                              `EQ-${equipment.equipmentInstanceId}`}
-                                          </div>
-
-                                          <div
-                                            style={{
-                                              fontSize: "11.5px",
-                                              color: "#64748b",
-                                            }}
-                                          >
-                                            {equipment.equipmentTypeName ||
-                                              `Type #${equipment.equipmentTypeId}`}
-
-                                            {" • "}
-
-                                            {equipment.conditionLevel ||
-                                              "Good"}
-                                          </div>
+                                      <div>
+                                        <div
+                                          style={{
+                                            fontSize: "13px",
+                                            color: isEligible
+                                              ? isSubstitute
+                                                ? "#7c3aed"
+                                                : "#0284c7"
+                                              : "#64748b",
+                                            fontWeight: 550,
+                                          }}
+                                        >
+                                          {equipment.assetCode ||
+                                            `EQ-${equipment.equipmentInstanceId}`}
                                         </div>
-                                      </div>
 
-                                      <div
-                                        style={{
-                                          textAlign: "right",
-                                        }}
-                                      >
+                                        <div
+                                          style={{
+                                            fontSize: "11.5px",
+                                            color: "#64748b",
+                                          }}
+                                        >
+                                          {equipment.equipmentTypeName ||
+                                            `Type #${equipment.equipmentTypeId}`}
+                                          {" • "}
+                                          {equipment.conditionLevel || "Good"}
+                                          {equipment.status !== "Available" &&
+                                            ` • Status: ${equipment.status}`}
+                                        </div>
+
+                                        {!isEligible && unavailabilityReason && (
+                                          <div className="alloc-reason-badge">
+                                            ⚠️ {unavailabilityReason}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      {isPrimary && (
                                         <div
                                           style={{
                                             fontSize: "10.5px",
                                             fontWeight: 700,
-                                            color: "#15803d",
+                                            color: isEligible
+                                              ? "#15803d"
+                                              : "#94a3b8",
                                           }}
                                         >
                                           PRIMARY
                                         </div>
-
-                                        <span
+                                      )}
+                                      {isSubstitute && (
+                                        <div
                                           style={{
-                                            fontSize: "11.5px",
-                                            color: "#16a34a",
+                                            fontSize: "10.5px",
+                                            fontWeight: 700,
+                                            color: isEligible
+                                              ? "#7c3aed"
+                                              : "#94a3b8",
                                           }}
                                         >
-                                          {Math.round(
-                                            (match?.effectiveEfficiency ??
-                                              normalizeEfficiency(
-                                                equipment.efficiencyRate ??
-                                                  1
-                                              )) * 100
-                                          )}
-                                          % Eff.
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                              )}
-                            </div>
-                          )}
-
-                          {activePhaseEquipmentRequirements.some(
-                            (requirement) =>
-                              requirement.allowSubstitute
-                          ) && (
-                            <>
-                              <div
-                                style={{
-                                  margin: "16px 0 7px",
-                                  paddingTop: "12px",
-                                  borderTop:
-                                    "1px dashed #cbd5e1",
-                                  fontSize: "11px",
-                                  fontWeight: 700,
-                                  color: "#7c3aed",
-                                  textTransform: "uppercase",
-                                }}
-                              >
-                                Valid Equipment Substitutions
-                              </div>
-
-                              {substituteEquipmentForActivePhase.length ===
-                              0 ? (
-                                <p
-                                  style={{
-                                    color: "#64748b",
-                                    fontSize: "12px",
-                                  }}
-                                >
-                                  No available substitute equipment meets
-                                  the minimum efficiency requirement.
-                                </p>
-                              ) : (
-                                <div className="alloc-items-list">
-                                  {substituteEquipmentForActivePhase.map(
-                                    ({ equipment, match }) => {
-                                      const isChecked = (
-                                        selectedEquipByPhase[
-                                          activePhase.experimentPhaseId
-                                        ] || []
-                                      ).includes(
-                                        equipment.equipmentInstanceId
-                                      );
-
-                                      return (
-                                        <div
-                                          key={`sub-${equipment.equipmentInstanceId}-${match.requirement.expEquipmentReqId}`}
-                                          onClick={() =>
-                                            handleToggleEquipment(
-                                              equipment.equipmentInstanceId
-                                            )
-                                          }
-                                          className={`alloc-item-row ${
-                                            isChecked
-                                              ? "selected"
-                                              : ""
-                                          }`}
-                                        >
-                                          <div
-                                            style={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                            }}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isChecked}
-                                              readOnly
-                                              className="alloc-item-checkbox"
-                                            />
-
-                                            <div>
-                                              <div
-                                                style={{
-                                                  fontSize: "13px",
-                                                  color: "#7c3aed",
-                                                  fontWeight: 600,
-                                                }}
-                                              >
-                                                {equipment.assetCode ||
-                                                  `EQ-${equipment.equipmentInstanceId}`}
-                                              </div>
-
-                                              <div
-                                                style={{
-                                                  fontSize: "11.5px",
-                                                  color: "#64748b",
-                                                }}
-                                              >
-                                                {equipment.equipmentTypeName ||
-                                                  `Type #${equipment.equipmentTypeId}`}
-
-                                                {" • substitutes for "}
-
-                                                <strong>
-                                                  {match.requirement
-                                                    .equipmentTypeName ||
-                                                    `Type #${match.requirement.equipmentTypeId}`}
-                                                </strong>
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          <div
-                                            style={{
-                                              textAlign: "right",
-                                            }}
-                                          >
-                                            <div
-                                              style={{
-                                                fontSize: "10.5px",
-                                                fontWeight: 700,
-                                                color: "#7c3aed",
-                                              }}
-                                            >
-                                              SUBSTITUTE
-                                            </div>
-
-                                            <div
-                                              style={{
-                                                fontSize: "11.5px",
-                                                fontWeight: 600,
-                                                color: "#7c3aed",
-                                              }}
-                                            >
-                                              {Math.round(
-                                                match.effectiveEfficiency *
-                                                  100
-                                              )}
-                                              % Effective
-                                            </div>
-                                          </div>
+                                          SUBSTITUTE
                                         </div>
-                                      );
-                                    }
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </>
+                                      )}
+                                      <span
+                                        style={{
+                                          fontSize: "11.5px",
+                                          color: isEligible
+                                            ? "#16a34a"
+                                            : "#94a3b8",
+                                        }}
+                                      >
+                                        {Math.round(
+                                          (effectiveEfficiency ||
+                                            normalizeEfficiency(
+                                              equipment.efficiencyRate ?? 1
+                                            )) * 100
+                                        )}
+                                        % Eff.
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            )}
+                        </div>
                       )}
                     </div>
 
@@ -5013,6 +5191,31 @@ export default function CreateAllocation() {
                         </div>
                       )}
 
+                      {/* Filter Tabs for Personnel */}
+                      <div className="alloc-view-filter-tabs">
+                        <button
+                          type="button"
+                          className={`alloc-view-filter-btn ${humanFilterTab === "all" ? "active" : ""}`}
+                          onClick={() => setHumanFilterTab("all")}
+                        >
+                          All ({allHumansForActivePhase.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`alloc-view-filter-btn ${humanFilterTab === "available" ? "active" : ""}`}
+                          onClick={() => setHumanFilterTab("available")}
+                        >
+                          Available ({allHumansForActivePhase.filter((h) => h.isEligible).length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`alloc-view-filter-btn ${humanFilterTab === "unavailable" ? "active warning" : ""}`}
+                          onClick={() => setHumanFilterTab("unavailable")}
+                        >
+                          Unavailable ({allHumansForActivePhase.filter((h) => !h.isEligible).length})
+                        </button>
+                      </div>
+
                       {activePhaseHumanRequirements.length === 0 ? (
                         <p
                           style={{
@@ -5024,7 +5227,7 @@ export default function CreateAllocation() {
                           No personnel requirement is configured for this
                           phase.
                         </p>
-                      ) : filteredHumansForActivePhase.length === 0 ? (
+                      ) : allHumansForActivePhase.length === 0 ? (
                         <p
                           style={{
                             color: "#64748b",
@@ -5032,63 +5235,144 @@ export default function CreateAllocation() {
                             margin: "12px 0",
                           }}
                         >
-                          No available personnel matches this phase&apos;s
-                          role, skill and working-hour requirements.
+                          No personnel found matching this phase&apos;s role requirements.
                         </p>
                       ) : (
                         <div className="alloc-items-list">
-                          {filteredHumansForActivePhase.map(
-                            (human) => {
-                              const isChecked = (
-                                selectedHumansByPhase[
-                                  activePhase.experimentPhaseId
-                                ] || []
-                              ).includes(
-                                human.humanResourceId
-                              );
+                          {allHumansForActivePhase
+                            .filter((item) => {
+                              if (humanFilterTab === "available") return item.isEligible;
+                              if (humanFilterTab === "unavailable") return !item.isEligible;
+                              return true;
+                            })
+                            .map(
+                              ({
+                                human,
+                                isEligible,
+                                matchedSkill,
+                                unavailabilityReason,
+                              }) => {
+                                const phaseId =
+                                  activePhase.experimentPhaseId;
 
-                              const match =
-                                findHumanMatch(
-                                  activePhase.experimentPhaseId,
-                                  human
+                                const isChecked = (
+                                  selectedHumansByPhase[
+                                  phaseId
+                                  ] || []
+                                ).includes(
+                                  human.humanResourceId
                                 );
 
-                              return (
-                                <div
-                                  key={
-                                    human.humanResourceId
-                                  }
-                                  onClick={() => {
-                                    const phaseId =
-                                      activePhase.experimentPhaseId;
+                                const match =
+                                  findHumanMatch(
+                                    phaseId,
+                                    human
+                                  );
 
-                                    const current =
-                                      selectedHumansByPhase[
+                                return (
+                                  <div
+                                    key={human.humanResourceId}
+                                    onClick={() => {
+                                      if (!isEligible) return;
+
+                                      const current =
+                                        selectedHumansByPhase[
                                         phaseId
-                                      ] || [];
+                                        ] || [];
 
-                                    /*
-                                     * Unselect personnel.
-                                     */
-                                    if (
-                                      current.includes(
-                                        human.humanResourceId
-                                      )
-                                    ) {
-                                      setSelectedHumansByPhase(
-                                        (previous) => ({
-                                          ...previous,
-
-                                          [phaseId]:
-                                            (
+                                      /*
+                                       * Unselect personnel.
+                                       */
+                                      if (
+                                        current.includes(
+                                          human.humanResourceId
+                                        )
+                                      ) {
+                                        setSelectedHumansByPhase(
+                                          (previous) => ({
+                                            ...previous,
+                                            [phaseId]: (
                                               previous[
-                                                phaseId
+                                              phaseId
                                               ] || []
                                             ).filter(
                                               (id) =>
                                                 id !==
                                                 human.humanResourceId
                                             ),
+                                          })
+                                        );
+
+                                        setFitnessScore(null);
+                                        setFitnessBreakdown(null);
+                                        setFitnessEvaluationMessage("");
+                                        setAllocationDetailsSaved(false);
+                                        return;
+                                      }
+
+                                      if (!match) {
+                                        setError(
+                                          "This person does not satisfy the selected phase personnel requirement."
+                                        );
+                                        return;
+                                      }
+
+                                      /*
+                                       * Enforce quantity of the matched
+                                       * personnel requirement.
+                                       */
+                                      const selectedForRequirement =
+                                        current.filter(
+                                          (selectedHumanId) => {
+                                            const selectedHuman =
+                                              humanProfiles.find(
+                                                (item) =>
+                                                  item.humanResourceId ===
+                                                  selectedHumanId
+                                              );
+                                            if (!selectedHuman) return false;
+                                            const selectedMatch =
+                                              findHumanMatch(
+                                                phaseId,
+                                                selectedHuman
+                                              );
+                                            return (
+                                              selectedMatch?.requirement
+                                                .expHumanReqId ===
+                                              match.requirement
+                                                .expHumanReqId
+                                            );
+                                          }
+                                        ).length;
+
+                                      const requiredQuantity =
+                                        Math.max(
+                                          0,
+                                          Number(
+                                            match.requirement.quantity || 0
+                                          )
+                                        );
+
+                                      if (
+                                        requiredQuantity > 0 &&
+                                        selectedForRequirement >=
+                                        requiredQuantity
+                                      ) {
+                                        setError(
+                                          `Requirement "${match.requirement.roleName ||
+                                          `Role #${match.requirement.roleId}`
+                                          }" requires only ${requiredQuantity} person(s).`
+                                        );
+                                        return;
+                                      }
+
+                                      setSelectedHumansByPhase(
+                                        (previous) => ({
+                                          ...previous,
+                                          [phaseId]: [
+                                            ...(previous[phaseId] || []),
+                                            human.humanResourceId,
+                                          ],
                                         })
                                       );
 
@@ -5096,218 +5380,137 @@ export default function CreateAllocation() {
                                       setFitnessBreakdown(null);
                                       setFitnessEvaluationMessage("");
                                       setAllocationDetailsSaved(false);
-
-                                      return;
-                                    }
-
-                                    if (!match) {
-                                      setError(
-                                        "This person does not satisfy the selected phase personnel requirement."
-                                      );
-
-                                      return;
-                                    }
-
-                                    /*
-                                     * Enforce quantity of the matched
-                                     * personnel requirement.
-                                     */
-                                    const selectedForRequirement =
-                                      current.filter(
-                                        (selectedHumanId) => {
-                                          const selectedHuman =
-                                            humanProfiles.find(
-                                              (item) =>
-                                                item.humanResourceId ===
-                                                selectedHumanId
-                                            );
-
-                                          if (!selectedHuman) {
-                                            return false;
-                                          }
-
-                                          const selectedMatch =
-                                            findHumanMatch(
-                                              phaseId,
-                                              selectedHuman
-                                            );
-
-                                          return (
-                                            selectedMatch?.requirement
-                                              .expHumanReqId ===
-                                            match.requirement
-                                              .expHumanReqId
-                                          );
-                                        }
-                                      ).length;
-
-                                    const requiredQuantity =
-                                      Math.max(
-                                        0,
-                                        Number(
-                                          match.requirement.quantity ||
-                                            0
-                                        )
-                                      );
-
-                                    if (
-                                      requiredQuantity > 0 &&
-                                      selectedForRequirement >=
-                                        requiredQuantity
-                                    ) {
-                                      setError(
-                                        `Requirement "${
-                                          match.requirement.roleName ||
-                                          `Role #${match.requirement.roleId}`
-                                        }" requires only ${requiredQuantity} person(s).`
-                                      );
-
-                                      return;
-                                    }
-
-                                    setSelectedHumansByPhase(
-                                      (previous) => ({
-                                        ...previous,
-
-                                        [phaseId]: [
-                                          ...(
-                                            previous[
-                                              phaseId
-                                            ] || []
-                                          ),
-                                          human.humanResourceId,
-                                        ],
-                                      })
-                                    );
-
-                                    setFitnessScore(null);
-                                    setFitnessBreakdown(null);
-                                    setFitnessEvaluationMessage("");
-                                    setAllocationDetailsSaved(false);
-                                    setError("");
-                                  }}
-                                  className={`alloc-item-row ${
-                                    isChecked ? "selected" : ""
-                                  }`}
-                                >
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
+                                      setError("");
                                     }}
+                                    className={`alloc-item-row ${isChecked ? "selected" : ""
+                                      } ${!isEligible ? "disabled" : ""}`}
                                   >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      readOnly
-                                      className="alloc-item-checkbox"
-                                    />
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        gap: "10px",
+                                        flex: 1,
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        disabled={!isEligible}
+                                        readOnly
+                                        className="alloc-item-checkbox"
+                                        style={{ marginTop: "3px" }}
+                                      />
 
-                                    <div>
-                                      <div
-                                        style={{
-                                          fontSize: "13px",
-                                          color: "#1e293b",
-                                          fontWeight: 550,
-                                        }}
-                                      >
-                                        {human.fullName ||
-                                          `Staff #${
-                                            human.userId ||
-                                            human.humanResourceId
-                                          }`}
-                                      </div>
-
-                                      <div
-                                        style={{
-                                          fontSize: "11.5px",
-                                          color: "#64748b",
-                                        }}
-                                      >
-                                        <span
-                                          style={{
-                                            fontWeight: 500,
-                                            color: "#7e22ce",
-                                            marginRight: "6px",
-                                          }}
-                                        >
-                                          {human.roleName ||
-                                            `Role #${
-                                              human.roleId ?? "-"
-                                            }`}
-                                        </span>
-
-                                        •{" "}
-                                        {human.maxWorkingHoursPerDay ??
-                                          0}{" "}
-                                        hrs/day
-                                      </div>
-
-                                      {isChecked && (
+                                      <div>
                                         <div
                                           style={{
-                                            marginTop: "3px",
-                                            fontSize: "10.5px",
-                                            color: "#15803d",
-                                            fontWeight: 600,
+                                            fontSize: "13px",
+                                            color: isEligible
+                                              ? "#1e293b"
+                                              : "#64748b",
+                                            fontWeight: 550,
                                           }}
                                         >
-                                          Allocated to this phase.
-                                          Schedule will be assigned by
-                                          Researcher later.
+                                          {human.fullName ||
+                                            `Staff #${human.userId ||
+                                            human.humanResourceId
+                                            }`}
                                         </div>
-                                      )}
-                                    </div>
-                                  </div>
 
-                                  <div
-                                    style={{
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    {match?.matchedSkill ? (
-                                      <>
                                         <div
                                           style={{
                                             fontSize: "11.5px",
-                                            color: "#0369a1",
+                                            color: "#64748b",
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              fontWeight: 500,
+                                              color: isEligible
+                                                ? "#7e22ce"
+                                                : "#64748b",
+                                              marginRight: "6px",
+                                            }}
+                                          >
+                                            {human.roleName ||
+                                              `Role #${human.roleId ?? "-"
+                                              }`}
+                                          </span>
+                                          •{" "}
+                                          {human.maxWorkingHoursPerDay ?? 0}{" "}
+                                          hrs/day
+                                        </div>
+
+                                        {!isEligible && unavailabilityReason && (
+                                          <div className="alloc-reason-badge">
+                                            ⚠️ {unavailabilityReason}
+                                          </div>
+                                        )}
+
+                                        {isChecked && (
+                                          <div
+                                            style={{
+                                              marginTop: "3px",
+                                              fontSize: "10.5px",
+                                              color: "#15803d",
+                                              fontWeight: 600,
+                                            }}
+                                          >
+                                            Allocated to this phase.
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      {matchedSkill ? (
+                                        <>
+                                          <div
+                                            style={{
+                                              fontSize: "11.5px",
+                                              color: "#0369a1",
+                                              fontWeight: 600,
+                                            }}
+                                          >
+                                            {matchedSkill.skillName ||
+                                              `Skill #${matchedSkill.skillId}`}
+                                          </div>
+
+                                          <div
+                                            style={{
+                                              fontSize: "10.5px",
+                                              color: "#64748b",
+                                              marginTop: "2px",
+                                            }}
+                                          >
+                                            {matchedSkill.skillLevel}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <span
+                                          style={{
+                                            fontSize: "11px",
+                                            color: isEligible
+                                              ? "#16a34a"
+                                              : "#94a3b8",
                                             fontWeight: 600,
                                           }}
                                         >
-                                          {match.matchedSkill
-                                            .skillName ||
-                                            `Skill #${match.matchedSkill.skillId}`}
-                                        </div>
-
-                                        <div
-                                          style={{
-                                            fontSize: "10.5px",
-                                            color: "#64748b",
-                                            marginTop: "2px",
-                                          }}
-                                        >
-                                          {
-                                            match.matchedSkill
-                                              .skillLevel
-                                          }
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <span
-                                        style={{
-                                          fontSize: "11px",
-                                          color: "#16a34a",
-                                          fontWeight: 600,
-                                        }}
-                                      >
-                                        Role Match
-                                      </span>
-                                    )}
+                                          {isEligible
+                                            ? "ROLE MATCHED"
+                                            : "UNAVAILABLE"}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            }
-                          )}
+                                );
+                              }
+                            )}
                         </div>
                       )}
                     </div>
@@ -5400,6 +5603,33 @@ export default function CreateAllocation() {
                     </div>
                   )}
 
+                  {/* Filter Tabs for Land */}
+                  {activeLandRequirement && (
+                    <div className="alloc-view-filter-tabs">
+                      <button
+                        type="button"
+                        className={`alloc-view-filter-btn ${landFilterTab === "all" ? "active" : ""}`}
+                        onClick={() => setLandFilterTab("all")}
+                      >
+                        All ({allLandForExperiment.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`alloc-view-filter-btn ${landFilterTab === "available" ? "active" : ""}`}
+                        onClick={() => setLandFilterTab("available")}
+                      >
+                        Available ({allLandForExperiment.filter((l) => l.isEligible).length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`alloc-view-filter-btn ${landFilterTab === "unavailable" ? "active warning" : ""}`}
+                        onClick={() => setLandFilterTab("unavailable")}
+                      >
+                        Unavailable ({allLandForExperiment.filter((l) => !l.isEligible).length})
+                      </button>
+                    </div>
+                  )}
+
                   {!activeLandRequirement ? (
                     <p
                       style={{
@@ -5419,104 +5649,211 @@ export default function CreateAllocation() {
                     >
                       Checking land availability for the experiment dates...
                     </p>
-                  ) : filteredLandResources.length === 0 ? (
+                  ) : allLandForExperiment.length === 0 ? (
                     <p
                       style={{
                         color: "#64748b",
                         fontSize: "12.5px",
                       }}
                     >
-                      No available land plot matches the required soil
-                      type and area.
+                      No land plot found in inventory matching required soil type:{" "}
+                      <strong>{activeLandRequirement.requiredSoilType || "Any"}</strong>.
                     </p>
                   ) : (
                     <div
                       style={{
                         display: "grid",
                         gridTemplateColumns:
-                          "repeat(auto-fill, minmax(280px, 1fr))",
-                        gap: "10px",
+                          "repeat(auto-fill, minmax(320px, 1fr))",
+                        gap: "16px",
+                        marginTop: "12px",
                       }}
                     >
-                      {filteredLandResources.map((land) => {
-                        const isSelected =
-                          selectedLandId === land.landId;
+                      {allLandForExperiment
+                        .filter((item) => {
+                          if (landFilterTab === "available") return item.isEligible;
+                          if (landFilterTab === "unavailable") return !item.isEligible;
+                          return true;
+                        })
+                        .map(({ land, isEligible, unavailabilityReason }) => {
+                          const isSelected =
+                            selectedLandId === land.landId;
 
-                        const requiredArea =
-                          Number(
-                            activeLandRequirement.requiredArea
-                          ) || 0;
+                          const requiredArea =
+                            Number(
+                              activeLandRequirement.requiredArea
+                            ) || 0;
 
-                        const landArea =
-                          Number(land.areaSize) || 0;
+                          const landArea =
+                            Number(land.areaSize) || 0;
 
-                        const extraArea =
-                          Math.max(
-                            0,
-                            landArea - requiredArea
-                          );
+                          const extraArea =
+                            Math.max(
+                              0,
+                              landArea - requiredArea
+                            );
 
-                        return (
-                          <div
-                            key={land.landId}
-                            onClick={() =>
-                              handleSelectLand(
-                                land.landId
-                              )
-                            }
-                            className={`alloc-land-row ${
-                              isSelected ? "selected" : ""
-                            }`}
-                          >
+                          return (
                             <div
+                              key={land.landId}
+                              onClick={() => {
+                                if (isEligible) {
+                                  handleSelectLand(
+                                    land.landId
+                                  );
+                                }
+                              }}
+                              className={`alloc-land-row ${
+                                isSelected ? "selected" : ""
+                              } ${!isEligible ? "disabled" : ""}`}
                               style={{
                                 display: "flex",
-                                alignItems: "center",
+                                flexDirection: "column",
+                                justifyContent: "space-between",
+                                padding: "16px 18px",
+                                borderRadius: "12px",
+                                border: isSelected
+                                  ? "1.5px solid #16a34a"
+                                  : isEligible
+                                  ? "1.5px solid #e2e8f0"
+                                  : "1.5px solid #f1f5f9",
+                                background: isSelected
+                                  ? "#f0fdf4"
+                                  : isEligible
+                                  ? "#ffffff"
+                                  : "#fafafa",
+                                cursor: isEligible ? "pointer" : "not-allowed",
+                                opacity: isEligible ? 1 : 0.88,
+                                transition: "all 0.18s ease",
+                                boxShadow: isSelected
+                                  ? "0 4px 14px rgba(22, 163, 74, 0.12)"
+                                  : "0 1px 3px rgba(15, 23, 42, 0.04)",
+                                minHeight: "115px",
+                                boxSizing: "border-box",
                               }}
                             >
-                              <input
-                                type="radio"
-                                name="land-radio-selection"
-                                checked={isSelected}
-                                readOnly
-                                className="alloc-land-radio"
-                              />
-
-                              <div>
+                              {/* Top Row: Title + Radio (left) and Status Badge (right) */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: "12px",
+                                  marginBottom: "8px",
+                                }}
+                              >
                                 <div
                                   style={{
-                                    fontSize: "13px",
-                                    color: "#15803d",
-                                    fontWeight: 600,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "10px",
+                                    minWidth: 0,
+                                    flex: 1,
                                   }}
                                 >
-                                  {land.landCode ||
-                                    `Plot #${land.landId}`}
+                                  <input
+                                    type="radio"
+                                    name="land-radio-selection"
+                                    checked={isSelected}
+                                    disabled={!isEligible}
+                                    readOnly
+                                    className="alloc-land-radio"
+                                    style={{
+                                      width: "16px",
+                                      height: "16px",
+                                      accentColor: "#16a34a",
+                                      margin: 0,
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                  <span
+                                    style={{
+                                      fontSize: "14px",
+                                      fontWeight: 700,
+                                      color: isSelected
+                                        ? "#15803d"
+                                        : isEligible
+                                        ? "#0f172a"
+                                        : "#475569",
+                                      letterSpacing: "-0.01em",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                    }}
+                                  >
+                                    {land.landCode ||
+                                      `Plot #${land.landId}`}
+                                  </span>
                                 </div>
 
+                                <div style={{ flexShrink: 0 }}>
+                                  {isEligible ? (
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        padding: "3px 9px",
+                                        borderRadius: "6px",
+                                        background: "#f0fdf4",
+                                        color: "#15803d",
+                                        fontSize: "11.5px",
+                                        fontWeight: 650,
+                                        border: "1px solid #bbf7d0",
+                                      }}
+                                    >
+                                      Available
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        padding: "3px 9px",
+                                        borderRadius: "6px",
+                                        background: "#fef2f2",
+                                        color: "#dc2626",
+                                        fontSize: "11.5px",
+                                        fontWeight: 650,
+                                        border: "1px solid #fecaca",
+                                      }}
+                                    >
+                                      Unavailable
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Middle: Details */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "3px",
+                                  paddingLeft: "26px",
+                                  flex: 1,
+                                }}
+                              >
                                 <div
                                   style={{
-                                    fontSize: "11.5px",
-                                    color: "#64748b",
-                                    marginTop: "2px",
+                                    fontSize: "12.5px",
+                                    color: "#475569",
+                                    fontWeight: 500,
                                   }}
                                 >
                                   {land.soilType ||
-                                    "Unknown Soil"}
-
-                                  {" • "}
-
+                                    "Unknown Soil"}{" "}
+                                  •{" "}
                                   {land.areaSize?.toLocaleString() ||
                                     "-"}{" "}
                                   m²
                                 </div>
 
-                                {extraArea > 0 && (
+                                {isEligible && extraArea > 0 && (
                                   <div
                                     style={{
-                                      marginTop: "3px",
-                                      fontSize: "10.5px",
-                                      color: "#64748b",
+                                      fontSize: "11px",
+                                      color: "#16a34a",
+                                      fontWeight: 600,
                                     }}
                                   >
                                     +
@@ -5525,14 +5862,43 @@ export default function CreateAllocation() {
                                   </div>
                                 )}
                               </div>
-                            </div>
 
-                            <span className="badge-available">
-                              Available
-                            </span>
-                          </div>
-                        );
-                      })}
+                              {/* Bottom: Warning Box (if ineligible) */}
+                              {!isEligible && unavailabilityReason && (
+                                <div
+                                  style={{
+                                    marginTop: "10px",
+                                    paddingLeft: "26px",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "flex-start",
+                                      gap: "6px",
+                                      padding: "6px 10px",
+                                      borderRadius: "6px",
+                                      background: "#fef2f2",
+                                      color: "#b91c1c",
+                                      border: "1px solid #fecaca",
+                                      fontSize: "11.5px",
+                                      fontWeight: 550,
+                                      lineHeight: 1.4,
+                                      wordBreak: "break-word",
+                                    }}
+                                  >
+                                    <span style={{ flexShrink: 0 }}>
+                                      ⚠️
+                                    </span>
+                                    <span>
+                                      {unavailabilityReason}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   )}
                 </div>
@@ -5565,11 +5931,11 @@ export default function CreateAllocation() {
                     <strong>
                       {selectedLandId
                         ? landResources.find(
-                            (land) =>
-                              land.landId ===
-                              selectedLandId
-                          )?.landCode ||
-                          "Selected (1)"
+                          (land) =>
+                            land.landId ===
+                            selectedLandId
+                        )?.landCode ||
+                        "Selected (1)"
                         : "None (0/1)"}
                     </strong>
                   </div>

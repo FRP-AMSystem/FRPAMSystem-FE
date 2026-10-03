@@ -440,7 +440,7 @@ export default function LandResourceList() {
                             {paginatedItemsList.map((item) => {
                                 const status = effectiveStatuses.get(item.landId) || item.status;
 
-                                return <tr key={item.landId}><td><strong>{item.landCode}</strong></td><td>{item.areaName || `Area #${item.areaId}`}</td><td>{item.areaSize.toLocaleString("vi-VN")} ha</td><td>{item.location || "-"}</td><td>{item.soilType}</td><td><span className={statusClass(status)}>{status === "InUse" ? "In Use" : status}</span></td><td><div className="land-resource-actions">{canManage ? <><button type="button" className="action-btn-pill edit" title="Edit" onClick={() => openEdit(item)}><Pencil size={12} /><span>Edit</span></button><button type="button" className="action-btn-pill delete" disabled={deletingId === item.landId} title="Delete" onClick={() => void handleDelete(item)}><Trash2 size={12} /><span>Delete</span></button></> : <span>View only</span>}</div></td></tr>;
+                                return <tr key={item.landId}><td><strong>{item.landCode}</strong></td><td>{item.areaName || `Area #${item.areaId}`}</td><td>{item.areaSize.toLocaleString("vi-VN")} m²</td><td>{item.location || "-"}</td><td>{item.soilType}</td><td><span className={statusClass(status)}>{status === "InUse" ? "In Use" : status}</span></td><td><div className="land-resource-actions">{canManage ? <><button type="button" className="action-btn-pill edit" title="Edit" onClick={() => openEdit(item)}><Pencil size={12} /><span>Edit</span></button><button type="button" className="action-btn-pill delete" disabled={deletingId === item.landId} title="Delete" onClick={() => void handleDelete(item)}><Trash2 size={12} /><span>Delete</span></button></> : <span>View only</span>}</div></td></tr>;
                             })}
                         </tbody></table>
 
@@ -453,7 +453,7 @@ export default function LandResourceList() {
                     <div className="land-resource-form-grid">
                         <label>Area<select value={form.areaId} onChange={(event) => setForm((current) => ({ ...current, areaId: event.target.value }))} disabled={saving} required><option value="">Select area</option>{areas.map((area) => <option key={area.areaId} value={area.areaId}>{area.areaName}</option>)}</select></label>
                         <label>Land code<input value={form.landCode} onChange={(event) => setForm((current) => ({ ...current, landCode: event.target.value }))} disabled={saving} required /></label>
-                        <label>Area size (ha)<input type="number" min="0.01" step="0.01" value={form.areaSize} onChange={(event) => setForm((current) => ({ ...current, areaSize: event.target.value }))} disabled={saving} required /></label>
+                        <label>Area size (m²)<input type="number" min="0.01" step="0.01" value={form.areaSize} onChange={(event) => setForm((current) => ({ ...current, areaSize: event.target.value }))} disabled={saving} required /></label>
                         <label>
                             Soil type
                             <input

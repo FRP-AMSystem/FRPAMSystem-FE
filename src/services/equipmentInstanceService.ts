@@ -110,16 +110,16 @@ function normalizeEquipmentInstance(
 
   const totalUsageHours = Number(
     item.totalUsageHours ??
-      item.usageHours ??
-      0
+    item.usageHours ??
+    0
   );
 
   return {
     equipmentInstanceId: Number(
       item.equipmentInstanceId ??
-        item.instanceId ??
-        item.id ??
-        0
+      item.instanceId ??
+      item.id ??
+      0
     ),
 
     equipmentTypeId: Number(
@@ -152,7 +152,7 @@ function normalizeEquipmentInstance(
     usageHoursSinceMaintenance:
       Number(
         item.usageHoursSinceMaintenance ??
-          0
+        0
       ),
 
     nextMaintenanceDate:
@@ -163,7 +163,7 @@ function normalizeEquipmentInstance(
     conditionLevel:
       normalizeCondition(
         item.conditionLevel ??
-          item.condition
+        item.condition
       ),
 
     status:
@@ -173,11 +173,11 @@ function normalizeEquipmentInstance(
 
     effectiveMaintenanceIntervalHours:
       item.effectiveMaintenanceIntervalHours === null ||
-      item.effectiveMaintenanceIntervalHours === undefined
+        item.effectiveMaintenanceIntervalHours === undefined
         ? null
         : Number(
-            item.effectiveMaintenanceIntervalHours
-          ),
+          item.effectiveMaintenanceIntervalHours
+        ),
 
     maintenanceCount:
       Number(
@@ -191,11 +191,11 @@ function normalizeEquipmentInstance(
 
     assignedToUserId:
       item.assignedToUserId === null ||
-      item.assignedToUserId === undefined
+        item.assignedToUserId === undefined
         ? null
         : Number(
-            item.assignedToUserId
-          ),
+          item.assignedToUserId
+        ),
 
     assignedToUserName:
       normalizeNullableString(
@@ -220,8 +220,8 @@ function normalizeEquipmentInstance(
     receivedCondition:
       item.receivedCondition
         ? normalizeCondition(
-            item.receivedCondition
-          )
+          item.receivedCondition
+        )
         : null,
 
     createdAt:
@@ -300,8 +300,8 @@ function toApiPayload(
     totalUsageHours:
       Number(
         payload.totalUsageHours ??
-          payload.usageHours ??
-          0
+        payload.usageHours ??
+        0
       ),
 
     lastMaintenanceDate:
@@ -311,7 +311,7 @@ function toApiPayload(
     usageHoursSinceMaintenance:
       Number(
         payload.usageHoursSinceMaintenance ??
-          0
+        0
       ),
 
     nextMaintenanceDate:
@@ -331,7 +331,7 @@ function toApiPayload(
     maintenanceCount:
       Number(
         payload.maintenanceCount ??
-          0
+        0
       ),
 
     note:
@@ -396,9 +396,9 @@ export async function getAvailableEquipmentInstances(
   return instances.filter(
     (instance) =>
       instance.equipmentTypeId ===
-        equipmentTypeId &&
+      equipmentTypeId &&
       instance.status ===
-        "Available"
+      "Available"
   );
 }
 

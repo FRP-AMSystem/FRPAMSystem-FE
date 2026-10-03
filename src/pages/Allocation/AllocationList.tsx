@@ -175,9 +175,11 @@ export default function AllocationList() {
         size: 100,
       });
 
-      // Filter on client as well to ensure strict researcher scoping
+      // Filter on client as well: Manager/Admin only see non-draft plans
       const userPlans = privileged
-        ? data
+        ? data.filter(
+            (plan) => (plan.approveStatus || "").toLowerCase() !== "draft"
+          )
         : data.filter((plan) => {
             if (userId > 0 && plan.createdBy === userId) return true;
             if (
@@ -203,10 +205,22 @@ export default function AllocationList() {
     void fetchPlans();
   }, [fetchPlans]);
 
+  const availableStatusOptions = useMemo(() => {
+    if (isPrivileged) {
+      return statusOptions.filter((s) => s !== "Draft");
+    }
+    return statusOptions;
+  }, [isPrivileged]);
+
   const filteredPlans = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
 
     return plans.filter((plan) => {
+      const isDraft = (plan.approveStatus || "").toLowerCase() === "draft";
+      if (isPrivileged && isDraft) {
+        return false;
+      }
+
       const matchesSearch =
         !normalizedSearchTerm ||
         plan.experimentName?.toLowerCase().includes(normalizedSearchTerm);
@@ -216,7 +230,7 @@ export default function AllocationList() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [plans, searchTerm, statusFilter]);
+  }, [plans, searchTerm, statusFilter, isPrivileged]);
 
   const runPlanAction = async (
     id: number,
@@ -328,7 +342,7 @@ export default function AllocationList() {
               setStatusFilter(event.target.value as StatusFilter)
             }
           >
-            {statusOptions.map((status) => (
+            {availableStatusOptions.map((status) => (
               <option key={status} value={status}>
                 {status === "All" ? "All Status" : status}
               </option>

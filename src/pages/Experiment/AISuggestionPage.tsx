@@ -74,6 +74,9 @@ import type {
 } from "../../types/aiSuggestion";
 import { getCurrentUserTokenInfo } from "../../utils/storage";
 
+import AIFitnessScoreBreakdown from "./components/AIFitnessScoreBreakdown";
+import AIConstraintReportCard from "./components/AIConstraintReportCard";
+
 import "./AISuggestionPage.css";
 
 import { usePopup } from "../../context/PopupContext";
@@ -2269,7 +2272,7 @@ export default function AISuggestionPage() {
                         className="val"
                         style={{ color: selectedPlan.penaltyScore < 0 ? "#dc2626" : "#0f172a" }}
                       >
-                        {selectedPlan.penaltyScore}
+                        {selectedPlan.penaltyScore !== 0 ? Number(selectedPlan.penaltyScore.toFixed(2)) : 0}
                       </div>
                     </div>
 
@@ -2279,7 +2282,7 @@ export default function AISuggestionPage() {
                     >
                       <div className="label">BONUS POINTS</div>
                       <div className="val" style={{ color: "#16a34a" }}>
-                        +{selectedPlan.bonusScore}
+                        +{Number(selectedPlan.bonusScore.toFixed(2))}
                       </div>
                     </div>
 
@@ -2348,119 +2351,21 @@ export default function AISuggestionPage() {
                 <div className="ai-workspace-body">
                   {/* TAB 1: OVERVIEW */}
                   {activeTab === "overview" && (
-                    <div>
-                      {/* 4-Pillar Score Meters */}
-                      <div className="ai-scores-grid">
-                        <div className="ai-score-card">
-                          <div className="ai-score-header">
-                            <span>Land Compatibility</span>
-                            <span style={{ color: "#16a34a", fontWeight: 650 }}>
-                              {selectedPlan.fitnessBreakdown?.landScore ?? 0}/100
-                            </span>
-                          </div>
-                          <div className="ai-progress-bar-bg">
-                            <div
-                              className="ai-progress-bar-fill"
-                              style={{
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.landScore ?? 0)}%`,
-                                background: "#16a34a",
-                              }}
-                            />
-                          </div>
-                        </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                      {/* Fitness Score Breakdown & Radar Visualization */}
+                      <AIFitnessScoreBreakdown
+                        breakdown={selectedPlan.fitnessBreakdown}
+                        fitnessScore={selectedPlan.fitnessScore}
+                        penaltyScore={selectedPlan.penaltyScore}
+                        bonusScore={selectedPlan.bonusScore}
+                        experimentPhases={selectedPlan.experimentPhases}
+                      />
 
-                        <div className="ai-score-card">
-                          <div className="ai-score-header">
-                            <span>Human Workload</span>
-                            <span style={{ color: "#7c3aed", fontWeight: 650 }}>
-                              {selectedPlan.fitnessBreakdown?.humanScore ?? 0}/100
-                            </span>
-                          </div>
-                          <div className="ai-progress-bar-bg">
-                            <div
-                              className="ai-progress-bar-fill"
-                              style={{
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.humanScore ?? 0)}%`,
-                                background: "#7c3aed",
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="ai-score-card">
-                          <div className="ai-score-header">
-                            <span>Equipment Utilization</span>
-                            <span style={{ color: "#0284c7", fontWeight: 650 }}>
-                              {selectedPlan.fitnessBreakdown?.equipmentScore?.toFixed(1) ?? 0}/100
-                            </span>
-                          </div>
-                          <div className="ai-progress-bar-bg">
-                            <div
-                              className="ai-progress-bar-fill"
-                              style={{
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.equipmentScore ?? 0)}%`,
-                                background: "#0284c7",
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="ai-score-card">
-                          <div className="ai-score-header">
-                            <span>Schedule Efficiency</span>
-                            <span style={{ color: "#d97706", fontWeight: 650 }}>
-                              {selectedPlan.fitnessBreakdown?.scheduleScore?.toFixed(1) ?? 0}/100
-                            </span>
-                          </div>
-                          <div className="ai-progress-bar-bg">
-                            <div
-                              className="ai-progress-bar-fill"
-                              style={{
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.scheduleScore ?? 0)}%`,
-                                background: "#d97706",
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Advantages vs Potential Bottlenecks */}
-                      <div className="ai-insights-grid">
-                        <div className="ai-insight-box advantages">
-                          <h3>Advantages & Strengths</h3>
-                          {selectedPlan.advantages && selectedPlan.advantages.length > 0 ? (
-                            <ul>
-                              {selectedPlan.advantages.map((adv, idx) => (
-                                <li key={idx}>{adv}</li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p style={{ margin: 0, fontSize: "13px", color: "#166534" }}>
-                              Candidate generated from available resources and requirements.
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="ai-insight-box warnings">
-                          <h3>Potential Bottlenecks ({selectedPlan.conflictCount})</h3>
-                          {selectedPlan.disadvantages && selectedPlan.disadvantages.length > 0 ? (
-                            <ul>
-                              {selectedPlan.disadvantages.slice(0, 5).map((dis, idx) => (
-                                <li key={idx}>{dis}</li>
-                              ))}
-                              {selectedPlan.disadvantages.length > 5 && (
-                                <li style={{ fontWeight: 700, color: "#b45309" }}>
-                                  +{selectedPlan.disadvantages.length - 5} more warnings in Warnings Tab
-                                </li>
-                              )}
-                            </ul>
-                          ) : (
-                            <p style={{ margin: 0, fontSize: "13px", color: "#15803d", fontWeight: 700 }}>
-                              No hard constraint conflicts detected.
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                      {/* Constraint Evaluation Report */}
+                      <AIConstraintReportCard
+                        constraintReport={selectedPlan.constraintReport}
+                        conflictCount={selectedPlan.conflictCount}
+                      />
 
                       {/* Timeline Execution List */}
                       <div>

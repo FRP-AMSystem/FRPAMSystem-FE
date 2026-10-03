@@ -34,14 +34,15 @@ function formatDate(value?: string | null): string {
 
 function formatFitnessScore(value?: number | null): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
-    return "-";
+    return "0/100";
   }
 
-  const percentage = value <= 1 ? value * 100 : value;
+  const score = value <= 1 ? value * 100 : value;
+  const formattedScore = Math.min(100, Math.max(0, score)).toFixed(
+    score % 1 === 0 ? 0 : 1
+  );
 
-  return `${Math.min(100, Math.max(0, percentage)).toFixed(
-    percentage % 1 === 0 ? 0 : 1
-  )}%`;
+  return `${formattedScore}/100`;
 }
 
 function getStatusLabel(status: AllocationPlanStatus): string {

@@ -16,7 +16,10 @@ import {
   Info,
 } from "lucide-react";
 import type { AISuggestionPlan } from "../../../types/aiSuggestion";
+import AIFitnessScoreBreakdown from "./AIFitnessScoreBreakdown";
+import AIConstraintReportCard from "./AIConstraintReportCard";
 import "../PlanningWizard.css";
+import "../AISuggestionPage.css";
 
 interface AISuggestionListProps {
   suggestions: AISuggestionPlan[];
@@ -365,7 +368,7 @@ export const AISuggestionList: React.FC<AISuggestionListProps> = ({
                     >
                       <div style={{ color: "#64748b", fontSize: "10.5px", fontWeight: 650 }}>PENALTY</div>
                       <div style={{ fontWeight: 800, color: selectedPlan.penaltyScore < 0 ? "#b91c1c" : "#0f172a" }}>
-                        {selectedPlan.penaltyScore}
+                        {selectedPlan.penaltyScore !== 0 ? Number(selectedPlan.penaltyScore.toFixed(2)) : 0}
                       </div>
                     </div>
 
@@ -380,7 +383,7 @@ export const AISuggestionList: React.FC<AISuggestionListProps> = ({
                     >
                       <div style={{ color: "#64748b", fontSize: "10.5px", fontWeight: 650 }}>BONUS</div>
                       <div style={{ fontWeight: 800, color: "#15803d" }}>
-                        +{selectedPlan.bonusScore}
+                        +{Number(selectedPlan.bonusScore.toFixed(2))}
                       </div>
                     </div>
 
@@ -527,177 +530,48 @@ export const AISuggestionList: React.FC<AISuggestionListProps> = ({
                   {/* TAB 1: OVERVIEW */}
                   {activeTab === "overview" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                      {/* Fitness Breakdown 4-Card Grid */}
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-                        <div
-                          style={{
-                            background: "#ffffff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "10px",
-                            padding: "12px 14px",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
-                            <span>🏞️ Land Score</span>
-                            <strong>{selectedPlan.fitnessBreakdown?.landScore ?? 0}/100</strong>
-                          </div>
-                          <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-                            <div
-                              style={{
-                                height: "100%",
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.landScore ?? 0)}%`,
-                                background: "#10b981",
-                                borderRadius: "3px",
-                              }}
-                            />
-                          </div>
-                        </div>
+                      {/* Master Explainable AI Math Breakdown & 4 Pillars */}
+                      <AIFitnessScoreBreakdown
+                        breakdown={selectedPlan.fitnessBreakdown}
+                        fitnessScore={selectedPlan.fitnessScore}
+                        penaltyScore={selectedPlan.penaltyScore}
+                        bonusScore={selectedPlan.bonusScore}
+                      />
 
-                        <div
-                          style={{
-                            background: "#ffffff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "10px",
-                            padding: "12px 14px",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
-                            <span>👥 Human Score</span>
-                            <strong>{selectedPlan.fitnessBreakdown?.humanScore ?? 0}/100</strong>
-                          </div>
-                          <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-                            <div
-                              style={{
-                                height: "100%",
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.humanScore ?? 0)}%`,
-                                background: "#8b5cf6",
-                                borderRadius: "3px",
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            background: "#ffffff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "10px",
-                            padding: "12px 14px",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
-                            <span>🚜 Equipment Score</span>
-                            <strong>{selectedPlan.fitnessBreakdown?.equipmentScore?.toFixed(1) ?? 0}/100</strong>
-                          </div>
-                          <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-                            <div
-                              style={{
-                                height: "100%",
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.equipmentScore ?? 0)}%`,
-                                background: "#0284c7",
-                                borderRadius: "3px",
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            background: "#ffffff",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "10px",
-                            padding: "12px 14px",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
-                            <span>📅 Schedule Score</span>
-                            <strong>{selectedPlan.fitnessBreakdown?.scheduleScore?.toFixed(1) ?? 0}/100</strong>
-                          </div>
-                          <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-                            <div
-                              style={{
-                                height: "100%",
-                                width: `${Math.min(100, selectedPlan.fitnessBreakdown?.scheduleScore ?? 0)}%`,
-                                background: "#f59e0b",
-                                borderRadius: "3px",
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Advantages & Conflict Highlights */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-                        {/* Advantages Box */}
-                        <div
-                          style={{
-                            background: "#ffffff",
-                            border: "1px solid #dcfce7",
-                            borderRadius: "10px",
-                            padding: "14px",
-                          }}
-                        >
-                          <h4
-                            style={{
-                              fontSize: "12.5px",
-                              fontWeight: 750,
-                              color: "#15803d",
-                              margin: "0 0 8px",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                            }}
-                          >
-                            <CheckCircle2 size={16} /> Advantages & Strengths
-                          </h4>
+                      {/* Advantages & Bottlenecks Grid */}
+                      <div className="ai-insights-grid" style={{ marginBottom: "14px" }}>
+                        {/* Advantages */}
+                        <div className="ai-insight-box advantages">
+                          <h3>Advantages & Strengths</h3>
                           {selectedPlan.advantages && selectedPlan.advantages.length > 0 ? (
-                            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12.5px", color: "#334155", lineHeight: "1.6" }}>
+                            <ul>
                               {selectedPlan.advantages.map((adv, idx) => (
                                 <li key={idx}>{adv}</li>
                               ))}
                             </ul>
                           ) : (
-                            <p style={{ margin: 0, fontSize: "12.5px", color: "#64748b" }}>
+                            <p style={{ margin: 0, fontSize: "12.5px", color: "#166534" }}>
                               Candidate generated from available resources and requirements.
                             </p>
                           )}
                         </div>
 
-                        {/* Disadvantages / Warnings Box */}
-                        <div
-                          style={{
-                            background: "#ffffff",
-                            border: "1px solid #fef3c7",
-                            borderRadius: "10px",
-                            padding: "14px",
-                          }}
-                        >
-                          <h4
-                            style={{
-                              fontSize: "12.5px",
-                              fontWeight: 750,
-                              color: "#b45309",
-                              margin: "0 0 8px",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                            }}
-                          >
-                            <AlertTriangle size={16} /> Potential Bottlenecks ({selectedPlan.conflictCount})
-                          </h4>
+                        {/* Potential Bottlenecks */}
+                        <div className="ai-insight-box warnings">
+                          <h3>Potential Bottlenecks ({selectedPlan.conflictCount})</h3>
                           {selectedPlan.disadvantages && selectedPlan.disadvantages.length > 0 ? (
-                            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12.5px", color: "#451a03", lineHeight: "1.6" }}>
-                              {selectedPlan.disadvantages.slice(0, 4).map((dis, idx) => (
+                            <ul>
+                              {selectedPlan.disadvantages.slice(0, 5).map((dis, idx) => (
                                 <li key={idx}>{dis}</li>
                               ))}
-                              {selectedPlan.disadvantages.length > 4 && (
-                                <li style={{ color: "#b45309", fontWeight: 700 }}>
-                                  +{selectedPlan.disadvantages.length - 4} more warnings in Warnings Tab
+                              {selectedPlan.disadvantages.length > 5 && (
+                                <li style={{ fontWeight: 700, color: "#b45309" }}>
+                                  +{selectedPlan.disadvantages.length - 5} more warnings in Warnings & Conflicts tab
                                 </li>
                               )}
                             </ul>
                           ) : (
-                            <p style={{ margin: 0, fontSize: "12.5px", color: "#15803d", fontWeight: 650 }}>
+                            <p style={{ margin: 0, fontSize: "12.5px", color: "#15803d", fontWeight: 700 }}>
                               No hard constraint conflicts detected.
                             </p>
                           )}
@@ -949,134 +823,10 @@ export const AISuggestionList: React.FC<AISuggestionListProps> = ({
 
                   {/* TAB 5: WARNINGS & CONFLICTS */}
                   {activeTab === "conflicts" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                      <div
-                        style={{
-                          background: selectedPlan.conflictCount > 0 ? "#fffbeb" : "#f0fdf4",
-                          border: `1px solid ${selectedPlan.conflictCount > 0 ? "#fef3c7" : "#dcfce7"}`,
-                          borderRadius: "10px",
-                          padding: "16px",
-                        }}
-                      >
-                        <h4
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 750,
-                            color: selectedPlan.conflictCount > 0 ? "#b45309" : "#15803d",
-                            margin: "0 0 6px",
-                          }}
-                        >
-                          Total Detected Issues: {selectedPlan.conflictCount}
-                        </h4>
-                        <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>
-                          The genetic algorithm applied soft and hard constraint penalties to calculate the final fitness score.
-                        </p>
-                      </div>
-
-                      {/* Constraint Report Categorized Breakdown */}
-                      {selectedPlan.constraintReport ? (
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                          {selectedPlan.constraintReport.landConflicts && selectedPlan.constraintReport.landConflicts.length > 0 && (
-                            <div style={{ background: "#ffffff", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px" }}>
-                              <strong style={{ fontSize: "12.5px", color: "#991b1b", display: "block", marginBottom: "6px" }}>
-                                🏞️ Land Conflicts ({selectedPlan.constraintReport.landConflicts.length})
-                              </strong>
-                              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#7f1d1d" }}>
-                                {selectedPlan.constraintReport.landConflicts.map((c, i) => (
-                                  <li key={i}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {selectedPlan.constraintReport.humanConflicts && selectedPlan.constraintReport.humanConflicts.length > 0 && (
-                            <div style={{ background: "#ffffff", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px" }}>
-                              <strong style={{ fontSize: "12.5px", color: "#991b1b", display: "block", marginBottom: "6px" }}>
-                                👥 Human Workload Conflicts ({selectedPlan.constraintReport.humanConflicts.length})
-                              </strong>
-                              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#7f1d1d" }}>
-                                {selectedPlan.constraintReport.humanConflicts.map((c, i) => (
-                                  <li key={i}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {selectedPlan.constraintReport.equipmentConflicts && selectedPlan.constraintReport.equipmentConflicts.length > 0 && (
-                            <div style={{ background: "#ffffff", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px" }}>
-                              <strong style={{ fontSize: "12.5px", color: "#991b1b", display: "block", marginBottom: "6px" }}>
-                                🚜 Equipment Conflicts ({selectedPlan.constraintReport.equipmentConflicts.length})
-                              </strong>
-                              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#7f1d1d" }}>
-                                {selectedPlan.constraintReport.equipmentConflicts.map((c, i) => (
-                                  <li key={i}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {selectedPlan.constraintReport.scheduleConflicts && selectedPlan.constraintReport.scheduleConflicts.length > 0 && (
-                            <div style={{ background: "#ffffff", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px" }}>
-                              <strong style={{ fontSize: "12.5px", color: "#991b1b", display: "block", marginBottom: "6px" }}>
-                                📅 Schedule Overlap Conflicts ({selectedPlan.constraintReport.scheduleConflicts.length})
-                              </strong>
-                              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#7f1d1d" }}>
-                                {selectedPlan.constraintReport.scheduleConflicts.map((c, i) => (
-                                  <li key={i}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {selectedPlan.constraintReport.skillConflicts && selectedPlan.constraintReport.skillConflicts.length > 0 && (
-                            <div style={{ background: "#ffffff", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px" }}>
-                              <strong style={{ fontSize: "12.5px", color: "#991b1b", display: "block", marginBottom: "6px" }}>
-                                🎓 Skill Mismatch Conflicts ({selectedPlan.constraintReport.skillConflicts.length})
-                              </strong>
-                              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#7f1d1d" }}>
-                                {selectedPlan.constraintReport.skillConflicts.map((c, i) => (
-                                  <li key={i}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {selectedPlan.constraintReport.roleConflicts && selectedPlan.constraintReport.roleConflicts.length > 0 && (
-                            <div style={{ background: "#ffffff", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px" }}>
-                              <strong style={{ fontSize: "12.5px", color: "#991b1b", display: "block", marginBottom: "6px" }}>
-                                🏷️ Role Missing Conflicts ({selectedPlan.constraintReport.roleConflicts.length})
-                              </strong>
-                              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#7f1d1d" }}>
-                                {selectedPlan.constraintReport.roleConflicts.map((c, i) => (
-                                  <li key={i}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {selectedPlan.constraintReport.deadlineConflicts && selectedPlan.constraintReport.deadlineConflicts.length > 0 && (
-                            <div style={{ background: "#ffffff", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px" }}>
-                              <strong style={{ fontSize: "12.5px", color: "#991b1b", display: "block", marginBottom: "6px" }}>
-                                ⏰ Deadline Breach Conflicts ({selectedPlan.constraintReport.deadlineConflicts.length})
-                              </strong>
-                              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#7f1d1d" }}>
-                                {selectedPlan.constraintReport.deadlineConflicts.map((c, i) => (
-                                  <li key={i}>{c}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "14px" }}>
-                          <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "13px", color: "#334155" }}>
-                            {selectedPlan.disadvantages?.map((dis, idx) => (
-                              <li key={idx}>{dis}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
+                    <AIConstraintReportCard
+                      constraintReport={selectedPlan.constraintReport}
+                      conflictCount={selectedPlan.conflictCount}
+                    />
                   )}
                 </div>
               </div>
