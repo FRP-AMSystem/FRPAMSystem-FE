@@ -1,3 +1,7 @@
+import type { AllocationEquipmentDetailRequest } from "./allocationDetail";
+import type { AllocationHumanDetailRequest } from "./allocationHumanDetail";
+import type { AllocationLandDetailRequest } from "./allocationLand";
+
 export type AllocationPlanStatus =
   | "Draft"
   | "Pending"
@@ -28,6 +32,14 @@ export interface AllocationPlan {
   equipmentDetailCount: number;
   humanDetailCount: number;
   scheduleCount: number;
+}
+
+export interface CreateAllocationPlanWithDetailsRequest {
+  experimentId: number;
+  approveStatus: AllocationPlanStatus;
+  landDetails: AllocationLandDetailRequest[];
+  equipmentDetails: AllocationEquipmentDetailRequest[];
+  humanDetails: AllocationHumanDetailRequest[];
 }
 
 export interface AllocationPlanRequest {

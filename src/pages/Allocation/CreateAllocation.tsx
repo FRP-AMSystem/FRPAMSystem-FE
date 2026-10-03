@@ -31,7 +31,9 @@ import {
 } from "../../services/experimentLandRequirementService";
 
 import {
+  approveAllocationPlan,
   createAllocationPlan,
+  createAllocationPlanWithDetails,
   evaluateAllocationPlan,
   getAllocationPlanById,
   getAllocationPlans,
@@ -40,9 +42,6 @@ import {
 } from "../../services/allocationPlanService";
 
 import {
-  createAllocationEquipmentDetail,
-  createAllocationHumanDetail,
-  createAllocationLandDetail,
   deleteAllocationEquipmentDetail,
   deleteMyAllocationEquipmentDetail,
   deleteAllocationHumanDetail,
@@ -1422,14 +1421,56 @@ export default function CreateAllocation() {
             }
 
             const equipmentTypeId = Number(detail.allocatedEquipmentTypeId ?? 0);
-            const quantity = Math.max(0, Number(detail.quantity ?? 0));
-            if (equipmentTypeId > 0 && quantity > 0) {
-              initialSelectedQuantityEquipmentByPhase[phaseId] = {
-                ...(initialSelectedQuantityEquipmentByPhase[phaseId] || {}),
-                [equipmentTypeId]:
-                  (initialSelectedQuantityEquipmentByPhase[phaseId]?.[equipmentTypeId] || 0) +
-                  quantity,
-              };
+            const rawQuantity = Math.max(0, Number(detail.quantity ?? 0));
+
+            if (equipmentTypeId > 0 && rawQuantity > 0) {
+              /*
+               * Manager may open an existing approved source plan whose
+               * resource details were created before phase-level quantities
+               * were enforced. Never hydrate the Manager UI with a quantity
+               * larger than the requirement of the current phase.
+               *
+               * Example: Phase #1 requires Sensor = 1, but the source plan
+               * contains quantity = 4. The Manager screen must start at 1,
+               * not 4, otherwise the UI reports an invalid over-allocation.
+               */
+              const phaseRequirement = phaseEquipmentReqs.find(
+                (requirement) =>
+                  Number(requirement.phaseId) === Number(phaseId) &&
+                  Number(requirement.equipmentTypeId) === Number(equipmentTypeId)
+              );
+
+              const fallbackRequirement = equipmentReqs.find(
+                (requirement) =>
+                  Number(requirement.equipmentTypeId) === Number(equipmentTypeId)
+              );
+
+              const requiredQuantity = Math.max(
+                0,
+                Number(
+                  (phaseRequirement as any)?.quantity ??
+                  (fallbackRequirement as any)?.quantity ??
+                  0
+                )
+              );
+
+              const currentQuantity =
+                initialSelectedQuantityEquipmentByPhase[phaseId]?.[equipmentTypeId] || 0;
+
+              const quantity =
+                requiredQuantity > 0
+                  ? Math.min(
+                      rawQuantity,
+                      Math.max(0, requiredQuantity - currentQuantity)
+                    )
+                  : rawQuantity;
+
+              if (quantity > 0) {
+                initialSelectedQuantityEquipmentByPhase[phaseId] = {
+                  ...(initialSelectedQuantityEquipmentByPhase[phaseId] || {}),
+                  [equipmentTypeId]: currentQuantity + quantity,
+                };
+              }
             }
           }
 
@@ -1558,77 +1599,86 @@ export default function CreateAllocation() {
   };
 
   // Get equipment requirements that belong to a specific phase.
-  // Current create-experiment flow stores the phase label in note, e.g. [Phase 1:].
-  // If an experiment has only one phase, all equipment requirements belong to that phase.
+  // Prefer the explicit PhaseEquipmentRequirements records returned by the API.
+  // The note-based phase matching is kept only as a backward-compatible fallback
+  // for older experiment data that does not have phase requirement records yet.
   const getEquipmentRequirementsForPhase = (
     phaseId: number
   ): ExperimentEquipmentRequirement[] => {
     const phase = phases.find(
-      (item) =>
-        item.experimentPhaseId ===
-        phaseId
+      (item) => Number(item.experimentPhaseId) === Number(phaseId)
     );
 
     if (!phase) {
       return [];
     }
 
+    const explicitPhaseRequirements = phaseEquipmentReqs.filter(
+      (item) => Number(item.phaseId) === Number(phaseId)
+    );
+
+    if (explicitPhaseRequirements.length > 0) {
+      const mapped: ExperimentEquipmentRequirement[] = [];
+
+      for (const phaseRequirement of explicitPhaseRequirements) {
+        const candidates = equipmentReqs.filter(
+          (requirement) =>
+            Number(requirement.equipmentTypeId) ===
+            Number(phaseRequirement.equipmentTypeId)
+        );
+
+        if (candidates.length === 0) {
+          continue;
+        }
+
+        const phaseNote = String(phaseRequirement.note || '').trim().toLowerCase();
+        const phaseSpecificCandidate = candidates.find((requirement) => {
+          const note = String(requirement.note || '').trim().toLowerCase();
+          return phaseNote && note && note.includes(phaseNote);
+        });
+
+        const candidate = phaseSpecificCandidate || candidates[0];
+
+        if (!mapped.some((item) => item.expEquipmentReqId === candidate.expEquipmentReqId)) {
+          mapped.push(candidate);
+        }
+      }
+
+      if (mapped.length > 0) {
+        return mapped;
+      }
+    }
+
+    // Backward-compatible fallback for data created before PhaseEquipmentRequirements
+    // were introduced.
     if (phases.length === 1) {
       return equipmentReqs;
     }
 
-    const phaseName =
-      (
-        phase.phaseName || ""
-      )
-        .trim()
-        .toLowerCase();
-
+    const phaseName = String(phase.phaseName || '').trim().toLowerCase();
     if (!phaseName) {
       return [];
     }
 
-    const phaseNameWithoutColon =
-      phaseName.replace(
-        /:$/,
-        ""
+    const phaseNameWithoutColon = phaseName.replace(/:$/, '');
+
+    return equipmentReqs.filter((req) => {
+      const note = String(req.note || '').trim().toLowerCase();
+      return (
+        note.includes(`[${phaseName}`) ||
+        note.includes(`[${phaseNameWithoutColon}`) ||
+        note.includes(phaseName)
       );
-
-    return equipmentReqs.filter(
-      (req) => {
-        const note =
-          (
-            req.note || ""
-          )
-            .trim()
-            .toLowerCase();
-
-        return (
-          note.includes(
-            `[${phaseName}`
-          ) ||
-          note.includes(
-            `[${phaseNameWithoutColon}`
-          )
-        );
-      }
-    );
+    });
   };
 
-  const activePhaseEquipmentRequirements =
-    useMemo(() => {
-      if (!activePhaseId) {
-        return [];
-      }
+  const activePhaseEquipmentRequirements = useMemo(() => {
+    if (!activePhaseId) {
+      return [];
+    }
 
-      return getEquipmentRequirementsForPhase(
-        activePhaseId
-      );
-    }, [
-      activePhaseId,
-      phases,
-      equipmentReqs,
-    ]);
+    return getEquipmentRequirementsForPhase(activePhaseId);
+  }, [activePhaseId, phases, equipmentReqs, phaseEquipmentReqs]);
 
   type EquipmentRequirementMatch = {
     requirement:
@@ -2627,80 +2677,83 @@ export default function CreateAllocation() {
   };
 
   // Get human requirements that belong to a specific phase.
-  // Current create-experiment flow stores the phase label in note, e.g. [Phase 1:].
-  // If an experiment has only one phase, all human requirements belong to that phase.
+  // Prefer explicit PhaseHumanRequirements records. Fall back to the legacy note
+  // convention only when no phase-level records exist.
   const getHumanRequirementsForPhase = (
     phaseId: number
   ): ExperimentHumanRequirement[] => {
-    const phase =
-      phases.find(
-        (item) =>
-          item.experimentPhaseId ===
-          phaseId
-      );
+    const phase = phases.find(
+      (item) => Number(item.experimentPhaseId) === Number(phaseId)
+    );
 
     if (!phase) {
       return [];
     }
 
-    if (
-      phases.length === 1
-    ) {
+    const explicitPhaseRequirements = phaseHumanReqs.filter(
+      (item) => Number(item.phaseId) === Number(phaseId)
+    );
+
+    if (explicitPhaseRequirements.length > 0) {
+      const mapped: ExperimentHumanRequirement[] = [];
+
+      for (const phaseRequirement of explicitPhaseRequirements) {
+        const candidates = humanReqs.filter(
+          (requirement) =>
+            Number(requirement.roleId) === Number(phaseRequirement.roleId)
+        );
+
+        if (candidates.length === 0) {
+          continue;
+        }
+
+        const phaseNote = String(phaseRequirement.note || '').trim().toLowerCase();
+        const phaseSpecificCandidate = candidates.find((requirement) => {
+          const note = String(requirement.note || '').trim().toLowerCase();
+          return phaseNote && note && note.includes(phaseNote);
+        });
+
+        const candidate = phaseSpecificCandidate || candidates[0];
+
+        if (!mapped.some((item) => item.expHumanReqId === candidate.expHumanReqId)) {
+          mapped.push(candidate);
+        }
+      }
+
+      if (mapped.length > 0) {
+        return mapped;
+      }
+    }
+
+    // Backward-compatible fallback for older experiments.
+    if (phases.length === 1) {
       return humanReqs;
     }
 
-    const phaseName =
-      (
-        phase.phaseName || ""
-      )
-        .trim()
-        .toLowerCase();
-
+    const phaseName = String(phase.phaseName || '').trim().toLowerCase();
     if (!phaseName) {
       return [];
     }
 
-    const phaseNameWithoutColon =
-      phaseName.replace(
-        /:$/,
-        ""
+    const phaseNameWithoutColon = phaseName.replace(/:$/, '');
+
+    return humanReqs.filter((req) => {
+      const note = String(req.note || '').trim().toLowerCase();
+      return (
+        note.includes(`[${phaseName}`) ||
+        note.includes(`[${phaseNameWithoutColon}`) ||
+        note.includes(phaseName)
       );
-
-    return humanReqs.filter(
-      (req) => {
-        const note =
-          (
-            req.note || ""
-          )
-            .trim()
-            .toLowerCase();
-
-        return (
-          note.includes(
-            `[${phaseName}`
-          ) ||
-          note.includes(
-            `[${phaseNameWithoutColon}`
-          )
-        );
-      }
-    );
+    });
   };
 
-  const activePhaseHumanRequirements =
-    useMemo(() => {
-      if (!activePhaseId) {
-        return [];
-      }
+  const activePhaseHumanRequirements = useMemo(() => {
+    if (!activePhaseId) {
+      return [];
+    }
 
-      return getHumanRequirementsForPhase(
-        activePhaseId
-      );
-    }, [
-      activePhaseId,
-      phases,
-      humanReqs,
-    ]);
+    return getHumanRequirementsForPhase(activePhaseId);
+  }, [activePhaseId, phases, humanReqs, phaseHumanReqs]);
 
   type HumanRequirementMatch = {
     requirement:
@@ -2710,75 +2763,396 @@ export default function CreateAllocation() {
     HumanResourceSkill;
   };
 
-  // Find which human requirement a profile satisfies.
-  // A person must match role, available working hours, and required skill (when specified).
-  const findHumanMatch = (
+  /*
+   * Match personnel against the phase requirements.
+   *
+   * IMPORTANT:
+   * A phase may contain multiple requirements with the same role, for example:
+   *
+   *   Technician + Irrigation Engineering -> 1
+   *   Technician + Forest Biometrics      -> 1
+   *
+   * Do NOT stop at the first role match. A person may match more than one
+   * requirement and the selected personnel must be distributed across the
+   * requirement quantities.
+   */
+  const getHumanRequirementMatches = (
     phaseId: number,
-    human:
-      HumanResourceProfile
-  ): HumanRequirementMatch | null => {
-    const requirements =
-      getHumanRequirementsForPhase(
-        phaseId
-      );
+    human: HumanResourceProfile
+  ): HumanRequirementMatch[] => {
+    const requirements = getHumanRequirementsForPhase(phaseId);
 
-    for (
-      const requirement of
-      requirements
-    ) {
-      if (
-        human.roleId == null ||
-        human.roleId !==
-        requirement.roleId
-      ) {
-        continue;
-      }
+    return requirements
+      .map(
+        (requirement): HumanRequirementMatch | null => {
+        if (
+          human.roleId == null ||
+          human.roleId !== requirement.roleId
+        ) {
+          return null;
+        }
 
-      const requiredHours =
-        requirement.workingHoursPerDay ??
-        0;
+        const requiredHours =
+          Number(requirement.workingHoursPerDay ?? 0);
+        const availableHours =
+          Number(human.maxWorkingHoursPerDay ?? 0);
 
-      const availableHours =
-        human.maxWorkingHoursPerDay ??
-        0;
+        if (
+          requiredHours > 0 &&
+          availableHours < requiredHours
+        ) {
+          return null;
+        }
 
-      if (
-        requiredHours > 0 &&
-        availableHours <
-        requiredHours
-      ) {
-        continue;
-      }
+        if (requirement.requiredSkillId == null) {
+          return {
+            requirement,
+          };
+        }
 
-      if (
-        requirement.requiredSkillId ==
-        null
-      ) {
-        return {
-          requirement,
-        };
-      }
+        const matchedSkill =
+          humanResourceSkills.find(
+            (skill) =>
+              skill.humanResourceId ===
+                human.humanResourceId &&
+              skill.skillId ===
+                requirement.requiredSkillId
+          );
 
-      const matchedSkill =
-        humanResourceSkills.find(
-          (skill) =>
-            skill.humanResourceId ===
-            human.humanResourceId &&
-            skill.skillId ===
-            requirement.requiredSkillId
-        );
+        if (!matchedSkill) {
+          return null;
+        }
 
-      if (matchedSkill) {
         return {
           requirement,
           matchedSkill,
         };
+      })
+      .filter(
+        (
+          match
+        ): match is HumanRequirementMatch =>
+          match !== null
+      )
+      .sort((a, b) => {
+        /*
+         * Prefer a specific skill requirement over a generic requirement.
+         * This prevents a skilled technician from consuming an "Any Skill"
+         * slot while another technician needs the specific skill slot.
+         */
+        const aSpecific =
+          a.requirement.requiredSkillId != null ? 0 : 1;
+        const bSpecific =
+          b.requirement.requiredSkillId != null ? 0 : 1;
+
+        if (aSpecific !== bSpecific) {
+          return aSpecific - bSpecific;
+        }
+
+        return (
+          Number(a.requirement.expHumanReqId || 0) -
+          Number(b.requirement.expHumanReqId || 0)
+        );
+      });
+  };
+
+  /*
+   * Find a valid requirement for display / single-person checks.
+   * This intentionally does NOT enforce quantity because the caller may be
+   * evaluating a person before knowing the other selected personnel.
+   */
+  const findHumanMatch = (
+    phaseId: number,
+    human: HumanResourceProfile
+  ): HumanRequirementMatch | null => {
+    return (
+      getHumanRequirementMatches(
+        phaseId,
+        human
+      )[0] || null
+    );
+  };
+
+  type HumanRequirementAssignment = {
+    humanId: number;
+    requirement: ExperimentHumanRequirement;
+    matchedSkill?: HumanResourceSkill;
+  };
+
+  /*
+   * Build a valid one-to-one assignment between the selected people and the
+   * requirement "slots".
+   *
+   * Example:
+   *   Requirement A: Technician + Skill A, quantity 1
+   *   Requirement B: Technician + Skill B, quantity 1
+   *
+   * If two selected technicians satisfy A and B respectively, this function
+   * returns two assignments. It does not incorrectly count both people
+   * against Requirement A.
+   *
+   * A small bipartite matching algorithm is used instead of a simple
+   * "first requirement wins" loop, so a person who can satisfy multiple
+   * requirements can be moved to another requirement when necessary.
+   */
+  const buildHumanRequirementAssignments = (
+    phaseId: number,
+    humanIds: number[]
+  ): HumanRequirementAssignment[] | null => {
+    const uniqueHumanIds = Array.from(
+      new Set(
+        humanIds.filter(
+          (id) => Number.isFinite(Number(id))
+        )
+      )
+    );
+
+    const requirements =
+      getHumanRequirementsForPhase(phaseId);
+
+    if (uniqueHumanIds.length === 0) {
+      return [];
+    }
+
+    if (requirements.length === 0) {
+      return null;
+    }
+
+    type Slot = {
+      requirement: ExperimentHumanRequirement;
+      slotIndex: number;
+    };
+
+    const slots: Slot[] = [];
+
+    requirements.forEach((requirement) => {
+      const quantity = Math.max(
+        0,
+        Number(requirement.quantity || 0)
+      );
+
+      for (
+        let slotIndex = 0;
+        slotIndex < quantity;
+        slotIndex += 1
+      ) {
+        slots.push({
+          requirement,
+          slotIndex,
+        });
+      }
+    });
+
+    if (slots.length < uniqueHumanIds.length) {
+      return null;
+    }
+
+    const candidatesByHuman = new Map<
+      number,
+      HumanRequirementMatch[]
+    >();
+
+    for (const humanId of uniqueHumanIds) {
+      const human = humanProfiles.find(
+        (item) =>
+          item.humanResourceId === humanId
+      );
+
+      if (!human) {
+        return null;
+      }
+
+      const matches =
+        getHumanRequirementMatches(
+          phaseId,
+          human
+        );
+
+      if (matches.length === 0) {
+        return null;
+      }
+
+      candidatesByHuman.set(
+        humanId,
+        matches
+      );
+    }
+
+    /*
+     * People with fewer possible requirements are assigned first.
+     * This is important when two requirements share the same role.
+     */
+    const orderedHumanIds = [
+      ...uniqueHumanIds,
+    ].sort((a, b) => {
+      const aCount =
+        candidatesByHuman.get(a)?.length || 0;
+      const bCount =
+        candidatesByHuman.get(b)?.length || 0;
+
+      if (aCount !== bCount) {
+        return aCount - bCount;
+      }
+
+      return a - b;
+    });
+
+    /*
+     * slotOwner stores the human currently occupying each requirement slot.
+     * A DFS re-assignment lets a flexible person move to another slot when
+     * the current slot is needed by a more specific person.
+     */
+    const slotOwner = new Map<
+      string,
+      number
+    >();
+
+    const slotKey = (
+      slot: Slot
+    ) =>
+      `${slot.requirement.expHumanReqId}:${slot.slotIndex}`;
+
+    const findSlotsForRequirement = (
+      requirementId: number
+    ) =>
+      slots.filter(
+        (slot) =>
+          Number(
+            slot.requirement.expHumanReqId
+          ) === requirementId
+      );
+
+    const visitedHumans = new Set<number>();
+    const visitedSlots = new Set<string>();
+
+    const tryAssign = (
+      humanId: number
+    ): boolean => {
+      if (visitedHumans.has(humanId)) {
+        return false;
+      }
+
+      visitedHumans.add(humanId);
+
+      const matches =
+        candidatesByHuman.get(
+          humanId
+        ) || [];
+
+      for (const match of matches) {
+        const requirementId =
+          Number(
+            match.requirement
+              .expHumanReqId
+          );
+
+        const requirementSlots =
+          findSlotsForRequirement(
+            requirementId
+          );
+
+        for (const slot of requirementSlots) {
+          const key = slotKey(slot);
+
+          if (visitedSlots.has(key)) {
+            continue;
+          }
+
+          visitedSlots.add(key);
+
+          const currentOwner =
+            slotOwner.get(key);
+
+          if (
+            currentOwner == null ||
+            tryAssign(currentOwner)
+          ) {
+            slotOwner.set(
+              key,
+              humanId
+            );
+            return true;
+          }
+        }
+      }
+
+      return false;
+    };
+
+    for (const humanId of orderedHumanIds) {
+      visitedHumans.clear();
+      visitedSlots.clear();
+
+      if (!tryAssign(humanId)) {
+        return null;
       }
     }
 
-    return null;
-  };
+    const assignments: HumanRequirementAssignment[] =
+      [];
 
+    for (const [
+      key,
+      humanId,
+    ] of slotOwner.entries()) {
+      const slot = slots.find(
+        (item) =>
+          slotKey(item) === key
+      );
+
+      if (!slot) {
+        continue;
+      }
+
+      const human =
+        humanProfiles.find(
+          (item) =>
+            item.humanResourceId ===
+            humanId
+        );
+
+      if (!human) {
+        continue;
+      }
+
+      const match =
+        getHumanRequirementMatches(
+          phaseId,
+          human
+        ).find(
+          (item) =>
+            Number(
+              item.requirement
+                .expHumanReqId
+            ) ===
+            Number(
+              slot.requirement
+                .expHumanReqId
+            )
+        );
+
+      if (!match) {
+        return null;
+      }
+
+      assignments.push({
+        humanId,
+        requirement:
+          match.requirement,
+        matchedSkill:
+          match.matchedSkill,
+      });
+    }
+
+    if (
+      assignments.length !==
+      uniqueHumanIds.length
+    ) {
+      return null;
+    }
+
+    return assignments;
+  };
   const filteredHumansForActivePhase =
     useMemo(() => {
       if (!activePhaseId) {
@@ -2850,53 +3224,90 @@ export default function CreateAllocation() {
         };
       }
 
-      for (const requirement of requirements) {
-        if (human.roleId == null || human.roleId !== requirement.roleId) {
-          continue;
-        }
+      const matches = getHumanRequirementMatches(
+        activePhaseId,
+        human
+      );
 
-        const requiredHours = requirement.workingHoursPerDay ?? 0;
-        const availableHours = human.maxWorkingHoursPerDay ?? 0;
-        if (requiredHours > 0 && availableHours < requiredHours) {
-          return {
-            human,
-            isEligible: false,
-            matchedRequirement: requirement,
-            unavailabilityReason: `Working capacity (${availableHours}h/day) < Required (${requiredHours}h/day)`,
-          };
-        }
-
-        if (requirement.requiredSkillId == null) {
-          return {
-            human,
-            isEligible: true,
-            matchedRequirement: requirement,
-          };
-        }
-
-        const matchedSkill = humanResourceSkills.find(
-          (skill) =>
-            skill.humanResourceId === human.humanResourceId &&
-            skill.skillId === requirement.requiredSkillId
-        );
-
-        if (matchedSkill) {
-          return {
-            human,
-            isEligible: true,
-            matchedRequirement: requirement,
-            matchedSkill,
-          };
-        }
+      if (matches.length > 0) {
+        const matched = matches[0];
 
         return {
           human,
-          isEligible: false,
-          matchedRequirement: requirement,
-          unavailabilityReason: `Missing required skill: "${requirement.requiredSkillName || `Skill #${requirement.requiredSkillId}`}"`,
+          isEligible: true,
+          matchedRequirement: matched.requirement,
+          matchedSkill: matched.matchedSkill,
         };
       }
 
+      /*
+       * Keep a useful reason for unavailable candidates. If the role is
+       * correct but the working capacity/skill does not satisfy any phase
+       * requirement, explain that instead of incorrectly failing on the
+       * first requirement in the list.
+       */
+      const sameRoleRequirements = requirements.filter(
+        (requirement) =>
+          human.roleId != null &&
+          human.roleId === requirement.roleId
+      );
+
+      if (sameRoleRequirements.length > 0) {
+        const insufficientHoursRequirement =
+          sameRoleRequirements.find((requirement) => {
+            const requiredHours = Number(
+              requirement.workingHoursPerDay ?? 0
+            );
+            const availableHours = Number(
+              human.maxWorkingHoursPerDay ?? 0
+            );
+
+            return (
+              requiredHours > 0 &&
+              availableHours < requiredHours
+            );
+          });
+
+        if (insufficientHoursRequirement) {
+          return {
+            human,
+            isEligible: false,
+            matchedRequirement:
+              insufficientHoursRequirement,
+            unavailabilityReason: `Working capacity (${Number(
+              human.maxWorkingHoursPerDay ?? 0
+            )}h/day) < Required (${Number(
+              insufficientHoursRequirement.workingHoursPerDay ?? 0
+            )}h/day)`,
+          };
+        }
+
+        const skillRequirements =
+          sameRoleRequirements.filter(
+            (requirement) =>
+              requirement.requiredSkillId != null
+          );
+
+        if (skillRequirements.length > 0) {
+          const requiredSkillNames =
+            skillRequirements
+              .map(
+                (requirement) =>
+                  requirement.requiredSkillName ||
+                  `Skill #${requirement.requiredSkillId}`
+              )
+              .join(", ");
+
+          return {
+            human,
+            isEligible: false,
+            matchedRequirement:
+              skillRequirements[0],
+            unavailabilityReason:
+              `Missing required skill: "${requiredSkillNames}"`,
+          };
+        }
+      }
       const requiredRoleNames = requirements
         .map((r) => r.roleName || `Role #${r.roleId}`)
         .join(", ");
@@ -3461,28 +3872,36 @@ export default function CreateAllocation() {
   const persistAllocationDetails =
     async (
       planId: number,
-      createdEquipmentDetailIds: number[]
+      createdEquipmentDetailIds: number[],
+      options: { collectOnly?: boolean } = {}
     ) => {
-      const plan =
-        await getAllocationPlanById(
-          planId
-        );
+      const collectOnly = options.collectOnly === true;
+
+      /*
+       * In manager batch-create mode there is no AllocationPlan row yet.
+       * The /AllocationPlans/with-details API creates the parent and attaches
+       * the nested details in one transaction. Swagger models the nested
+       * allocationPlanId as an integer; 0 is used here as the placeholder
+       * until the backend assigns the new plan ID.
+       */
+      const plan = collectOnly
+        ? null
+        : await getAllocationPlanById(planId);
 
       const normalizedPlanStatus = String(
-        plan.approveStatus || ""
+        plan?.approveStatus || ""
       )
         .trim()
         .toLowerCase();
 
       const canPersistResourceDetails =
-        isManagerAllocation
-          ? normalizedPlanStatus === "draft" &&
-          String(
-            (await getAllocationPlanById(initialPlanId))
-              .approveStatus || ""
-          ).trim().toLowerCase() === "approved"
-          : currentUserInfo.role === "Researcher" &&
-          normalizedPlanStatus === "draft";
+        collectOnly ||
+        (
+          isManagerAllocation
+            ? normalizedPlanStatus === "draft"
+            : currentUserInfo.role === "Researcher" &&
+              normalizedPlanStatus === "draft"
+        );
 
       if (!canPersistResourceDetails) {
         throw new Error(
@@ -3492,16 +3911,29 @@ export default function CreateAllocation() {
         );
       }
 
-      // Hard guard: never create an Equipment Detail against a plan belonging
-      // to another experiment/session.
+      // Hard guard: never create an Allocation Detail against a plan belonging
+      // to another experiment/session. In batch-create mode the parent does not
+      // exist yet, so the selected experiment is the source of truth.
       if (
-        Number(plan.experimentId || 0) !==
-        Number(selectedExpId)
+        !collectOnly &&
+        Number(plan?.experimentId || 0) !== Number(selectedExpId)
       ) {
         throw new Error(
-          `Allocation Plan #${planId} belongs to Experiment #${plan.experimentId}, not Experiment #${selectedExpId}.`
+          `Allocation Plan #${planId} belongs to Experiment #${plan?.experimentId}, not Experiment #${selectedExpId}.`
         );
       }
+
+      const detailPlanId = collectOnly ? 0 : Number(planId);
+
+      const collectedDetails: {
+        landDetails: AllocationLandDetailRequest[];
+        equipmentDetails: AllocationEquipmentDetailRequest[];
+        humanDetails: AllocationHumanDetailRequest[];
+      } = {
+        landDetails: [],
+        equipmentDetails: [],
+        humanDetails: [],
+      };
 
       /*
        * --------------------------------------------------------
@@ -3509,12 +3941,11 @@ export default function CreateAllocation() {
        * --------------------------------------------------------
        */
 
-      const existingEquipmentDetails =
-        await getAllocationEquipmentDetails(
+      const existingEquipmentDetails = collectOnly
+        ? []
+        : await getAllocationEquipmentDetails(
           {
-            allocationPlanId:
-              planId,
-
+            allocationPlanId: planId,
             size: 500,
           }
         ).catch(() => []);
@@ -3630,12 +4061,18 @@ export default function CreateAllocation() {
               true
             );
 
+          const phaseEquipmentRequirement = phaseEquipmentReqs.find(
+            (item) =>
+              Number(item.phaseId) === Number(phaseId) &&
+              Number(item.equipmentTypeId) === Number(requirement.equipmentTypeId)
+          );
+
           const key = [
             planId,
             equipmentId,
             requirement
               .expEquipmentReqId,
-            0,
+            phaseEquipmentRequirement?.phaseEquipmentReqId ?? 0,
           ].join(":");
 
           if (
@@ -3655,7 +4092,7 @@ export default function CreateAllocation() {
 
           const equipmentAllocationPayload: AllocationEquipmentDetailRequest = {
             allocationPlanId:
-              Number(planId),
+              detailPlanId,
 
             expEquipmentReqId:
               Number(
@@ -3663,7 +4100,7 @@ export default function CreateAllocation() {
                   .expEquipmentReqId
               ),
 
-            phaseEquipmentReqId: null,
+            phaseEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId ?? null,
 
             // AllocationEquipmentDetailRequest requires the actual
             // equipment type being allocated, even for a substitute.
@@ -3703,18 +4140,17 @@ export default function CreateAllocation() {
             equipmentAllocationPayload
           );
 
-          const createdEquipmentDetail =
-            await createAllocationEquipmentDetail(
+          if (!collectOnly) {
+            throw new Error(
+              "Allocation details must be created through POST /AllocationPlans/with-details."
+            );
+          }
+
+          collectedDetails.equipmentDetails.push(
             equipmentAllocationPayload
           );
 
-          createdEquipmentDetailIds.push(
-            createdEquipmentDetail.allocationEquipmentDetailId
-          );
-
-          existingEquipmentKeys.add(
-            key
-          );
+          existingEquipmentKeys.add(key);
         }
       }
 
@@ -3765,11 +4201,17 @@ export default function CreateAllocation() {
             );
           }
 
+          const phaseEquipmentRequirement = phaseEquipmentReqs.find(
+            (item) =>
+              Number(item.phaseId) === Number(phaseId) &&
+              Number(item.equipmentTypeId) === Number(match.requirement.equipmentTypeId)
+          );
+
           const key = [
             planId,
             0,
             match.requirement.expEquipmentReqId,
-            0,
+            phaseEquipmentRequirement?.phaseEquipmentReqId ?? 0,
           ].join(":");
 
           if (existingEquipmentKeys.has(key)) {
@@ -3784,9 +4226,9 @@ export default function CreateAllocation() {
           }
 
           const equipmentAllocationPayload: AllocationEquipmentDetailRequest = {
-            allocationPlanId: Number(planId),
+            allocationPlanId: detailPlanId,
             expEquipmentReqId: Number(match.requirement.expEquipmentReqId),
-            phaseEquipmentReqId: null,
+            phaseEquipmentReqId: phaseEquipmentRequirement?.phaseEquipmentReqId ?? null,
             allocatedEquipmentTypeId: equipmentTypeId,
             equipmentInstanceId: null,
             quantity,
@@ -3802,13 +4244,14 @@ export default function CreateAllocation() {
             equipmentAllocationPayload
           );
 
-          const createdEquipmentDetail =
-            await createAllocationEquipmentDetail(
-              equipmentAllocationPayload
+          if (!collectOnly) {
+            throw new Error(
+              "Allocation details must be created through POST /AllocationPlans/with-details."
             );
+          }
 
-          createdEquipmentDetailIds.push(
-            createdEquipmentDetail.allocationEquipmentDetailId
+          collectedDetails.equipmentDetails.push(
+            equipmentAllocationPayload
           );
 
           existingEquipmentKeys.add(key);
@@ -3830,12 +4273,11 @@ export default function CreateAllocation() {
        * resource được dành cho phase.
        */
 
-      const existingHumanDetailsResponse =
-        await getAllocationHumanDetails(
+      const existingHumanDetailsResponse = collectOnly
+        ? []
+        : await getAllocationHumanDetails(
           {
-            allocationPlanId:
-              planId,
-
+            allocationPlanId: planId,
             size: 500,
           }
         ).catch(() => []);
@@ -3888,9 +4330,7 @@ export default function CreateAllocation() {
         )
       ) {
         const phaseIdNum =
-          Number(
-            phaseIdText
-          );
+          Number(phaseIdText);
 
         const phase =
           phases.find(
@@ -3903,10 +4343,28 @@ export default function CreateAllocation() {
           continue;
         }
 
-        for (
-          const humanId of
-          humanIds
-        ) {
+        /*
+         * Resolve all selected personnel together.
+         *
+         * This is intentionally done once per phase so two people with the
+         * same role can be assigned to two different skill requirements.
+         */
+        const assignments =
+          buildHumanRequirementAssignments(
+            phaseIdNum,
+            humanIds
+          );
+
+        if (!assignments) {
+          throw new Error(
+            `Selected personnel do not satisfy the personnel requirements for ${phase.phaseName}.`
+          );
+        }
+
+        for (const assignment of assignments) {
+          const humanId =
+            assignment.humanId;
+
           const human =
             humanProfiles.find(
               (item) =>
@@ -3918,22 +4376,8 @@ export default function CreateAllocation() {
             continue;
           }
 
-          const humanMatch =
-            findHumanMatch(
-              phaseIdNum,
-              human
-            );
-
-          if (!humanMatch) {
-            throw new Error(
-              `${human.fullName ||
-              `Human resource #${humanId}`
-              } does not satisfy the personnel requirement for ${phase.phaseName}.`
-            );
-          }
-
           const requirement =
-            humanMatch.requirement;
+            assignment.requirement;
 
           const phaseHumanReqId =
             await ensurePhaseHumanRequirement(
@@ -3990,14 +4434,17 @@ export default function CreateAllocation() {
 
           const humanAllocationPayload: AllocationHumanDetailRequest = {
             allocationPlanId:
-              Number(planId),
+              detailPlanId,
 
+            // Keep the parent ExperimentHumanRequirement together with the
+            // phase-specific requirement. The backend uses expHumanReqId as
+            // the parent FK and phaseHumanReqId as the phase-level link.
+            // Sending expHumanReqId = null for a phase allocation can cause
+            // AllocationHumanDetails POST to fail with HTTP 500.
             expHumanReqId:
-              phaseHumanReqId
-                ? null
-                : Number(
-                  requirement.expHumanReqId
-                ),
+              Number(
+                requirement.expHumanReqId
+              ),
 
             phaseHumanReqId:
               phaseHumanReqId
@@ -4033,13 +4480,17 @@ export default function CreateAllocation() {
             );
           }
 
-          await createAllocationHumanDetail(
+          if (!collectOnly) {
+            throw new Error(
+              "Allocation details must be created through POST /AllocationPlans/with-details."
+            );
+          }
+
+          collectedDetails.humanDetails.push(
             humanAllocationPayload
           );
 
-          existingHumanKeys.add(
-            key
-          );
+          existingHumanKeys.add(key);
         }
       }
 
@@ -4089,12 +4540,11 @@ export default function CreateAllocation() {
           );
         }
 
-        const existingLandDetailsResponse =
-          await getAllocationLandDetails(
+        const existingLandDetailsResponse = collectOnly
+          ? []
+          : await getAllocationLandDetails(
             {
-              allocationPlanId:
-                planId,
-
+              allocationPlanId: planId,
               size: 100,
             }
           ).catch(() => []);
@@ -4155,7 +4605,7 @@ export default function CreateAllocation() {
 
           const landAllocationPayload: AllocationLandDetailRequest = {
             allocationPlanId:
-              Number(planId),
+              detailPlanId,
 
             expLandReqId:
               Number(
@@ -4178,15 +4628,21 @@ export default function CreateAllocation() {
               "Allocated",
           };
 
-          await createAllocationLandDetail(
+          if (!collectOnly) {
+            throw new Error(
+              "Allocation details must be created through POST /AllocationPlans/with-details."
+            );
+          }
+
+          collectedDetails.landDetails.push(
             landAllocationPayload
           );
         }
       }
 
-      setAllocationDetailsSaved(
-        true
-      );
+      setAllocationDetailsSaved(true);
+
+      return collectedDetails;
     };
 
   const handleWeightInputChange = (
@@ -4414,39 +4870,79 @@ export default function CreateAllocation() {
 
           if (!phase) return [];
 
-          return humanIds.flatMap((humanId) => {
-            const human = humanProfiles.find(
-              (item) => item.humanResourceId === humanId
+          const assignments =
+            buildHumanRequirementAssignments(
+              phaseId,
+              humanIds
             );
+
+          if (!assignments) {
+            return [];
+          }
+
+          return assignments.flatMap((assignment) => {
+            const human = humanProfiles.find(
+              (item) =>
+                item.humanResourceId ===
+                assignment.humanId
+            );
+
             if (!human) return [];
 
-            const match = findHumanMatch(phaseId, human);
-            if (!match) return [];
+            const matchRequirement =
+              assignment.requirement;
 
-            const phaseRequirement = phaseHumanReqs.find(
-              (item) =>
-                item.phaseId === phaseId &&
-                item.roleId === match.requirement.roleId
-            );
+            const phaseRequirement =
+              phaseHumanReqs.find(
+                (item) =>
+                  item.phaseId === phaseId &&
+                  item.roleId ===
+                    matchRequirement.roleId &&
+                  (
+                    matchRequirement.requiredSkillId == null ||
+                    item.requiredSkillId ==
+                      matchRequirement.requiredSkillId
+                  )
+              );
+
             const startDate =
-              phase.expectedStartDate || selectedExp.expectStartDate;
+              phase.expectedStartDate ||
+              selectedExp.expectStartDate;
             const endDate =
-              phase.expectedEndDate || selectedExp.expectEndDate;
+              phase.expectedEndDate ||
+              selectedExp.expectEndDate;
 
             return [{
-              humanResourceId: human.humanResourceId,
-              assignedRole: match.requirement.roleName ?? null,
-              expHumanReqId: phaseRequirement
-                ? null
-                : match.requirement.expHumanReqId,
-              phaseHumanReqId: phaseRequirement?.phaseHumanReqId ?? null,
+              humanResourceId:
+                human.humanResourceId,
+              assignedRole:
+                matchRequirement.roleName ??
+                null,
+              expHumanReqId:
+                phaseRequirement
+                  ? null
+                  : matchRequirement.expHumanReqId,
+              phaseHumanReqId:
+                phaseRequirement
+                  ?.phaseHumanReqId ??
+                null,
               workingHours: Number(
-                match.requirement.workingHoursPerDay ||
+                matchRequirement
+                  .workingHoursPerDay ||
                 human.maxWorkingHoursPerDay ||
                 8
               ),
-              startDate: startDate ? convertDateToIso(startDate) : null,
-              endDate: endDate ? convertDateToIso(endDate, true) : null,
+              startDate:
+                startDate
+                  ? convertDateToIso(startDate)
+                  : null,
+              endDate:
+                endDate
+                  ? convertDateToIso(
+                      endDate,
+                      true
+                    )
+                  : null,
             }];
           });
         });
@@ -4580,54 +5076,78 @@ export default function CreateAllocation() {
       const createdEquipmentDetailIds: number[] = [];
 
       try {
-        const planId =
-          await ensureDraftAllocationPlan();
+        let planId: number;
 
         /*
          * ======================================================
          * MANAGER RESOURCE ALLOCATION
          * ======================================================
+         *
+         * Create the Allocation Plan and its Land/Equipment/Human
+         * details in one POST:
+         *
+         *   POST /api/AllocationPlans/with-details
+         *
+         * The nested detail payloads use allocationPlanId = 0 because
+         * the parent Allocation Plan does not exist until this request
+         * is processed by the backend.
          */
-
         if (isManagerAllocation) {
-          const assignmentPlan = await getAllocationPlanById(planId);
           const experimentForAllocation = await getExperimentById(
             Number(selectedExpId)
           );
+
           const experimentStatus = String(
             experimentForAllocation.status || ""
           )
             .trim()
             .toLowerCase();
 
-          if (experimentStatus !== "planning" && experimentStatus !== "ready") {
+          if (
+            experimentStatus !== "planning" &&
+            experimentStatus !== "ready"
+          ) {
             throw new Error(
               "Manager can create an Allocation Plan only from an Experiment that has already been approved."
             );
           }
 
-          if (
-            Number(assignmentPlan.experimentId) !== Number(selectedExpId) ||
-            String(assignmentPlan.approveStatus || "").trim().toLowerCase() !== "draft"
-          ) {
-            throw new Error(
-              "The Allocation Plan Draft is invalid for the selected approved Experiment."
-            );
+          /*
+           * If the screen was opened from an approved source Allocation
+           * Plan, keep the existing compatibility check. The new
+           * Allocation Plan is still created by /with-details.
+           */
+          if (initialPlanId > 0) {
+            const sourcePlan =
+              await getAllocationPlanById(initialPlanId);
+
+            if (
+              String(sourcePlan.approveStatus || "")
+                .trim()
+                .toLowerCase() !== "approved"
+            ) {
+              throw new Error(
+                "Manager can allocate resources only after the source Allocation Plan has been approved."
+              );
+            }
+
+            if (
+              Number(sourcePlan.experimentId) !==
+              Number(selectedExpId)
+            ) {
+              throw new Error(
+                "This Allocation Plan does not belong to the selected experiment."
+              );
+            }
           }
 
-          if (
-            totalEquipmentCount ===
-            0
-          ) {
+          if (totalEquipmentCount === 0) {
             throw new Error(
               "Please select the required equipment."
             );
           }
 
-          if (
-            totalHumanCount ===
-            0
-          ) {
+          if (totalHumanCount === 0) {
             throw new Error(
               "Please select the required personnel."
             );
@@ -4643,30 +5163,73 @@ export default function CreateAllocation() {
           }
 
           /*
-           * Đây là nơi duy nhất trong màn hình này
-           * resource allocation được persist.
-           *
-           * KHÔNG persist Schedule.
+           * Build and validate all selected resources first.
+           * collectOnly=true prevents the old three POST endpoints from
+           * running and returns the exact nested payloads required by
+           * /AllocationPlans/with-details.
            */
-          await persistAllocationDetails(
-            planId,
-            createdEquipmentDetailIds
+          const details =
+            await persistAllocationDetails(
+              0,
+              createdEquipmentDetailIds,
+              { collectOnly: true }
+            );
+
+          const createdPlan =
+            await createAllocationPlanWithDetails({
+              experimentId: Number(selectedExpId),
+              approveStatus: "Draft",
+              landDetails: details.landDetails,
+              equipmentDetails: details.equipmentDetails,
+              humanDetails: details.humanDetails,
+            });
+
+          planId = Number(
+            createdPlan?.allocationPlanId ||
+            (
+              createdPlan as unknown as {
+                id?: number;
+              }
+            )?.id ||
+            0
           );
 
+          if (planId <= 0) {
+            throw new Error(
+              "The /AllocationPlans/with-details API did not return a valid Allocation Plan ID."
+            );
+          }
+
           /*
-           * Fitness Score không bắt buộc để lưu resource.
-           *
-           * Nếu Manager đã Evaluate thì score đã được backend
-           * cập nhật. Nếu chưa Evaluate thì vẫn cho phép lưu.
+           * Verify the server-created parent and then use the normal
+           * workflow transitions.
            */
-          // A Manager-created plan follows the existing Allocation workflow:
-          // save the resources to Draft, then submit it as Pending.
+          const assignmentPlan =
+            await getAllocationPlanById(planId);
+
+          if (
+            Number(assignmentPlan.experimentId) !==
+              Number(selectedExpId) ||
+            String(assignmentPlan.approveStatus || "")
+              .trim()
+              .toLowerCase() !== "draft"
+          ) {
+            throw new Error(
+              "The Allocation Plan created by /with-details is invalid for the selected approved Experiment."
+            );
+          }
+
+          /*
+           * Manager-created Allocation Plans are submitted and then
+           * approved by the Manager, matching the existing workflow.
+           */
           await submitAllocationPlan(planId);
+          await approveAllocationPlan(planId);
 
           sendLocalNotification({
             title: "Allocation Plan Created",
             message:
-              `Allocation Plan #${planId} was created from approved Experiment #${selectedExpId} and submitted for approval.`,
+              `Allocation Plan #${planId} was created and approved by Manager for Experiment #${selectedExpId}. The Manager can now assign the work schedule.`,
             notificationType: "Success",
             referenceType: "AllocationPlan",
             referenceId: planId,
@@ -4685,12 +5248,19 @@ export default function CreateAllocation() {
         }
 
         /*
+         * Researcher flow keeps the existing Draft -> details -> evaluate
+         * -> submit workflow because the researcher UI needs an Allocation
+         * Plan ID before calling the separate evaluation endpoint.
+         */
+        /*
          * ======================================================
          * RESEARCHER SUBMIT PLAN
          * ======================================================
          *
-         * Researcher KHÔNG persist resource.
-         * Researcher KHÔNG persist Schedule.
+         * Create the Draft Allocation Plan together with all selected
+         * resources in ONE request. Do not call the legacy detail POST
+         * endpoints (/AllocationEquipmentDetails, /AllocationHumanDetails,
+         * /AllocationLandDetails).
          */
 
         if (
@@ -4726,17 +5296,46 @@ export default function CreateAllocation() {
           );
         }
 
-        /*
-         * Fitness Score is no longer part of the Researcher submit flow.
-         * Therefore resource details must be persisted HERE before the
-         * Allocation Plan is submitted. Previously this happened only from
-         * the Evaluate Fitness Score handler, so removing that UI also
-         * removed the only call that created Equipment/Human/Land details.
-         */
-        await persistAllocationDetails(
-          planId,
-          createdEquipmentDetailIds
+        const details =
+          await persistAllocationDetails(
+            0,
+            [],
+            { collectOnly: true }
+          );
+
+        const createdPlan =
+          await createAllocationPlanWithDetails({
+            experimentId: Number(selectedExpId),
+            approveStatus: "Draft",
+            landDetails: details.landDetails,
+            equipmentDetails: details.equipmentDetails,
+            humanDetails: details.humanDetails,
+          });
+
+        planId = Number(
+          createdPlan?.allocationPlanId ||
+          (createdPlan as unknown as { id?: number })?.id ||
+          0
         );
+
+        if (planId <= 0) {
+          throw new Error(
+            "The /AllocationPlans/with-details API did not return a valid Allocation Plan ID."
+          );
+        }
+
+        draftPlanIdRef.current = planId;
+        setDraftPlanId(planId);
+
+        const savedPlan = await getAllocationPlanById(planId);
+        if (
+          Number(savedPlan?.experimentId || 0) !== Number(selectedExpId) ||
+          String(savedPlan?.approveStatus || "").trim().toLowerCase() !== "draft"
+        ) {
+          throw new Error(
+            "The Allocation Plan created by /with-details is not a valid Draft for the selected experiment."
+          );
+        }
 
         const savedEvaluation = await evaluateAllocationPlan(
           planId,
@@ -6010,53 +6609,64 @@ export default function CreateAllocation() {
                                       }
 
                                       /*
-                                       * Enforce quantity of the matched
-                                       * personnel requirement.
+                                       * Validate the whole selected set instead
+                                       * of counting people against the first
+                                       * requirement they happen to match.
+                                       *
+                                       * This is what allows:
+                                       *   Technician + Skill A -> 1
+                                       *   Technician + Skill B -> 1
+                                       *
+                                       * to accept two technicians.
                                        */
-                                      const selectedForRequirement =
-                                        current.filter(
-                                          (selectedHumanId) => {
-                                            const selectedHuman =
-                                              humanProfiles.find(
-                                                (item) =>
-                                                  item.humanResourceId ===
-                                                  selectedHumanId
-                                              );
-                                            if (!selectedHuman) return false;
-                                            const selectedMatch =
-                                              findHumanMatch(
-                                                phaseId,
-                                                selectedHuman
-                                              );
-                                            return (
-                                              selectedMatch?.requirement
-                                                .expHumanReqId ===
-                                              match.requirement
-                                                .expHumanReqId
-                                            );
-                                          }
-                                        ).length;
+                                      const candidateHumanIds = [
+                                        ...current,
+                                        human.humanResourceId,
+                                      ];
 
-                                      const requiredQuantity =
-                                        Math.max(
-                                          0,
-                                          Number(
-                                            match.requirement.quantity || 0
-                                          )
+                                      const assignments =
+                                        buildHumanRequirementAssignments(
+                                          phaseId,
+                                          candidateHumanIds
                                         );
 
-                                      if (
-                                        requiredQuantity > 0 &&
-                                        selectedForRequirement >=
-                                        requiredQuantity
-                                      ) {
+                                      if (!assignments) {
+                                        const requirementLabel =
+                                          match.requirement.roleName ||
+                                          `Role #${match.requirement.roleId}`;
+
                                         setError(
-                                          `Requirement "${match.requirement.roleName ||
-                                          `Role #${match.requirement.roleId}`
-                                          }" requires only ${requiredQuantity} person(s).`
+                                          `The selected personnel cannot satisfy the personnel requirements for this phase. ` +
+                                          `Please select a person matching the remaining role/skill requirement for "${requirementLabel}".`
                                         );
                                         return;
                                       }
+
+                                      const requiredTotal =
+                                        getHumanRequirementsForPhase(
+                                          phaseId
+                                        ).reduce(
+                                          (total, requirement) =>
+                                            total +
+                                            Math.max(
+                                              0,
+                                              Number(
+                                                requirement.quantity || 0
+                                              )
+                                            ),
+                                          0
+                                        );
+
+                                      if (
+                                        requiredTotal > 0 &&
+                                        assignments.length > requiredTotal
+                                      ) {
+                                        setError(
+                                          `The phase requires only ${requiredTotal} personnel in total.`
+                                        );
+                                        return;
+                                      }
+
 
                                       setSelectedHumansByPhase(
                                         (previous) => ({

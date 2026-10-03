@@ -1824,18 +1824,7 @@ export default function ExperimentDetail() {
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/experiments/${experiment.experimentId}/ai-suggestions`
-                          )
-                        }
-                        className="btn-secondary-white"
-                        style={{ whiteSpace: "nowrap" }}
-                      >
-                        AI Optimization
-                      </button>
+                      
                     </>
                   )}
               </div>

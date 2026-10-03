@@ -19,6 +19,15 @@ interface PhasesStepProps {
   baseEndDate?: string;
 }
 
+const addDays = (dateStr: string, days: number) => {
+  if (!dateStr) return "";
+
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + days);
+
+  return date.toISOString().split("T")[0];
+};
+
 export const PhasesStep: React.FC<PhasesStepProps> = ({
   phases,
   onChange,
@@ -27,15 +36,135 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
 }) => {
   const handleAddPhase = () => {
     const newPhaseOrder = phases.length + 1;
+
+    if (phases.length === 0) {
+      const newPhase: PhaseFormItem = {
+        id: `phase-temp-${Date.now()}-${Math.random()}`,
+        phaseName: `Phase ${newPhaseOrder}: `,
+        phaseDescription: "",
+        phaseOrder: newPhaseOrder,
+        expectedStartDate:
+          baseStartDate ||
+          new Date().toISOString().split("T")[0],
+        expectedEndDate:
+          baseEndDate ||
+          baseStartDate ||
+          new Date().toISOString().split("T")[0],
+        status: "Planned",
+      };
+
+      onChange([newPhase]);
+      return;
+    }
+
+    const lastPhase = phases[phases.length - 1];
+
+    /*
+     * Each new phase must start at least one day after
+     * the previous phase ends.
+     */
+    let newStart = addDays(
+      lastPhase.expectedEndDate || baseStartDate,
+      1
+    );
+
+    /*
+     * If the previous phase already reaches the experiment end,
+     * split the available experiment period so the new phase
+     * still has a different time range.
+     *
+     * Example:
+     * Phase 1: 04/10 -> 01/11
+     * Add Phase 2:
+     * Phase 1: 04/10 -> 17/10
+     * Phase 2: 18/10 -> 01/11
+     */
+    if (
+      baseEndDate &&
+      newStart > baseEndDate
+    ) {
+      const experimentStart =
+        baseStartDate ||
+        phases[0].expectedStartDate;
+
+      const previousStart =
+        lastPhase.expectedStartDate ||
+        experimentStart;
+
+      const previousEnd =
+        lastPhase.expectedEndDate ||
+        baseEndDate;
+
+      const startTime = new Date(
+        `${previousStart}T00:00:00`
+      ).getTime();
+
+      const endTime = new Date(
+        `${previousEnd}T00:00:00`
+      ).getTime();
+
+      const availableDays = Math.floor(
+        (endTime - startTime) /
+          (1000 * 60 * 60 * 24)
+      );
+
+      if (availableDays >= 1) {
+        const splitOffset = Math.floor(
+          availableDays / 2
+        );
+
+        const splitDate = addDays(
+          previousStart,
+          splitOffset
+        );
+
+        const newPhaseStart =
+          addDays(splitDate, 1);
+
+        const updated = phases.map(
+          (phase, index) =>
+            index === phases.length - 1
+              ? {
+                  ...phase,
+                  expectedEndDate: splitDate,
+                }
+              : phase
+        );
+
+        const newPhase: PhaseFormItem = {
+          id: `phase-temp-${Date.now()}-${Math.random()}`,
+          phaseName: `Phase ${newPhaseOrder}: `,
+          phaseDescription: "",
+          phaseOrder: newPhaseOrder,
+          expectedStartDate: newPhaseStart,
+          expectedEndDate: baseEndDate,
+          status: "Planned",
+        };
+
+        onChange([...updated, newPhase]);
+        return;
+      }
+
+      /*
+       * There is no free day left for another phase.
+       * Do not create an overlapping phase.
+       */
+      return;
+    }
+
     const newPhase: PhaseFormItem = {
       id: `phase-temp-${Date.now()}-${Math.random()}`,
       phaseName: `Phase ${newPhaseOrder}: `,
       phaseDescription: "",
       phaseOrder: newPhaseOrder,
-      expectedStartDate: baseStartDate || new Date().toISOString().split("T")[0],
-      expectedEndDate: baseEndDate || new Date().toISOString().split("T")[0],
+      expectedStartDate: newStart,
+      expectedEndDate:
+        baseEndDate && newStart <= baseEndDate
+          ? baseEndDate
+          : newStart,
       status: "Planned",
     };
+
     onChange([...phases, newPhase]);
   };
 
@@ -43,6 +172,7 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
     const updated = phases
       .filter((p) => p.id !== id)
       .map((p, idx) => ({ ...p, phaseOrder: idx + 1 }));
+
     onChange(updated);
   };
 
@@ -51,10 +181,174 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
     field: keyof PhaseFormItem,
     value: string | number
   ) => {
+    const phaseIndex = phases.findIndex(
+      (p) => p.id === id
+    );
+
+    if (phaseIndex === -1) return;
+
     const updated = phases.map((p) =>
       p.id === id ? { ...p, [field]: value } : p
     );
-    onChange(updated);
+
+    if (field === "expectedStartDate") {
+      let newStart = String(value);
+
+      const previousPhase =
+        phases[phaseIndex - 1];
+
+      const nextPhase =
+        phases[phaseIndex + 1];
+
+      const minimumStart =
+        previousPhase?.expectedEndDate
+          ? addDays(
+              previousPhase.expectedEndDate,
+              1
+            )
+          : baseStartDate;
+
+      const maximumStart =
+        nextPhase?.expectedStartDate
+          ? addDays(
+              nextPhase.expectedStartDate,
+              -1
+            )
+          : updated[phaseIndex]
+                .expectedEndDate ||
+            baseEndDate;
+
+      if (
+        minimumStart &&
+        newStart < minimumStart
+      ) {
+        newStart = minimumStart;
+      }
+
+      if (
+        maximumStart &&
+        newStart > maximumStart
+      ) {
+        newStart = maximumStart;
+      }
+
+      updated[phaseIndex] = {
+        ...updated[phaseIndex],
+        expectedStartDate: newStart,
+      };
+
+      /*
+       * Keep the current phase valid if its start date
+       * is moved after its current end date.
+       */
+      if (
+        updated[phaseIndex].expectedEndDate &&
+        newStart >
+          updated[phaseIndex].expectedEndDate
+      ) {
+        updated[phaseIndex].expectedEndDate =
+          newStart;
+      }
+    }
+
+    if (field === "expectedEndDate") {
+      let newEnd = String(value);
+
+      const currentPhase =
+        updated[phaseIndex];
+
+      const nextPhase =
+        phases[phaseIndex + 1];
+
+      const minimumEnd =
+        currentPhase.expectedStartDate ||
+        baseStartDate;
+
+      const maximumEnd =
+        nextPhase?.expectedStartDate
+          ? addDays(
+              nextPhase.expectedStartDate,
+              -1
+            )
+          : baseEndDate;
+
+      if (
+        minimumEnd &&
+        newEnd < minimumEnd
+      ) {
+        newEnd = minimumEnd;
+      }
+
+      if (
+        maximumEnd &&
+        newEnd > maximumEnd
+      ) {
+        newEnd = maximumEnd;
+      }
+
+      updated[phaseIndex] = {
+        ...updated[phaseIndex],
+        expectedEndDate: newEnd,
+      };
+    }
+
+    onChange(
+      updated.map((phase, index) => ({
+        ...phase,
+        phaseOrder: index + 1,
+      }))
+    );
+  };
+
+  const getMinimumStartDate = (
+    index: number
+  ): string | undefined => {
+    if (index === 0) {
+      return baseStartDate || undefined;
+    }
+
+    const previousPhase = phases[index - 1];
+
+    return previousPhase.expectedEndDate
+      ? addDays(
+          previousPhase.expectedEndDate,
+          1
+        )
+      : baseStartDate || undefined;
+  };
+
+  const getMaximumStartDate = (
+    index: number
+  ): string | undefined => {
+    const nextPhase = phases[index + 1];
+
+    if (nextPhase?.expectedStartDate) {
+      return addDays(
+        nextPhase.expectedStartDate,
+        -1
+      );
+    }
+
+    return (
+      phases[index].expectedEndDate ||
+      baseEndDate ||
+      undefined
+    );
+  };
+
+  const getMaximumEndDate = (
+    index: number
+  ): string | undefined => {
+    const nextPhase = phases[index + 1];
+
+    if (nextPhase?.expectedStartDate) {
+      return addDays(
+        nextPhase.expectedStartDate,
+        -1
+      );
+    }
+
+    return baseEndDate || undefined;
   };
 
   return (
@@ -115,7 +409,11 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
                     type="text"
                     value={phase.phaseName}
                     onChange={(e) =>
-                      handleUpdatePhase(phase.id, "phaseName", e.target.value)
+                      handleUpdatePhase(
+                        phase.id,
+                        "phaseName",
+                        e.target.value
+                      )
                     }
                     placeholder="e.g. Site Preparation & Soil Sampling"
                     className="planning-input"
@@ -131,8 +429,8 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
                       <input
                         type="date"
                         value={phase.expectedStartDate}
-                        min={baseStartDate || undefined}
-                        max={phase.expectedEndDate || baseEndDate || undefined}
+                        min={getMinimumStartDate(index)}
+                        max={getMaximumStartDate(index)}
                         onChange={(e) =>
                           handleUpdatePhase(
                             phase.id,
@@ -147,6 +445,7 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
                       </div>
                     </div>
                   </div>
+
                   <div className="planning-field-group">
                     <label>
                       End Date <span className="planning-required">*</span>
@@ -155,8 +454,11 @@ export const PhasesStep: React.FC<PhasesStepProps> = ({
                       <input
                         type="date"
                         value={phase.expectedEndDate}
-                        min={phase.expectedStartDate || baseStartDate || undefined}
-                        max={baseEndDate || undefined}
+                        min={
+                          phase.expectedStartDate ||
+                          getMinimumStartDate(index)
+                        }
+                        max={getMaximumEndDate(index)}
                         onChange={(e) =>
                           handleUpdatePhase(
                             phase.id,

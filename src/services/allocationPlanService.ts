@@ -5,6 +5,7 @@ import type {
   AllocationPlanFilter,
   AllocationPlanPage,
   AllocationPlanRequest,
+  CreateAllocationPlanWithDetailsRequest,
 } from "../types/allocationPlan";
 
 import {
@@ -366,6 +367,17 @@ export async function getAllocationPlanById(
   const [enriched] = await enrichAllocationPlans([rawPlan]);
 
   return enriched || rawPlan;
+}
+
+export async function createAllocationPlanWithDetails(
+  payload: CreateAllocationPlanWithDetailsRequest
+): Promise<AllocationPlan> {
+  const response = await api.post(
+    "/AllocationPlans/with-details",
+    payload
+  );
+
+  return unwrapResponse<AllocationPlan>(response.data);
 }
 
 export async function createAllocationPlan(
