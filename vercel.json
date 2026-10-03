@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/:match*",
+      "destination": "http://forestryresourceplanning.runasp.net/api/:match*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/"
     }

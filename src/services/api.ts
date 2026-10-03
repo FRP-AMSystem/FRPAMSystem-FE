@@ -11,18 +11,11 @@ interface ApiErrorResponse {
   errors?: Record<string, string[]>;
 }
 
-const isLocalhost =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1");
-
 const envApiUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
-const API_BASE_URL = isLocalhost
-  ? "/api"
-  : envApiUrl
-    ? `${envApiUrl.replace(/\/$/, "")}/api`
-    : "https://forestryresourceplanning.runasp.net/api";
+const API_BASE_URL = envApiUrl
+  ? `${envApiUrl.replace(/\/$/, "")}/api`
+  : "/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
