@@ -210,7 +210,10 @@ export async function createEquipmentCategory(
   const response =
     await api.post(
       "/EquipmentCategories",
-      payload
+      {
+        categoryName: payload.equipmentCategoryName,
+        description: payload.description ?? null,
+      }
     );
 
   return normalizeEquipmentCategory(
@@ -229,7 +232,10 @@ export async function updateEquipmentCategory(
   const response =
     await api.put(
       `/EquipmentCategories/${id}`,
-      payload
+      {
+        categoryName: payload.equipmentCategoryName,
+        description: payload.description ?? null,
+      }
     );
 
   return normalizeEquipmentCategory(
