@@ -634,15 +634,80 @@
   border-color: #fca5a5;
 }
 
-.eq-manager-request-table {
-  min-width: 980px;
+.eq-extension-request-table {
+  min-width: 1320px;
 }
 
-.eq-manager-request-table .eq-request-reason-cell {
+.eq-change-request-table {
+  min-width: 1540px;
+}
+
+.eq-extension-request-table td,
+.eq-change-request-table td {
+  height: auto;
+  min-height: 72px;
+  vertical-align: top;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.eq-request-reason-cell {
   max-width: 220px;
   white-space: normal;
   color: var(--eq-muted);
   line-height: 1.45;
+}
+
+.eq-request-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.eq-request-status.pending {
+  color: #a16207;
+  background: #fef3c7;
+}
+
+.eq-request-status.approved {
+  color: var(--eq-green-dark);
+  background: var(--eq-green-soft);
+}
+
+.eq-request-status.rejected,
+.eq-request-status.cancelled {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.eq-manager-request-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(76px, 1fr));
+  gap: 5px;
+  width: 157px;
+}
+
+.eq-manager-request-actions .eq-action-btn {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.eq-action-btn.eq-action-approve {
+  color: var(--eq-green-dark);
+  background: var(--eq-green-soft);
+  border-color: var(--eq-green-border);
+}
+
+.eq-action-btn.eq-action-approve:hover:not(:disabled) {
+  background: #dcfce7;
+  border-color: #86efac;
 }
 
 .eq-action-btn.eq-action-handover {

@@ -50,10 +50,19 @@ import { getExperimentPhases } from "../../services/experimentPhaseService";
 import { getExperimentEquipmentRequirements } from "../../services/experimentEquipmentRequirementService";
 import { getUsers } from "../../services/userService";
 import { getEquipmentTypes, type EquipmentType } from "../../services/equipmentService";
-import { getAvailableEquipmentInstances } from "../../services/equipmentInstanceService";
 import {
+  getAvailableEquipmentInstances,
+  getEquipmentInstances,
+} from "../../services/equipmentInstanceService";
+import {
+  approveEquipmentChangeRequest,
+  approveEquipmentExtensionRequest,
   createEquipmentChangeRequest,
   createEquipmentExtensionRequest,
+  getEquipmentChangeRequests,
+  getEquipmentExtensionRequests,
+  rejectEquipmentChangeRequest,
+  rejectEquipmentExtensionRequest,
 } from "../../services/equipmentRequestService";
 
 import {
@@ -69,6 +78,10 @@ import { getCurrentUserTokenInfo } from "../../utils/storage";
 import type { AllocationEquipmentDetail } from "../../types/allocationDetail";
 import type { EquipmentConditionLevel } from "../../types/equipmentInstance";
 import type { EquipmentReturn } from "../../types/equipmentReturn";
+import type {
+  EquipmentChangeRequest,
+  EquipmentExtensionRequest,
+} from "../../types/equipmentRequest";
 import type { ExperimentPhase } from "../../types/experimentPhase";
 import type { ExperimentEquipmentRequirement } from "../../types/experimentEquipmentRequirement";
 import type { EquipmentInstance } from "../../types/equipmentInstance";
@@ -83,7 +96,9 @@ type TabFilter =
   | "all"
   | "inuse"
   | "allocated"
-  | "completed";
+  | "completed"
+  | "extensions"
+  | "changes";
 
 /* =========================================================
    HELPERS
@@ -111,6 +126,11 @@ function normalizeStatus(
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+function formatRequestStatus(value?: string | null): string {
+  if (!value) return "Unknown";
+  return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function getEquipmentDisplayName(
@@ -278,6 +298,9 @@ export default function EquipmentReturnPage() {
   const [handoverRecords, setHandoverRecords] = useState<
     EquipmentHandoverRecord[]
   >([]);
+  const [extensionRequests, setExtensionRequests] = useState<EquipmentExtensionRequest[]>([]);
+  const [changeRequests, setChangeRequests] = useState<EquipmentChangeRequest[]>([]);
+  const [equipmentInstancesById, setEquipmentInstancesById] = useState<Record<number, EquipmentInstance>>({});
 
   const [equipmentRequestModal, setEquipmentRequestModal] = useState<{
     kind: "extension" | "change";
@@ -383,6 +406,12 @@ export default function EquipmentReturnPage() {
     setRejectReason,
   ] = useState<string>("");
 
+  const [managerRejectRequest, setManagerRejectRequest] = useState<{
+    kind: "extension" | "change";
+    id: number;
+  } | null>(null);
+  const [managerRejectReason, setManagerRejectReason] = useState("");
+
   /* =======================================================
      TOAST
   ======================================================= */
@@ -441,6 +470,10 @@ export default function EquipmentReturnPage() {
             users,
             plans,
             experiments,
+            extensions,
+            changes,
+            types,
+            instances,
           ] = await Promise.all([
             getAllocationEquipmentDetails({
               size: 400,
@@ -463,6 +496,14 @@ export default function EquipmentReturnPage() {
             getExperiments({
               size: 400,
             }).catch(() => []),
+
+            getEquipmentExtensionRequests({ size: 400 }).catch(() => []),
+
+            getEquipmentChangeRequests({ size: 400 }).catch(() => []),
+
+            getEquipmentTypes({ page: 1, size: 300 }).catch(() => []),
+
+            getEquipmentInstances({ page: 1, size: 1000 }).catch(() => []),
           ]);
 
           setItems(
@@ -480,6 +521,12 @@ export default function EquipmentReturnPage() {
             )
           );
           setHandoverRecords(handovers || []);
+          setExtensionRequests(extensions || []);
+          setChangeRequests(changes || []);
+          setEquipmentTypes(types || []);
+          setEquipmentInstancesById(
+            Object.fromEntries((instances || []).map((instance) => [instance.equipmentInstanceId, instance]))
+          );
 
           const pMap: Record<number, string> = {};
           plans.forEach((p) => {
@@ -980,6 +1027,22 @@ export default function EquipmentReturnPage() {
             }
           }
 
+          if (tabFilter === "extensions") {
+            matchesTab = isManager && extensionRequests.some(
+              (request) =>
+                request.allocationEquipmentDetailId === item.allocationEquipmentDetailId &&
+                normalizeStatus(request.status) === "pending"
+            );
+          }
+
+          if (tabFilter === "changes") {
+            matchesTab = isManager && changeRequests.some(
+              (request) =>
+                request.allocationEquipmentDetailId === item.allocationEquipmentDetailId &&
+                normalizeStatus(request.status) === "pending"
+            );
+          }
+
           if (!matchesTab) {
             return false;
           }
@@ -1065,7 +1128,59 @@ export default function EquipmentReturnPage() {
       planResearcherMap,
       experimentResearcherMap,
       returnerNamesById,
+      extensionRequests,
+      changeRequests,
     ]);
+
+  const filteredExtensionRequests = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+    return extensionRequests
+      .filter((request) => {
+        if (!keyword) return true;
+        const item = items.find((candidate) => candidate.allocationEquipmentDetailId === request.allocationEquipmentDetailId);
+        return [
+          getEquipmentDisplayName(item || ({} as AllocationEquipmentDetail)),
+          item?.assetCode,
+          item?.experimentName,
+          request.requestedEndDate,
+          request.reason,
+          returnerNamesById[request.requestedBy],
+          request.status,
+        ].filter(Boolean).join(" ").toLowerCase().includes(keyword);
+      })
+      .sort((left, right) => {
+        const pendingOrder = Number(normalizeStatus(right.status) === "pending") - Number(normalizeStatus(left.status) === "pending");
+        if (pendingOrder !== 0) return pendingOrder;
+        return Date.parse(right.createdAt || "") - Date.parse(left.createdAt || "");
+      });
+  }, [extensionRequests, items, returnerNamesById, searchTerm]);
+
+  const filteredChangeRequests = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase();
+    return changeRequests
+      .filter((request) => {
+        if (!keyword) return true;
+        const item = items.find((candidate) => candidate.allocationEquipmentDetailId === request.allocationEquipmentDetailId);
+        const requestedType = equipmentTypes.find((type) => Number(type.equipmentTypeId) === request.requestedEquipmentTypeId);
+        return [
+          getEquipmentDisplayName(item || ({} as AllocationEquipmentDetail)),
+          item?.assetCode,
+          item?.experimentName,
+          requestedType?.name,
+          requestedType?.equipmentTypeName,
+          request.requestedEquipmentTypeId,
+          request.requestedEquipmentInstanceId,
+          request.reason,
+          returnerNamesById[request.requestedBy],
+          request.status,
+        ].filter(Boolean).join(" ").toLowerCase().includes(keyword);
+      })
+      .sort((left, right) => {
+        const pendingOrder = Number(normalizeStatus(right.status) === "pending") - Number(normalizeStatus(left.status) === "pending");
+        if (pendingOrder !== 0) return pendingOrder;
+        return Date.parse(right.createdAt || "") - Date.parse(left.createdAt || "");
+      });
+  }, [changeRequests, equipmentTypes, items, returnerNamesById, searchTerm]);
 
   /* =======================================================
      PAGINATION
@@ -1081,6 +1196,9 @@ export default function EquipmentReturnPage() {
     filteredItems,
     10
   );
+
+  const extensionPagination = usePagination(filteredExtensionRequests, 10);
+  const changePagination = usePagination(filteredChangeRequests, 10);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1892,9 +2010,57 @@ export default function EquipmentReturnPage() {
     }
   };
 
+  const handleApproveManagerEquipmentRequest = async (
+    kind: "extension" | "change",
+    id: number
+  ) => {
+    try {
+      setActionLoading(true);
+      if (kind === "extension") {
+        await approveEquipmentExtensionRequest(id);
+      } else {
+        await approveEquipmentChangeRequest(id);
+      }
+      showToast("Equipment request approved.", "success");
+      await loadData();
+    } catch (error: any) {
+      showToast(
+        error?.response?.data?.message || error?.message || "Unable to approve the equipment request.",
+        "error"
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectManagerEquipmentRequest = async () => {
+    if (!managerRejectRequest || !managerRejectReason.trim()) return;
+
+    try {
+      setActionLoading(true);
+      if (managerRejectRequest.kind === "extension") {
+        await rejectEquipmentExtensionRequest(managerRejectRequest.id, managerRejectReason);
+      } else {
+        await rejectEquipmentChangeRequest(managerRejectRequest.id, managerRejectReason);
+      }
+      setManagerRejectRequest(null);
+      setManagerRejectReason("");
+      showToast("Equipment request rejected.", "success");
+      await loadData();
+    } catch (error: any) {
+      showToast(
+        error?.response?.data?.message || error?.message || "Unable to reject the equipment request.",
+        "error"
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const renderActions = (
     item: AllocationEquipmentDetail
   ) => {
+    const itemStatus = normalizeStatus(item.status).replace(/[\s_-]/g, "");
     const returnRecord =
       getReturnForAllocation(
         item.allocationEquipmentDetailId
@@ -1981,7 +2147,7 @@ export default function EquipmentReturnPage() {
       }
 
       if (
-        (item.status === "Allocated" || item.status === "Reserved") &&
+        (itemStatus === "allocated" || itemStatus === "reserved") &&
         (!handoverRecord || handoverStatus === "rejected" || handoverStatus === "cancelled")
       ) {
         return (
@@ -2018,10 +2184,8 @@ export default function EquipmentReturnPage() {
     ===================================================== */
 
     if (
-      item.status ===
-      "Allocated" ||
-      item.status ===
-      "Reserved"
+      itemStatus === "allocated" ||
+      itemStatus === "reserved"
     ) {
       if (getHandoverForAllocation(item.allocationEquipmentDetailId)?.status === "Pending") {
         return (
@@ -2057,8 +2221,7 @@ export default function EquipmentReturnPage() {
     }
 
     if (
-      item.status ===
-      "InUse" &&
+      itemStatus === "inuse" &&
       !submittedLocally &&
       returnStatus !==
       "pending"
@@ -2121,8 +2284,7 @@ export default function EquipmentReturnPage() {
     }
 
     if (
-      item.status ===
-      "Completed"
+      itemStatus === "completed"
     ) {
       return (
         <span className="eq-action-done">
@@ -2421,12 +2583,175 @@ export default function EquipmentReturnPage() {
               </span>
             </button>
 
+            {isManager && (
+              <>
+                <button
+                  type="button"
+                  className={tabFilter === "extensions" ? "eq-return-tab active" : "eq-return-tab"}
+                  onClick={() => setTabFilter("extensions")}
+                >
+                  Extensions
+                  <span>{extensionRequests.filter((request) => normalizeStatus(request.status) === "pending").length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={tabFilter === "changes" ? "eq-return-tab active" : "eq-return-tab"}
+                  onClick={() => setTabFilter("changes")}
+                >
+                  Equipment changes
+                  <span>{changeRequests.filter((request) => normalizeStatus(request.status) === "pending").length}</span>
+                </button>
+              </>
+            )}
+
           </div>
 
           {/* ===============================================
               TABLE
           =============================================== */}
 
+          {isManager && tabFilter === "extensions" ? (
+            <div className="eq-return-table-wrapper">
+              <table className="eq-return-table eq-extension-request-table">
+                <thead>
+                  <tr>
+                    <th>Equipment</th>
+                    <th>Asset Code</th>
+                    <th>Experiment / Phase</th>
+                    <th>Current End Date</th>
+                    <th>Requested End Date</th>
+                    <th>Requested By</th>
+                    <th>Reason</th>
+                    <th>Request Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={9} className="eq-table-empty">Loading extension requests...</td></tr>
+                  ) : extensionPagination.paginatedItems.length === 0 ? (
+                    <tr><td colSpan={9} className="eq-table-empty">No extension requests found.</td></tr>
+                  ) : extensionPagination.paginatedItems.map((request) => {
+                    const item = items.find((candidate) => candidate.allocationEquipmentDetailId === request.allocationEquipmentDetailId);
+                    const status = normalizeStatus(request.status);
+                    return (
+                      <tr key={`extension-${request.id}`}>
+                        <td>
+                          <div className="eq-device-cell">
+                            <div className="eq-device-icon"><Cpu size={17} /></div>
+                            <div>
+                              <strong>{item ? getEquipmentDisplayName(item) : `Allocation #${request.allocationEquipmentDetailId}`}</strong>
+                              <small>{item?.allocatedEquipmentTypeName || item?.requestedEquipmentTypeName || "-"}</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td><div className="eq-code-cell"><strong>{item?.assetCode || "-"}</strong>{item?.serialNumber && <small>SN: {item.serialNumber}</small>}</div></td>
+                        <td>
+                          <div className="eq-experiment-cell">
+                            <strong>{item?.experimentName || "-"}</strong>
+                            <small>{item ? resolvePhaseDisplayName(item, experimentPhasesMap[item.experimentId ?? 0] || [], experimentReqsMap[item.experimentId ?? 0] || []) : "-"}</small>
+                          </div>
+                        </td>
+                        <td>{formatDate(item?.endDate)}</td>
+                        <td><strong>{formatDate(request.requestedEndDate)}</strong></td>
+                        <td>{returnerNamesById[request.requestedBy] || `User #${request.requestedBy || "-"}`}</td>
+                        <td className="eq-request-reason-cell">{request.reason || "-"}</td>
+                        <td><span className={`eq-request-status ${status.replace(/[^a-z0-9]+/g, "-")}`}>{formatRequestStatus(request.status)}</span></td>
+                        <td>
+                          {status === "pending" ? (
+                            <div className="eq-manager-request-actions">
+                              <button type="button" className="eq-action-btn eq-action-approve" disabled={actionLoading} onClick={() => void handleApproveManagerEquipmentRequest("extension", request.id)}>Approve</button>
+                              <button type="button" className="eq-action-btn eq-action-reject" disabled={actionLoading} onClick={() => { setManagerRejectRequest({ kind: "extension", id: request.id }); setManagerRejectReason(""); }}>Reject</button>
+                            </div>
+                          ) : <span className="eq-action-muted">-</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : isManager && tabFilter === "changes" ? (
+            <div className="eq-return-table-wrapper">
+              <table className="eq-return-table eq-change-request-table">
+                <thead>
+                  <tr>
+                    <th>Current Equipment</th>
+                    <th>Asset Code</th>
+                    <th>Experiment / Phase</th>
+                    <th>Current Type</th>
+                    <th>Requested Type</th>
+                    <th>Requested Unit</th>
+                    <th>Requested By</th>
+                    <th>Reason</th>
+                    <th>Request Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={10} className="eq-table-empty">Loading equipment change requests...</td></tr>
+                  ) : changePagination.paginatedItems.length === 0 ? (
+                    <tr><td colSpan={10} className="eq-table-empty">No equipment change requests found.</td></tr>
+                  ) : changePagination.paginatedItems.map((request) => {
+                    const item = items.find((candidate) => candidate.allocationEquipmentDetailId === request.allocationEquipmentDetailId);
+                    const requestedType = equipmentTypes.find((type) => Number(type.equipmentTypeId) === request.requestedEquipmentTypeId);
+                    const requestedInstance = request.requestedEquipmentInstanceId
+                      ? equipmentInstancesById[request.requestedEquipmentInstanceId]
+                      : undefined;
+                    const status = normalizeStatus(request.status);
+                    return (
+                      <tr key={`change-${request.id}`}>
+                        <td>
+                          <div className="eq-device-cell">
+                            <div className="eq-device-icon"><Cpu size={17} /></div>
+                            <div>
+                              <strong>{item ? getEquipmentDisplayName(item) : `Allocation #${request.allocationEquipmentDetailId}`}</strong>
+                              <small>{item?.allocatedEquipmentTypeName || item?.requestedEquipmentTypeName || "-"}</small>
+                              <small>{item?.serialNumber ? `SN: ${item.serialNumber}` : "SN: -"}</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td><div className="eq-code-cell"><strong>{item?.assetCode || "-"}</strong>{item?.serialNumber && <small>SN: {item.serialNumber}</small>}</div></td>
+                        <td>
+                          <div className="eq-experiment-cell">
+                            <strong>{item?.experimentName || "-"}</strong>
+                            <small>{item ? resolvePhaseDisplayName(item, experimentPhasesMap[item.experimentId ?? 0] || [], experimentReqsMap[item.experimentId ?? 0] || []) : "-"}</small>
+                          </div>
+                        </td>
+                        <td>{item?.allocatedEquipmentTypeName || item?.requestedEquipmentTypeName || "-"}</td>
+                        <td><strong>{requestedType?.name || requestedType?.equipmentTypeName || `Type #${request.requestedEquipmentTypeId}`}</strong></td>
+                        <td>
+                          {requestedInstance ? (
+                            <div className="eq-code-cell">
+                              <strong>{requestedInstance.assetCode || `Unit #${requestedInstance.equipmentInstanceId}`}</strong>
+                              <small>{requestedInstance.serialNumber ? `SN: ${requestedInstance.serialNumber}` : "SN: -"}</small>
+                            </div>
+                          ) : request.requestedEquipmentInstanceId ? (
+                            <div className="eq-code-cell">
+                              <strong>Unit #{request.requestedEquipmentInstanceId}</strong>
+                              <small>SN unavailable</small>
+                            </div>
+                          ) : "Manager selects unit"}
+                        </td>
+                        <td>{returnerNamesById[request.requestedBy] || `User #${request.requestedBy || "-"}`}</td>
+                        <td className="eq-request-reason-cell">{request.reason || "-"}</td>
+                        <td><span className={`eq-request-status ${status.replace(/[^a-z0-9]+/g, "-")}`}>{formatRequestStatus(request.status)}</span></td>
+                        <td>
+                          {status === "pending" ? (
+                            <div className="eq-manager-request-actions">
+                              <button type="button" className="eq-action-btn eq-action-approve" disabled={actionLoading} onClick={() => void handleApproveManagerEquipmentRequest("change", request.id)}>Approve</button>
+                              <button type="button" className="eq-action-btn eq-action-reject" disabled={actionLoading} onClick={() => { setManagerRejectRequest({ kind: "change", id: request.id }); setManagerRejectReason(""); }}>Reject</button>
+                            </div>
+                          ) : <span className="eq-action-muted">-</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
           <div className="eq-return-table-wrapper">
 
             <table className="eq-return-table">
@@ -2661,12 +2986,33 @@ export default function EquipmentReturnPage() {
             </table>
 
           </div>
+          )}
 
           {/* ===============================================
               PAGINATION
           =============================================== */}
 
-          {!loading &&
+          {!loading && isManager && tabFilter === "extensions" && filteredExtensionRequests.length > 0 && (
+            <Pagination
+              currentPage={extensionPagination.currentPage}
+              totalItems={filteredExtensionRequests.length}
+              pageSize={extensionPagination.pageSize}
+              onPageChange={extensionPagination.setCurrentPage}
+              onPageSizeChange={extensionPagination.setPageSize}
+            />
+          )}
+
+          {!loading && isManager && tabFilter === "changes" && filteredChangeRequests.length > 0 && (
+            <Pagination
+              currentPage={changePagination.currentPage}
+              totalItems={filteredChangeRequests.length}
+              pageSize={changePagination.pageSize}
+              onPageChange={changePagination.setCurrentPage}
+              onPageSizeChange={changePagination.setPageSize}
+            />
+          )}
+
+          {!loading && (!isManager || (tabFilter !== "extensions" && tabFilter !== "changes")) &&
             filteredItems.length >
             0 && (
               <Pagination
@@ -2689,6 +3035,67 @@ export default function EquipmentReturnPage() {
             )}
 
         </section>
+
+        {managerRejectRequest && isManager && (
+          <div
+            className="eq-modal-overlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !actionLoading) {
+                setManagerRejectRequest(null);
+                setManagerRejectReason("");
+              }
+            }}
+          >
+            <div className="eq-modal eq-return-modal">
+              <div className="eq-modal-header">
+                <div>
+                  <h2>Reject Equipment Request</h2>
+                  <p>Provide a reason so the Researcher understands this decision.</p>
+                </div>
+                <button
+                  type="button"
+                  className="eq-modal-close"
+                  onClick={() => {
+                    setManagerRejectRequest(null);
+                    setManagerRejectReason("");
+                  }}
+                  disabled={actionLoading}
+                  aria-label="Close"
+                >×</button>
+              </div>
+              <div className="eq-modal-body">
+                <div className="eq-form-group">
+                  <label htmlFor="manager-equipment-request-reason">Rejection reason <span>*</span></label>
+                  <textarea
+                    id="manager-equipment-request-reason"
+                    value={managerRejectReason}
+                    onChange={(event) => setManagerRejectReason(event.target.value)}
+                    maxLength={1000}
+                    disabled={actionLoading}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="eq-modal-footer">
+                <button
+                  type="button"
+                  className="eq-modal-btn-cancel"
+                  onClick={() => {
+                    setManagerRejectRequest(null);
+                    setManagerRejectReason("");
+                  }}
+                  disabled={actionLoading}
+                >Cancel</button>
+                <button
+                  type="button"
+                  className="eq-action-btn eq-action-reject"
+                  onClick={() => void handleRejectManagerEquipmentRequest()}
+                  disabled={actionLoading || !managerRejectReason.trim()}
+                >{actionLoading ? "Rejecting..." : "Confirm Rejection"}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {equipmentRequestModal && isResearcher && (
           <div
